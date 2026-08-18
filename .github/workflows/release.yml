@@ -1,0 +1,240 @@
+name: Release Management
+on:
+  push:
+    branches:
+      - master
+permissions:
+  contents: write
+jobs:
+  check-version:
+    name: Check Version Change
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.version-check.outputs.changed }}
+      version: ${{ steps.version-check.outputs.version }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Parse Version and Check Release Status
+        id: version-check
+        run: |
+          CURRENT_VERSION=$(git show HEAD:version.toml | sed -n 's/^version = "\(.*\)"/\1/p')
+          echo "Current version: $CURRENT_VERSION"
+
+          git fetch --tags origin 2>/dev/null || true
+          if git rev-parse "v$CURRENT_VERSION" >/dev/null 2>&1 || git ls-remote --tags origin "refs/tags/v$CURRENT_VERSION" | grep -q "v$CURRENT_VERSION"; then
+            echo "Tag v$CURRENT_VERSION already exists."
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "Tag v$CURRENT_VERSION has NOT been published yet. Triggering release!"
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    name: Build Binaries (${{ matrix.target.os }}-${{ matrix.target.arch }})
+    needs: [check-version]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - os: linux
+            arch: amd64
+            ext: ""
+          - os: linux
+            arch: arm64
+            ext: ""
+          - os: windows
+            arch: amd64
+            ext: ".exe"
+          - os: darwin
+            arch: amd64
+            ext: ""
+          - os: darwin
+            arch: arm64
+            ext: ""
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go Toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          # Disable the shared actions/setup-go cache. With 5 matrix legs
+          # building concurrently from the same repo, a cache key collision
+          # (or a race populating GOCACHE) can let one target's linked
+          # binary get replaced by another target's cached-but-unlinked
+          # object/archive output. Building clean removes that failure mode.
+          cache: false
+
+      - name: Build Binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.target.os }}
+          GOARCH: ${{ matrix.target.arch }}
+          # Give every matrix leg its own isolated build cache directory so
+          # there is no way for GOOS/GOARCH-specific compiled objects to be
+          # reused across targets even if Go's own cache keying misbehaves.
+          GOCACHE: ${{ github.workspace }}/.gocache-${{ matrix.target.os }}-${{ matrix.target.arch }}
+        run: |
+          BIN_NAME="whatsrook${{ matrix.target.ext }}"
+          cd cli && go build -v -o "../$BIN_NAME" .
+          echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
+
+      - name: Verify Binary
+        run: |
+          echo "Inspecting build output for ${{ matrix.target.os }}-${{ matrix.target.arch }}:"
+          file "$BIN_NAME"
+
+          case "${{ matrix.target.os }}" in
+            windows)
+              # Expect an MZ/PE header (bytes "4d 5a")
+              HEADER=$(head -c 2 "$BIN_NAME" | xxd -p)
+              if [ "$HEADER" != "4d5a" ]; then
+                echo "::error::Build produced an invalid PE binary for ${{ matrix.target.os }}-${{ matrix.target.arch }}. First bytes: $HEADER"
+                exit 1
+              fi
+              ;;
+            darwin)
+              # Expect Mach-O magic (feedface, feedfacf, cafebabe for fat binaries)
+              HEADER=$(head -c 4 "$BIN_NAME" | xxd -p)
+              case "$HEADER" in
+                feedface|feedfacf|cafebabe|cffaedfe|cefaedfe) ;;
+                *)
+                  echo "::error::Build produced an invalid Mach-O binary for ${{ matrix.target.os }}-${{ matrix.target.arch }}. First bytes: $HEADER"
+                  exit 1
+                  ;;
+              esac
+              ;;
+            linux)
+              # Expect ELF magic (7f 45 4c 46 = "\x7fELF")
+              HEADER=$(head -c 4 "$BIN_NAME" | xxd -p)
+              if [ "$HEADER" != "7f454c46" ]; then
+                echo "::error::Build produced an invalid ELF binary for ${{ matrix.target.os }}-${{ matrix.target.arch }}. First bytes: $HEADER (this is the '!<arch>'/__.PKGDEF signature of an unlinked Go archive object, not a linked executable, if it decodes to '213c61' etc.)"
+                exit 1
+              fi
+              ;;
+          esac
+
+          echo "Verified: $BIN_NAME is a valid native executable for ${{ matrix.target.os }}-${{ matrix.target.arch }}."
+
+      - name: Package Asset
+        run: |
+          mkdir staging
+          cp "$BIN_NAME" staging/
+          cp -r cli/resources staging/ 2>/dev/null || true
+          cp -r prompts staging/ 2>/dev/null || true
+          cp LICENSE staging/ 2>/dev/null || true
+          cp README.md staging/ 2>/dev/null || true
+          cp version.toml staging/ 2>/dev/null || true
+          tar -czf whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz -C staging .
+
+      - name: Upload Intermediary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz
+
+  alpha-release:
+    name: Alpha Nightly Per-Commit Release
+    needs: [check-version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Remove Stale Release Assets
+        run: |
+          # Purge stale assets from the alpha release: old zevBot artifacts and
+          # the whatsrook-windows-amd64.zip left over before the .tar.gz switch
+          ASSET_IDS=$(gh api repos/${{ github.repository }}/releases/tags/alpha \
+            --jq '.assets[] | select(
+              (.name | startswith("zevBot")) or
+              (.name == "whatsrook-windows-amd64.zip") or
+              (.name == "whatsrook-source.tar.gz")
+            ) | .id' 2>/dev/null || true)
+          for ASSET_ID in $ASSET_IDS; do
+            gh api --method DELETE repos/${{ github.repository }}/releases/assets/$ASSET_ID || true
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure Git User
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Advance Alpha Tag to HEAD
+        run: |
+          # Force-move the alpha tag to the current commit so GitHub regenerates
+          # the "Source code (zip)" and "Source code (tar.gz)" release archives
+          git tag -f alpha
+          git push -f origin alpha
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get Commit Info
+        id: commit-info
+        run: |
+          echo "subject=$(git log -1 --format='%s')" >> $GITHUB_OUTPUT
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          git log -1 --format='%b' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      - name: Publish Alpha Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: alpha
+          name: "Nightly / Alpha Build"
+          body: |
+            **${{ steps.commit-info.outputs.subject }}**
+
+            ${{ steps.commit-info.outputs.body }}
+
+            **Commit:** ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          files: artifacts/*/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  production-release:
+    name: Production Release
+    needs: [check-version, build]
+    if: needs.check-version.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code for Tagging
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git User
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Git Tag
+        run: |
+          git tag -f -a "v${{ needs.check-version.outputs.version }}" -m "Release v${{ needs.check-version.outputs.version }}"
+          git push -f origin "v${{ needs.check-version.outputs.version }}"
+
+      - name: Publish Production Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.check-version.outputs.version }}"
+          name: "Release v${{ needs.check-version.outputs.version }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: artifacts/*/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

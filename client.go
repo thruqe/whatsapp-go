@@ -1,0 +1,362 @@
+// Core WhatsRook WhatsApp client abstraction over wa-core.
+package whatsrook
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
+	"go.mau.fi/whatsmeow/store"
+	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
+	"whatsrook/utils"
+
+	_ "github.com/lib/pq"
+	_ "modernc.org/sqlite"
+)
+
+// ClientType represents the platform emulated by the WhatsApp client.
+type ClientType int
+
+var (
+	ErrLoggedOut = errors.New("logged out from WhatsApp")
+)
+
+const (
+	ClientChrome ClientType = iota
+	ClientAndroid
+	ClientIos
+)
+
+// ParseClientType converts a platform name string to its ClientType enum.
+func ParseClientType(s string) (ClientType, bool) {
+	c, ok := map[string]ClientType{
+		"chrome":  ClientChrome,
+		"android": ClientAndroid,
+		"ios":     ClientIos,
+	}[strings.ToLower(s)]
+	return c, ok
+}
+
+// Config holds configuration parameters for a Client instance.
+type Config struct {
+	Session         string
+	DataDir         string // Directory to store session data (default: "auth")
+	Database        string // Database connection URL or "sqlite" (default: "sqlite")
+	ClientType      ClientType
+	Verbose         bool
+	SkipOldMessages bool
+}
+
+// Abstraction over the whatsmeow WhatsApp client and store container.
+type Client struct {
+	Config Config
+
+	rawClient *whatsmeow.Client
+	container *sqlstore.Container
+	mu        sync.Mutex
+}
+
+// NewClient creates and initializes a new WhatsRook core Client instance.
+func NewClient(cfg Config) *Client {
+	c := &Client{Config: cfg}
+	c.applyDefaults()
+	return c
+}
+
+func (c *Client) applyDefaults() {
+	if c.Config.DataDir == "" {
+		c.Config.DataDir = "auth"
+	}
+}
+
+// WAClient returns the underlying whatsmeow.Client instance.
+func (c *Client) WAClient() *whatsmeow.Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.rawClient
+}
+
+// Container returns the underlying sqlstore.Container instance.
+func (c *Client) Container() *sqlstore.Container {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.container
+}
+
+// InitSession initializes session directory, logger, database store container, and whatsmeow client.
+func (c *Client) InitSession(ctx context.Context) error {
+	c.applyDefaults()
+
+	if c.Config.Session == "" {
+		return errors.New("session phone number is required")
+	}
+
+	sessionDir := filepath.Join(c.Config.DataDir, c.Config.Session)
+	if err := os.MkdirAll(sessionDir, 0755); err != nil {
+		return fmt.Errorf("failed to create session dir %q: %w", sessionDir, err)
+	}
+
+	if err := utils.InitLogger(sessionDir, c.Config.Verbose); err != nil {
+		return fmt.Errorf("failed to initialize logger: %w", err)
+	}
+
+	dbPath := filepath.Join(sessionDir, c.Config.Session+".db")
+
+	waLevel := "INFO"
+	if c.Config.Verbose {
+		waLevel = "DEBUG"
+	}
+
+	container, err := c.initStore(ctx, dbPath, waLevel)
+	if err != nil {
+		return fmt.Errorf("failed to open db: %w", err)
+	}
+
+	deviceStore, err := container.GetFirstDevice(ctx)
+	if err != nil {
+		_ = container.Close()
+		return fmt.Errorf("failed to get device: %w", err)
+	}
+
+	clientLog := utils.WhatsmeowStyle("Client", "INFO", true)
+	rawClient := whatsmeow.NewClient(deviceStore, clientLog)
+
+	switch c.Config.ClientType {
+	case ClientAndroid:
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_ANDROID_PHONE.Enum()
+		store.DeviceProps.Os = new("Android")
+	case ClientIos:
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_IOS_PHONE.Enum()
+		store.DeviceProps.Os = new("iOS")
+	default:
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
+		store.DeviceProps.Os = new("Linux")
+	}
+
+	c.mu.Lock()
+	c.container = container
+	c.rawClient = rawClient
+	c.mu.Unlock()
+
+	return nil
+}
+
+// Close closes the underlying database store container.
+func (c *Client) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.container != nil {
+		err := c.container.Close()
+		c.container = nil
+		return err
+	}
+	return nil
+}
+
+// AddEventHandler registers an event handler function on the whatsmeow client.
+func (c *Client) AddEventHandler(handler func(evt any)) {
+	c.mu.Lock()
+	cli := c.rawClient
+	c.mu.Unlock()
+	if cli != nil {
+		cli.AddEventHandler(handler)
+	}
+}
+
+// Connect connects the WhatsApp client.
+func (c *Client) Connect() error {
+	c.mu.Lock()
+	cli := c.rawClient
+	c.mu.Unlock()
+	if cli == nil {
+		return errors.New("client not initialized")
+	}
+	return cli.Connect()
+}
+
+// Disconnect disconnects the WhatsApp client.
+func (c *Client) Disconnect() {
+	c.mu.Lock()
+	cli := c.rawClient
+	c.mu.Unlock()
+	if cli != nil {
+		cli.Disconnect()
+	}
+}
+
+// Logout logs out the WhatsApp client session from WhatsApp servers.
+func (c *Client) Logout(ctx context.Context) error {
+	c.mu.Lock()
+	cli := c.rawClient
+	c.mu.Unlock()
+	if cli == nil {
+		return errors.New("client not initialized")
+	}
+	return cli.Logout(ctx)
+}
+
+// WipeSession removes the session folder and all contained database/cache files.
+func WipeSession(sessionDir string) {
+	if err := os.RemoveAll(sessionDir); err != nil && !os.IsNotExist(err) {
+		slog.Error("failed to remove session directory", "path", sessionDir, "err", err)
+		return
+	}
+	if err := os.MkdirAll(sessionDir, 0755); err != nil {
+		slog.Error("failed to recreate session directory", "path", sessionDir, "err", err)
+	}
+}
+
+// ClearSessionDB deletes current session device records from database store and wipes local session directory.
+func (c *Client) ClearSessionDB(ctx context.Context, sessionDir string) {
+	c.mu.Lock()
+	cli := c.rawClient
+	container := c.container
+	c.mu.Unlock()
+
+	if cli != nil && cli.Store != nil {
+		if err := cli.Store.Delete(ctx); err != nil {
+			slog.Warn("failed to delete session device store", "err", err)
+		}
+	} else if container != nil {
+		if devices, err := container.GetAllDevices(ctx); err == nil {
+			for _, dev := range devices {
+				_ = container.DeleteDevice(ctx, dev)
+			}
+		}
+	}
+
+	_ = c.Close()
+	WipeSession(sessionDir)
+}
+
+func sanitizeDBURL(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	if strings.HasPrefix(rawURL, "postgres://") || strings.HasPrefix(rawURL, "postgresql://") {
+		parts := strings.SplitN(rawURL, "@", 2)
+		if len(parts) == 2 {
+			schemeUser := parts[0]
+			subParts := strings.SplitN(schemeUser, ":", 3)
+			if len(subParts) == 3 {
+				return fmt.Sprintf("%s:%s:****@%s", subParts[0], subParts[1], parts[1])
+			}
+			return fmt.Sprintf("%s:****@%s", parts[0], parts[1])
+		}
+	}
+	return rawURL
+}
+
+func ensureSSLDisabled(rawURL string) string {
+	if strings.HasSuffix(rawURL, "?sslmode=disable") {
+		return rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		if strings.Contains(rawURL, "?") {
+			return rawURL + "&sslmode=disable"
+		}
+		return rawURL + "?sslmode=disable"
+	}
+	q := u.Query()
+	q.Set("sslmode", "disable")
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func (c *Client) initStore(ctx context.Context, dbPath, waLevel string) (*sqlstore.Container, error) {
+	dbLog := utils.WhatsmeowStyle("Database", waLevel, true)
+
+	dbConn := c.Config.Database
+	if dbConn == "" {
+		dbConn = os.Getenv("DATABASE_URL")
+	}
+	if dbConn == "" {
+		dbConn = os.Getenv("POSTGRES_URL")
+	}
+	if dbConn == "" {
+		dbConn = os.Getenv("DB_URL")
+	}
+	if dbConn == "" {
+		dbConn = "sqlite"
+	}
+
+	if dbConn != "sqlite" && dbConn != "none" && (strings.HasPrefix(dbConn, "postgres://") || strings.HasPrefix(dbConn, "postgresql://")) {
+		slog.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
+		container, err := sqlstore.New(ctx, "postgres", dbConn, dbLog)
+		if err == nil && container != nil {
+			slog.Info("successfully connected to PostgreSQL database")
+			return container, nil
+		}
+
+		if !strings.HasSuffix(dbConn, "?sslmode=disable") {
+			disableURL := ensureSSLDisabled(dbConn)
+			slog.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
+			container, errDisable := sqlstore.New(ctx, "postgres", disableURL, dbLog)
+			if errDisable == nil && container != nil {
+				slog.Info("successfully connected to PostgreSQL database with sslmode=disable")
+				return container, nil
+			}
+			slog.Warn("PostgreSQL connection failed with sslmode=disable", "err", errDisable)
+		} else {
+			slog.Warn("PostgreSQL connection failed", "err", err)
+		}
+		slog.Warn("falling back to SQLite after PostgreSQL connection failure")
+	}
+
+	slog.Info("initializing SQLite database store", "path", dbPath)
+	sqliteURI := fmt.Sprintf(
+		"file:%s?_pragma=busy_timeout=5000&_pragma=journal_mode=WAL&_pragma=synchronous=NORMAL&_pragma=foreign_keys=on&_pragma=cache_size=-2000",
+		dbPath,
+	)
+	container, err := sqlstore.New(ctx, "sqlite", sqliteURI, dbLog)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open SQLite database: %w", err)
+	}
+	return container, nil
+}
+
+// GetJoinedGroups returns all WhatsApp groups the user is participating in.
+func (c *Client) GetJoinedGroups(ctx context.Context) ([]*types.GroupInfo, error) {
+	wa := c.WAClient()
+	if wa == nil {
+		return nil, errors.New("client not initialized")
+	}
+	return wa.GetJoinedGroups(ctx)
+}
+
+// GetSubscribedNewsletters returns all newsletters/channels the user is subscribed to.
+func (c *Client) GetSubscribedNewsletters(ctx context.Context) ([]*types.NewsletterMetadata, error) {
+	wa := c.WAClient()
+	if wa == nil {
+		return nil, errors.New("client not initialized")
+	}
+	return wa.GetSubscribedNewsletters(ctx)
+}
+
+// GetGroupInfo retrieves the full group metadata and participants for a given group JID.
+func (c *Client) GetGroupInfo(ctx context.Context, jid types.JID) (*types.GroupInfo, error) {
+	wa := c.WAClient()
+	if wa == nil {
+		return nil, errors.New("client not initialized")
+	}
+	return wa.GetGroupInfo(ctx, jid)
+}
+
+// GetNewsletterInfo retrieves the metadata for a given newsletter/channel JID.
+func (c *Client) GetNewsletterInfo(ctx context.Context, jid types.JID) (*types.NewsletterMetadata, error) {
+	wa := c.WAClient()
+	if wa == nil {
+		return nil, errors.New("client not initialized")
+	}
+	return wa.GetNewsletterInfo(ctx, jid)
+}

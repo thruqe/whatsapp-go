@@ -1,0 +1,1 @@
+FROM thruqe/whatsrook:latest
