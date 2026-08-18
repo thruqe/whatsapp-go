@@ -1,0 +1,16 @@
+/target
+/auth
+/tmp
+/media
+.env
+.env.*
+*.env
+debug.log
+whatsrook
+whatsrook.exe
+cookie.txt
+*.cookie
+*.txt
+!utils/prompts/*.txt
+cobalt*.zip
+bin/

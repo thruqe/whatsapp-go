@@ -1,0 +1,27 @@
+name: Build Project Image
+
+on:
+  repository_dispatch:
+    types: [whatsrook-updated]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no cache, forces fresh pull of whatsrook base)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          pull: true
+          no-cache: true
+          push: false
+          tags: whatsrook:latest
