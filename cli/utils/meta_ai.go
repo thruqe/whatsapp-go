@@ -21,10 +21,14 @@ import (
 var MetaAiBotJID = types.NewJID("867051314767696", types.BotServer)
 
 type MetaAiResult struct {
-	Text         string
-	GeneratedImg []byte
-	ImgMimeType  string
-	ImgCaption   string
+	Text           string
+	GeneratedMedia []byte
+	MediaMimeType  string
+	MediaCaption   string
+
+	GeneratedImg   []byte
+	ImgMimeType    string
+	ImgCaption     string
 }
 
 type metaAiRequest struct {
@@ -46,13 +50,15 @@ type metaAiUnifiedData struct {
 	Sections   []struct {
 		ViewModel struct {
 			Primitive struct {
-				Typename string `json:"__typename"`
-				Media    struct {
+				Typename    string `json:"__typename"`
+				ImagineType string `json:"imagine_type"`
+				Media       struct {
 					URL      string `json:"url"`
 					MimeType string `json:"mime_type"`
 				} `json:"media"`
 				Status struct {
-					Status string `json:"status"`
+					Status     string `json:"status"`
+					UpdateText string `json:"update_text"`
 				} `json:"status"`
 				Text string `json:"text"`
 			} `json:"primitive"`
@@ -86,29 +92,118 @@ func processMetaAiQueue(ch chan metaAiRequest) {
 	}
 }
 
+func IsDummyPlaceholderText(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" || trimmed == "_" || trimmed == "__" || trimmed == "___" ||
+		trimmed == "_We_" || trimmed == "_Thinking_" || trimmed == "..." {
+		return true
+	}
+	return false
+}
+
 func ExtractMetaAiText(msg *waE2E.Message) string {
 	if msg == nil {
 		return ""
 	}
 	if conv := msg.GetConversation(); conv != "" {
-		return conv
+		if !IsDummyPlaceholderText(conv) {
+			return conv
+		}
+		return ""
 	}
 	if ext := msg.GetExtendedTextMessage(); ext != nil {
-		return ext.GetText()
+		if !IsDummyPlaceholderText(ext.GetText()) {
+			return ext.GetText()
+		}
+		return ""
 	}
 	if rich := msg.GetRichResponseMessage(); rich != nil {
 		var text strings.Builder
 		for _, sub := range rich.GetSubmessages() {
-			text.WriteString(sub.GetMessageText())
+			s := sub.GetMessageText()
+			if !IsDummyPlaceholderText(s) {
+				text.WriteString(s)
+			}
 		}
-		return text.String()
+		res := text.String()
+		if IsDummyPlaceholderText(res) {
+			return ""
+		}
+		return res
 	}
 	return ""
 }
 
 func ExtractMetaAiGeneratedImage(msg *waE2E.Message) (mediaURL string, mimeType string, text string) {
+	return ExtractMetaAiGeneratedMedia(msg)
+}
+
+func searchMediaInJSON(val any) (mediaURL, mimeType, text string) {
+	switch v := val.(type) {
+	case map[string]any:
+		if urlVal, ok := v["url"].(string); ok && (strings.HasPrefix(urlVal, "http://") || strings.HasPrefix(urlVal, "https://")) {
+			mediaURL = strings.ReplaceAll(urlVal, `\/`, `/`)
+			if mVal, ok := v["mime_type"].(string); ok {
+				mimeType = mVal
+			}
+		}
+		if textVal, ok := v["text"].(string); ok && text == "" {
+			text = textVal
+		}
+		for _, sub := range v {
+			if subURL, subMime, subText := searchMediaInJSON(sub); subURL != "" {
+				if mediaURL == "" {
+					mediaURL = subURL
+					mimeType = subMime
+				}
+				if text == "" {
+					text = subText
+				}
+				return mediaURL, mimeType, text
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if subURL, subMime, subText := searchMediaInJSON(item); subURL != "" {
+				if mediaURL == "" {
+					mediaURL = subURL
+					mimeType = subMime
+				}
+				if text == "" {
+					text = subText
+				}
+				return mediaURL, mimeType, text
+			}
+		}
+	}
+	return mediaURL, mimeType, text
+}
+
+func detectMediaMime(data []byte, declaredMime, url string) string {
+	if len(data) >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF {
+		return "image/jpeg"
+	}
+	if len(data) >= 8 && string(data[:8]) == "\x89PNG\r\n\x1a\n" {
+		return "image/png"
+	}
+	if len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
+		return "image/webp"
+	}
+	if len(data) >= 8 && (string(data[4:8]) == "ftyp" || strings.Contains(string(data[:min(len(data), 32)]), "ftyp")) {
+		return "video/mp4"
+	}
+	if declaredMime != "" && declaredMime != "application/octet-stream" {
+		return declaredMime
+	}
+	if strings.Contains(url, ".mp4") || strings.Contains(declaredMime, "video") {
+		return "video/mp4"
+	}
+	return "image/jpeg"
+}
+
+func parseUnifiedMediaState(msg *waE2E.Message) (mediaURL, mimeType, text, imagineType, status string) {
 	if msg == nil {
-		return "", "", ""
+		return "", "", "", "", ""
 	}
 
 	var rawB64 []byte
@@ -121,11 +216,19 @@ func ExtractMetaAiGeneratedImage(msg *waE2E.Message) (mediaURL string, mimeType 
 	}
 
 	if len(rawB64) > 0 {
-		decoded := make([]byte, base64.StdEncoding.DecodedLen(len(rawB64)))
-		n, err := base64.StdEncoding.Decode(decoded, rawB64)
-		if err == nil {
+		var jsonBytes []byte
+		if json.Valid(rawB64) {
+			jsonBytes = rawB64
+		} else {
+			decoded := make([]byte, base64.StdEncoding.DecodedLen(len(rawB64)))
+			if n, err := base64.StdEncoding.Decode(decoded, rawB64); err == nil {
+				jsonBytes = decoded[:n]
+			}
+		}
+
+		if len(jsonBytes) > 0 {
 			var uData metaAiUnifiedData
-			if err := json.Unmarshal(decoded[:n], &uData); err == nil {
+			if err := json.Unmarshal(jsonBytes, &uData); err == nil {
 				for _, sec := range uData.Sections {
 					p := sec.ViewModel.Primitive
 					if p.Media.URL != "" {
@@ -135,10 +238,27 @@ func ExtractMetaAiGeneratedImage(msg *waE2E.Message) (mediaURL string, mimeType 
 					if p.Text != "" {
 						text = p.Text
 					}
+					if p.ImagineType != "" {
+						imagineType = p.ImagineType
+					}
+					if p.Status.Status != "" {
+						status = p.Status.Status
+					}
+				}
+			}
+			if mediaURL == "" {
+				var genericData any
+				if err := json.Unmarshal(jsonBytes, &genericData); err == nil {
+					mediaURL, mimeType, text = searchMediaInJSON(genericData)
 				}
 			}
 		}
 	}
+	return mediaURL, mimeType, text, imagineType, status
+}
+
+func ExtractMetaAiGeneratedMedia(msg *waE2E.Message) (mediaURL string, mimeType string, text string) {
+	mediaURL, mimeType, text, _, _ = parseUnifiedMediaState(msg)
 	return mediaURL, mimeType, text
 }
 
@@ -147,24 +267,26 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 
 	slog.Debug("executeMetaAiQuery: sending request", "chat", chatKey, "request", request)
 
-	if _, err := client.SendMessage(ctx, MetaAiBotJID, &waE2E.Message{
+	sendResp, err := client.SendMessage(ctx, MetaAiBotJID, &waE2E.Message{
 		Conversation: new(request),
-	}); err != nil {
+	})
+	if err != nil {
 		slog.Error("executeMetaAiQuery: failed to send request", "chat", chatKey, "err", err)
 		return MetaAiResult{}, fmt.Errorf("failed to send request to meta ai: %w", err)
 	}
+	sentMsgID := sendResp.ID
 
 	var (
-		mu         sync.Mutex
-		metaMsgID  string
-		seen       bool
-		finished   bool
-		final      string
-		genImgData []byte
-		genImgMime string
-		genImgCap  string
-		done       = make(chan struct{})
-		closeOnce  sync.Once
+		mu              sync.Mutex
+		metaMsgID       string
+		seen            bool
+		final           string
+		genMediaData    []byte
+		genMediaMime    string
+		genMediaCap     string
+		isMediaExpected bool
+		done            = make(chan struct{})
+		closeOnce       sync.Once
 	)
 
 	handlerID := client.AddEventHandler(func(evt any) {
@@ -176,77 +298,135 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 		pm := msgEvt.Message.GetProtocolMessage()
 
 		mu.Lock()
-		if finished {
-			if imgMsg := msgEvt.Message.GetImageMessage(); imgMsg != nil {
-				slog.Debug("executeMetaAiQuery: captured follow-up imageMessage after finished", "chat", chatKey)
-				imgBytes, err := client.Download(ctx, imgMsg)
-				if err == nil && len(imgBytes) > 0 {
-					genImgData = imgBytes
-					genImgMime = imgMsg.GetMimetype()
-					if genImgMime == "" {
-						genImgMime = "image/jpeg"
-					}
-					genImgCap = imgMsg.GetCaption()
-					slog.Debug("executeMetaAiQuery: successfully downloaded follow-up imageMessage", "len", len(imgBytes))
-					closeOnce.Do(func() { close(done) })
-				}
+		targetID := msgEvt.Info.MsgMetaInfo.TargetID
+		isOurQuery := false
+		if targetID != "" && targetID == sentMsgID {
+			isOurQuery = true
+		} else if pm != nil {
+			pmKeyID := pm.GetKey().GetID()
+			if pmKeyID == sentMsgID || (metaMsgID != "" && pmKeyID == metaMsgID) {
+				isOurQuery = true
 			}
+		} else if !seen {
+			isOurQuery = true
+		} else if metaMsgID != "" && msgEvt.Info.ID == metaMsgID {
+			isOurQuery = true
+		}
+
+		if !isOurQuery {
 			mu.Unlock()
 			return
 		}
 
+		if !seen && pm == nil {
+			metaMsgID = msgEvt.Info.ID
+			seen = true
+			slog.Debug("executeMetaAiQuery: captured meta ai reply message id", "chat", chatKey, "meta_msg_id", metaMsgID)
+		}
+
+		// 1. Direct image message
 		if imgMsg := msgEvt.Message.GetImageMessage(); imgMsg != nil {
 			slog.Debug("executeMetaAiQuery: captured direct imageMessage from Meta AI", "chat", chatKey)
 			imgBytes, err := client.Download(ctx, imgMsg)
 			if err == nil && len(imgBytes) > 0 {
-				genImgData = imgBytes
-				genImgMime = imgMsg.GetMimetype()
-				if genImgMime == "" {
-					genImgMime = "image/jpeg"
-				}
-				genImgCap = imgMsg.GetCaption()
-				slog.Debug("executeMetaAiQuery: successfully downloaded direct imageMessage", "len", len(imgBytes))
+				genMediaData = imgBytes
+				genMediaMime = detectMediaMime(imgBytes, imgMsg.GetMimetype(), "")
+				genMediaCap = imgMsg.GetCaption()
 				mu.Unlock()
+				slog.Debug("executeMetaAiQuery: successfully downloaded direct imageMessage", "len", len(imgBytes))
 				closeOnce.Do(func() { close(done) })
 				return
 			}
 		}
 
-		if !seen {
-			if pm != nil {
+		// 2. Direct video message
+		if vidMsg := msgEvt.Message.GetVideoMessage(); vidMsg != nil {
+			slog.Debug("executeMetaAiQuery: captured direct videoMessage from Meta AI", "chat", chatKey)
+			vidBytes, err := client.Download(ctx, vidMsg)
+			if err == nil && len(vidBytes) > 0 {
+				genMediaData = vidBytes
+				genMediaMime = detectMediaMime(vidBytes, vidMsg.GetMimetype(), "")
+				genMediaCap = vidMsg.GetCaption()
 				mu.Unlock()
+				slog.Debug("executeMetaAiQuery: successfully downloaded direct videoMessage", "len", len(vidBytes))
+				closeOnce.Do(func() { close(done) })
 				return
 			}
-			metaMsgID = msgEvt.Info.ID
-			seen = true
-			mu.Unlock()
-			slog.Debug("executeMetaAiQuery: captured meta ai reply message id", "chat", chatKey, "meta_msg_id", metaMsgID)
-		} else if pm == nil || pm.GetKey().GetID() != metaMsgID {
-			mu.Unlock()
-			return
-		} else {
-			mu.Unlock()
 		}
 
-		mediaURL, mimeType, imgCap := ExtractMetaAiGeneratedImage(msgEvt.Message)
-		if mediaURL == "" && pm != nil {
-			mediaURL, mimeType, imgCap = ExtractMetaAiGeneratedImage(pm.GetEditedMessage())
+		// 3. Direct document media
+		if docMsg := msgEvt.Message.GetDocumentMessage(); docMsg != nil {
+			docMime := docMsg.GetMimetype()
+			if strings.HasPrefix(docMime, "image/") || strings.HasPrefix(docMime, "video/") {
+				docBytes, err := client.Download(ctx, docMsg)
+				if err == nil && len(docBytes) > 0 {
+					genMediaData = docBytes
+					genMediaMime = detectMediaMime(docBytes, docMime, "")
+					genMediaCap = docMsg.GetCaption()
+					mu.Unlock()
+					slog.Debug("executeMetaAiQuery: successfully downloaded direct document media", "len", len(docBytes))
+					closeOnce.Do(func() { close(done) })
+					return
+				}
+			}
 		}
+
+		// 4. Protocol message edits for direct attachments
+		if pm != nil && pm.GetEditedMessage() != nil {
+			edited := pm.GetEditedMessage()
+			if imgMsg := edited.GetImageMessage(); imgMsg != nil {
+				imgBytes, err := client.Download(ctx, imgMsg)
+				if err == nil && len(imgBytes) > 0 {
+					genMediaData = imgBytes
+					genMediaMime = detectMediaMime(imgBytes, imgMsg.GetMimetype(), "")
+					genMediaCap = imgMsg.GetCaption()
+					mu.Unlock()
+					closeOnce.Do(func() { close(done) })
+					return
+				}
+			}
+			if vidMsg := edited.GetVideoMessage(); vidMsg != nil {
+				vidBytes, err := client.Download(ctx, vidMsg)
+				if err == nil && len(vidBytes) > 0 {
+					genMediaData = vidBytes
+					genMediaMime = detectMediaMime(vidBytes, vidMsg.GetMimetype(), "")
+					genMediaCap = vidMsg.GetCaption()
+					mu.Unlock()
+					closeOnce.Do(func() { close(done) })
+					return
+				}
+			}
+		}
+
+		// 5. UnifiedResponse media & state inspection
+		mediaURL, mimeType, imgCap, imagineType, mediaStatus := parseUnifiedMediaState(msgEvt.Message)
+		if mediaURL == "" && pm != nil {
+			mediaURL, mimeType, imgCap, imagineType, mediaStatus = parseUnifiedMediaState(pm.GetEditedMessage())
+		}
+
+		if imagineType == "ANIMATE" || imagineType == "IMAGINE" || mediaStatus == "GENERATING" {
+			isMediaExpected = true
+		}
+
 		if mediaURL != "" {
 			req, err := http.NewRequestWithContext(ctx, "GET", mediaURL, nil)
 			if err == nil {
 				req.Header.Set("User-Agent", "WhatsApp/2.24.1.76 A")
 				resp, err := http.DefaultClient.Do(req)
 				if err == nil && resp.StatusCode == 200 {
-					imgBytes, err := io.ReadAll(resp.Body)
+					mediaBytes, err := io.ReadAll(resp.Body)
 					_ = resp.Body.Close()
-					if err == nil && len(imgBytes) > 0 {
-						mu.Lock()
-						genImgData = imgBytes
-						genImgMime = mimeType
-						genImgCap = imgCap
+					if err == nil && len(mediaBytes) > 0 {
+						detectedMime := detectMediaMime(mediaBytes, mimeType, mediaURL)
+						genMediaData = mediaBytes
+						genMediaMime = detectedMime
+						if genMediaCap == "" {
+							genMediaCap = imgCap
+						}
+						slog.Debug("executeMetaAiQuery: downloaded generated media", "len", len(mediaBytes), "mime", detectedMime)
 						mu.Unlock()
-						slog.Debug("executeMetaAiQuery: downloaded generated image", "len", len(imgBytes), "mime", mimeType)
+						closeOnce.Do(func() { close(done) })
+						return
 					}
 				}
 			}
@@ -258,54 +438,60 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 		} else {
 			text = ExtractMetaAiText(pm.GetEditedMessage())
 		}
-		if text == "" {
-			slog.Debug("executeMetaAiQuery: empty text extracted, skipping update", "chat", chatKey, "info_id", msgEvt.Info.ID)
+
+		editType := string(msgEvt.Info.MsgBotInfo.EditType)
+		if text != "" {
+			slog.Debug("executeMetaAiQuery: update", "chat", chatKey, "edit_type", editType, "text", text)
+			if _, _, isRunCmd := ParseRunCommand(text); isRunCmd {
+				final = text
+				if editType == "last" || editType == "inner" {
+					slog.Debug("executeMetaAiQuery: RUN_COMMAND captured", "chat", chatKey, "cmd_text", text, "edit_type", editType)
+					if editType == "last" {
+						mu.Unlock()
+						closeOnce.Do(func() { close(done) })
+						return
+					}
+				}
+			} else if onUpdate != nil {
+				if err := onUpdate(text); err != nil {
+					slog.Error("executeMetaAiQuery: onUpdate callback failed", "chat", chatKey, "err", err)
+				}
+			}
+		}
+
+		if text != "" && final == "" {
+			final = text
+		}
+
+		lower := strings.ToLower(final + " " + text)
+		if strings.Contains(lower, "image") || strings.Contains(lower, "video") ||
+			strings.Contains(lower, "picture") || strings.Contains(lower, "photo") ||
+			strings.Contains(lower, "clip") || strings.Contains(lower, "animation") ||
+			strings.Contains(lower, "creating") || strings.Contains(lower, "generating") ||
+			strings.Contains(lower, "here is your") || strings.Contains(lower, "here you go") {
+			isMediaExpected = true
+		}
+
+		if len(genMediaData) > 0 {
+			mu.Unlock()
+			closeOnce.Do(func() { close(done) })
 			return
 		}
 
-		editType := string(msgEvt.Info.MsgBotInfo.EditType)
-		slog.Debug("executeMetaAiQuery: update", "chat", chatKey, "edit_type", editType, "text", text)
-
-		if _, _, isRunCmd := ParseRunCommand(text); isRunCmd {
-			mu.Lock()
-			final = text
+		if mediaStatus == "FAILED" || mediaStatus == "ERROR" {
+			slog.Warn("executeMetaAiQuery: media generation failed on server", "chat", chatKey, "status", mediaStatus)
 			mu.Unlock()
-			if editType == "last" || editType == "inner" {
-				slog.Debug("executeMetaAiQuery: RUN_COMMAND captured", "chat", chatKey, "cmd_text", text, "edit_type", editType)
-				if editType == "last" {
-					mu.Lock()
-					finished = true
-					mu.Unlock()
-					closeOnce.Do(func() { close(done) })
-					return
-				}
-			}
-		} else if onUpdate != nil {
-			if err := onUpdate(text); err != nil {
-				slog.Error("executeMetaAiQuery: onUpdate callback failed", "chat", chatKey, "err", err)
-			}
+			closeOnce.Do(func() { close(done) })
+			return
 		}
 
-		if editType == "last" {
-			mu.Lock()
-			if final == "" {
-				final = text
-			}
-			finished = true
-			hasImgData := len(genImgData) > 0
+		if (editType == "last" || editType == "full") && !isMediaExpected {
 			mu.Unlock()
-
-			lower := strings.ToLower(text)
-			if !hasImgData && (strings.Contains(lower, "image") || strings.Contains(lower, "creating") || strings.Contains(lower, "ready")) {
-				slog.Debug("executeMetaAiQuery: text indicates image generation, waiting briefly for follow-up imageMessage", "chat", chatKey)
-				go func() {
-					time.Sleep(4 * time.Second)
-					closeOnce.Do(func() { close(done) })
-				}()
-			} else {
-				closeOnce.Do(func() { close(done) })
-			}
+			closeOnce.Do(func() { close(done) })
+			return
 		}
+
+		mu.Unlock()
 	})
 	defer client.RemoveEventHandler(handlerID)
 
@@ -313,15 +499,31 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 	case <-ctx.Done():
 		slog.Warn("executeMetaAiQuery: context cancelled/timed out before completion", "chat", chatKey, "err", ctx.Err())
 		return MetaAiResult{}, ctx.Err()
+	case <-time.After(50 * time.Second):
+		mu.Lock()
+		defer mu.Unlock()
+		slog.Debug("executeMetaAiQuery: max timeout reached, returning gathered result", "chat", chatKey, "final_text_len", len(final), "media_len", len(genMediaData))
+		return MetaAiResult{
+			Text:           final,
+			GeneratedMedia: genMediaData,
+			MediaMimeType:  genMediaMime,
+			MediaCaption:   genMediaCap,
+			GeneratedImg:   genMediaData,
+			ImgMimeType:    genMediaMime,
+			ImgCaption:     genMediaCap,
+		}, nil
 	case <-done:
 		mu.Lock()
 		defer mu.Unlock()
-		slog.Debug("executeMetaAiQuery: completed", "chat", chatKey, "final_text_len", len(final))
+		slog.Debug("executeMetaAiQuery: completed", "chat", chatKey, "final_text_len", len(final), "media_len", len(genMediaData), "media_mime", genMediaMime)
 		return MetaAiResult{
-			Text:         final,
-			GeneratedImg: genImgData,
-			ImgMimeType:  genImgMime,
-			ImgCaption:   genImgCap,
+			Text:           final,
+			GeneratedMedia: genMediaData,
+			MediaMimeType:  genMediaMime,
+			MediaCaption:   genMediaCap,
+			GeneratedImg:   genMediaData,
+			ImgMimeType:    genMediaMime,
+			ImgCaption:     genMediaCap,
 		}, nil
 	}
 }

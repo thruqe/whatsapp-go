@@ -1061,6 +1061,9 @@ func isBotTaggedOrReplied(client *whatsmeow.Client, evt *events.Message, text st
 	if client.Store.ID == nil {
 		return false
 	}
+	if evt.Info.Chat.Server != "g.us" {
+		return true
+	}
 	ourJID := client.Store.ID.ToNonAD()
 	ourLID := client.Store.LID.ToNonAD()
 

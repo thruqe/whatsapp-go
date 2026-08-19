@@ -258,6 +258,21 @@ func renderCSAIPage(ctx *Context, s *sqlstore.SQLStore, page int) error {
 	return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }
 
+func isMediaGenerationPrompt(prompt string) bool {
+	p := strings.ToLower(strings.TrimSpace(prompt))
+	return strings.HasPrefix(p, "image of") || strings.HasPrefix(p, "generate an image") ||
+		strings.HasPrefix(p, "generate a photo") || strings.HasPrefix(p, "create an image") ||
+		strings.HasPrefix(p, "generate image") || strings.HasPrefix(p, "create image") ||
+		strings.HasPrefix(p, "draw ") || strings.HasPrefix(p, "picture of") ||
+		strings.HasPrefix(p, "photo of") || strings.HasPrefix(p, "make an image") ||
+		strings.HasPrefix(p, "make a picture") || strings.HasPrefix(p, "video of") ||
+		strings.HasPrefix(p, "generate a video") || strings.HasPrefix(p, "generate video") ||
+		strings.HasPrefix(p, "create a video") || strings.HasPrefix(p, "create video") ||
+		strings.HasPrefix(p, "animate ") || strings.HasPrefix(p, "make a video") ||
+		strings.Contains(p, "generate an image") || strings.Contains(p, "generate a video") ||
+		strings.Contains(p, "create an image") || strings.Contains(p, "create a video")
+}
+
 func handleAI(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
@@ -321,28 +336,37 @@ func handleAI(ctx *Context) error {
 
 	extractContextFromQuotedMessage(ctx, &data)
 
-	query := instruction
-	if s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore); okStore {
-		if customPrompt, _ := s.GetSetting(ctx.Ctx, "csai_prompt"); customPrompt != "" {
-			query += fmt.Sprintf("\n\n[GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]\n%s\n\n", customPrompt)
+	var query string
+	isMediaReq := isMediaGenerationPrompt(data.Question)
+	if isMediaReq {
+		query = data.Question
+	} else {
+		query = instruction
+		if s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore); okStore {
+			if customPrompt, _ := s.GetSetting(ctx.Ctx, "csai_prompt"); customPrompt != "" {
+				query += fmt.Sprintf("\n\n[GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]\n%s\n\n", customPrompt)
+			}
 		}
+		if isGroup {
+			query += cliutils.RenderGroupContext(data.GroupMetaData)
+		}
+		query += cliutils.RenderUserContext(data)
+		query += cliutils.RenderQuotedContext(data)
+		query += data.Question
 	}
-	if isGroup {
-		query += cliutils.RenderGroupContext(data.GroupMetaData)
-	}
-	query += cliutils.RenderUserContext(data)
-	query += cliutils.RenderQuotedContext(data)
-	query += data.Question
 
-	slog.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String())
+	slog.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String(), "is_media_req", isMediaReq)
 
 	var placeholderMsgID types.MessageID
 	onUpdate := func(text string) error {
 		trimmed := strings.TrimSpace(text)
-		if trimmed == "" {
+		if trimmed == "" || cliutils.IsDummyPlaceholderText(trimmed) {
 			return nil
 		}
 		if _, _, ok := cliutils.ParseRunCommand(trimmed); ok {
+			return nil
+		}
+		if isMediaReq {
 			return nil
 		}
 		if placeholderMsgID == "" {
@@ -391,19 +415,43 @@ func handleAI(ctx *Context) error {
 	}
 
 	reply := res.Text
-	if placeholderMsgID == "" && reply != "" {
-		if _, _, ok := cliutils.ParseRunCommand(reply); !ok {
-			_ = ctx.Reply(reply)
-		}
+	mediaBytes := res.GeneratedMedia
+	if len(mediaBytes) == 0 {
+		mediaBytes = res.GeneratedImg
 	}
 
-	if len(res.GeneratedImg) > 0 {
-		mType := res.ImgMimeType
+	if len(mediaBytes) > 0 {
+		mType := res.MediaMimeType
+		if mType == "" {
+			mType = res.ImgMimeType
+		}
 		if mType == "" {
 			mType = "image/jpeg"
 		}
-		slog.Debug("handleAI: forwarding generated image to chat", "chat", ctx.Chat.String(), "img_len", len(res.GeneratedImg))
-		_ = ctx.SendImage(res.GeneratedImg, mType, res.ImgCaption)
+		caption := res.MediaCaption
+		if caption == "" {
+			caption = res.ImgCaption
+		}
+		if caption == "" {
+			caption = reply
+		}
+
+		if placeholderMsgID != "" {
+			_, _ = ctx.Delete(placeholderMsgID)
+			placeholderMsgID = ""
+		}
+
+		if strings.HasPrefix(mType, "video/") {
+			slog.Debug("handleAI: sending generated video message to chat", "chat", ctx.Chat.String(), "video_len", len(mediaBytes), "mime", mType)
+			_ = ctx.ReplyWithVideo(mediaBytes, mType, caption)
+		} else {
+			slog.Debug("handleAI: sending generated image message to chat", "chat", ctx.Chat.String(), "img_len", len(mediaBytes), "mime", mType)
+			_ = ctx.ReplyWithImage(mediaBytes, mType, caption)
+		}
+	} else if placeholderMsgID == "" && reply != "" {
+		if _, _, ok := cliutils.ParseRunCommand(reply); !ok {
+			_ = ctx.Reply(reply)
+		}
 	}
 
 	if cmdName, rawArgs, ok := cliutils.ParseRunCommand(reply); ok {
