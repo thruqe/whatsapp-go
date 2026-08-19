@@ -26,9 +26,9 @@ type MetaAiResult struct {
 	MediaMimeType  string
 	MediaCaption   string
 
-	GeneratedImg   []byte
-	ImgMimeType    string
-	ImgCaption     string
+	GeneratedImg []byte
+	ImgMimeType  string
+	ImgCaption   string
 }
 
 type metaAiRequest struct {
