@@ -87,4 +87,3 @@ func TestRunIdleMode(t *testing.T) {
 		t.Fatal("timeout waiting for runIdleMode to shutdown")
 	}
 }
-
