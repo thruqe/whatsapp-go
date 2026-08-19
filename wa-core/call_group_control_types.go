@@ -66,16 +66,6 @@ type groupCallRelayEndpoint struct {
 	Port        uint16
 }
 
-type groupCallEncRekey struct {
-	CallID            string
-	CallCreator       types.JID
-	TransactionID     uint32
-	KeyGeneration     uint32
-	EncryptionType    string
-	EncryptionVersion uint32
-	Ciphertext        []byte
-}
-
 type callLinkMedia string
 
 const (
