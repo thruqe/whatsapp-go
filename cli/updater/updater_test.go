@@ -35,11 +35,11 @@ func TestParseVersion(t *testing.T) {
 
 func TestReadLocalVersion(t *testing.T) {
 	tmpDir := t.TempDir()
-	versionPath := filepath.Join(tmpDir, "version.toml")
+	versionPath := filepath.Join(tmpDir, "version.txt")
 
-	content := `version = "4.2.0"`
+	content := "4.2.0\n"
 	if err := os.WriteFile(versionPath, []byte(content), 0644); err != nil {
-		t.Fatalf("failed to write test version.toml: %v", err)
+		t.Fatalf("failed to write test version.txt: %v", err)
 	}
 
 	ver, err := updater.ReadLocalVersion(versionPath)
@@ -53,8 +53,8 @@ func TestReadLocalVersion(t *testing.T) {
 }
 
 func TestReadEffectiveLocalVersion(t *testing.T) {
-	// When version.toml does not exist, should return EmbeddedAppVersion
-	ver := updater.ReadEffectiveLocalVersion("non_existent_file.toml")
+	// When version.txt does not exist, should return EmbeddedAppVersion
+	ver := updater.ReadEffectiveLocalVersion("non_existent_file.txt")
 	if ver != updater.EmbeddedAppVersion {
 		t.Errorf("expected %s, got %s", updater.EmbeddedAppVersion, ver)
 	}
@@ -103,7 +103,7 @@ func TestUpdaterOptions(t *testing.T) {
 	up := updater.New(updater.Options{
 		RepoOwner:   "TestOwner",
 		RepoName:    "TestRepo",
-		VersionFile: "custom_version.toml",
+		VersionFile: "custom_version.txt",
 		Out:         &buf,
 	})
 

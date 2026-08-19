@@ -72,9 +72,21 @@ func NewClient(cfg Config) *Client {
 	return c
 }
 
+// DefaultAuthDir returns the path to the auth directory located in the directory where the binary exists.
+func DefaultAuthDir() string {
+	if exePath, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exePath)
+		// If running via 'go run' or temporary test runner, fallback to current working directory
+		if !strings.Contains(exePath, "go-build") && !strings.Contains(exePath, "/tmp/") && !strings.Contains(exePath, `\Temp\`) {
+			return filepath.Join(exeDir, "auth")
+		}
+	}
+	return "auth"
+}
+
 func (c *Client) applyDefaults() {
 	if c.Config.DataDir == "" {
-		c.Config.DataDir = "auth"
+		c.Config.DataDir = DefaultAuthDir()
 	}
 }
 
