@@ -30,12 +30,19 @@ type CommandInfo struct {
 // answer questions about how to use a command, using real data instead
 // of guessing.
 func BuildRunCommandInstruction(cmds []CommandInfo) string {
-	return BuildRunCommandInstructionWithName(cmds, "WhatsRook")
+	return BuildRunCommandInstructionWithNameAndPrefix(cmds, "WhatsRook", "!")
 }
 
 func BuildRunCommandInstructionWithName(cmds []CommandInfo, botName string) string {
+	return BuildRunCommandInstructionWithNameAndPrefix(cmds, botName, "!")
+}
+
+func BuildRunCommandInstructionWithNameAndPrefix(cmds []CommandInfo, botName, prefix string) string {
 	if botName == "" {
 		botName = "WhatsRook"
+	}
+	if prefix == "" {
+		prefix = "!"
 	}
 	promptTmpl := embeddedMetaAiPrompt
 	if data, err := os.ReadFile("prompts/meta_ai.txt"); err == nil && len(data) > 0 {
@@ -46,18 +53,23 @@ func BuildRunCommandInstructionWithName(cmds []CommandInfo, botName string) stri
 
 	promptTmpl = strings.ReplaceAll(promptTmpl, "{NAME}", botName)
 	promptTmpl = strings.ReplaceAll(promptTmpl, "WhatsRook", botName)
+	promptTmpl = strings.ReplaceAll(promptTmpl, "{PREFIX}", prefix)
 
 	var cmdsBuf strings.Builder
 	for _, c := range cmds {
-		fmt.Fprintf(&cmdsBuf, "- !%s", c.Name)
+		fmt.Fprintf(&cmdsBuf, "- %s%s", prefix, c.Name)
 		if c.Alias != "" {
-			fmt.Fprintf(&cmdsBuf, " (alias: %s)", c.Alias)
+			fmt.Fprintf(&cmdsBuf, " (alias: %s%s)", prefix, c.Alias)
 		}
 		if !c.IsPublic {
 			cmdsBuf.WriteString(" [sudo-only]")
 		}
+		desc := c.Description
+		if len(desc) > 80 {
+			desc = desc[:77] + "..."
+		}
 		cmdsBuf.WriteString(": ")
-		cmdsBuf.WriteString(c.Description)
+		cmdsBuf.WriteString(desc)
 		cmdsBuf.WriteString("\n")
 	}
 
@@ -68,7 +80,7 @@ func BuildRunCommandInstructionWithName(cmds []CommandInfo, botName string) stri
 // ParseRunCommand checks whether an AI reply is requesting that the bot
 // run one of its own registered commands, using the convention:
 //
-//	RUN_COMMAND: !<command_name> [args...]
+//	RUN_COMMAND: <prefix><command_name> [args...]
 //
 // It returns the command name (lowercased) and its raw argument string,
 // and ok=true if the reply matched this convention. This only recognizes
@@ -77,6 +89,7 @@ func BuildRunCommandInstructionWithName(cmds []CommandInfo, botName string) stri
 // up in its own registry and deciding whether to run it.
 func ParseRunCommand(reply string) (cmdName string, rawArgs string, ok bool) {
 	cleaned := strings.TrimSpace(reply)
+	cleaned = strings.Trim(cleaned, "` \n\r\t")
 	cmdContent, found := strings.CutPrefix(cleaned, "RUN_COMMAND:")
 	if !found {
 		return "", "", false
@@ -85,8 +98,8 @@ func ParseRunCommand(reply string) (cmdName string, rawArgs string, ok bool) {
 	cmdLine := strings.TrimSpace(cmdContent)
 	cmdLine = strings.ReplaceAll(cmdLine, "(link unavailable)", "")
 	cmdLine = strings.ReplaceAll(cmdLine, "link unavailable", "")
-	cmdLine = strings.TrimSpace(cmdLine)
-	cmdLine = strings.TrimLeft(cmdLine, ".!/ ")
+	cmdLine = strings.Trim(cmdLine, "` \n\r\t")
+	cmdLine = strings.TrimLeft(cmdLine, ".!/# ")
 
 	fields := strings.Fields(cmdLine)
 	if len(fields) == 0 {
@@ -127,8 +140,11 @@ func RenderGroupContext(info types.GroupInfo) string {
 	var b strings.Builder
 	b.WriteString("[GROUP CONTEXT]\n")
 	fmt.Fprintf(&b, "Group name: %s\n", info.GroupName.Name)
-	if info.GroupTopic.Topic != "" {
-		fmt.Fprintf(&b, "Group description: %s\n", info.GroupTopic.Topic)
+	if topic := strings.TrimSpace(info.GroupTopic.Topic); topic != "" {
+		if len(topic) > 150 {
+			topic = topic[:147] + "..."
+		}
+		fmt.Fprintf(&b, "Group description: %s\n", topic)
 	}
 	fmt.Fprintf(&b, "Participant count: %d\n", info.ParticipantCount)
 
@@ -136,6 +152,9 @@ func RenderGroupContext(info types.GroupInfo) string {
 	for _, p := range info.Participants {
 		if p.IsAdmin || p.IsSuperAdmin {
 			admins = append(admins, p.JID.User)
+			if len(admins) >= 5 {
+				break
+			}
 		}
 	}
 	if len(admins) > 0 {
@@ -191,9 +210,13 @@ func RenderQuotedContext(d Data) string {
 		fmt.Fprintf(&b, "Message Type: %s\n", d.QuotedMessageType)
 	}
 	if d.QuotedMessageOfQuestion != "" {
-		fmt.Fprintf(&b, "Message Content: %s\n", d.QuotedMessageOfQuestion)
+		msgContent := d.QuotedMessageOfQuestion
+		if len(msgContent) > 500 {
+			msgContent = msgContent[:497] + "..."
+		}
+		fmt.Fprintf(&b, "Message Content: %s\n", msgContent)
 	}
-	if d.QuotedImageBase64 != "" {
+	if d.QuotedImageBase64 != "" && len(d.QuotedImageBase64) <= 2048 {
 		fmt.Fprintf(&b, "Image Base64: data:%s;base64,%s\n", d.QuotedImageMimeType, d.QuotedImageBase64)
 	}
 	b.WriteString("[/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]\n\n")

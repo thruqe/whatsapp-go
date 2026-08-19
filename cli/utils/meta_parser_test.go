@@ -47,3 +47,52 @@ func TestRenderQuotedContextWithImageBase64(t *testing.T) {
 		t.Errorf("expected image base64 data URI, got %q", rendered)
 	}
 }
+
+func TestBuildRunCommandInstructionWithNameAndPrefix(t *testing.T) {
+	cmds := []CommandInfo{
+		{Name: "menu", Description: "Show menu", IsPublic: true},
+		{Name: "ping", Description: "Check ping", IsPublic: true},
+	}
+
+	instrDot := BuildRunCommandInstructionWithNameAndPrefix(cmds, "WhatsRook", ".")
+	if !strings.Contains(instrDot, "- .menu: Show menu") {
+		t.Errorf("expected instruction to contain '.menu', got %q", instrDot)
+	}
+	if !strings.Contains(instrDot, "RUN_COMMAND: .<command_name>") {
+		t.Errorf("expected instruction to reference active prefix '.', got %q", instrDot)
+	}
+
+	instrBang := BuildRunCommandInstructionWithNameAndPrefix(cmds, "WhatsRook", "!")
+	if !strings.Contains(instrBang, "- !menu: Show menu") {
+		t.Errorf("expected instruction to contain '!menu', got %q", instrBang)
+	}
+}
+
+func TestParseRunCommand(t *testing.T) {
+	tests := []struct {
+		input       string
+		expectedCmd string
+		expectedRaw string
+		expectedOk  bool
+	}{
+		{"RUN_COMMAND: .menu", "menu", "", true},
+		{"RUN_COMMAND: !menu", "menu", "", true},
+		{"RUN_COMMAND: menu", "menu", "", true},
+		{"RUN_COMMAND: /ping 123", "ping", "123", true},
+		{"`RUN_COMMAND: .menu`", "menu", "", true},
+		{"Hello there!", "", "", false},
+	}
+
+	for _, tt := range tests {
+		cmd, raw, ok := ParseRunCommand(tt.input)
+		if ok != tt.expectedOk {
+			t.Errorf("ParseRunCommand(%q) ok = %v, expected %v", tt.input, ok, tt.expectedOk)
+		}
+		if cmd != tt.expectedCmd {
+			t.Errorf("ParseRunCommand(%q) cmd = %q, expected %q", tt.input, cmd, tt.expectedCmd)
+		}
+		if raw != tt.expectedRaw {
+			t.Errorf("ParseRunCommand(%q) raw = %q, expected %q", tt.input, raw, tt.expectedRaw)
+		}
+	}
+}

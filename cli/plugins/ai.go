@@ -17,6 +17,14 @@ import (
 
 func init() {
 	Register(&Command{
+		Name:        "why",
+		Alias:       "whycom",
+		Description: "Ask why.com ultimate search for direct answers and deep-dive exploration",
+		Category:    "ai",
+		IsPublic:    true,
+		Handler:     handleWhy,
+	})
+	Register(&Command{
 		Name:        "ai",
 		Alias:       "ask",
 		Description: "Ask Meta AI a question.",
@@ -280,7 +288,8 @@ func handleAI(ctx *Context) error {
 	}
 
 	botName := ctx.GetBotName()
-	instruction := cliutils.GetOrBuildInstructionWithName(botName, func() string {
+	p := ctx.GetPrefix()
+	instruction := cliutils.GetOrBuildInstructionWithNameAndPrefix(botName, p, func() string {
 		cmdInfos := ListCommands()
 		metaCmds := make([]cliutils.CommandInfo, 0, len(cmdInfos))
 		for _, info := range cmdInfos {
@@ -291,7 +300,7 @@ func handleAI(ctx *Context) error {
 				IsPublic:    info.IsPublic,
 			})
 		}
-		return cliutils.BuildRunCommandInstructionWithName(metaCmds, botName)
+		return cliutils.BuildRunCommandInstructionWithNameAndPrefix(metaCmds, botName, p)
 	})
 
 	pushName := ""
@@ -492,6 +501,11 @@ func handleAI(ctx *Context) error {
 			slog.Warn("handleAI: blocked unauthorized RUN_COMMAND", "sender", ctx.Sender.String(), "command", cmdName)
 			_, _ = ctx.Edit(placeholderMsgID, "You are not authorized to run this command.")
 			return nil
+		}
+
+		if placeholderMsgID != "" {
+			_, _ = ctx.Delete(placeholderMsgID)
+			placeholderMsgID = ""
 		}
 
 		cctx := &Context{
@@ -843,4 +857,123 @@ func handleDownloadMessage(ctx *Context) error {
 	default:
 		return ctx.SendDocument(mediaData, mimetype, "downloaded_media", "")
 	}
+}
+
+func handleWhy(ctx *Context) error {
+	rawQuery := strings.TrimSpace(ctx.RawArgs)
+	if rawQuery == "" {
+		if quoted := ctx.GetQuotedMessage(); quoted != nil {
+			rawQuery = strings.TrimSpace(extractTextFromProto(quoted))
+		}
+	}
+
+	if rawQuery == "" {
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %swhy <question>\n- Reply to a message with %swhy\n\nExample:\n- %swhy what makes aging impossible to reverse", p, p, p))
+	}
+
+	page := 1
+	query := rawQuery
+	fields := strings.Fields(rawQuery)
+	if len(fields) >= 2 && strings.EqualFold(fields[0], "page") {
+		if pNum, err := strconv.Atoi(fields[1]); err == nil && pNum >= 1 {
+			page = pNum
+			query = strings.TrimSpace(strings.TrimPrefix(rawQuery, fields[0]+" "+fields[1]))
+		}
+	}
+	if query == "" {
+		query = rawQuery
+	}
+
+	ctx.StartAutoLoader()
+	defer ctx.StopAutoLoader()
+
+	res, err := cliutils.QueryWhy(ctx.Ctx, query)
+	if err != nil {
+		slog.Error("handleWhy failed", "query", query, "err", err)
+		return ctx.Reply(fmt.Sprintf("Error querying why.com: %v", err))
+	}
+
+	if res == nil || res.Answer == "" {
+		return ctx.Reply("No answer received from why.com.")
+	}
+
+	const pageSize = 3
+	totalPulls := len(res.Pulls)
+	totalPages := 1
+	if totalPulls > 0 {
+		totalPages = (totalPulls + pageSize - 1) / pageSize
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	if page < 1 {
+		page = 1
+	}
+
+	startIdx := (page - 1) * pageSize
+	endIdx := startIdx + pageSize
+	if endIdx > totalPulls {
+		endIdx = totalPulls
+	}
+	var pagePulls []cliutils.WhyPull
+	if totalPulls > 0 && startIdx < totalPulls {
+		pagePulls = res.Pulls[startIdx:endIdx]
+	}
+
+	p := ctx.GetPrefix()
+	var sb strings.Builder
+	sb.WriteString(res.Answer)
+
+	if totalPulls > 0 {
+		if totalPages > 1 {
+			fmt.Fprintf(&sb, "\n\n*Related Questions (Page %d of %d):*", page, totalPages)
+		} else {
+			sb.WriteString("\n\n*Related Questions:*")
+		}
+		for i, pull := range res.Pulls {
+			label := strings.TrimSpace(pull.Label)
+			if label == "" {
+				label = strings.TrimSpace(pull.Query)
+			}
+			if label != "" {
+				fmt.Fprintf(&sb, "\n%d. %s", i+1, label)
+			}
+		}
+	}
+
+	var buttons []struct{ ID, Text string }
+	for i, pull := range pagePulls {
+		globalIdx := startIdx + i + 1
+		btnQuery := strings.TrimSpace(pull.Query)
+		if btnQuery == "" {
+			btnQuery = strings.TrimSpace(pull.Label)
+		}
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   fmt.Sprintf("%swhy %s", p, btnQuery),
+			Text: fmt.Sprintf("Question %d", globalIdx),
+		})
+	}
+
+	if page < totalPages {
+		nextPage := page + 1
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   fmt.Sprintf("%swhy page %d %s", p, nextPage, query),
+			Text: "Next",
+		})
+	} else if totalPages > 1 && page == totalPages {
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   fmt.Sprintf("%swhy page 1 %s", p, query),
+			Text: "First Page",
+		})
+	}
+
+	if len(buttons) > 0 {
+		footer := fmt.Sprintf("Powered by why.com • %s", ctx.GetBotName())
+		if err := sendInteractiveButtons(ctx, sb.String(), footer, buttons); err == nil {
+			return nil
+		}
+	}
+
+	return ctx.Reply(sb.String())
 }
