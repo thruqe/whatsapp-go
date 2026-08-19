@@ -1277,7 +1277,7 @@ func sendSetBotPage(ctx *Context, pageNum int) error {
 		curPrefix = "(none)"
 	}
 
-	thumbStatus := "Default (whatsrook.mp4)"
+	thumbStatus := "None (Default)"
 	if s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore); ok {
 		if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
 			if _, errStat := os.Stat(custom); errStat == nil {
@@ -1327,7 +1327,7 @@ func sendWizardSummaryCard(ctx *Context) error {
 		curPrefix = "(none)"
 	}
 
-	thumbStatus := "Default (whatsrook.mp4)"
+	thumbStatus := "None (Default)"
 	if s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore); ok {
 		if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
 			if _, errStat := os.Stat(custom); errStat == nil {
