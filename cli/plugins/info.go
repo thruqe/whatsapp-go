@@ -620,7 +620,7 @@ func handleMenu(ctx *Context) error {
 			}
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.mp4"))
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.jpg"))
-			return ctx.Reply("Bot menu thumbnail reset to default (whatsrook.mp4).")
+			return ctx.Reply("Bot menu thumbnail reset to default.")
 		}
 	}
 
@@ -701,43 +701,23 @@ func handleMenu(ctx *Context) error {
 
 	menuText := strings.TrimRight(sb.String(), "\n")
 
-	menuStyle := "video"
+	authDir := GetSessionAuthDir(ctx.Client)
+	videoPath := filepath.Join(authDir, "custom_menu_thumbnail.mp4")
 	if ok {
-		currentStyle, _ := s.GetSetting(ctx.Ctx, "menu_style")
-		if currentStyle == "video" {
-			menuStyle = "text"
-		} else {
-			menuStyle = "video"
+		if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
+			videoPath = custom
 		}
-		_ = s.PutSetting(ctx.Ctx, "menu_style", menuStyle)
+	}
+	if _, err := os.Stat(videoPath); err != nil {
+		jpgPath := filepath.Join(authDir, "custom_menu_thumbnail.jpg")
+		if _, errJpg := os.Stat(jpgPath); errJpg == nil {
+			videoPath = jpgPath
+		} else {
+			videoPath = ""
+		}
 	}
 
-	if menuStyle == "video" {
-		authDir := GetSessionAuthDir(ctx.Client)
-		videoPath := filepath.Join(authDir, "custom_menu_thumbnail.mp4")
-		if ok {
-			if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
-				videoPath = custom
-			}
-		}
-		if _, err := os.Stat(videoPath); err != nil {
-			jpgPath := filepath.Join(authDir, "custom_menu_thumbnail.jpg")
-			if _, errJpg := os.Stat(jpgPath); errJpg == nil {
-				videoPath = jpgPath
-			} else {
-				videoPath = "cli/resources/whatsrook.mp4"
-				if _, err := os.Stat(videoPath); err != nil {
-					videoPath = "resources/whatsrook.mp4"
-					if _, err := os.Stat(videoPath); err != nil {
-						videoPath = "cli/resources/intro.mp4"
-						if _, err := os.Stat(videoPath); err != nil {
-							videoPath = "resources/intro.mp4"
-						}
-					}
-				}
-			}
-		}
-
+	if videoPath != "" {
 		if videoData, err := os.ReadFile(videoPath); err == nil && len(videoData) > 0 {
 			mType := "video/mp4"
 			if strings.HasSuffix(videoPath, ".jpg") || strings.HasSuffix(videoPath, ".jpeg") {
