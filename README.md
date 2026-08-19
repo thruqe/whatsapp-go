@@ -1,56 +1,48 @@
+# WhatsRook
+
 > [!CAUTION]
-> Educational project only. See [DISCLAIMER.md](DISCLAIMER.md) before use.
+> **Educational project only.** Review [DISCLAIMER](DISCLAIMER.md) before use.
 
-Connect your app to WhatsApp and receive live events — messages, groups, stories, channels — then send actions back programmatically.
+Connect to your WhatsApp and manage it programmatically.
 
-Read [Documentation](https://thruqe.github.io/whatsrook-docs/) to get started, find your way through, and deploy your own copy.
+## Key Links
 
-If you find WhatsRook useful, please consider **starring and [forking](https://github.com/Thruqe/whatsrook/fork)** the repository! It helps support and motivate further development.
-
-[![Free Hosting](https://img.shields.io/badge/Free-Hosting-26A5E4?style=for-the-badge&logo=render&logoColor=white)](https://wha-console.onrender.com)
-[![Join Telegram Channel](https://img.shields.io/badge/Telegram-Channel-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/whatsrook)
+- [Documentation](https://thruqe.github.io/whatsrook-docs/)
+- [Deployment Console](https://wha-console.onrender.com)
+- [Telegram Channel](https://t.me/whatsrook)
 
 ## Features
 
-- Real-time event streaming (messages, groups, stories, channels)
-- Bidirectional communication — receive events, dispatch actions
-- Build bots, automations, and integrations on top of WhatsApp
-- Powered by whatsmeow (no browser automation, no Puppeteer)
+- Send and receive messages (text, media, reactions, polls)
+- Download and decrypt incoming media (images, audio, video, documents)
+- Manage group participants, metadata, and permissions
+- Interact with WhatsApp channels and story status updates
+- Schedule messages and event-driven automated workflows
+- Set presence states, typing indicators, and read receipts
 
 ## Configuration
 
-WhatsRook can be configured via environment variables (e.g. `.env` file) or CLI flags:
+Configure WhatsRook via environment variables (e.g., `.env`) or CLI flags:
 
-| Variable       | Flag              | Default  | Description                                                               |
-| :------------- | :---------------- | :------- | :------------------------------------------------------------------------ |
-| `SESSION`      | `-s, --session`   | —        | Phone number used to identify the WhatsApp session (e.g. `2348000000000`) |
-| `CLIENT`       | `-c, --client`    | `chrome` | Client platform: `chrome`, `android`, `ios`                               |
-| `PAIR`         | `-p, --pair`      | `false`  | Request an 8-character pairing code                                       |
-| `QRCODE`       | `-q, --qrcode`    | `false`  | Print QR code to terminal for scanning                                    |
-| `DATABASE_URL` | `-db, --database` | `sqlite` | Database connection URL (`postgres://...` or `sqlite`)                    |
-| `VERBOSE`      | `-v, --verbose`   | `false`  | Enable verbose logging                                                    |
-| `PORT`         | `-P, --port`      | `3000`   | WebSocket/HTTP server port                                                |
+| Environment Variable | CLI Flag          | Default  | Description                                                         |
+| -------------------- | ----------------- | -------- | ------------------------------------------------------------------- |
+| `SESSION`            | `-s, --session`   | —        | Target phone number with country code (e.g., `2348000000000`)       |
+| `CLIENT`             | `-c, --client`    | `chrome` | Target client identity platform: `chrome`, `android`, `ios`         |
+| `PAIR`               | `-p, --pair`      | `false`  | Request an 8-character pairing code instead of QR code              |
+| `QRCODE`             | `-q, --qrcode`    | `false`  | Render terminal ASCII QR code for initial authentication            |
+| `DATABASE_URL`       | `-db, --database` | `sqlite` | Connection string (`postgres://user:pass@host:5432/db` or `sqlite`) |
+| `VERBOSE`            | `-v, --verbose`   | `false`  | Enable structured debug logging                                     |
+| `PORT`               | `-P, --port`      | `3000`   | Local HTTP/WebSocket server listening port                          |
 
 ## Database & Storage
 
-WhatsRook uses PostgreSQL as its primary database engine, with automatic fallback to embedded SQLite.
+WhatsRook defaults to embedded SQLite for local prototyping, but uses PostgreSQL for production workloads.
 
-Get a free managed PostgreSQL database at [Supabase](https://supabase.com) and set `DATABASE_URL` in your environment or `.env` file. For details, see the [Database & Storage Guide](https://thruqe.github.io/whatsrook-docs/DATABASE).
+- To provision managed storage, configure a free tier on [Supabase](https://supabase.com) and assign the connection string to `DATABASE_URL`.
+- For advanced schema and migration behavior, review the [Database & Storage Guide](https://thruqe.github.io/whatsrook-docs/DATABASE).
 
-## Deployment
+## Contributing & Governance
 
-WhatsRook supports multiple deployment platforms including Pterodactyl, Heroku, Render, and Local Docker.
-
-For step-by-step guides on deploying WhatsRook, see the [Deployment Documentation](https://thruqe.github.io/whatsrook-docs/DEPLOYMENT).
-
-## Contributing
-
-Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing.
-
-## Disclaimer
-
-See [DISCLAIMER.md](DISCLAIMER.md) for full terms and limitations.
-
-## License
-
-MIT — see [LICENSE](LICENSE) for details.
+- **Contributing:** Please review the [Code of Conduct](https://www.google.com/search?q=CODE_OF_CONDUCT.md) before submitting pull requests.
+- **Disclaimer:** Review the full liability terms in [DISCLAIMER](DISCLAIMER.md).
+- **License:** Distributed under the [MIT License](https://www.google.com/search?q=LICENSE).
