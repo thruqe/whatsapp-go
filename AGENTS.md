@@ -11,6 +11,10 @@ Welcome to WhatsRook.
   - `whatsrook/utils`: Core protocol & messaging abstractions over `wa-core`, media transcode engine (JPEG/Opus/FFmpeg), and logging (`utils/logger.go`).
   - `whatsrook/cli`: WhatsApp bot CLI application, plugin commands (`cli/plugins`), and consolidated CLI feature utilities (`cli/utils`: media downloaders, font styling, URL validators, prompts, timezones, Meta AI parsers, games, quote card renderer).
 
+## Development Management
+
+Utilize the [Taskfile](./Taskfile.yml)
+
 ## Relevant Documentation
 
 - [Docs](https://github.com/Thruqe/whatsrook-docs)
