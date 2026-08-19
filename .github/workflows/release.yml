@@ -20,7 +20,10 @@ jobs:
       - name: Parse Version and Check Release Status
         id: version-check
         run: |
-          CURRENT_VERSION=$(git show HEAD:version.toml | sed -n 's/^version = "\(.*\)"/\1/p')
+          CURRENT_VERSION=$(git show HEAD:version.txt 2>/dev/null | tr -d '[:space:]')
+          if [ -z "$CURRENT_VERSION" ] && [ -f "version.txt" ]; then
+            CURRENT_VERSION=$(tr -d '[:space:]' < version.txt)
+          fi
           echo "Current version: $CURRENT_VERSION"
 
           git fetch --tags origin 2>/dev/null || true
@@ -130,7 +133,7 @@ jobs:
           cp -r prompts staging/ 2>/dev/null || true
           cp LICENSE staging/ 2>/dev/null || true
           cp README.md staging/ 2>/dev/null || true
-          cp version.toml staging/ 2>/dev/null || true
+          cp version.txt staging/ 2>/dev/null || true
           tar -czf whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz -C staging .
 
       - name: Upload Intermediary Artifact

@@ -20,16 +20,23 @@ import (
 	"time"
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"whatsrook"
 )
 
 const (
-	EmbeddedAppVersion = "18.8.26"
 	DefaultRepoOwner   = "Thruqe"
 	DefaultRepoName    = "whatsrook"
-	DefaultVersionFile = "version.toml"
-	DefaultVersionURL  = "https://raw.githubusercontent.com/Thruqe/whatsrook/refs/heads/master/version.toml"
+	DefaultVersionFile = "version.txt"
+	DefaultVersionURL  = "https://raw.githubusercontent.com/Thruqe/whatsrook/refs/heads/master/version.txt"
 	ChannelKey         = "update_channel" // "stable" or "beta"
 )
+
+var EmbeddedAppVersion = func() string {
+	if v, err := whatsrook.GetVersion(); err == nil && v.Raw != "" {
+		return v.Raw
+	}
+	return "18.8.26"
+}()
 
 // Backward-compatible exports for external callers.
 const (
@@ -240,7 +247,7 @@ func (v Version) Compare(other Version) int {
 	return 0
 }
 
-// GetAppVersion attempts to read version from local version.toml, falling back to EmbeddedAppVersion.
+// GetAppVersion attempts to read version from local version.txt, falling back to whatsrook.GetVersion().
 func GetAppVersion() string {
 	return ReadEffectiveLocalVersion(DefaultVersionFile)
 }
@@ -256,16 +263,27 @@ func ReadEffectiveLocalVersion(versionFile string) string {
 			return strings.TrimSpace(ver)
 		}
 	}
+	if v, err := whatsrook.GetVersion(); err == nil && v.Raw != "" {
+		return v.Raw
+	}
 	return EmbeddedAppVersion
 }
 
-// ReadLocalVersion reads and parses the version string from a local version.toml file.
+// ReadLocalVersion reads and parses the version string from a local version file.
 func ReadLocalVersion(versionPath string) (string, error) {
 	data, err := os.ReadFile(versionPath)
 	if err != nil {
 		return "", err
 	}
-	return parseVersionFromTOML(string(data))
+	clean := strings.TrimSpace(string(data))
+	if clean == "" {
+		return "", fmt.Errorf("empty version file %q", versionPath)
+	}
+	// Also support parsing legacy TOML format if present
+	if strings.Contains(clean, "version") && strings.Contains(clean, "=") {
+		return parseVersionFromTOML(clean)
+	}
+	return clean, nil
 }
 
 func parseVersionFromTOML(content string) (string, error) {
@@ -281,7 +299,7 @@ func parseVersionFromTOML(content string) (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("version key not found in version.toml")
+	return "", fmt.Errorf("version key not found in toml")
 }
 
 // FetchRemoteVersion fetches the latest version string from the remote repository.
@@ -311,7 +329,14 @@ func (u *Updater) FetchRemoteVersion(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return parseVersionFromTOML(string(body))
+	clean := strings.TrimSpace(string(body))
+	if clean == "" {
+		return "", fmt.Errorf("empty remote version from %s", versionURL)
+	}
+	if strings.Contains(clean, "version") && strings.Contains(clean, "=") {
+		return parseVersionFromTOML(clean)
+	}
+	return clean, nil
 }
 
 // CheckUpdate compares local and remote versions for current platform using DefaultUpdater.
@@ -488,9 +513,9 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 		return fmt.Errorf("matching executable binary not found in release archive %s", chosenAsset)
 	}
 
-	// Always write version.toml alongside the new executable so local version is permanently updated
+	// Always write version.txt alongside the new executable so local version is permanently updated
 	if remoteVer, err := u.FetchRemoteVersion(ctx); err == nil && remoteVer != "" {
-		_ = os.WriteFile(filepath.Join(cleanExeDir, u.opts.VersionFile), []byte(fmt.Sprintf("version = %q\n", remoteVer)), 0644)
+		_ = os.WriteFile(filepath.Join(cleanExeDir, u.opts.VersionFile), []byte(strings.TrimSpace(remoteVer)+"\n"), 0644)
 	}
 
 	u.logf("==> [3/3] Performing atomic binary swap with rollback safety...")

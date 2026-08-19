@@ -20,6 +20,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
+	"whatsrook"
 	cliutils "whatsrook/cli/utils"
 	"whatsrook/utils"
 )
@@ -812,12 +813,13 @@ func handleReconfigure(ctx *Context) error {
 }
 
 func GetSessionAuthDir(client *whatsmeow.Client) string {
+	baseAuth := whatsrook.DefaultAuthDir()
 	if client != nil && client.Store != nil {
 		if client.Store.ID != nil && client.Store.ID.User != "" {
-			return filepath.Join("auth", client.Store.ID.User)
+			return filepath.Join(baseAuth, client.Store.ID.User)
 		}
 	}
-	return filepath.Join("auth", "default")
+	return filepath.Join(baseAuth, "default")
 }
 
 func GetSessionMediaDir(client *whatsmeow.Client, subdirs ...string) string {

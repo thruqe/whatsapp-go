@@ -57,7 +57,7 @@ type Bot struct {
 // Initiates a new Bot instance
 func NewBot(cfg BotConfig) *Bot {
 	if cfg.DataDir == "" {
-		cfg.DataDir = "auth"
+		cfg.DataDir = whatsrook.DefaultAuthDir()
 	}
 	if cfg.WSPort <= 0 {
 		cfg.WSPort = 3000
