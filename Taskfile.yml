@@ -1,0 +1,60 @@
+version: "3"
+
+vars:
+  BINARY_NAME: "whatsrook{{exeExt}}"
+  BIN_PATH: "bin/{{.BINARY_NAME}}"
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  install:
+    desc: Install Go module dependencies
+    cmds:
+      - go mod download
+      - go mod tidy
+      - cd cli && go mod download && go mod tidy
+
+  fmt:
+    desc: Format and vet all Go code
+    cmds:
+      - go fmt ./...
+      - gofmt -w -s .
+      - cd cli && go fmt ./...
+      - cd cli && gofmt -w -s .
+      - go vet ./...
+      - cd cli && go vet ./...
+
+  test:
+    desc: Run the test suite
+    cmds:
+      - |
+        PKGS=$(go list -f '{{"{{"}}if .TestGoFiles{{"}}"}}{{"{{"}}.ImportPath{{"}}"}}{{"{{"}}end{{"}}"}}' ./...)
+        if [ -n "$PKGS" ]; then go test -v -timeout 120s $PKGS; fi
+      - cd wa-core && go test -v -timeout 60s ./...
+      - cd cli && go test -v -timeout 60s ./...
+
+  update:
+    desc: Upgrade all Go dependencies
+    cmds:
+      - go get -u ./...
+      - go mod tidy
+      - cd cli && go get -u ./...
+      - cd cli && go mod tidy
+
+  build:
+    desc: "Build binary executable into {{.BIN_PATH}}"
+    cmds:
+      - cmd: mkdir -p bin
+        platforms: [linux, darwin, windows]
+      - cd cli && go build -v -o ../{{.BIN_PATH}} .
+
+  clean:
+    desc: Remove build artifacts and temporary files
+    cmds:
+      - cmd: rm -rf bin/ tmp/
+        platforms: [linux, darwin]
+      - cmd: powershell -Command "Remove-Item -Recurse -Force bin, tmp -ErrorAction SilentlyContinue"
+        platforms: [windows]
