@@ -19,26 +19,33 @@ var (
 	instructionMu     sync.Mutex
 	cachedInstruction string
 	cachedBotName     string
+	cachedPrefix      string
 	instructionSetAt  time.Time
 )
 
 // GetOrBuildInstruction returns the cached instruction block if it's still
 // within cacheTTL, otherwise rebuilds it via buildFn and caches the result.
 func GetOrBuildInstruction(buildFn func() string) string {
-	return GetOrBuildInstructionWithName("", buildFn)
+	return GetOrBuildInstructionWithNameAndPrefix("", "!", buildFn)
 }
 
 // GetOrBuildInstructionWithName returns the cached instruction block for botName if still valid.
 func GetOrBuildInstructionWithName(botName string, buildFn func() string) string {
+	return GetOrBuildInstructionWithNameAndPrefix(botName, "!", buildFn)
+}
+
+// GetOrBuildInstructionWithNameAndPrefix returns the cached instruction block for botName and prefix if still valid.
+func GetOrBuildInstructionWithNameAndPrefix(botName, prefix string, buildFn func() string) string {
 	instructionMu.Lock()
 	defer instructionMu.Unlock()
 
-	if time.Since(instructionSetAt) < cacheTTL && cachedInstruction != "" && cachedBotName == botName {
+	if time.Since(instructionSetAt) < cacheTTL && cachedInstruction != "" && cachedBotName == botName && cachedPrefix == prefix {
 		return cachedInstruction
 	}
 
 	cachedInstruction = buildFn()
 	cachedBotName = botName
+	cachedPrefix = prefix
 	instructionSetAt = time.Now()
 	return cachedInstruction
 }
@@ -49,6 +56,7 @@ func ClearInstructionCache() {
 	defer instructionMu.Unlock()
 	cachedInstruction = ""
 	cachedBotName = ""
+	cachedPrefix = ""
 }
 
 // groupMetaCacheEntry holds a cached GroupInfo plus when it was fetched.

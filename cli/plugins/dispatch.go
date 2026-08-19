@@ -288,6 +288,15 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 				}
 			}
 
+			if client.Store.ID != nil {
+				if ourJID := client.Store.ID.ToNonAD(); ourJID.User != "" {
+					prompt = strings.TrimSpace(strings.ReplaceAll(prompt, "@"+ourJID.User, ""))
+				}
+			}
+			if ourLID := client.Store.LID.ToNonAD(); ourLID.User != "" {
+				prompt = strings.TrimSpace(strings.ReplaceAll(prompt, "@"+ourLID.User, ""))
+			}
+
 			botName := GetBotName(ctx, client)
 			if botName != "" && strings.HasPrefix(strings.ToLower(prompt), strings.ToLower(botName)) {
 				prompt = strings.TrimSpace(prompt[len(botName):])
@@ -297,17 +306,25 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 				prompt = text
 			}
 
-			cctx := &Context{
-				Ctx:     ctx,
-				Client:  client,
-				Evt:     evt,
-				Command: "ai",
-				Args:    strings.Fields(prompt),
-				RawArgs: prompt,
-				Chat:    evt.Info.Chat,
-				Sender:  evt.Info.Sender,
-			}
 			go func() {
+				reqCtx, cancel := context.WithCancel(ctx)
+				defer cancel()
+
+				cctx := &Context{
+					Ctx:        reqCtx,
+					CancelFunc: cancel,
+					Client:     client,
+					Evt:        evt,
+					Command:    "ai",
+					Args:       strings.Fields(prompt),
+					RawArgs:    prompt,
+					Chat:       evt.Info.Chat,
+					Sender:     evt.Info.Sender,
+				}
+
+				cctx.StartAutoLoader()
+				defer cctx.StopAutoLoader()
+
 				if cmd, ok := Get("ai"); ok {
 					if err := cmd.Handler(cctx); err != nil {
 						slog.Error("AutoAI command handler failed", "err", err)
