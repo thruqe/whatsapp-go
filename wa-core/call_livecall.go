@@ -240,15 +240,6 @@ func cloneGroupCallState(state GroupCallState) GroupCallState {
 	return clone
 }
 
-func (c *Call) setPeer(peer types.JID) {
-	if peer.IsEmpty() {
-		return
-	}
-	c.mu.Lock()
-	c.peer = peer
-	c.mu.Unlock()
-}
-
 // State returns the call's current phase.
 func (c *Call) State() CallPhase {
 	c.mu.Lock()

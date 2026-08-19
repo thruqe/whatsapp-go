@@ -1440,12 +1440,13 @@ func (e *engine) installCallAckHook() error {
 				return node, true
 			}
 		}
-		if node.Tag == "ack" {
+		switch node.Tag {
+		case "ack":
 			cls := node.AttrGetter().String("class")
 			if cls == "call" || findRelay(node) != nil || findChild(node, "error") != nil {
 				e.onCallAck(node)
 			}
-		} else if node.Tag == "call" {
+		case "call":
 			if e.onCallRaw(node) {
 				return nil, true
 			}
