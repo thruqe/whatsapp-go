@@ -4,11 +4,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"whatsrook"
 	"whatsrook/cli/updater"
@@ -103,14 +107,20 @@ func main() {
 		}
 	}
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	if args.Session == "" {
+		if err := runIdleMode(ctx, args.Port); err != nil {
+			slog.Error("idle server error", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	clientType, ok := whatsrook.ParseClientType(args.Client)
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Error: unknown --client %q. Valid options: chrome, android, ios\n", args.Client)
-		os.Exit(1)
-	}
-
-	if args.Session == "" {
-		fmt.Fprintln(os.Stderr, "Error: --session <phone_number> or $SESSION environment variable is required. Run with -h for help.")
 		os.Exit(1)
 	}
 
@@ -126,11 +136,72 @@ func main() {
 		SkipOldMessages: args.SkipOldMessages,
 	})
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
 	if err := bot.Start(ctx); err != nil {
 		slog.Error("bot error", "err", err)
 		os.Exit(1)
+	}
+}
+
+func runIdleMode(ctx context.Context, port int) error {
+	if port <= 0 {
+		port = 3000
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, "WhatsRook standby • waiting for session • %s\n", time.Now().Format("15:04:05"))
+	})
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintln(w, "OK")
+	})
+
+	var listener net.Listener
+	var actualPort int
+	for p := port; p < port+100; p++ {
+		l, err := net.Listen("tcp", fmt.Sprintf(":%d", p))
+		if err == nil {
+			listener = l
+			actualPort = p
+			break
+		}
+		if p == port {
+			slog.Warn("port in use, attempting to bind alternative port", "attempted_port", p, "err", err)
+		}
+	}
+	if listener == nil {
+		return errors.New("failed to find an available port to bind HTTP server")
+	}
+
+	if actualPort != port {
+		slog.Warn("port in use — switched to alternative port", "original_port", port, "new_port", actualPort)
+	}
+
+	server := &http.Server{Handler: mux}
+	go func() {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("http server error", "err", err)
+		}
+	}()
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+	}()
+
+	fmt.Printf("\rWhatsRook standby • waiting for session • %s", time.Now().Format("15:04:05"))
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			fmt.Printf("\rWhatsRook standby • waiting for session • %s", time.Now().Format("15:04:05"))
+		case <-ctx.Done():
+			fmt.Println()
+			return nil
+		}
 	}
 }

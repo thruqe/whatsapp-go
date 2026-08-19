@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadDotEnv(t *testing.T) {
@@ -41,3 +45,46 @@ QUOTED_VAL="hello world"
 		t.Errorf("expected QUOTED_VAL='hello world', got %q", got)
 	}
 }
+
+func TestRunIdleMode(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Use an ephemeral port
+	port := 38472
+	errChan := make(chan error, 1)
+
+	go func() {
+		errChan <- runIdleMode(ctx, port)
+	}()
+
+	// Wait for server to bind
+	var resp *http.Response
+	var err error
+	for range 20 {
+		time.Sleep(50 * time.Millisecond)
+		resp, err = http.Get(fmt.Sprintf("http://127.0.0.1:%d/", port))
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		t.Fatalf("failed to query idle server: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 OK, got %d", resp.StatusCode)
+	}
+
+	cancel()
+	select {
+	case err := <-errChan:
+		if err != nil {
+			t.Errorf("expected nil error on cancel, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for runIdleMode to shutdown")
+	}
+}
+
