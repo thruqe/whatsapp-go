@@ -90,7 +90,7 @@ func (l *Loader) activate() {
 }
 
 func (l *Loader) run() {
-	ticker := time.NewTicker(800 * time.Millisecond)
+	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	frameIdx := 1
@@ -108,15 +108,35 @@ func (l *Loader) run() {
 			}
 			frame := loaderFrames[frameIdx%len(loaderFrames)]
 			frameIdx++
-			msgID := l.msgID
 			l.mu.Unlock()
 
 			displayText := fmt.Sprintf("%s %s", l.initialText, frame)
-			_, err := l.ctx.Edit(msgID, displayText)
-			if err != nil {
-				slog.Debug("Loader animation edit failed", "msgID", msgID, "err", err)
-			}
+			l.editFrame(displayText)
 		}
+	}
+}
+
+func (l *Loader) editFrame(text string) {
+	l.mu.Lock()
+	if l.stopped || l.msgID == "" {
+		l.mu.Unlock()
+		return
+	}
+	msgID := l.msgID
+	l.mu.Unlock()
+
+	if l.ctx == nil || l.ctx.Client == nil {
+		return
+	}
+
+	formatted := l.ctx.formatTextResponse(text)
+	msg := &waE2E.Message{
+		Conversation: &formatted,
+	}
+	editMsg := l.ctx.Client.BuildEdit(l.ctx.Chat, msgID, msg)
+	_, err := l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, editMsg)
+	if err != nil {
+		slog.Debug("Loader animation edit failed", "msgID", msgID, "err", err)
 	}
 }
 
@@ -128,10 +148,16 @@ func (l *Loader) Cancel() {
 	}
 	l.mu.Lock()
 	msgID := l.msgID
+	l.msgID = ""
 	l.mu.Unlock()
 
-	if msgID != "" {
-		_, _ = l.ctx.Edit(msgID, "Operation cancelled.")
+	if msgID != "" && l.ctx != nil && l.ctx.Client != nil {
+		formatted := l.ctx.formatTextResponse("Operation cancelled.")
+		msg := &waE2E.Message{
+			Conversation: &formatted,
+		}
+		editMsg := l.ctx.Client.BuildEdit(l.ctx.Chat, msgID, msg)
+		_, _ = l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, editMsg)
 	}
 }
 
@@ -171,10 +197,16 @@ func (l *Loader) Done(finalText string) {
 	l.Stop()
 	l.mu.Lock()
 	msgID := l.msgID
+	l.msgID = ""
 	l.mu.Unlock()
 
-	if msgID != "" && finalText != "" {
-		_, _ = l.ctx.Edit(msgID, finalText)
+	if msgID != "" && finalText != "" && l.ctx != nil && l.ctx.Client != nil {
+		formatted := l.ctx.formatTextResponse(finalText)
+		msg := &waE2E.Message{
+			Conversation: &formatted,
+		}
+		editMsg := l.ctx.Client.BuildEdit(l.ctx.Chat, msgID, msg)
+		_, _ = l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, editMsg)
 	}
 }
 
@@ -183,10 +215,15 @@ func (l *Loader) Delete() {
 	l.Stop()
 	l.mu.Lock()
 	msgID := l.msgID
+	l.msgID = ""
 	l.mu.Unlock()
 
-	if msgID != "" {
-		slog.Debug("StartLoader: deleting loader message", "msgID", msgID)
-		_, _ = l.ctx.Delete(msgID)
+	if msgID != "" && l.ctx != nil && l.ctx.Client != nil {
+		slog.Debug("Loader: deleting loader message", "msgID", msgID)
+		revokeMsg := l.ctx.Client.BuildRevoke(l.ctx.Chat, types.EmptyJID, msgID)
+		_, err := l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, revokeMsg)
+		if err != nil {
+			slog.Debug("Loader: failed to delete loader message", "msgID", msgID, "err", err)
+		}
 	}
 }

@@ -26,6 +26,7 @@ func (ctx *PluginContext) formatTextResponse(text string) string {
 
 // SendText sends a simple text message to the current chat (with monospace format).
 func (ctx *PluginContext) SendText(text string) error {
+	ctx.StopAutoLoader()
 	formatted := ctx.formatTextResponse(text)
 	slog.Debug("Building SendText", "text", text, "formatted", formatted)
 	slog.Debug("Sending SendText", "chat", ctx.Chat.String())
@@ -150,6 +151,7 @@ func (ctx *PluginContext) replyContextInfo() *waE2E.ContextInfo {
 
 // SendImage uploads and sends an image to the current chat.
 func (ctx *PluginContext) SendImage(data []byte, mimetype, caption string) error {
+	ctx.StopAutoLoader()
 	if mimetype == "" {
 		slog.Warn("SendImage: mimetype is empty, defaulting to image/jpeg")
 		mimetype = "image/jpeg"
@@ -185,6 +187,7 @@ func (ctx *PluginContext) SendImage(data []byte, mimetype, caption string) error
 
 // ReplyWithImage uploads and sends an image as a reply.
 func (ctx *PluginContext) ReplyWithImage(data []byte, mimetype, caption string) error {
+	ctx.StopAutoLoader()
 	if mimetype == "" {
 		slog.Warn("ReplyWithImage: mimetype is empty, defaulting to image/jpeg")
 		mimetype = "image/jpeg"
@@ -231,6 +234,7 @@ func (ctx *PluginContext) SendVideoGif(data []byte, mimetype, caption string) er
 }
 
 func (ctx *PluginContext) sendVideoInternal(data []byte, mimetype, caption string, gifPlayback bool) error {
+	ctx.StopAutoLoader()
 	if mimetype == "" || gifPlayback {
 		mimetype = "video/mp4"
 	}
@@ -276,6 +280,7 @@ func (ctx *PluginContext) ReplyWithVideoGif(data []byte, mimetype, caption strin
 }
 
 func (ctx *PluginContext) replyVideoInternal(data []byte, mimetype, caption string, gifPlayback bool) error {
+	ctx.StopAutoLoader()
 	if mimetype == "" || gifPlayback {
 		mimetype = "video/mp4"
 	}
@@ -314,6 +319,7 @@ func (ctx *PluginContext) replyVideoInternal(data []byte, mimetype, caption stri
 
 // SendDocument uploads and sends a document.
 func (ctx *PluginContext) SendDocument(data []byte, mimetype, filename, caption string) error {
+	ctx.StopAutoLoader()
 	if mimetype == "" {
 		slog.Warn("SendDocument: mimetype is empty, defaulting to application/octet-stream")
 		mimetype = "application/octet-stream"
@@ -350,6 +356,7 @@ func (ctx *PluginContext) SendDocument(data []byte, mimetype, filename, caption 
 
 // ReplyWithDocument uploads and sends a document as a reply.
 func (ctx *PluginContext) ReplyWithDocument(data []byte, mimetype, filename, caption string) error {
+	ctx.StopAutoLoader()
 	if mimetype == "" {
 		slog.Warn("ReplyWithDocument: mimetype is empty, defaulting to application/octet-stream")
 		mimetype = "application/octet-stream"
@@ -388,6 +395,7 @@ func (ctx *PluginContext) ReplyWithDocument(data []byte, mimetype, filename, cap
 
 // SendSticker uploads and sends a sticker.
 func (ctx *PluginContext) SendSticker(data []byte) error {
+	ctx.StopAutoLoader()
 	mimetype := "image/webp"
 	slog.Debug("Building SendSticker", "data_len", len(data))
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaImage)
@@ -419,6 +427,7 @@ func (ctx *PluginContext) SendSticker(data []byte) error {
 
 // ReplyWithSticker uploads and sends a sticker as a reply.
 func (ctx *PluginContext) ReplyWithSticker(data []byte) error {
+	ctx.StopAutoLoader()
 	mimetype := "image/webp"
 	cinfo := ctx.replyContextInfo()
 	slog.Debug("Building ReplyWithSticker", "data_len", len(data), "context_info", cinfo)
@@ -874,6 +883,7 @@ func (ctx *PluginContext) extractMediaFromMessage(msg *waE2E.Message) ([]byte, s
 
 // SendAudio uploads and sends an audio file (converted to Opus PTT voice note if supported, or standard audio track if raw format).
 func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
+	ctx.StopAutoLoader()
 	meta, errMeta := EnsureOpusPTT(ctx.Ctx, data)
 	isPTT := false
 	if errMeta == nil && meta != nil && meta.Converted && len(meta.Data) > 0 {
@@ -924,6 +934,7 @@ func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 
 // ReplyWithAudio uploads and sends an audio file reply.
 func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
+	ctx.StopAutoLoader()
 	meta, errMeta := EnsureOpusPTT(ctx.Ctx, data)
 	isPTT := false
 	if errMeta == nil && meta != nil && meta.Converted && len(meta.Data) > 0 {
@@ -976,6 +987,7 @@ func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 
 // SendTextWithMentions sends a text message with WhatsApp mentions.
 func (ctx *PluginContext) SendTextWithMentions(text string, jids []types.JID) error {
+	ctx.StopAutoLoader()
 	formatted := ctx.formatMentionTextResponse(text)
 	var mentioned []string
 	for _, j := range jids {
@@ -1003,6 +1015,7 @@ func (ctx *PluginContext) SendTextWithMentions(text string, jids []types.JID) er
 
 // ReplyWithMentions sends a text message with WhatsApp mentions replying to the current message.
 func (ctx *PluginContext) ReplyWithMentions(text string, jids []types.JID) error {
+	ctx.StopAutoLoader()
 	formatted := ctx.formatMentionTextResponse(text)
 	var mentioned []string
 	for _, j := range jids {
@@ -1048,6 +1061,7 @@ func (ctx *PluginContext) ResolveMention(jid types.JID) (types.JID, string) {
 
 // SendTextWithGroupMention sends a text message featuring WhatsApp's native @all group mention via NonJIDMentions.
 func (ctx *PluginContext) SendTextWithGroupMention(text string) error {
+	ctx.StopAutoLoader()
 	formatted := ctx.formatMentionTextResponse(text)
 
 	var nonJID uint32 = 1
@@ -1070,6 +1084,7 @@ func (ctx *PluginContext) SendTextWithGroupMention(text string) error {
 
 // ReplyWithGroupMention sends a text message featuring WhatsApp's native @all group mention replying to the current message.
 func (ctx *PluginContext) ReplyWithGroupMention(text string) error {
+	ctx.StopAutoLoader()
 	formatted := ctx.formatMentionTextResponse(text)
 
 	var nonJID uint32 = 1
@@ -1094,6 +1109,7 @@ func (ctx *PluginContext) ReplyWithGroupMention(text string) error {
 
 // React sends an emoji reaction to the current message (e.g. "✅" or "❌").
 func (ctx *PluginContext) React(emoji string) error {
+	ctx.StopAutoLoader()
 	if ctx == nil || ctx.Client == nil || ctx.Evt == nil {
 		return fmt.Errorf("cannot react: context, client, or event is nil")
 	}

@@ -26,9 +26,10 @@ type PluginContext struct {
 	Chat   types.JID
 	Sender types.JID
 
-	autoLoaderMu sync.Mutex
-	autoLoader   *Loader
-	loaderTimer  *time.Timer
+	autoLoaderMu  sync.Mutex
+	autoLoader    *Loader
+	loaderTimer   *time.Timer
+	loaderStopped bool
 }
 
 // Cancel invokes the context cancel function if set.
@@ -146,7 +147,7 @@ func (c *PluginContext) StartAutoLoader(delay ...time.Duration) {
 	c.autoLoaderMu.Lock()
 	defer c.autoLoaderMu.Unlock()
 
-	if c.loaderTimer != nil || c.autoLoader != nil {
+	if c.loaderStopped || c.loaderTimer != nil || c.autoLoader != nil {
 		return
 	}
 
@@ -157,11 +158,23 @@ func (c *PluginContext) StartAutoLoader(delay ...time.Duration) {
 
 	c.loaderTimer = time.AfterFunc(d, func() {
 		c.autoLoaderMu.Lock()
-		defer c.autoLoaderMu.Unlock()
-		if c.loaderTimer == nil {
+		if c.loaderStopped || c.loaderTimer == nil {
+			c.autoLoaderMu.Unlock()
 			return
 		}
-		c.autoLoader = c.StartLoader("Please wait")
+		c.loaderTimer = nil
+		c.autoLoaderMu.Unlock()
+
+		l := c.StartLoader("Please wait")
+
+		c.autoLoaderMu.Lock()
+		if c.loaderStopped {
+			c.autoLoaderMu.Unlock()
+			l.Delete()
+			return
+		}
+		c.autoLoader = l
+		c.autoLoaderMu.Unlock()
 	})
 }
 
@@ -171,14 +184,16 @@ func (c *PluginContext) StopAutoLoader() {
 		return
 	}
 	c.autoLoaderMu.Lock()
-	defer c.autoLoaderMu.Unlock()
-
+	c.loaderStopped = true
 	if c.loaderTimer != nil {
 		c.loaderTimer.Stop()
 		c.loaderTimer = nil
 	}
-	if c.autoLoader != nil {
-		c.autoLoader.Delete()
-		c.autoLoader = nil
+	loader := c.autoLoader
+	c.autoLoader = nil
+	c.autoLoaderMu.Unlock()
+
+	if loader != nil {
+		loader.Delete()
 	}
 }
