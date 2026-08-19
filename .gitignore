@@ -1,16 +1,3 @@
-/target
-/auth
 /tmp
-/media
-.env
-.env.*
+/bin
 *.env
-debug.log
-whatsrook
-whatsrook.exe
-cookie.txt
-*.cookie
-*.txt
-!utils/prompts/*.txt
-cobalt*.zip
-bin/
