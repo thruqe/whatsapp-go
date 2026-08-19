@@ -52,12 +52,12 @@ func parseCLIArgs() CLIArgs {
 	fs.BoolVar(verbose, "verbose", *verbose, "")
 
 	fs.Usage = func() {
-		fmt.Print(`Usage: whatsrook -session <phone_number> [OPTIONS]
+		fmt.Print(`Usage: whatsrook [-session <phone_number>] [OPTIONS]
        whatsrook update [check | upgrade]
        whatsrook --update [stable | beta]
 
 Options:
-  -s, --session <phone>  Phone number used to identify the session (required unless --update)
+  -s, --session <phone>  Phone number used to identify the session (runs in idle mode if omitted)
   -p, --pair             Request a pair code using the --session phone number
   -P, --port <port>      WebSocket/HTTP server port (default: 3000 or $PORT)
   -c, --client <type>    Client type: chrome (default), android, ios
