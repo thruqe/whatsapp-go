@@ -126,3 +126,42 @@ func GetBotName(ctx context.Context, client *whatsmeow.Client) string {
 func NormalizeUserJID(ctx context.Context, client *whatsmeow.Client, jid types.JID) types.JID {
 	return utils.ResolvePN(ctx, client, jid)
 }
+
+func resolveUserPushName(ctx *Context, pnjid types.JID, rawJID types.JID) string {
+	if !rawJID.IsEmpty() && ctx.Evt != nil && ctx.Evt.Info.Sender.ToNonAD().User == rawJID.ToNonAD().User && ctx.Evt.Info.PushName != "" {
+		return ctx.Evt.Info.PushName
+	}
+
+	if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.Contacts != nil {
+		if contact, err := ctx.Client.Store.Contacts.GetContact(ctx.Ctx, pnjid); err == nil && contact.Found {
+			if contact.PushName != "" {
+				return contact.PushName
+			}
+			if contact.FullName != "" {
+				return contact.FullName
+			}
+			if contact.BusinessName != "" {
+				return contact.BusinessName
+			}
+		}
+		// Fallback to raw LID contact lookup if PN contact was not found
+		if rawJID != pnjid && !rawJID.IsEmpty() {
+			if contact, err := ctx.Client.Store.Contacts.GetContact(ctx.Ctx, rawJID); err == nil && contact.Found {
+				if contact.PushName != "" {
+					return contact.PushName
+				}
+				if contact.FullName != "" {
+					return contact.FullName
+				}
+				if contact.BusinessName != "" {
+					return contact.BusinessName
+				}
+			}
+		}
+	}
+
+	if pnjid.User != "" {
+		return pnjid.User
+	}
+	return "User"
+}
