@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -303,18 +305,192 @@ func parseVersionFromTOML(content string) (string, error) {
 	return "", fmt.Errorf("version key not found in toml")
 }
 
+type githubAsset struct {
+	Name               string `json:"name"`
+	Size               int64  `json:"size"`
+	Digest             string `json:"digest"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+	UpdatedAt          string `json:"updated_at"`
+}
+
+type githubRelease struct {
+	TagName         string        `json:"tag_name"`
+	TargetCommitish string        `json:"target_commitish"`
+	Assets          []githubAsset `json:"assets"`
+	Body            string        `json:"body"`
+}
+
+type progressReader struct {
+	reader     io.Reader
+	total      int64
+	current    int64
+	out        io.Writer
+	lastUpdate time.Time
+	barWidth   int
+	finished   bool
+}
+
+func newProgressReader(r io.Reader, total int64, out io.Writer) *progressReader {
+	return &progressReader{
+		reader:   r,
+		total:    total,
+		out:      out,
+		barWidth: 60,
+	}
+}
+
+func (pr *progressReader) Read(p []byte) (int, error) {
+	n, err := pr.reader.Read(p)
+	if n > 0 {
+		pr.current += int64(n)
+		pr.render(false)
+	}
+	if err == io.EOF {
+		pr.finish()
+	}
+	return n, err
+}
+
+func (pr *progressReader) finish() {
+	if pr.finished {
+		return
+	}
+	pr.finished = true
+	if pr.out != nil {
+		pr.render(true)
+		fmt.Fprintln(pr.out)
+	}
+}
+
+func (pr *progressReader) render(final bool) {
+	if pr.out == nil {
+		return
+	}
+	now := time.Now()
+	if !final && now.Sub(pr.lastUpdate) < 50*time.Millisecond {
+		return
+	}
+	pr.lastUpdate = now
+
+	width := pr.barWidth
+	if width <= 0 {
+		width = 60
+	}
+
+	if pr.total > 0 {
+		pct := float64(pr.current) / float64(pr.total) * 100.0
+		if pct > 100.0 {
+			pct = 100.0
+		}
+		hashes := min(int(float64(width)*(float64(pr.current)/float64(pr.total))), width)
+		if final {
+			hashes = width
+			pct = 100.0
+		}
+		bar := strings.Repeat("#", hashes)
+		spaces := strings.Repeat(" ", width-hashes)
+		fmt.Fprintf(pr.out, "\r%s%s %5.1f%%", bar, spaces, pct)
+	} else {
+		fmt.Fprintf(pr.out, "\rDownloading... %s", formatBytes(pr.current))
+	}
+}
+
+func formatBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
 // FetchRemoteVersion fetches the latest version string from the remote repository.
 func FetchRemoteVersion() (string, error) {
-	return DefaultUpdater().FetchRemoteVersion(context.Background())
+	ch := GetStoredChannel()
+	return New(Options{Channel: ch}).FetchRemoteVersion(context.Background())
 }
 
 // FetchRemoteVersion fetches the latest version string using the Updater's configured HTTP client and context.
 func (u *Updater) FetchRemoteVersion(ctx context.Context) (string, error) {
+	if u.opts.Channel == "beta" {
+		return u.fetchRemoteBetaVersion(ctx)
+	}
+	return u.fetchRemoteStableVersion(ctx)
+}
+
+func (u *Updater) fetchRemoteBetaVersion(ctx context.Context) (string, error) {
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/tags/alpha", u.opts.RepoOwner, u.opts.RepoName)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "whatsrook-updater")
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := u.opts.HTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		var rel githubRelease
+		if err := json.NewDecoder(resp.Body).Decode(&rel); err == nil {
+			candidates, _ := candidateAssetNames()
+			targetAssetMap := make(map[string]bool)
+			for _, c := range candidates {
+				targetAssetMap[c] = true
+			}
+
+			for _, asset := range rel.Assets {
+				if targetAssetMap[asset.Name] {
+					if asset.Digest != "" {
+						return asset.Digest, nil
+					}
+					if asset.UpdatedAt != "" {
+						return fmt.Sprintf("beta-%s", asset.UpdatedAt), nil
+					}
+				}
+			}
+			if rel.TargetCommitish != "" {
+				return fmt.Sprintf("beta-%s", rel.TargetCommitish), nil
+			}
+		}
+	}
+
+	// Fallback: HEAD request to asset download URL to inspect headers
+	candidates, errCand := candidateAssetNames()
+	if errCand == nil && len(candidates) > 0 {
+		downloadURL := fmt.Sprintf("https://github.com/%s/%s/releases/download/alpha/%s", u.opts.RepoOwner, u.opts.RepoName, candidates[0])
+		reqHead, errHead := http.NewRequestWithContext(ctx, http.MethodHead, downloadURL, nil)
+		if errHead == nil {
+			reqHead.Header.Set("User-Agent", "whatsrook-updater")
+			if respHead, errDo := u.opts.HTTPClient.Do(reqHead); errDo == nil {
+				defer respHead.Body.Close()
+				if etag := respHead.Header.Get("ETag"); etag != "" {
+					return fmt.Sprintf("sha256:%s", strings.Trim(etag, `"`)), nil
+				}
+				if lastMod := respHead.Header.Get("Last-Modified"); lastMod != "" {
+					return fmt.Sprintf("beta-%s", lastMod), nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("failed to fetch beta release metadata")
+}
+
+func (u *Updater) fetchRemoteStableVersion(ctx context.Context) (string, error) {
 	versionURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/refs/heads/master/%s", u.opts.RepoOwner, u.opts.RepoName, u.opts.VersionFile)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, versionURL, nil)
 	if err != nil {
 		return "", err
 	}
+	req.Header.Set("User-Agent", "whatsrook-updater")
 
 	resp, err := u.opts.HTTPClient.Do(req)
 	if err != nil {
@@ -342,7 +518,8 @@ func (u *Updater) FetchRemoteVersion(ctx context.Context) (string, error) {
 
 // CheckUpdate compares local and remote versions for current platform using DefaultUpdater.
 func CheckUpdate() (*UpdateResult, error) {
-	return DefaultUpdater().Check(context.Background())
+	ch := GetStoredChannel()
+	return New(Options{Channel: ch}).Check(context.Background())
 }
 
 // Check compares local and remote versions for the configured repository and platform.
@@ -355,19 +532,23 @@ func (u *Updater) Check(ctx context.Context) (*UpdateResult, error) {
 		return nil, fmt.Errorf("failed to fetch remote version: %w", err)
 	}
 
-	localVer, errLocal := ParseVersion(localStr)
-	remoteVer, errRemote := ParseVersion(remoteStr)
-
 	res := &UpdateResult{
 		CurrentVersion: localStr,
 		LatestVersion:  remoteStr,
 		Platform:       GetPlatform(),
+		IsBeta:         u.opts.Channel == "beta",
 	}
 
-	if errLocal == nil && errRemote == nil {
-		res.HasNewVersion = remoteVer.Compare(localVer) > 0
-	} else {
+	if u.opts.Channel == "beta" {
 		res.HasNewVersion = localStr != remoteStr
+	} else {
+		localVer, errLocal := ParseVersion(localStr)
+		remoteVer, errRemote := ParseVersion(remoteStr)
+		if errLocal == nil && errRemote == nil {
+			res.HasNewVersion = remoteVer.Compare(localVer) > 0
+		} else {
+			res.HasNewVersion = localStr != remoteStr
+		}
 	}
 
 	if res.HasNewVersion {
@@ -381,11 +562,18 @@ func (u *Updater) Check(ctx context.Context) (*UpdateResult, error) {
 
 // PerformUpdate downloads the system-matching release and replaces the binary using DefaultUpdater.
 func PerformUpdate(isBeta bool) (*UpdateResult, error) {
-	return DefaultUpdater().Upgrade(context.Background(), isBeta)
+	ch := "stable"
+	if isBeta {
+		ch = "beta"
+	}
+	return New(Options{Channel: ch}).Upgrade(context.Background(), isBeta)
 }
 
 // Upgrade checks, downloads, and performs an atomic upgrade of the binary release.
 func (u *Updater) Upgrade(ctx context.Context, isBeta bool) (*UpdateResult, error) {
+	if isBeta {
+		u.opts.Channel = "beta"
+	}
 	check, err := u.Check(ctx)
 	if err != nil && !isBeta {
 		return nil, err
@@ -399,7 +587,7 @@ func (u *Updater) Upgrade(ctx context.Context, isBeta bool) (*UpdateResult, erro
 		check.IsBeta = isBeta
 	}
 
-	if !check.HasNewVersion && !isBeta {
+	if !check.HasNewVersion {
 		check.Updated = false
 		check.Message = fmt.Sprintf("%s is already up to date (%s).", u.opts.RepoName, check.CurrentVersion)
 		return check, nil
@@ -416,6 +604,9 @@ func (u *Updater) Upgrade(ctx context.Context, isBeta bool) (*UpdateResult, erro
 	}
 
 	check.Updated = true
+	if newVer := ReadEffectiveLocalVersion(u.opts.VersionFile); newVer != "" {
+		check.LatestVersion = newVer
+	}
 	check.Message = fmt.Sprintf("Successfully upgraded binary for %s (%s -> %s).", GetPlatform(), check.CurrentVersion, check.LatestVersion)
 	u.logf("==> Upgrade complete! %s", check.Message)
 	return check, nil
@@ -445,6 +636,7 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 
 	var resp *http.Response
 	var chosenAsset string
+	var chosenDownloadURL string
 	var errLast error
 
 	for _, assetName := range candidates {
@@ -460,6 +652,7 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 			errLast = err
 			continue
 		}
+		req.Header.Set("User-Agent", "whatsrook-updater")
 
 		r, err := u.opts.HTTPClient.Do(req)
 		if err != nil {
@@ -470,6 +663,7 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 		if r.StatusCode == http.StatusOK {
 			resp = r
 			chosenAsset = assetName
+			chosenDownloadURL = downloadURL
 			break
 		}
 		r.Body.Close()
@@ -481,10 +675,16 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 	}
 	defer resp.Body.Close()
 
-	payloadBytes, err := io.ReadAll(resp.Body)
+	u.logf("==> Downloading %s", chosenDownloadURL)
+
+	pr := newProgressReader(resp.Body, resp.ContentLength, u.opts.Out)
+	payloadBytes, err := io.ReadAll(pr)
+	pr.finish()
 	if err != nil {
 		return fmt.Errorf("failed to read downloaded release payload: %w", err)
 	}
+
+	calculatedSHA := fmt.Sprintf("sha256:%x", sha256.Sum256(payloadBytes))
 
 	exePath, err := os.Executable()
 	if err != nil {
@@ -515,8 +715,12 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 	}
 
 	// Always write version.txt alongside the new executable so local version is permanently updated
-	if remoteVer, err := u.FetchRemoteVersion(ctx); err == nil && remoteVer != "" {
-		_ = os.WriteFile(filepath.Join(cleanExeDir, u.opts.VersionFile), []byte(strings.TrimSpace(remoteVer)+"\n"), 0644)
+	if u.opts.Channel == "beta" || tag == "alpha" {
+		_ = os.WriteFile(filepath.Join(cleanExeDir, u.opts.VersionFile), []byte(calculatedSHA+"\n"), 0644)
+	} else {
+		if remoteVer, err := u.FetchRemoteVersion(ctx); err == nil && remoteVer != "" {
+			_ = os.WriteFile(filepath.Join(cleanExeDir, u.opts.VersionFile), []byte(strings.TrimSpace(remoteVer)+"\n"), 0644)
+		}
 	}
 
 	u.logf("==> [3/3] Performing atomic binary swap with rollback safety...")

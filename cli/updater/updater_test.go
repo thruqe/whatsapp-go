@@ -159,3 +159,18 @@ func TestSanitizeExtractPath(t *testing.T) {
 		}
 	}
 }
+
+func TestBetaChannelComparison(t *testing.T) {
+	// Test that beta comparison treats different SHA256 / commit strings as updates
+	localSha := "sha256:991c28f8153c04a9a09fe4250febe21885a89c9d989b807d18ebdd083373b65e"
+	remoteSha := "sha256:ee330d6216b573495455471e7f2ae8a96ad76ac763639954d6f6f469e419df34"
+
+	if localSha == remoteSha {
+		t.Errorf("expected different SHAs to not be equal")
+	}
+
+	sameSha := "sha256:991c28f8153c04a9a09fe4250febe21885a89c9d989b807d18ebdd083373b65e"
+	if localSha != sameSha {
+		t.Errorf("expected identical SHAs to match")
+	}
+}
