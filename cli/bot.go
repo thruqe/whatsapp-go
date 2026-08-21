@@ -22,6 +22,7 @@ import (
 	cliutils "whatsrook/cli/utils"
 	"whatsrook/utils"
 
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -51,6 +52,7 @@ type Bot struct {
 	listener     net.Listener
 	startupTime  time.Time
 	loggedOut    atomic.Bool
+	onLoggedOut  func()
 	mu           sync.Mutex
 }
 
@@ -145,9 +147,12 @@ func (b *Bot) Start(ctx context.Context) error {
 		}
 	}()
 	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
+		if listener != nil {
+			_ = listener.Close()
+		}
 	}()
 
 	for {
@@ -160,29 +165,12 @@ func (b *Bot) Start(ctx context.Context) error {
 		}
 
 		// Session logged out (401 or unpaired)
-		// Clear database/session files and restart connection cycle to re-pair.
+		// Clear database/session files and exit so caller can enter idle mode.
 		if errors.Is(err, whatsrook.ErrLoggedOut) || strings.Contains(err.Error(), "logged out") || b.loggedOut.Load() {
-			slog.Warn("Logged out session detected — database and session cleared. Restarting connection cycle...")
+			slog.Warn("Logged out session detected — session database and local files cleared.")
 			b.loggedOut.Store(false)
 			whatsrook.WipeSession(sessionDir)
-
-			b.mu.Lock()
-			b.client = whatsrook.NewClient(whatsrook.Config{
-				Session:         b.cfg.Session,
-				DataDir:         b.cfg.DataDir,
-				Database:        b.cfg.Database,
-				ClientType:      b.cfg.ClientType,
-				Verbose:         b.cfg.Verbose,
-				SkipOldMessages: b.cfg.SkipOldMessages,
-			})
-			b.mu.Unlock()
-
-			select {
-			case <-time.After(1 * time.Second):
-			case <-ctx.Done():
-				return nil
-			}
-			continue
+			return whatsrook.ErrLoggedOut
 		}
 
 		// Pairing stalled (malformed WA notification). Wipe the session and retry.
@@ -211,12 +199,27 @@ func (b *Bot) Start(ctx context.Context) error {
 }
 
 func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
-	if err := b.client.InitSession(ctx); err != nil {
-		return err
+	sessionCtx, sessionCancel := context.WithCancel(ctx)
+	defer sessionCancel()
+
+	b.mu.Lock()
+	b.onLoggedOut = func() {
+		sessionCancel()
 	}
+	b.mu.Unlock()
+
 	defer func() {
+		b.mu.Lock()
+		b.onLoggedOut = nil
+		b.mu.Unlock()
+		commands.StopAutoMuteScheduler()
+		commands.StopAutoBioScheduler()
 		_ = b.client.Close()
 	}()
+
+	if err := b.client.InitSession(sessionCtx); err != nil {
+		return err
+	}
 
 	cli := b.client.WAClient()
 	if cli == nil {
@@ -225,10 +228,10 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 
 	// Initialize and migrate CLI custom database tables at startup
 	if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok {
-		clistore.InitTables(ctx, s)
+		clistore.InitTables(sessionCtx, s)
 	}
 
-	_ = b.groupManager.LoadFromDB(ctx, cli)
+	_ = b.groupManager.LoadFromDB(sessionCtx, cli)
 
 	// Register wacaller raw call adapter hook
 	commands.RegisterWACaller(cli)
@@ -253,7 +256,7 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 			if err := cli.Connect(); err != nil {
 				slog.Warn("connect failed before logout, wiping local files only", "err", err)
 			} else {
-				logoutCtx, logoutCancel := context.WithTimeout(ctx, 10*time.Second)
+				logoutCtx, logoutCancel := context.WithTimeout(sessionCtx, 10*time.Second)
 				select {
 				case <-connected:
 					slog.Info("connected — sending logout to WhatsApp servers")
@@ -262,7 +265,7 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 				}
 				logoutCancel()
 
-				if err := cli.Logout(ctx); err != nil {
+				if err := cli.Logout(sessionCtx); err != nil {
 					slog.Warn("server logout returned error", "err", err)
 				}
 				cli.Disconnect()
@@ -280,16 +283,16 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 		b.WAEventHandler(evt)
 	})
 
-	go tmpCron()
+	go tmpCron(sessionCtx)
 
 	if cli.Store.ID == nil {
 		if b.cfg.Pair {
-			if err := b.runPairCode(ctx); err != nil {
+			if err := b.runPairCode(sessionCtx); err != nil {
 				return err
 			}
 		} else {
 			go func() {
-				if err := b.runQR(ctx); err != nil {
+				if err := b.runQR(sessionCtx); err != nil {
 					slog.Error("runQR failed", "err", err)
 				}
 			}()
@@ -298,7 +301,7 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 		if err := cli.Connect(); err != nil {
 			if b.loggedOut.Load() || strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "logged out") {
 				slog.Warn("Connect failed due to logged-out status — clearing session database and local files...", "err", err)
-				b.client.ClearSessionDB(ctx, sessionDir)
+				b.client.ClearSessionDB(sessionCtx, sessionDir)
 				return whatsrook.ErrLoggedOut
 			}
 			return err
@@ -307,16 +310,27 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 
 	if b.loggedOut.Load() {
 		slog.Warn("Session logged out — clearing session database and local files...")
-		b.client.ClearSessionDB(ctx, sessionDir)
+		b.client.ClearSessionDB(sessionCtx, sessionDir)
 		return whatsrook.ErrLoggedOut
+	}
+
+	// Start background schedulers tied to session context
+	if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok && s != nil {
+		commands.StartAutoMuteScheduler(sessionCtx, cli)
+		commands.StartAutoBioScheduler(sessionCtx, cli)
 	}
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-sessionCtx.Done():
+			if b.loggedOut.Load() {
+				slog.Warn("Session logged out during runtime — clearing session database and local files...")
+				b.client.ClearSessionDB(ctx, sessionDir)
+				return whatsrook.ErrLoggedOut
+			}
 			return nil
 		case ctrl := <-b.hub.Control:
-			ack := b.Controller(ctx, ctrl)
+			ack := b.Controller(sessionCtx, ctrl)
 			b.hub.Broadcast(ack)
 		}
 		if b.loggedOut.Load() {
@@ -465,7 +479,16 @@ func (b *Bot) runQR(ctx context.Context) error {
 }
 
 func (b *Bot) WAEventHandler(evt any) {
-	cli := b.client.WAClient()
+	var cli *whatsmeow.Client
+	if b.client != nil {
+		cli = b.client.WAClient()
+	}
+
+	broadcast := func(msg EventMessage) {
+		if b.hub != nil {
+			b.hub.Broadcast(msg)
+		}
+	}
 
 	switch v := evt.(type) {
 	case *events.QR:
@@ -473,31 +496,39 @@ func (b *Bot) WAEventHandler(evt any) {
 
 	case *events.PairSuccess:
 		slog.Info("paired successfully")
-		b.hub.Broadcast(simpleEvent(EventPairSuccess))
+		broadcast(simpleEvent(EventPairSuccess))
 
 	case *events.PairError:
 		slog.Warn("pairing failed", "err", v.Error)
-		b.hub.Broadcast(EventMessage{
+		broadcast(EventMessage{
 			Kind:    EventPairError,
 			Payload: PairErrorPayload{Reason: v.Error.Error()},
 		})
 	case *events.LoggedOut:
 		slog.Warn("logged out", "reason", v.Reason)
 		b.loggedOut.Store(true)
-		b.hub.Broadcast(simpleEvent(EventLoggedOut))
+		broadcast(simpleEvent(EventLoggedOut))
+		b.mu.Lock()
+		onLoggedOut := b.onLoggedOut
+		b.mu.Unlock()
+		if onLoggedOut != nil {
+			onLoggedOut()
+		}
 
 	case *events.Disconnected:
 		slog.Info("disconnected")
-		b.hub.Broadcast(simpleEvent(EventDisconnected))
+		broadcast(simpleEvent(EventDisconnected))
 
 	case *events.Connected:
 		slog.Info("connected", "session", b.cfg.Session)
-		b.hub.Broadcast(simpleEvent(EventConnected))
-		go func() {
-			if err := b.groupManager.SyncAll(context.Background(), cli); err != nil {
-				slog.Warn("groupManager.SyncAll returned error", "err", err)
-			}
-		}()
+		broadcast(simpleEvent(EventConnected))
+		if cli != nil {
+			go func() {
+				if err := b.groupManager.SyncAll(context.Background(), cli); err != nil {
+					slog.Warn("groupManager.SyncAll returned error", "err", err)
+				}
+			}()
+		}
 
 	case *events.Message:
 		// Skip messages sent before the bot started running
