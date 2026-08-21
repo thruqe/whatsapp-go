@@ -55,7 +55,7 @@ func TestPostgresLiveIntegration(t *testing.T) {
 		t.Fatalf("GetFirstDevice failed: %v", err)
 	}
 	if device.ID == nil {
-		testJID := types.NewJID("258256953950323", types.DefaultUserServer)
+		testJID := types.NewJID("100000000000001", types.DefaultUserServer)
 		device.ID = &testJID
 		if err := container.PutDevice(ctx, device); err != nil {
 			t.Fatalf("PutDevice failed: %v", err)
@@ -78,11 +78,11 @@ func TestPostgresLiveIntegration(t *testing.T) {
 
 	// ─── 1. Test PutSetting for sudoers (The exact failing case) ───
 	t.Log("Testing PutSetting sudoers...")
-	sudoersVal := "258256953950323@lid 123456789@lid"
-	if err := s.PutSetting(ctx, "sudoers", sudoersVal); err != nil {
+	sudoersVal := "100000000000001@lid 123456789@lid"
+	if err := clistore.PutSetting(ctx, s, "sudoers", sudoersVal); err != nil {
 		t.Fatalf("PutSetting('sudoers') FAILED: %v", err)
 	}
-	gotSudoers, err := s.GetSetting(ctx, "sudoers")
+	gotSudoers, err := clistore.GetSetting(ctx, s, "sudoers")
 	if err != nil {
 		t.Fatalf("GetSetting('sudoers') FAILED: %v", err)
 	}
@@ -90,14 +90,28 @@ func TestPostgresLiveIntegration(t *testing.T) {
 		t.Errorf("GetSetting('sudoers') = %q, expected %q", gotSudoers, sudoersVal)
 	}
 
-	// ─── 2. Test generic PutSetting & GetSetting ───
-	t.Log("Testing PutSetting prefix...")
-	if err := s.PutSetting(ctx, "prefix", "!"); err != nil {
+	// ─── 2. Test generic PutSetting & GetSetting & AD-JID persistence ───
+	t.Log("Testing PutSetting prefix & BotNamePromptDismissed across AD-JID instances...")
+	if err := clistore.PutSetting(ctx, s, "prefix", "!"); err != nil {
 		t.Fatalf("PutSetting('prefix') FAILED: %v", err)
 	}
-	gotPrefix, err := s.GetSetting(ctx, "prefix")
+	gotPrefix, err := clistore.GetSetting(ctx, s, "prefix")
 	if err != nil || gotPrefix != "!" {
 		t.Errorf("GetSetting('prefix') = %q (err: %v), expected '!'", gotPrefix, err)
+	}
+
+	// Test Dismissed Prompt persistence across AD-JID (e.g. :88) and new store instances
+	adJID := types.NewADJID("100000000000002", 0, 88)
+	sAD := sqlstore.NewSQLStore(container, adJID)
+	if err := clistore.PutSetting(ctx, sAD, "botname_prompt_dismissed", "true"); err != nil {
+		t.Fatalf("PutSetting('botname_prompt_dismissed') on AD store failed: %v", err)
+	}
+	// Verify reading from non-AD store
+	nonADJID := types.NewJID("100000000000002", types.DefaultUserServer)
+	sNonAD := sqlstore.NewSQLStore(container, nonADJID)
+	val, err := clistore.GetSetting(ctx, sNonAD, "botname_prompt_dismissed")
+	if err != nil || val != "true" {
+		t.Errorf("GetSetting on sNonAD = %q (err: %v), expected 'true'", val, err)
 	}
 
 	// ─── 3. Test filter.go composite key query ───
@@ -120,10 +134,10 @@ func TestPostgresLiveIntegration(t *testing.T) {
 	// ─── 4. Test Call Media Config ───
 	t.Log("Testing PutCallMediaConfig & GetCallMediaConfig...")
 	targetJID := types.NewJID("1234567890", types.DefaultUserServer)
-	if err := s.PutCallMediaConfig(ctx, targetJID, sqlstore.CallMediaAudio, "/media/audio.opus"); err != nil {
+	if err := clistore.PutCallMediaConfig(ctx, s, targetJID, clistore.CallMediaAudio, "/media/audio.opus"); err != nil {
 		t.Fatalf("PutCallMediaConfig audio failed: %v", err)
 	}
-	gotMedia, err := s.GetCallMediaConfig(ctx, targetJID, sqlstore.CallMediaAudio)
+	gotMedia, err := clistore.GetCallMediaConfig(ctx, s, targetJID, clistore.CallMediaAudio)
 	if err != nil || gotMedia != "/media/audio.opus" {
 		t.Errorf("GetCallMediaConfig audio = %q (err: %v)", gotMedia, err)
 	}
