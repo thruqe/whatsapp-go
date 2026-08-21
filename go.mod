@@ -6,7 +6,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
-	go.mau.fi/whatsmeow v0.0.0-20260821135339-d1cc3c0aafde
+	go.mau.fi/whatsmeow v0.0.0-20260821141805-33cfac511629
 	google.golang.org/protobuf v1.36.12
 	modernc.org/sqlite v1.57.0
 )
