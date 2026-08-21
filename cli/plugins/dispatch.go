@@ -194,7 +194,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 					Chat:   evt.Info.Chat,
 					Sender: evt.Info.Sender,
 				}
-				_ = cctx.Reply(fmt.Sprintf("Bot name updated successfully to \"*%s*\"! 🎉\n\nYou can change it anytime later using the %sbotname command (e.g. `%sbotname <name>`).", newName, p, p))
+				_ = cctx.Reply(fmt.Sprintf("Bot name updated successfully to \"%s\"! 🎉\n\nYou can change it anytime later using the %sbotname command (e.g. `%sbotname <name>`).", newName, p, p))
 				return true
 			}
 		}
@@ -466,7 +466,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 					if p == "" {
 						p = cliutils.DefaultPrefix
 					}
-					bodyText := "*BOT NAME CUSTOMIZATION RECOMMENDED*\n\nIt's highly recommended to give your own copy of WhatsRook its own name!\nFor example, you can name it something like *Fuzzy* or *Meow*.\n\nYou can also run *" + p + "reconfigure* anytime to open the setup wizard."
+					bodyText := "BOT NAME CUSTOMIZATION RECOMMENDED\n\nIt's highly recommended to give your own copy of WhatsRook its own name!\nFor example, you can name it something like Fuzzy or Meow.\n\nYou can also run " + p + "reconfigure anytime to open the setup wizard."
 					buttons := []struct{ ID, Text string }{
 						{ID: p + "setbot setup_customize", Text: "Customize Bot"},
 						{ID: p + "setbot setup_continue", Text: "Continue"},

@@ -282,7 +282,7 @@ func handleFontList(ctx *Context) error {
 	sampleText := "WhatsRook Bot"
 
 	var sb strings.Builder
-	sb.WriteString("*AVAILABLE FONT NUMBERS & STYLES*\n\n")
+	sb.WriteString("AVAILABLE FONT NUMBERS & STYLES\n\n")
 
 	for _, f := range cliutils.IndexedFonts {
 		curr := cliutils.GetFontStyle()
@@ -290,7 +290,7 @@ func handleFontList(ctx *Context) error {
 		converted := cliutils.ConvertFontStyle(sampleText)
 		cliutils.SetFontStyle(curr)
 
-		fmt.Fprintf(&sb, "*%d.* %s → %s\n", f.Number, f.Name, converted)
+		fmt.Fprintf(&sb, "%d. %s → %s\n", f.Number, f.Name, converted)
 	}
 
 	fmt.Fprintf(&sb, "\nUsage Examples:\n• %sfancy 14 Hello World\n• %sfont 14", p, p)
@@ -324,7 +324,7 @@ func handleFancy(ctx *Context) error {
 					cliutils.SetFontStyle(f.Key)
 					preview := cliutils.ConvertFontStyle(sample)
 					cliutils.SetFontStyle(curr)
-					fmt.Fprintf(&sb, "*#%d (%s)*: %s\n", fn, f.Name, preview)
+					fmt.Fprintf(&sb, "#%d (%s): %s\n", fn, f.Name, preview)
 				}
 			}
 			buttons := []struct{ ID, Text string }{

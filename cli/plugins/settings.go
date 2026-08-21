@@ -780,8 +780,8 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 	p := ctx.GetPrefix()
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "*Timezone Configuration* (Page %d of %d, Total: %d)\n\n", page, totalPages, len(cliutils.SupportedTimezones))
-	fmt.Fprintf(&sb, "*Current Timezone:* %s\n\n", currentTZ)
+	fmt.Fprintf(&sb, "Timezone Configuration (Page %d of %d, Total: %d)\n\n", page, totalPages, len(cliutils.SupportedTimezones))
+	fmt.Fprintf(&sb, "Current Timezone: %s\n\n", currentTZ)
 	sb.WriteString("Select your local timezone below so automute & autounmute execute at your exact local time:\n\n")
 
 	for idx, tz := range pageItems {
@@ -1541,16 +1541,16 @@ func handlePrivacy(ctx *Context) error {
 
 	p := ctx.GetPrefix()
 	var sb strings.Builder
-	sb.WriteString("*WhatsApp Account Privacy Settings*\n\n")
+	sb.WriteString("WhatsApp Account Privacy Settings\n\n")
 
 	if privacy != nil {
-		fmt.Fprintf(&sb, "*Last Seen:* %s\n", privacy.LastSeen)
-		fmt.Fprintf(&sb, "*Profile Photo:* %s\n", privacy.Profile)
-		fmt.Fprintf(&sb, "*Status:* %s\n", privacy.Status)
-		fmt.Fprintf(&sb, "*Read Receipts:* %s\n", privacy.ReadReceipts)
-		fmt.Fprintf(&sb, "*Group Add:* %s\n", privacy.GroupAdd)
-		fmt.Fprintf(&sb, "*Online:* %s\n", privacy.Online)
-		fmt.Fprintf(&sb, "*Call Add:* %s\n", privacy.CallAdd)
+		fmt.Fprintf(&sb, "Last Seen: %s\n", privacy.LastSeen)
+		fmt.Fprintf(&sb, "Profile Photo: %s\n", privacy.Profile)
+		fmt.Fprintf(&sb, "Status: %s\n", privacy.Status)
+		fmt.Fprintf(&sb, "Read Receipts: %s\n", privacy.ReadReceipts)
+		fmt.Fprintf(&sb, "Group Add: %s\n", privacy.GroupAdd)
+		fmt.Fprintf(&sb, "Online: %s\n", privacy.Online)
+		fmt.Fprintf(&sb, "Call Add: %s\n", privacy.CallAdd)
 	} else {
 		sb.WriteString("Privacy settings unavailable.\n")
 	}
