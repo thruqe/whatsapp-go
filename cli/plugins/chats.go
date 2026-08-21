@@ -115,7 +115,6 @@ func handleUnarchive(ctx *Context) error {
 	return ctx.Reply("Chat unarchived.")
 }
 
-
 func handlePin(ctx *Context) error {
 	ci := ctx.GetContextInfo()
 	if ci != nil && ci.StanzaID != nil && *ci.StanzaID != "" {
