@@ -137,6 +137,17 @@ func main() {
 	})
 
 	if err := bot.Start(ctx); err != nil {
+		if errors.Is(err, whatsrook.ErrLoggedOut) {
+			if ctx.Err() != nil {
+				return
+			}
+			slog.Info("Session was logged out and removed. Switching to idle standby mode...")
+			if err := runIdleMode(ctx, args.Port); err != nil {
+				slog.Error("idle server error", "err", err)
+				os.Exit(1)
+			}
+			return
+		}
 		slog.Error("bot error", "err", err)
 		os.Exit(1)
 	}
@@ -188,6 +199,9 @@ func runIdleMode(ctx context.Context, port int) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
+		if listener != nil {
+			_ = listener.Close()
+		}
 	}()
 
 	fmt.Printf("\rWhatsRook standby • waiting for session • %s", time.Now().Format("15:04:05"))
