@@ -12,7 +12,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	clistore "whatsrook/cli/store"
 	cliutils "whatsrook/cli/utils"
 	"whatsrook/utils"
@@ -23,22 +22,29 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-func DismissBotNamePrompt(ctx context.Context, s *sqlstore.SQLStore) {
-	cliutils.DismissBotNamePrompt(ctx, s)
+func DismissBotNamePrompt(ctx context.Context, s *StoreWrapper) {
+	if s != nil {
+		cliutils.DismissBotNamePrompt(ctx, s.SQLStore)
+	}
 }
 
-func ResetBotNamePromptDismissed(ctx context.Context, s *sqlstore.SQLStore) {
-	if s == nil {
-		return
+func ResetBotNamePromptDismissed(ctx context.Context, s *StoreWrapper) {
+	if s != nil {
+		cliutils.ResetBotNamePromptDismissed(ctx, s.SQLStore)
 	}
-	_ = s.PutSetting(ctx, cliutils.BotNamePromptDismissedKey, "")
-	cliutils.BotNamePromptDismissedCacheMu.Lock()
-	delete(cliutils.BotNamePromptDismissedCache, s.JID)
-	cliutils.BotNamePromptDismissedCacheMu.Unlock()
 }
 
 func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
 	RecordRecentMessage(evt)
+
+	if evt == nil || evt.Message == nil || client == nil || client.Store == nil {
+		return false
+	}
+
+	if evt.Info.Category == "peer" {
+		return false
+	}
+
 	chatStr := evt.Info.Chat.String()
 	senderStr := evt.Info.Sender.String()
 	text := extractText(evt)
@@ -87,9 +93,9 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 	}
 
-	s, okStore := client.Store.Identities.(*sqlstore.SQLStore)
+	s, okStore := getSQLStore(client)
 	if okStore {
-		clistore.InitTables(ctx, s)
+		clistore.InitTables(ctx, s.SQLStore)
 		if fontStyle, err := s.GetSetting(ctx, "font_style"); err == nil && fontStyle != "" {
 			cliutils.SetFontStyle(fontStyle)
 		}
@@ -103,7 +109,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	if evt.Info.Chat.Server == "g.us" && okStore {
 		slog.Debug("Processing group message", "chat", chatStr, "sender", senderStr)
-		clistore.LogGroupMessage(ctx, s, evt.Info.Chat, evt.Info.Sender)
+		clistore.LogGroupMessage(ctx, s.SQLStore, evt.Info.Chat, evt.Info.Sender)
 	}
 
 	if handleGroupModeration(ctx, client, evt, text) {
@@ -337,7 +343,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 }
 
 func activePrefixes(ctx context.Context, client *whatsmeow.Client) []string {
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(client)
 	if !ok {
 		return []string{cliutils.DefaultPrefix}
 	}
@@ -420,21 +426,28 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		return false
 	}
 
-	s, okSetting := client.Store.Identities.(*sqlstore.SQLStore)
+	s, okSetting := getSQLStore(client)
 	if okSetting {
 		botName := GetBotName(ctx, client)
 		if strings.EqualFold(botName, "whatsrook") || strings.EqualFold(botName, "rook") {
+			sessionKey := s.JID
+			if client.Store != nil && client.Store.ID != nil {
+				sessionKey = client.Store.ID.ToNonAD().String()
+			}
 			cliutils.BotNamePromptDismissedCacheMu.RLock()
-			dismissedInMem := cliutils.BotNamePromptDismissedCache[s.JID]
+			dismissedInMem := cliutils.BotNamePromptDismissedCache[sessionKey] || (s.JID != "" && cliutils.BotNamePromptDismissedCache[s.JID])
 			cliutils.BotNamePromptDismissedCacheMu.RUnlock()
 
 			dismissed := dismissedInMem
 			if !dismissedInMem {
 				val, _ := s.GetSetting(ctx, cliutils.BotNamePromptDismissedKey)
-				dismissed = val == "true"
+				dismissed = (val == "true")
 				if dismissed {
 					cliutils.BotNamePromptDismissedCacheMu.Lock()
-					cliutils.BotNamePromptDismissedCache[s.JID] = true
+					cliutils.BotNamePromptDismissedCache[sessionKey] = true
+					if s.JID != "" {
+						cliutils.BotNamePromptDismissedCache[s.JID] = true
+					}
 					cliutils.BotNamePromptDismissedCacheMu.Unlock()
 				}
 			}
@@ -590,7 +603,7 @@ func isSenderBanned(ctx context.Context, client *whatsmeow.Client, sender types.
 		return false
 	}
 
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(client)
 	if !ok {
 		return false
 	}
@@ -649,7 +662,7 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 	if isSenderBanned(ctx, client, evt.Info.Sender) {
 		return false
 	}
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(client)
 	if !ok {
 		return false
 	}
@@ -709,7 +722,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 	if evt.Info.Chat.Server != "g.us" {
 		return false
 	}
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(client)
 	if !ok {
 		return false
 	}
@@ -979,7 +992,7 @@ func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, evt *ev
 		return false
 	}
 
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(client)
 	if !ok {
 		return false
 	}

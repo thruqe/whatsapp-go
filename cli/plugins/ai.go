@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	cliutils "whatsrook/cli/utils"
 )
@@ -104,7 +103,7 @@ func handleAutoAI(ctx *Context) error {
 		return ctx.Reply("Only sudoers or group admins can change the AutoAI setting.")
 	}
 
-	s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, okStore := getStore(ctx)
 	if !okStore {
 		return ctx.Reply("Database store is not available.")
 	}
@@ -137,15 +136,19 @@ func handleCSAI(ctx *Context) error {
 		return ctx.Reply("Only Sudoers can configure global AI personality traits and custom behavior.")
 	}
 
-	s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, okStore := getStore(ctx)
 	if !okStore {
 		return ctx.Reply("Database store is not available.")
 	}
 
 	p := ctx.GetPrefix()
+	if len(ctx.Args) == 0 {
+		return renderCSAIPage(ctx, s, 1)
+	}
 
-	if len(ctx.Args) >= 2 && strings.ToLower(ctx.Args[0]) == "set" {
-		idxVal, err := strconv.Atoi(ctx.Args[1])
+	if len(ctx.Args) >= 1 && strings.HasPrefix(strings.ToLower(ctx.Args[0]), "set_") {
+		idxStr := strings.TrimPrefix(strings.ToLower(ctx.Args[0]), "set_")
+		idxVal, err := strconv.Atoi(idxStr)
 		if err == nil && idxVal >= 1 && idxVal <= len(cliutils.DefaultCSAITraits) {
 			trait := cliutils.DefaultCSAITraits[idxVal-1]
 			if err := s.PutSetting(ctx.Ctx, "csai_prompt", trait.Instruction); err != nil {
@@ -197,7 +200,7 @@ func handleCSAI(ctx *Context) error {
 	return renderCSAIPage(ctx, s, 1)
 }
 
-func renderCSAIPage(ctx *Context, s *sqlstore.SQLStore, page int) error {
+func renderCSAIPage(ctx *Context, s *StoreWrapper, page int) error {
 	currentPrompt, _ := s.GetSetting(ctx.Ctx, "csai_prompt")
 	if currentPrompt == "" {
 		currentPrompt = "Standard (Default Meta AI behavior)"
@@ -351,7 +354,7 @@ func handleAI(ctx *Context) error {
 		query = data.Question
 	} else {
 		query = instruction
-		if s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore); okStore {
+		if s, okStore := getStore(ctx); okStore {
 			if customPrompt, _ := s.GetSetting(ctx.Ctx, "csai_prompt"); customPrompt != "" {
 				query += fmt.Sprintf("\n\n[GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]\n%s\n\n", customPrompt)
 			}

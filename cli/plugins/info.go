@@ -12,7 +12,6 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types/events"
 	"whatsrook/cli/updater"
 	cliutils "whatsrook/cli/utils"
@@ -84,7 +83,7 @@ func init() {
 
 func handleAlive(ctx *Context) error {
 	cliutils.InitBootTime()
-	s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, okStore := getStore(ctx)
 
 	quotedMsg := ctx.GetQuotedMessage()
 	if quotedMsg != nil && ctx.IsSudo() {
@@ -297,7 +296,7 @@ func renderAliveResponse(ctx *Context, tpl, fallbackMediaURL string) error {
 
 	bodyText := replacer.Replace(tpl)
 
-	s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, okStore := getStore(ctx)
 	mediaType := ""
 	mime := ""
 	mediaFile := ""
@@ -586,7 +585,7 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 		return true
 	}
 
-	if s, ok := client.Store.Identities.(*sqlstore.SQLStore); ok {
+	if s, ok := getSQLStore(client); ok {
 		_ = s.PutSetting(ctx, "menu_thumbnail_path", targetPath)
 	}
 
@@ -615,7 +614,7 @@ func handleMenu(ctx *Context) error {
 			cliutils.MenuThumbPromptsMu.Unlock()
 
 			authDir := GetSessionAuthDir(ctx.Client)
-			if s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore); ok {
+			if s, ok := getStore(ctx); ok {
 				_ = s.PutSetting(ctx.Ctx, "menu_thumbnail_path", "")
 			}
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.mp4"))
@@ -662,7 +661,7 @@ func handleMenu(ctx *Context) error {
 	}
 
 	botMode := "public"
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if ok {
 		if rawMode, err := s.GetSetting(ctx.Ctx, "mode"); err == nil && rawMode != "" {
 			botMode = rawMode

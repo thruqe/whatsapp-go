@@ -8,8 +8,73 @@ import (
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 
+	clistore "whatsrook/cli/store"
 	"whatsrook/utils"
 )
+
+type StoreWrapper struct {
+	*sqlstore.SQLStore
+}
+
+func wrap(s *sqlstore.SQLStore) *StoreWrapper {
+	if s == nil {
+		return nil
+	}
+	return &StoreWrapper{SQLStore: s}
+}
+
+func (w *StoreWrapper) GetSetting(ctx context.Context, key string) (string, error) {
+	if w == nil || w.SQLStore == nil {
+		return "", nil
+	}
+	return clistore.GetSetting(ctx, w.SQLStore, key)
+}
+
+func (w *StoreWrapper) PutSetting(ctx context.Context, key, value string) error {
+	if w == nil || w.SQLStore == nil {
+		return nil
+	}
+	return clistore.PutSetting(ctx, w.SQLStore, key, value)
+}
+
+func (w *StoreWrapper) DeleteSetting(ctx context.Context, key string) error {
+	if w == nil || w.SQLStore == nil {
+		return nil
+	}
+	return clistore.DeleteSetting(ctx, w.SQLStore, key)
+}
+
+func (w *StoreWrapper) GetCallMediaConfig(ctx context.Context, jid types.JID, kind clistore.CallMediaKind) (string, error) {
+	if w == nil || w.SQLStore == nil {
+		return "", nil
+	}
+	return clistore.GetCallMediaConfig(ctx, w.SQLStore, jid, kind)
+}
+
+func (w *StoreWrapper) PutCallMediaConfig(ctx context.Context, jid types.JID, kind clistore.CallMediaKind, filePath string) error {
+	if w == nil || w.SQLStore == nil {
+		return nil
+	}
+	return clistore.PutCallMediaConfig(ctx, w.SQLStore, jid, kind, filePath)
+}
+
+func getSQLStore(client *whatsmeow.Client) (*StoreWrapper, bool) {
+	if client == nil || client.Store == nil || client.Store.Identities == nil {
+		return nil, false
+	}
+	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok || s == nil {
+		return nil, false
+	}
+	return wrap(s), true
+}
+
+func getStore(ctx *Context) (*StoreWrapper, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	return getSQLStore(ctx.Client)
+}
 
 func sendText(ctx *Context, text string) error {
 	return ctx.Rook().NewMessage(text).Send()
@@ -47,7 +112,7 @@ func GetBotName(ctx context.Context, client *whatsmeow.Client) string {
 	if client == nil || client.Store == nil || client.Store.Identities == nil {
 		return "WhatsRook"
 	}
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(client)
 	if !ok {
 		return "WhatsRook"
 	}

@@ -16,10 +16,10 @@ import (
 	"github.com/rs/zerolog"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
+	clistore "whatsrook/cli/store"
 	cliutils "whatsrook/cli/utils"
 	"whatsrook/utils"
 )
@@ -41,45 +41,47 @@ func init() {
 	})
 
 	Register(&Command{
-		Name:         "videocall",
-		Alias:        "vcall",
-		Description:  "Place a video call to a target number",
-		Category:     "calls",
-		HideFromMenu: false,
-		IsPublic:     true,
-		Handler:      handleVideoCall,
+		Name:        "videocall",
+		Description: "Call a number with video, playing your saved (or next-provided) video",
+		Category:    "calls",
+		IsPublic:    true,
+		Handler:     handleVideoCall,
 	})
 	Register(&Command{
-		Name:         "setvideocall",
-		Alias:        "setvcall",
-		Description:  "Set your default video file to be used when video calling",
-		Category:     "calls",
-		HideFromMenu: false,
-		IsPublic:     true,
-		Handler:      handleSetVideoCall,
+		Name:        "setvideocall",
+		Description: "Set your default video file to be played when video calling",
+		Category:    "calls",
+		IsPublic:    true,
+		Handler:     handleSetVideoCall,
 	})
 
 	Register(&Command{
 		Name:        "anticall",
-		Alias:       "acall",
-		Description: "Configure call rejection rules, contacts filter, allowed country codes, and call warning thresholds",
+		Description: "Configure anti-call security to automatically reject incoming WhatsApp calls",
 		Category:    "calls",
-		IsPublic:    false,
+		IsPublic:    true,
 		Handler:     handleAntiCall,
 	})
 
 	Register(&Command{
 		Name:        "autoacceptcall",
-		Alias:       "autoaccept",
-		Description: "Automatically answer incoming voice and video calls using saved call media",
+		Description: "Toggle or check automatic call answering for incoming calls",
 		Category:    "calls",
-		IsPublic:    false,
+		IsPublic:    true,
 		Handler:     handleAutoAcceptCallCmd,
 	})
 }
 
+var (
+	pendingMu sync.Mutex
+	pending   = map[types.JID]*cliutils.PendingCall{}
+)
+
 func setPending(sender types.JID, p *cliutils.PendingCall) {
 	cliutils.SetPendingCall(sender, p)
+	pendingMu.Lock()
+	defer pendingMu.Unlock()
+	pending[sender] = p
 }
 
 func peekPending(sender types.JID) (*cliutils.PendingCall, bool) {
@@ -90,11 +92,9 @@ func popPending(sender types.JID) (*cliutils.PendingCall, bool) {
 	return cliutils.PopPendingCall(sender)
 }
 
-// mediaStore extracts the concrete *sqlstore.SQLStore from a Context's client,
-// since PutCallMediaConfig/GetCallMediaConfig are project-specific, not part of
-// any whatsmeow store interface.
-func mediaStore(ctx *Context) (*sqlstore.SQLStore, error) {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+// mediaStore extracts the concrete StoreWrapper from a Context's client
+func mediaStore(ctx *Context) (*StoreWrapper, error) {
+	s, ok := getStore(ctx)
 	if !ok {
 		return nil, fmt.Errorf("unexpected store implementation")
 	}
@@ -105,7 +105,7 @@ func resolveSavedCallAudio(client *whatsmeow.Client, sender types.JID) string {
 	if client == nil || client.Store == nil {
 		return ""
 	}
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(client)
 	if !ok {
 		return ""
 	}
@@ -122,7 +122,7 @@ func resolveSavedCallAudio(client *whatsmeow.Client, sender types.JID) string {
 		if jid.IsEmpty() {
 			continue
 		}
-		if path, err := s.GetCallMediaConfig(ctx, jid, sqlstore.CallMediaAudio); err == nil && path != "" {
+		if path, err := s.GetCallMediaConfig(ctx, jid, clistore.CallMediaAudio); err == nil && path != "" {
 			if _, statErr := os.Stat(path); statErr == nil {
 				return path
 			}
@@ -145,7 +145,7 @@ func resolveSavedCallVideo(client *whatsmeow.Client, sender types.JID) string {
 	if client == nil || client.Store == nil {
 		return ""
 	}
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(client)
 	if !ok {
 		return ""
 	}
@@ -162,7 +162,7 @@ func resolveSavedCallVideo(client *whatsmeow.Client, sender types.JID) string {
 		if jid.IsEmpty() {
 			continue
 		}
-		if path, err := s.GetCallMediaConfig(ctx, jid, sqlstore.CallMediaVideo); err == nil && path != "" {
+		if path, err := s.GetCallMediaConfig(ctx, jid, clistore.CallMediaVideo); err == nil && path != "" {
 			if _, statErr := os.Stat(path); statErr == nil {
 				return path
 			}
@@ -194,16 +194,16 @@ func saveAudio(ctx *Context, sender types.JID, path string) error {
 	if err != nil {
 		return err
 	}
-	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), sqlstore.CallMediaAudio, path)
+	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), clistore.CallMediaAudio, path)
 	if ctx.Client != nil && ctx.Client.Store != nil {
 		if jid := ctx.Client.Store.GetJID(); !jid.IsEmpty() {
-			_ = s.PutCallMediaConfig(ctx.Ctx, jid.ToNonAD(), sqlstore.CallMediaAudio, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, jid.ToNonAD(), clistore.CallMediaAudio, path)
 		}
 		if lid := ctx.Client.Store.GetLID(); !lid.IsEmpty() {
-			_ = s.PutCallMediaConfig(ctx.Ctx, lid.ToNonAD(), sqlstore.CallMediaAudio, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, lid.ToNonAD(), clistore.CallMediaAudio, path)
 		}
 		if ctx.Client.Store.ID != nil {
-			_ = s.PutCallMediaConfig(ctx.Ctx, ctx.Client.Store.ID.ToNonAD(), sqlstore.CallMediaAudio, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, ctx.Client.Store.ID.ToNonAD(), clistore.CallMediaAudio, path)
 		}
 	}
 	return nil
@@ -222,16 +222,16 @@ func saveVideo(ctx *Context, sender types.JID, path string) error {
 	if err != nil {
 		return err
 	}
-	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), sqlstore.CallMediaVideo, path)
+	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), clistore.CallMediaVideo, path)
 	if ctx.Client != nil && ctx.Client.Store != nil {
 		if jid := ctx.Client.Store.GetJID(); !jid.IsEmpty() {
-			_ = s.PutCallMediaConfig(ctx.Ctx, jid.ToNonAD(), sqlstore.CallMediaVideo, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, jid.ToNonAD(), clistore.CallMediaVideo, path)
 		}
 		if lid := ctx.Client.Store.GetLID(); !lid.IsEmpty() {
-			_ = s.PutCallMediaConfig(ctx.Ctx, lid.ToNonAD(), sqlstore.CallMediaVideo, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, lid.ToNonAD(), clistore.CallMediaVideo, path)
 		}
 		if ctx.Client.Store.ID != nil {
-			_ = s.PutCallMediaConfig(ctx.Ctx, ctx.Client.Store.ID.ToNonAD(), sqlstore.CallMediaVideo, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, ctx.Client.Store.ID.ToNonAD(), clistore.CallMediaVideo, path)
 		}
 	}
 	return nil
@@ -251,7 +251,7 @@ func handleCall(ctx *Context) error {
 		return placeCallWithAudio(ctx, target, path)
 	}
 
-	setPending(ctx.Sender, &cliutils.PendingCall{Target: target, Kind: sqlstore.CallMediaAudio})
+	setPending(ctx.Sender, &cliutils.PendingCall{Target: target, Kind: clistore.CallMediaAudio})
 	return ctx.Reply("Reply to an audio file to use for the call.\n" +
 		"Reply \"save\" to that audio to make it your default for future calls.")
 }
@@ -339,7 +339,7 @@ func handleVideoCall(ctx *Context) error {
 		return placeVideoCallWithMedia(ctx, target, path)
 	}
 
-	setPending(ctx.Sender, &cliutils.PendingCall{Target: target, Kind: sqlstore.CallMediaVideo})
+	setPending(ctx.Sender, &cliutils.PendingCall{Target: target, Kind: clistore.CallMediaVideo})
 	return ctx.Reply("Reply to a video file to use for the video call.\n" +
 		"Reply \"save\" to that video to make it your default for future video calls.")
 }
@@ -391,7 +391,7 @@ func handleSetVideoCall(ctx *Context) error {
 }
 
 func handleAntiCall(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -515,7 +515,7 @@ func handleAntiCall(ctx *Context) error {
 	}
 }
 
-func sendAntiCallMenu(ctx *Context, s *sqlstore.SQLStore) error {
+func sendAntiCallMenu(ctx *Context, s *StoreWrapper) error {
 	status, _ := s.GetSetting(ctx.Ctx, "anticall_status")
 	if status == "" {
 		status = "off"
@@ -641,7 +641,7 @@ func handleIncomingCall(call *whatsmeow.Call, waClient *whatsmeow.Client) {
 
 	ctx := context.Background()
 
-	s, ok := waClient.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(waClient)
 	if !ok {
 		return
 	}
@@ -839,7 +839,7 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 		return false
 	}
 
-	if p.Kind == sqlstore.CallMediaVideo {
+	if p.Kind == clistore.CallMediaVideo {
 		var videoMsg *waE2E.VideoMessage
 		saveRequested := false
 

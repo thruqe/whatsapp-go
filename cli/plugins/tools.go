@@ -19,7 +19,6 @@ import (
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waSyncAction"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 
 	cliutils "whatsrook/cli/utils"
@@ -271,7 +270,7 @@ func handleFont(ctx *Context) error {
 	}
 
 	cliutils.SetFontStyle(targetStyle)
-	if s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore); ok {
+	if s, ok := getStore(ctx); ok {
 		_ = s.PutSetting(ctx.Ctx, "font_style", targetStyle)
 	}
 
@@ -301,14 +300,47 @@ func handleFontList(ctx *Context) error {
 func handleFancy(ctx *Context) error {
 	p := ctx.GetPrefix()
 
-	if len(ctx.Args) < 2 {
+	var fontNum int
+	var textToConvert string
+
+	quoted := ctx.GetQuotedMessage()
+	var quotedText string
+	if quoted != nil {
+		quotedText = strings.TrimSpace(extractTextFromProto(quoted))
+	}
+
+	if len(ctx.Args) == 0 {
+		if quotedText != "" {
+			sample := quotedText
+			if len([]rune(sample)) > 30 {
+				sample = string([]rune(sample)[:30]) + "..."
+			}
+			var sb strings.Builder
+			sb.WriteString("Select a font style below to convert your replied message:\n\n")
+			for _, fn := range []int{14, 2, 8, 4, 18, 22} {
+				if fn <= len(cliutils.IndexedFonts) {
+					f := cliutils.IndexedFonts[fn-1]
+					curr := cliutils.GetFontStyle()
+					cliutils.SetFontStyle(f.Key)
+					preview := cliutils.ConvertFontStyle(sample)
+					cliutils.SetFontStyle(curr)
+					fmt.Fprintf(&sb, "*#%d (%s)*: %s\n", fn, f.Name, preview)
+				}
+			}
+			buttons := []struct{ ID, Text string }{
+				{ID: fmt.Sprintf("%sfancy 14 %s", p, quotedText), Text: "Small Caps (#14)"},
+				{ID: fmt.Sprintf("%sfancy 2 %s", p, quotedText), Text: "Bold (#2)"},
+				{ID: fmt.Sprintf("%sfancy 8 %s", p, quotedText), Text: "Fraktur (#8)"},
+			}
+			return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("%s Fancy Converter", ctx.GetBotName()), buttons)
+		}
+
 		var sb strings.Builder
-		sb.WriteString("Please provide a font number and text to convert.\n\n")
-		sb.WriteString("Use *")
-		sb.WriteString(p)
-		sb.WriteString("fontlist* to view all available font numbers.\n\n")
-		sb.WriteString("Usage Example:\n")
+		sb.WriteString("Please provide a font number and text to convert, or reply to a message with *" + p + "fancy <font_number>*.\n\n")
+		sb.WriteString("Use *" + p + "fontlist* to view all available font numbers.\n\n")
+		sb.WriteString("Usage Examples:\n")
 		fmt.Fprintf(&sb, "• `%sfancy 14 Hello World`\n", p)
+		fmt.Fprintf(&sb, "• `%sfancy 14` (as reply to a message)\n", p)
 		fmt.Fprintf(&sb, "• `%sfancy 2 WhatsRook AI`\n\n", p)
 		sb.WriteString("Select an interactive font preset below to convert default sample text:")
 
@@ -321,15 +353,31 @@ func handleFancy(ctx *Context) error {
 		return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("%s Fancy Converter", ctx.GetBotName()), buttons)
 	}
 
-	fontNumStr := ctx.Args[0]
-	fontNum, err := strconv.Atoi(fontNumStr)
-	if err != nil || fontNum < 1 || fontNum > len(cliutils.IndexedFonts) {
-		return ctx.Reply(fmt.Sprintf("Invalid font number %q. Please choose a number between 1 and %d.\nType %sfontlist to view all font numbers.", fontNumStr, len(cliutils.IndexedFonts), p))
+	num, err := strconv.Atoi(ctx.Args[0])
+	if err == nil {
+		if num < 1 || num > len(cliutils.IndexedFonts) {
+			return ctx.Reply(fmt.Sprintf("Invalid font number %q. Please choose a number between 1 and %d.\nType %sfontlist to view all font numbers.", ctx.Args[0], len(cliutils.IndexedFonts), p))
+		}
+		fontNum = num
+
+		if len(ctx.Args) >= 2 {
+			textToConvert = strings.TrimSpace(ctx.RawArgs[len(ctx.Args[0]):])
+		} else if quotedText != "" {
+			textToConvert = quotedText
+		} else {
+			return ctx.Reply(fmt.Sprintf("Please provide text to convert or reply to a message with text.\nExample: `%sfancy %d Hello World` or reply to a message with `%sfancy %d`", p, fontNum, p, fontNum))
+		}
+	} else {
+		fontNum = 14
+		textToConvert = strings.TrimSpace(ctx.RawArgs)
 	}
 
-	textToConvert := strings.TrimSpace(ctx.RawArgs[len(ctx.Args[0]):])
 	if textToConvert == "" {
-		return ctx.Reply(fmt.Sprintf("Please provide text to convert. Example: `%sfancy %d Hello World`", p, fontNum))
+		if quotedText != "" {
+			textToConvert = quotedText
+		} else {
+			return ctx.Reply(fmt.Sprintf("Please provide text to convert. Example: `%sfancy %d Hello World`", p, fontNum))
+		}
 	}
 
 	targetFont := cliutils.IndexedFonts[fontNum-1]

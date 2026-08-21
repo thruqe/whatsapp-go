@@ -224,8 +224,16 @@ func (b *Bot) runSession(ctx context.Context) error {
 	}
 
 	// Initialize and migrate CLI custom database tables at startup
-	if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok {
+	if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok && s != nil {
 		clistore.InitTables(sessionCtx, s)
+		if val, err := clistore.GetSetting(sessionCtx, s, cliutils.BotNamePromptDismissedKey); err == nil && val == "true" {
+			cliutils.BotNamePromptDismissedCacheMu.Lock()
+			cliutils.BotNamePromptDismissedCache[s.JID] = true
+			if cli.Store != nil && cli.Store.ID != nil {
+				cliutils.BotNamePromptDismissedCache[cli.Store.ID.ToNonAD().String()] = true
+			}
+			cliutils.BotNamePromptDismissedCacheMu.Unlock()
+		}
 	}
 
 	_ = b.groupManager.LoadFromDB(sessionCtx, cli)
@@ -374,22 +382,22 @@ func (b *Bot) GetStatsPayload(ctx context.Context) StatsPayload {
 				dbContactsCount = uint32(len(contacts))
 			}
 
-			if bn, err := s.GetSetting(ctx, cliutils.BotNameSettingKey); err == nil && bn != "" {
+			if bn, err := clistore.GetSetting(ctx, s, cliutils.BotNameSettingKey); err == nil && bn != "" {
 				botName = &bn
 			}
-			if p, err := s.GetSetting(ctx, cliutils.PrefixSettingKey); err == nil && p != "" {
+			if p, err := clistore.GetSetting(ctx, s, cliutils.PrefixSettingKey); err == nil && p != "" {
 				prefix = &p
 			}
-			if m, err := s.GetSetting(ctx, "mode"); err == nil && m != "" {
+			if m, err := clistore.GetSetting(ctx, s, "mode"); err == nil && m != "" {
 				mode = &m
 			}
-			if ac, err := s.GetSetting(ctx, "anticall_status"); err == nil && ac == "on" {
+			if ac, err := clistore.GetSetting(ctx, s, "anticall_status"); err == nil && ac == "on" {
 				anticallEnabled = true
 			}
-			if ls, err := s.GetSetting(ctx, "likestatus_status"); err == nil && ls == "on" {
+			if ls, err := clistore.GetSetting(ctx, s, "likestatus_status"); err == nil && ls == "on" {
 				likestatusEnabled = true
 			}
-			if sudoRaw, err := s.GetSetting(ctx, "sudoers"); err == nil && sudoRaw != "" {
+			if sudoRaw, err := clistore.GetSetting(ctx, s, "sudoers"); err == nil && sudoRaw != "" {
 				parts := strings.Fields(strings.ReplaceAll(sudoRaw, ",", " "))
 				sudoersCount = uint32(len(parts))
 			}

@@ -18,7 +18,6 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -530,7 +529,7 @@ func handleAntiLink(ctx *Context) error {
 		return ctx.Reply("Only group admins can change anti-link settings.")
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -672,7 +671,7 @@ func handleAntiLink(ctx *Context) error {
 	}
 }
 
-func sendAntiLinkMenu(ctx *Context, s *sqlstore.SQLStore, note string) error {
+func sendAntiLinkMenu(ctx *Context, s *StoreWrapper, note string) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
@@ -745,7 +744,7 @@ func handleAntiWord(ctx *Context) error {
 		return ctx.Reply("Only group admins can change anti-word settings.")
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -850,7 +849,7 @@ func handleAntiWord(ctx *Context) error {
 	}
 }
 
-func sendAntiWordMenu(ctx *Context, s *sqlstore.SQLStore, note string) error {
+func sendAntiWordMenu(ctx *Context, s *StoreWrapper, note string) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
@@ -918,7 +917,7 @@ func sendAntiWordMenu(ctx *Context, s *sqlstore.SQLStore, note string) error {
 }
 
 func handleGStats(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1599,7 +1598,7 @@ func extractMessageText(msg *waE2E.Message) string {
 }
 
 func handleAntiMsg(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -1820,7 +1819,7 @@ func handleAntiMsg(ctx *Context) error {
 	}
 }
 
-func sendAntiMsgMenu(ctx *Context, s *sqlstore.SQLStore, note string) error {
+func sendAntiMsgMenu(ctx *Context, s *StoreWrapper, note string) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
@@ -1926,7 +1925,7 @@ func extractTargetParticipants(ctx *Context, args []string) []types.JID {
 }
 
 func handleAntiSpam(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -2011,7 +2010,7 @@ func handleAntiSpam(ctx *Context) error {
 	}
 }
 
-func sendAntiSpamMenu(ctx *Context, s *sqlstore.SQLStore) error {
+func sendAntiSpamMenu(ctx *Context, s *StoreWrapper) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey
 	if info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat); err == nil && info != nil && info.GroupName.Name != "" {
@@ -2123,7 +2122,7 @@ func handleAutoMute(ctx *Context) error {
 	}
 
 	arg := strings.ToLower(ctx.Args[0])
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -2168,7 +2167,7 @@ func handleAutoUnmute(ctx *Context) error {
 	}
 
 	arg := strings.ToLower(ctx.Args[0])
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -2200,7 +2199,7 @@ func handleListMute(ctx *Context) error {
 		return ctx.Reply("This command can only be used in a group.")
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -2285,7 +2284,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 	if client == nil || client.Store == nil || client.Store.ID == nil || !client.IsConnected() {
 		return
 	}
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(client)
 	if !ok || s == nil {
 		return
 	}
@@ -2466,7 +2465,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 }
 
 func handleEventsCmd(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -2506,7 +2505,7 @@ func handleEventsCmd(ctx *Context) error {
 	}
 }
 
-func sendEventsMenu(ctx *Context, s *sqlstore.SQLStore) error {
+func sendEventsMenu(ctx *Context, s *StoreWrapper) error {
 	chatKey := ctx.Chat.String()
 	status, _ := s.GetSetting(ctx.Ctx, "events_status:"+chatKey)
 	if status == "" {
@@ -2591,7 +2590,7 @@ func handleSetGroupPP(ctx *Context) error {
 }
 
 func handleWarn(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -2703,7 +2702,7 @@ func handleWarn(ctx *Context) error {
 }
 
 func handleUnwarn(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -2732,7 +2731,7 @@ func handleUnwarn(ctx *Context) error {
 }
 
 func handleWarns(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -2762,7 +2761,7 @@ func handleWarns(ctx *Context) error {
 }
 
 func handleSetWarn(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -2787,7 +2786,7 @@ func handleSetWarn(ctx *Context) error {
 	return ctx.Reply(fmt.Sprintf("Warning threshold for this chat set to %d warnings.", num))
 }
 
-func sendWarnMenu(ctx *Context, s *sqlstore.SQLStore) error {
+func sendWarnMenu(ctx *Context, s *StoreWrapper) error {
 	chatKey := ctx.Chat.String()
 	limitKey := fmt.Sprintf("warn_limit:%s", chatKey)
 	rawLimit, _ := s.GetSetting(ctx.Ctx, limitKey)
@@ -2908,7 +2907,7 @@ func handleGoodbye(ctx *Context) error {
 }
 
 func handleGroupGreetingConfig(ctx *Context, kind string) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -3005,7 +3004,7 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 	}
 }
 
-func applyToggle(ctx *Context, s *sqlstore.SQLStore, key, mode, label string) error {
+func applyToggle(ctx *Context, s *StoreWrapper, key, mode, label string) error {
 	next := "on"
 	switch mode {
 	case "on", "true":
@@ -3040,7 +3039,7 @@ func titleCase(s string) string {
 	return string(r)
 }
 
-func sendGreetingMenu(ctx *Context, s *sqlstore.SQLStore, kind string) error {
+func sendGreetingMenu(ctx *Context, s *StoreWrapper, kind string) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey
 	if info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat); err == nil && info != nil && info.GroupName.Name != "" {

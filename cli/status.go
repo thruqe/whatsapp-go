@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"time"
 
+	clistore "whatsrook/cli/store"
+
 	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -22,7 +24,7 @@ func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
 		return
 	}
 
-	status, _ := s.GetSetting(ctx, "likestatus_status")
+	status, _ := clistore.GetSetting(ctx, s, "likestatus_status")
 	if status != "on" {
 		return
 	}

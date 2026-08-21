@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	commands "whatsrook/cli/plugins"
+	clistore "whatsrook/cli/store"
 	cliutils "whatsrook/cli/utils"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -27,18 +28,19 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 	if cli == nil || v == nil {
 		return
 	}
+
 	s, ok := cli.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return
 	}
 
-	autoAcceptStatus, _ := s.GetSetting(ctx, cliutils.AutoAcceptCallSettingKey)
+	autoAcceptStatus, _ := clistore.GetSetting(ctx, s, cliutils.AutoAcceptCallSettingKey)
 	if autoAcceptStatus == "on" {
 		slog.Debug("anticall: skipping reject because autoacceptcall is enabled", "call_id", v.CallID)
 		return
 	}
 
-	status, _ := s.GetSetting(ctx, "anticall_status")
+	status, _ := clistore.GetSetting(ctx, s, "anticall_status")
 	if status != "on" {
 		return
 	}
@@ -46,8 +48,8 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 	callerJID := v.CallCreator
 	callerNum := callerJID.User
 
-	contactsOnly, _ := s.GetSetting(ctx, "anticall_contacts_only")
-	allowedCC, _ := s.GetSetting(ctx, "anticall_allowed_cc")
+	contactsOnly, _ := clistore.GetSetting(ctx, s, "anticall_contacts_only")
+	allowedCC, _ := clistore.GetSetting(ctx, s, "anticall_allowed_cc")
 
 	reject := false
 
@@ -82,12 +84,12 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 		_ = cli.RejectCall(ctx, callerJID, v.CallID)
 
 		warnKey := "anticall_warn:" + callerJID.String()
-		rawWarn, _ := s.GetSetting(ctx, warnKey)
+		rawWarn, _ := clistore.GetSetting(ctx, s, warnKey)
 		warnCount, _ := strconv.Atoi(rawWarn)
 		warnCount++
-		_ = s.PutSetting(ctx, warnKey, strconv.Itoa(warnCount))
+		_ = clistore.PutSetting(ctx, s, warnKey, strconv.Itoa(warnCount))
 
-		rawMax, _ := s.GetSetting(ctx, "anticall_max_warn")
+		rawMax, _ := clistore.GetSetting(ctx, s, "anticall_max_warn")
 		maxWarn, _ := strconv.Atoi(rawMax)
 		if maxWarn <= 0 {
 			maxWarn = 3

@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/store/sqlstore"
-
 	"whatsrook/utils"
 )
 
@@ -63,7 +61,7 @@ func init() {
 }
 
 func handleFilter(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -176,7 +174,7 @@ func handleFilter(ctx *Context) error {
 }
 
 func handleBGM(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -281,7 +279,7 @@ func handleBGM(ctx *Context) error {
 }
 
 func handleMention(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -364,7 +362,7 @@ func handleMention(ctx *Context) error {
 }
 
 func handleAddFilter(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -413,7 +411,7 @@ func handleAddFilter(ctx *Context) error {
 }
 
 func handleGetFilter(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -446,7 +444,7 @@ func handleGetFilter(ctx *Context) error {
 }
 
 func handleListFilters(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -478,7 +476,7 @@ func handleListFilters(ctx *Context) error {
 }
 
 func handleDelFilter(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
