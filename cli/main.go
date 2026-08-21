@@ -21,8 +21,11 @@ import (
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "update" {
 		ctx := context.Background()
+		current := updater.GetStoredChannel()
+		isBeta := current == "beta"
 		up := updater.New(updater.Options{
-			Out: os.Stdout,
+			Out:     os.Stdout,
+			Channel: current,
 		})
 
 		subcmd := "check"
@@ -40,17 +43,17 @@ func main() {
 			return
 
 		case "upgrade", "apply", "now":
-			isBeta := updater.GetStoredChannel() == "beta"
 			res, err := up.Upgrade(ctx, isBeta)
 			if err != nil {
 				slog.Error("upgrade failed", "err", err)
 				os.Exit(1)
 			}
 			if res.Updated {
-				fmt.Printf("==> %s\n", res.Message)
-				fmt.Println("==> Upgrade complete! Run whatsrook to start.")
-			} else {
-				fmt.Printf("==> %s\n", res.Message)
+				fmt.Println("==> Restarting process with new binary...")
+				if err := updater.RestartProcess(); err != nil {
+					slog.Error("failed to restart process", "err", err)
+					os.Exit(1)
+				}
 			}
 			return
 
@@ -64,16 +67,12 @@ func main() {
 
 	if args.Update {
 		ctx := context.Background()
-		up := updater.New(updater.Options{Out: os.Stdout})
-
 		current := updater.GetStoredChannel()
 		requested := args.UpdateChannel // "stable", "beta", or ""
 
-		shouldDownload := true
 		if requested != "" {
 			if requested == current {
 				fmt.Printf("==> Already on the %s channel.\n", current)
-				shouldDownload = false
 			} else {
 				fmt.Printf("==> Switching from %s to %s channel...\n", current, requested)
 				if err := updater.SetStoredChannel(requested); err != nil {
@@ -84,21 +83,24 @@ func main() {
 			}
 		}
 
-		if shouldDownload {
-			isBeta := current == "beta"
-			res, err := up.Upgrade(ctx, isBeta)
-			if err != nil {
-				slog.Error("update failed", "err", err)
+		up := updater.New(updater.Options{
+			Out:     os.Stdout,
+			Channel: current,
+		})
+
+		isBeta := current == "beta"
+		res, err := up.Upgrade(ctx, isBeta)
+		if err != nil {
+			slog.Error("update failed", "err", err)
+			os.Exit(1)
+		}
+		if res.Updated {
+			fmt.Println("==> Restarting process with new binary...")
+			if err := updater.RestartProcess(); err != nil {
+				slog.Error("failed to restart process", "err", err)
 				os.Exit(1)
 			}
-			if res.Updated {
-				fmt.Println("==> Restarting process with new binary...")
-				if err := updater.RestartProcess(); err != nil {
-					slog.Error("failed to restart process", "err", err)
-					os.Exit(1)
-				}
-				return
-			}
+			return
 		}
 
 		if args.Session == "" && os.Getenv("SESSION") == "" {
