@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"os"
@@ -21,17 +22,27 @@ func runProto(args []string) error {
 		return fmt.Errorf("protobuf directory not found at: %s", protoDir)
 	}
 
-	// 1. Ensure protoc-gen-go is installed
-	ensureProtocGenGo()
+	// 1. Setup PATH with Go bin directory (GOPATH/bin, GOBIN)
+	setupGoBinPath()
 
-	// 2. Check for protoc compiler
+	// 2. Ensure protoc-gen-go plugin is installed and accessible
+	if err := ensureProtocGenGo(); err != nil {
+		return err
+	}
+
+	// 3. Check for protoc compiler
 	protocPath, err := exec.LookPath("protoc")
 	if err != nil {
 		printProtocInstallInstructions()
-		return fmt.Errorf("protoc compiler not found")
+		return fmt.Errorf("protoc compiler not found in PATH")
 	}
 
-	// 3. Find all .proto files
+	// 4. Normalize option go_package in proto files (ensure go.mau.fi/whatsmeow/proto/...)
+	if err := normalizeProtoPackageOptions(protoDir); err != nil {
+		return fmt.Errorf("failed to normalize proto go_package options: %w", err)
+	}
+
+	// 5. Find all .proto files (with optional filter)
 	var protoFiles []string
 	targetFilter := ""
 	if len(args) > 0 {
@@ -63,38 +74,26 @@ func runProto(args []string) error {
 
 	fmt.Printf("Found %d protobuf file(s) to compile using %s...\n", len(protoFiles), protocPath)
 
-	// Ensure GOPATH/bin is in PATH for protoc plugins
-	gopath := os.Getenv("GOPATH")
-	if gopath == "" {
-		if home, err := os.UserHomeDir(); err == nil {
-			gopath = filepath.Join(home, "go")
-		}
-	}
-	if gopath != "" {
-		gobin := filepath.Join(gopath, "bin")
-		currPath := os.Getenv("PATH")
-		if !strings.Contains(currPath, gobin) {
-			_ = os.Setenv("PATH", gobin+string(os.PathListSeparator)+currPath)
-		}
-	}
-
-	// 4. Execute protoc for each proto file
+	// 6. Execute protoc for each proto file
 	successCount := 0
+	var failedFiles []string
+
 	for _, rel := range protoFiles {
-		args := []string{
+		protocArgs := []string{
 			"--proto_path=" + protoDir,
 			"--go_out=" + protoDir,
 			"--go_opt=paths=source_relative",
 			rel,
 		}
 
-		cmd := exec.Command("protoc", args...)
+		cmd := exec.Command("protoc", protocArgs...)
 		cmd.Dir = protoDir
 		cmd.Env = os.Environ()
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "❌ Error compiling %s: %v\n%s\n", rel, err, string(output))
+			failedFiles = append(failedFiles, rel)
 		} else {
 			fmt.Printf("✓ Compiled %s\n", rel)
 			successCount++
@@ -102,27 +101,71 @@ func runProto(args []string) error {
 	}
 
 	fmt.Printf("\nProtobuf update complete: %d/%d files compiled successfully.\n", successCount, len(protoFiles))
+	if len(failedFiles) > 0 {
+		return fmt.Errorf("%d of %d protobuf file(s) failed to compile: %s", len(failedFiles), len(protoFiles), strings.Join(failedFiles, ", "))
+	}
+
 	return nil
 }
 
-func ensureProtocGenGo() {
-	if _, err := exec.LookPath("protoc-gen-go"); err == nil {
+func setupGoBinPath() {
+	goBinDir := getGoBinDir()
+	if goBinDir == "" {
 		return
 	}
 
-	gopath := os.Getenv("GOPATH")
-	if gopath == "" {
-		if home, err := os.UserHomeDir(); err == nil {
-			gopath = filepath.Join(home, "go")
+	currPath := os.Getenv("PATH")
+	paths := filepath.SplitList(currPath)
+	for _, p := range paths {
+		if p == goBinDir {
+			return
 		}
 	}
-	if gopath != "" {
-		binPath := filepath.Join(gopath, "bin", "protoc-gen-go")
+
+	_ = os.Setenv("PATH", goBinDir+string(os.PathListSeparator)+currPath)
+}
+
+func getGoBinDir() string {
+	if gobin := os.Getenv("GOBIN"); gobin != "" {
+		return gobin
+	}
+
+	if out, err := exec.Command("go", "env", "GOBIN").Output(); err == nil {
+		if s := strings.TrimSpace(string(out)); s != "" {
+			return s
+		}
+	}
+
+	if gopath := os.Getenv("GOPATH"); gopath != "" {
+		return filepath.Join(gopath, "bin")
+	}
+
+	if out, err := exec.Command("go", "env", "GOPATH").Output(); err == nil {
+		if s := strings.TrimSpace(string(out)); s != "" {
+			return filepath.Join(s, "bin")
+		}
+	}
+
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, "go", "bin")
+	}
+
+	return ""
+}
+
+func ensureProtocGenGo() error {
+	if _, err := exec.LookPath("protoc-gen-go"); err == nil {
+		return nil
+	}
+
+	goBinDir := getGoBinDir()
+	if goBinDir != "" {
+		binPath := filepath.Join(goBinDir, "protoc-gen-go")
 		if runtime.GOOS == "windows" {
 			binPath += ".exe"
 		}
 		if _, err := os.Stat(binPath); err == nil {
-			return
+			return nil
 		}
 	}
 
@@ -131,8 +174,43 @@ func ensureProtocGenGo() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to automatically install protoc-gen-go: %v\n", err)
+		return fmt.Errorf("failed to install protoc-gen-go plugin: %w", err)
 	}
+
+	setupGoBinPath()
+	if _, err := exec.LookPath("protoc-gen-go"); err != nil {
+		return fmt.Errorf("protoc-gen-go was installed but could not be located in PATH")
+	}
+
+	return nil
+}
+
+func normalizeProtoPackageOptions(protoDir string) error {
+	const legacyPrefix = "github.com/polymorfa/hypermeow/proto/"
+	const targetPrefix = "go.mau.fi/whatsmeow/proto/"
+
+	return filepath.WalkDir(protoDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".proto") {
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		if bytes.Contains(data, []byte(legacyPrefix)) {
+			updated := bytes.ReplaceAll(data, []byte(legacyPrefix), []byte(targetPrefix))
+			if err := os.WriteFile(path, updated, 0644); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 func printProtocInstallInstructions() {
