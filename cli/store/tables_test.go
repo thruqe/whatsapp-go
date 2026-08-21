@@ -194,7 +194,7 @@ func TestLegacySchemaRepairs(t *testing.T) {
 
 	// Verify ON CONFLICT (our_jid, key) works after repair
 	queryUpsert := `
-		INSERT INTO bot_settings (our_jid, key, value) VALUES ('258256953950323@lid', 'sudoers', '123456@lid 789@lid')
+		INSERT INTO bot_settings (our_jid, key, value) VALUES ('100000000000001@lid', 'sudoers', '123456@lid 789@lid')
 		ON CONFLICT (our_jid, key) DO UPDATE SET value=excluded.value
 	`
 	if _, err := db.Exec(ctx, queryUpsert); err != nil {
