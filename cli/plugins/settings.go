@@ -2,7 +2,9 @@ package plugins
 
 import (
 	"context"
+	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -12,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.mau.fi/whatsmeow"
@@ -464,25 +467,52 @@ func getContextInfoFromProto(msg *waE2E.Message) *waE2E.ContextInfo {
 	return nil
 }
 
+var (
+	autoBioMu     sync.Mutex
+	autoBioCancel context.CancelFunc
+)
+
 func StartAutoBioScheduler(ctx context.Context, client *whatsmeow.Client) {
-	cliutils.AutoBioOnce.Do(func() {
-		go func() {
-			time.Sleep(5 * time.Second)
-			_, _ = updateAutoBio(ctx, client)
+	autoBioMu.Lock()
+	defer autoBioMu.Unlock()
 
-			ticker := time.NewTicker(1 * time.Minute)
-			defer ticker.Stop()
+	if autoBioCancel != nil {
+		autoBioCancel()
+		autoBioCancel = nil
+	}
 
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					_, _ = updateAutoBio(ctx, client)
-				}
+	schedCtx, cancel := context.WithCancel(ctx)
+	autoBioCancel = cancel
+
+	go func() {
+		select {
+		case <-schedCtx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
+		_, _ = updateAutoBio(schedCtx, client)
+
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-schedCtx.Done():
+				return
+			case <-ticker.C:
+				_, _ = updateAutoBio(schedCtx, client)
 			}
-		}()
-	})
+		}
+	}()
+}
+
+func StopAutoBioScheduler() {
+	autoBioMu.Lock()
+	defer autoBioMu.Unlock()
+	if autoBioCancel != nil {
+		autoBioCancel()
+		autoBioCancel = nil
+	}
 }
 
 func handleAutoBio(ctx *Context) error {
@@ -636,13 +666,16 @@ func generateBioText(tzStr string) string {
 }
 
 func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error) {
-	if client == nil || client.Store == nil || client.Store.Identities == nil {
-		return "", fmt.Errorf("client store unavailable")
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	if client == nil || client.Store == nil || client.Store.ID == nil || !client.IsConnected() {
+		return "", nil
 	}
 
 	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
-	if !ok {
-		return "", fmt.Errorf("sql store unavailable")
+	if !ok || s == nil || s.GetDB() == nil {
+		return "", nil
 	}
 
 	enabled, err := s.GetSetting(ctx, "autobio_enabled")
@@ -655,6 +688,9 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 
 	err = client.SetStatusMessage(ctx, types.SetStatusInput{Text: &bioText})
 	if err != nil {
+		if errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || ctx.Err() != nil {
+			return "", nil
+		}
 		slog.Error("[AutoBio] Failed to update WhatsApp status message", "err", err)
 		return "", err
 	}

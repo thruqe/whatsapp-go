@@ -2057,29 +2057,52 @@ func sendAntiSpamCustomizeGuide(ctx *Context) error {
 	return ctx.Reply(strings.TrimSpace(sb.String()))
 }
 
-func StartAutoMuteScheduler(ctx context.Context, client *whatsmeow.Client) {
-	cliutils.AutoMuteSchedulerOnce.Do(func() {
-		go func() {
-			ticker := time.NewTicker(1 * time.Second)
-			defer ticker.Stop()
+var (
+	autoMuteMu     sync.Mutex
+	autoMuteCancel context.CancelFunc
+)
 
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					func() {
-						defer func() {
-							if r := recover(); r != nil {
-								slog.Error("automute: PANIC in scheduler tick", "recover", r)
-							}
-						}()
-						checkAndExecuteMuteSchedules(ctx, client)
+func StartAutoMuteScheduler(ctx context.Context, client *whatsmeow.Client) {
+	autoMuteMu.Lock()
+	defer autoMuteMu.Unlock()
+
+	if autoMuteCancel != nil {
+		autoMuteCancel()
+		autoMuteCancel = nil
+	}
+
+	schedCtx, cancel := context.WithCancel(ctx)
+	autoMuteCancel = cancel
+
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-schedCtx.Done():
+				return
+			case <-ticker.C:
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							slog.Error("automute: PANIC in scheduler tick", "recover", r)
+						}
 					}()
-				}
+					checkAndExecuteMuteSchedules(schedCtx, client)
+				}()
 			}
-		}()
-	})
+		}
+	}()
+}
+
+func StopAutoMuteScheduler() {
+	autoMuteMu.Lock()
+	defer autoMuteMu.Unlock()
+	if autoMuteCancel != nil {
+		autoMuteCancel()
+		autoMuteCancel = nil
+	}
 }
 
 func handleAutoMute(ctx *Context) error {
@@ -2256,19 +2279,19 @@ func normalizeTimeInput(s string) (string, bool) {
 }
 
 func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client) {
-	if client == nil || client.Store == nil {
-		slog.Warn("automute: client or store is nil, skipping tick")
+	if ctx.Err() != nil {
+		return
+	}
+	if client == nil || client.Store == nil || client.Store.ID == nil || !client.IsConnected() {
 		return
 	}
 	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
-	if !ok {
-		slog.Warn("automute: Identities is not *sqlstore.SQLStore, skipping tick")
+	if !ok || s == nil {
 		return
 	}
 
 	db := s.GetDB()
 	if db == nil {
-		slog.Warn("automute: GetDB() returned nil, skipping tick")
 		return
 	}
 
@@ -2283,9 +2306,9 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 	currentTimeStr := fmt.Sprintf("%02d:%02d", now.Hour(), now.Minute())
 
 	ourJID := ""
-	if s != nil {
-		ourJID = s.JID
-	}
+	// if s != nil {
+	// 	ourJID = s.JID
+	// }
 
 	rows, err := db.Query(ctx, `SELECT key, value FROM bot_settings WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND (key LIKE 'automute:%' OR key LIKE 'autounmute:%')`, ourJID)
 	if err != nil {
