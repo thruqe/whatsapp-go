@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"go.mau.fi/whatsmeow/types/events"
+	commands "whatsrook/cli/plugins"
 )
 
 func TestLoadDotEnv(t *testing.T) {
@@ -86,4 +89,59 @@ func TestRunIdleMode(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for runIdleMode to shutdown")
 	}
+}
+
+func TestBot_LoggedOut_EventHandling(t *testing.T) {
+	bot := NewBot(BotConfig{
+		Session: "1234567890",
+		DataDir: t.TempDir(),
+	})
+
+	called := false
+	bot.onLoggedOut = func() {
+		called = true
+	}
+
+	bot.WAEventHandler(&events.LoggedOut{})
+
+	if !bot.loggedOut.Load() {
+		t.Errorf("expected loggedOut atomic boolean to be true")
+	}
+	if !called {
+		t.Errorf("expected onLoggedOut callback to be invoked")
+	}
+}
+
+func TestAutoMuteScheduler_Lifecycle(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Should not panic or emit errors with nil client or nil store
+	commands.StartAutoMuteScheduler(ctx, nil)
+	time.Sleep(50 * time.Millisecond)
+	commands.StopAutoMuteScheduler()
+
+	// Restart and cancel via context
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	commands.StartAutoMuteScheduler(ctx2, nil)
+	cancel2()
+	time.Sleep(50 * time.Millisecond)
+	commands.StopAutoMuteScheduler()
+}
+
+func TestAutoBioScheduler_Lifecycle(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Should not panic or emit errors with nil client or nil store
+	commands.StartAutoBioScheduler(ctx, nil)
+	time.Sleep(50 * time.Millisecond)
+	commands.StopAutoBioScheduler()
+
+	// Restart and cancel via context
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	commands.StartAutoBioScheduler(ctx2, nil)
+	cancel2()
+	time.Sleep(50 * time.Millisecond)
+	commands.StopAutoBioScheduler()
 }
