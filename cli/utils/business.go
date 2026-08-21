@@ -16,7 +16,7 @@ func ResolveBusinessTarget(ctx context.Context, client *whatsmeow.Client, target
 	} else if chat.Server != types.GroupServer {
 		rawTarget = chat
 	} else {
-		return types.JID{}, types.JID{}, fmt.Errorf("Usage:\n- %s%s @user\n- %s%s 1234567890\n- Reply to a business user's message with %s%s", prefix, cmdName, prefix, cmdName, prefix, cmdName)
+		return types.JID{}, types.JID{}, fmt.Errorf("usage:\n- %s%s @user\n- %s%s 1234567890\n- Reply to a business user's message with %s%s", prefix, cmdName, prefix, cmdName, prefix, cmdName)
 	}
 
 	queryJID := rawTarget
