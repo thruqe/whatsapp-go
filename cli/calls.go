@@ -14,7 +14,6 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-
 func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 	cli := b.client.WAClient()
 	if cli == nil || v == nil {

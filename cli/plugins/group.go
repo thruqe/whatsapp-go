@@ -1872,8 +1872,6 @@ func isSubcommand(s string) bool {
 		s == "clear" || s == "enable" || s == "disable" || s == "status"
 }
 
-
-
 func extractTargetParticipants(ctx *Context, args []string) []types.JID {
 	var targets []types.JID
 
@@ -2421,7 +2419,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 			botLID := client.Store.GetLID().ToNonAD()
 			isAdmin := false
 			for _, p := range info.Participants {
-					matchesBot := (!p.PhoneNumber.IsEmpty() && p.PhoneNumber.ToNonAD() == botJID) ||
+				matchesBot := (!p.PhoneNumber.IsEmpty() && p.PhoneNumber.ToNonAD() == botJID) ||
 					(!p.LID.IsEmpty() && p.LID.ToNonAD() == botLID) ||
 					(p.JID.ToNonAD() == botJID) // fallback for older/PN-addressed groups
 				if matchesBot && (p.IsAdmin || p.IsSuperAdmin) {

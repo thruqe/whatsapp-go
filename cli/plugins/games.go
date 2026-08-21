@@ -551,7 +551,6 @@ func minimax(board *[9]string, depth int, isMaximizing bool) int {
 	}
 }
 
-
 func HandleUnscrambleInput(ctx *Context, text string) bool {
 	chatKey := ctx.Chat.String()
 
