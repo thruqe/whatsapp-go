@@ -93,52 +93,57 @@ func TestBotSettings_ConstraintsAndUpserts(t *testing.T) {
 		t.Fatalf("failed running migrations: %v", err)
 	}
 
-	// Test 1: Upsert providing our_jid explicitly (matching updated PutSetting)
-	queryWithOurJID := `
+	queryUpsert := `
 		INSERT INTO bot_settings (our_jid, key, value) VALUES ($1, $2, $3)
-		ON CONFLICT (key) DO UPDATE SET value=excluded.value, our_jid=CASE WHEN excluded.our_jid != '' THEN excluded.our_jid ELSE bot_settings.our_jid END
-	`
-	if _, err := db.Exec(ctx, queryWithOurJID, "258256953950323@lid", "sudoers", "258256953950323@lid"); err != nil {
-		t.Fatalf("failed upsert with explicit our_jid: %v", err)
-	}
-
-	// Test 2: Single-key upsert without our_jid (relies on column default '')
-	querySingleKey := `
-		INSERT INTO bot_settings (key, value) VALUES ($1, $2)
-		ON CONFLICT (key) DO UPDATE SET value=excluded.value
-	`
-	if _, err := db.Exec(ctx, querySingleKey, "prefix", "."); err != nil {
-		t.Fatalf("failed upsert with ON CONFLICT (key): %v", err)
-	}
-
-	// Update the same key
-	if _, err := db.Exec(ctx, querySingleKey, "prefix", "!"); err != nil {
-		t.Fatalf("failed updating with ON CONFLICT (key): %v", err)
-	}
-
-	var val string
-	if err := db.QueryRow(ctx, "SELECT value FROM bot_settings WHERE key=$1", "prefix").Scan(&val); err != nil {
-		t.Fatalf("failed querying setting: %v", err)
-	}
-	if val != "!" {
-		t.Errorf("expected '!', got %q", val)
-	}
-
-	// Test 3: Composite key upsert (matching filter.go ON CONFLICT (our_jid, key))
-	queryComposite := `
-		INSERT INTO bot_settings (our_jid, key, value) VALUES ($1, 'mention_proto', $2)
 		ON CONFLICT (our_jid, key) DO UPDATE SET value=excluded.value
 	`
-	if _, err := db.Exec(ctx, queryComposite, "123456@s.whatsapp.net", "proto_bytes_data"); err != nil {
-		t.Fatalf("failed upsert with ON CONFLICT (our_jid, key): %v", err)
+
+	// Test 1: Session 1 sets prefix
+	if _, err := db.Exec(ctx, queryUpsert, "session1@s.whatsapp.net", "prefix", "."); err != nil {
+		t.Fatalf("failed upsert for session1: %v", err)
 	}
 
-	var mentionVal string
-	if err := db.QueryRow(ctx, "SELECT value FROM bot_settings WHERE our_jid=$1 AND key='mention_proto'", "123456@s.whatsapp.net").Scan(&mentionVal); err != nil {
-		t.Fatalf("failed querying composite setting: %v", err)
+	// Test 2: Session 2 sets same key to different value without conflict
+	if _, err := db.Exec(ctx, queryUpsert, "session2@s.whatsapp.net", "prefix", "!"); err != nil {
+		t.Fatalf("failed upsert for session2: %v", err)
 	}
-	if mentionVal != "proto_bytes_data" {
-		t.Errorf("expected 'proto_bytes_data', got %q", mentionVal)
+
+	// Verify Session 1 gets '.'
+	var val1 string
+	if err := db.QueryRow(ctx, "SELECT value FROM bot_settings WHERE our_jid=$1 AND key=$2", "session1@s.whatsapp.net", "prefix").Scan(&val1); err != nil {
+		t.Fatalf("failed querying session1 setting: %v", err)
+	}
+	if val1 != "." {
+		t.Errorf("expected session1 prefix to be '.', got %q", val1)
+	}
+
+	// Verify Session 2 gets '!'
+	var val2 string
+	if err := db.QueryRow(ctx, "SELECT value FROM bot_settings WHERE our_jid=$1 AND key=$2", "session2@s.whatsapp.net", "prefix").Scan(&val2); err != nil {
+		t.Fatalf("failed querying session2 setting: %v", err)
+	}
+	if val2 != "!" {
+		t.Errorf("expected session2 prefix to be '!', got %q", val2)
+	}
+
+	// Test 3: Session 1 updates prefix to '?'
+	if _, err := db.Exec(ctx, queryUpsert, "session1@s.whatsapp.net", "prefix", "?"); err != nil {
+		t.Fatalf("failed updating session1 prefix: %v", err)
+	}
+
+	if err := db.QueryRow(ctx, "SELECT value FROM bot_settings WHERE our_jid=$1 AND key=$2", "session1@s.whatsapp.net", "prefix").Scan(&val1); err != nil {
+		t.Fatalf("failed querying updated session1 setting: %v", err)
+	}
+	if val1 != "?" {
+		t.Errorf("expected updated session1 prefix to be '?', got %q", val1)
+	}
+
+	// Verify Session 2 was NOT affected
+	if err := db.QueryRow(ctx, "SELECT value FROM bot_settings WHERE our_jid=$1 AND key=$2", "session2@s.whatsapp.net", "prefix").Scan(&val2); err != nil {
+		t.Fatalf("failed querying session2 setting after session1 update: %v", err)
+	}
+	if val2 != "!" {
+		t.Errorf("expected session2 prefix to remain '!', got %q", val2)
 	}
 }
 
@@ -187,13 +192,13 @@ func TestLegacySchemaRepairs(t *testing.T) {
 		t.Errorf("expected bot_settings to have our_jid column, err: %v", err)
 	}
 
-	// Verify ON CONFLICT (key) works after repair
+	// Verify ON CONFLICT (our_jid, key) works after repair
 	queryUpsert := `
 		INSERT INTO bot_settings (our_jid, key, value) VALUES ('258256953950323@lid', 'sudoers', '123456@lid 789@lid')
-		ON CONFLICT (key) DO UPDATE SET value=excluded.value
+		ON CONFLICT (our_jid, key) DO UPDATE SET value=excluded.value
 	`
 	if _, err := db.Exec(ctx, queryUpsert); err != nil {
-		t.Fatalf("ON CONFLICT (key) failed after legacy repair: %v", err)
+		t.Fatalf("ON CONFLICT (our_jid, key) failed after legacy repair: %v", err)
 	}
 
 	// Verify call_media_config column migration
@@ -221,19 +226,19 @@ func TestGroupStatsAndLeaderboardOperations(t *testing.T) {
 
 	// Test group stats increment
 	statsQuery := `
-		INSERT INTO group_stats (group_jid, user_jid, date_str, msg_count)
-		VALUES ($1, $2, $3, 1)
-		ON CONFLICT(group_jid, user_jid, date_str) DO UPDATE SET msg_count = group_stats.msg_count + 1
+		INSERT INTO group_stats (our_jid, group_jid, user_jid, date_str, msg_count)
+		VALUES ($1, $2, $3, $4, 1)
+		ON CONFLICT(our_jid, group_jid, user_jid, date_str) DO UPDATE SET msg_count = group_stats.msg_count + 1
 	`
-	if _, err := db.Exec(ctx, statsQuery, "group1@g.us", "user1@s.whatsapp.net", "2026-08-13"); err != nil {
+	if _, err := db.Exec(ctx, statsQuery, "our_session@s.whatsapp.net", "group1@g.us", "user1@s.whatsapp.net", "2026-08-13"); err != nil {
 		t.Fatalf("group stats insert failed: %v", err)
 	}
-	if _, err := db.Exec(ctx, statsQuery, "group1@g.us", "user1@s.whatsapp.net", "2026-08-13"); err != nil {
+	if _, err := db.Exec(ctx, statsQuery, "our_session@s.whatsapp.net", "group1@g.us", "user1@s.whatsapp.net", "2026-08-13"); err != nil {
 		t.Fatalf("group stats update failed: %v", err)
 	}
 
 	var count int
-	if err := db.QueryRow(ctx, "SELECT msg_count FROM group_stats WHERE group_jid=$1 AND user_jid=$2 AND date_str=$3", "group1@g.us", "user1@s.whatsapp.net", "2026-08-13").Scan(&count); err != nil {
+	if err := db.QueryRow(ctx, "SELECT msg_count FROM group_stats WHERE our_jid=$1 AND group_jid=$2 AND user_jid=$3 AND date_str=$4", "our_session@s.whatsapp.net", "group1@g.us", "user1@s.whatsapp.net", "2026-08-13").Scan(&count); err != nil {
 		t.Fatalf("querying group_stats failed: %v", err)
 	}
 	if count != 2 {
@@ -242,23 +247,23 @@ func TestGroupStatsAndLeaderboardOperations(t *testing.T) {
 
 	// Test bot_group_user_xp upsert with CASE WHEN logic
 	xpQuery := `
-		INSERT INTO bot_group_user_xp (group_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT(group_jid, user_jid) DO UPDATE SET
+		INSERT INTO bot_group_user_xp (our_jid, group_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT(our_jid, group_jid, user_jid) DO UPDATE SET
 			xp = CASE WHEN bot_group_user_xp.xp + EXCLUDED.xp < 0 THEN 0 ELSE bot_group_user_xp.xp + EXCLUDED.xp END,
 			ttt_wins = bot_group_user_xp.ttt_wins + EXCLUDED.ttt_wins,
 			ttt_losses = bot_group_user_xp.ttt_losses + EXCLUDED.ttt_losses,
 			ttt_draws = bot_group_user_xp.ttt_draws + EXCLUDED.ttt_draws
 	`
-	if _, err := db.Exec(ctx, xpQuery, "group1@g.us", "user1@s.whatsapp.net", 50, 1, 0, 0); err != nil {
+	if _, err := db.Exec(ctx, xpQuery, "our_session@s.whatsapp.net", "group1@g.us", "user1@s.whatsapp.net", 50, 1, 0, 0); err != nil {
 		t.Fatalf("bot_group_user_xp insert failed: %v", err)
 	}
-	if _, err := db.Exec(ctx, xpQuery, "group1@g.us", "user1@s.whatsapp.net", 25, 1, 0, 0); err != nil {
+	if _, err := db.Exec(ctx, xpQuery, "our_session@s.whatsapp.net", "group1@g.us", "user1@s.whatsapp.net", 25, 1, 0, 0); err != nil {
 		t.Fatalf("bot_group_user_xp update failed: %v", err)
 	}
 
 	var totalXP, tttWins int
-	if err := db.QueryRow(ctx, "SELECT xp, ttt_wins FROM bot_group_user_xp WHERE group_jid=$1 AND user_jid=$2", "group1@g.us", "user1@s.whatsapp.net").Scan(&totalXP, &tttWins); err != nil {
+	if err := db.QueryRow(ctx, "SELECT xp, ttt_wins FROM bot_group_user_xp WHERE our_jid=$1 AND group_jid=$2 AND user_jid=$3", "our_session@s.whatsapp.net", "group1@g.us", "user1@s.whatsapp.net").Scan(&totalXP, &tttWins); err != nil {
 		t.Fatalf("querying bot_group_user_xp failed: %v", err)
 	}
 	if totalXP != 75 || tttWins != 2 {

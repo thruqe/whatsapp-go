@@ -61,6 +61,11 @@ func getMigrations() []Migration {
 			Description: "Add cached groups, communities, participants, and newsletters tables",
 			Up:          migration6CachedGroupsAndChannels,
 		},
+		{
+			Version:     7,
+			Description: "Scope all custom bot tables by our_jid for full per-session isolation in shared databases",
+			Up:          migration7SessionIsolation,
+		},
 	}
 }
 
@@ -114,64 +119,67 @@ func RunMigrations(ctx context.Context, db *dbutil.Database) error {
 func migration1InitialSchema(ctx context.Context, db *dbutil.Database) error {
 	schemas := []string{
 		`CREATE TABLE IF NOT EXISTS bot_settings (
-			our_jid TEXT DEFAULT '',
+			our_jid TEXT NOT NULL DEFAULT '',
 			key     TEXT NOT NULL,
 			value   TEXT NOT NULL,
 			PRIMARY KEY (our_jid, key)
 		)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS bot_settings_key_idx ON bot_settings (key)`,
 
 		`CREATE TABLE IF NOT EXISTS call_media_config (
-			our_jid    TEXT DEFAULT '',
+			our_jid    TEXT NOT NULL DEFAULT '',
 			jid        TEXT NOT NULL,
 			kind       TEXT NOT NULL DEFAULT 'audio',
 			file_path  TEXT NOT NULL,
 			updated_at BIGINT DEFAULT 0,
-			PRIMARY KEY (jid, kind)
+			PRIMARY KEY (our_jid, jid, kind)
 		)`,
 		`CREATE INDEX IF NOT EXISTS call_media_config_our_jid_idx ON call_media_config (our_jid)`,
 
 		`CREATE TABLE IF NOT EXISTS bot_filters (
-			our_jid       TEXT DEFAULT '',
+			our_jid       TEXT NOT NULL DEFAULT '',
 			trigger_word  TEXT NOT NULL,
 			message_proto TEXT NOT NULL,
 			PRIMARY KEY (our_jid, trigger_word)
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS bot_bgm (
-			our_jid       TEXT DEFAULT '',
+			our_jid       TEXT NOT NULL DEFAULT '',
 			trigger_word  TEXT NOT NULL,
 			message_proto TEXT NOT NULL,
 			PRIMARY KEY (our_jid, trigger_word)
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS group_stats (
+			our_jid   TEXT NOT NULL DEFAULT '',
 			group_jid TEXT NOT NULL,
 			user_jid  TEXT NOT NULL,
 			date_str  TEXT NOT NULL,
 			msg_count INTEGER NOT NULL DEFAULT 1,
-			PRIMARY KEY (group_jid, user_jid, date_str)
+			PRIMARY KEY (our_jid, group_jid, user_jid, date_str)
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS bot_sticker_cmds (
-			our_jid        TEXT DEFAULT '',
+			our_jid        TEXT NOT NULL DEFAULT '',
 			sticker_sha256 TEXT NOT NULL,
 			command_name   TEXT NOT NULL,
 			PRIMARY KEY (our_jid, sticker_sha256)
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS bot_user_xp (
-			user_jid   TEXT PRIMARY KEY,
+			our_jid    TEXT NOT NULL DEFAULT '',
+			user_jid   TEXT NOT NULL,
 			xp         INTEGER NOT NULL DEFAULT 0,
 			ttt_wins   INTEGER NOT NULL DEFAULT 0,
 			ttt_losses INTEGER NOT NULL DEFAULT 0,
 			ttt_draws  INTEGER NOT NULL DEFAULT 0,
 			wcg_wins   INTEGER NOT NULL DEFAULT 0,
 			wcg_games  INTEGER NOT NULL DEFAULT 0,
-			wcg_rating INTEGER NOT NULL DEFAULT 1000
+			wcg_rating INTEGER NOT NULL DEFAULT 1000,
+			PRIMARY KEY (our_jid, user_jid)
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS bot_group_user_xp (
+			our_jid    TEXT NOT NULL DEFAULT '',
 			group_jid  TEXT NOT NULL,
 			user_jid   TEXT NOT NULL,
 			xp         INTEGER NOT NULL DEFAULT 0,
@@ -181,7 +189,7 @@ func migration1InitialSchema(ctx context.Context, db *dbutil.Database) error {
 			wcg_wins   INTEGER NOT NULL DEFAULT 0,
 			wcg_games  INTEGER NOT NULL DEFAULT 0,
 			wcg_rating INTEGER NOT NULL DEFAULT 1000,
-			PRIMARY KEY (group_jid, user_jid)
+			PRIMARY KEY (our_jid, group_jid, user_jid)
 		)`,
 	}
 
@@ -213,11 +221,6 @@ func migration2RepairConstraintsAndColumns(ctx context.Context, db *dbutil.Datab
 	}
 	_, _ = db.Exec(ctx, "UPDATE bot_settings SET our_jid = '' WHERE our_jid IS NULL")
 
-	// Ensure unique index on key so that ON CONFLICT (key) works seamlessly in Postgres and SQLite
-	if _, err := db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS bot_settings_key_idx ON bot_settings (key)"); err != nil {
-		slog.Warn("migration2: failed to create unique index on bot_settings(key)", "err", err)
-	}
-
 	// 2. Repair call_media_config column naming (sender -> jid) and defaults
 	hasSender, _ := TableHasColumn(ctx, db, "call_media_config", "sender")
 	hasJID, _ := TableHasColumn(ctx, db, "call_media_config", "jid")
@@ -231,11 +234,6 @@ func migration2RepairConstraintsAndColumns(ctx context.Context, db *dbutil.Datab
 	}
 	_ = EnsureCustomColumnExists(ctx, db, "call_media_config", "our_jid", "TEXT DEFAULT ''")
 	_ = EnsureCustomColumnExists(ctx, db, "call_media_config", "updated_at", "BIGINT DEFAULT 0")
-
-	// Ensure unique index on (jid, kind) for call_media_config
-	if _, err := db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS call_media_config_jid_kind_idx ON call_media_config (jid, kind)"); err != nil {
-		slog.Warn("migration2: failed to create unique index on call_media_config(jid, kind)", "err", err)
-	}
 
 	// 3. Repair XP columns
 	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "wcg_wins", "INTEGER DEFAULT 0")
@@ -291,10 +289,9 @@ func migration3PerformanceIndexes(ctx context.Context, db *dbutil.Database) erro
 	return nil
 }
 
-// Migration 4: Ensure call_media_config unique index on (jid, kind).
+// Migration 4: Ensure call_media_config unique index.
 func migration4CallMediaUniqueIndex(ctx context.Context, db *dbutil.Database) error {
-	_, err := db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS call_media_config_jid_kind_idx ON call_media_config (jid, kind)")
-	return err
+	return nil
 }
 
 // Migration 5: Ensure call_media_config updated_at default and drop not-null constraint.
@@ -372,5 +369,109 @@ func migration6CachedGroupsAndChannels(ctx context.Context, db *dbutil.Database)
 			return fmt.Errorf("failed executing schema %q: %w", s, err)
 		}
 	}
+	return nil
+}
+
+// Migration 7: Add our_jid scoping to all tables that were missing it for full per-session isolation.
+func migration7SessionIsolation(ctx context.Context, db *dbutil.Database) error {
+	// 1. Drop the global unique index on bot_settings(key) — it must only be scoped per-session (our_jid, key)
+	_, _ = db.Exec(ctx, "DROP INDEX IF EXISTS bot_settings_key_idx")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_settings", "our_jid", "TEXT NOT NULL DEFAULT ''")
+	_, _ = db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS bot_settings_our_jid_key_idx ON bot_settings (our_jid, key)")
+
+	// 2. Fix call_media_config: drop old (jid, kind) unique index, add (our_jid, jid, kind)
+	_, _ = db.Exec(ctx, "DROP INDEX IF EXISTS call_media_config_jid_kind_idx")
+	_ = EnsureCustomColumnExists(ctx, db, "call_media_config", "our_jid", "TEXT NOT NULL DEFAULT ''")
+	_, _ = db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS call_media_config_our_jid_jid_kind_idx ON call_media_config (our_jid, jid, kind)")
+
+	// 3. Add our_jid to group_stats
+	_ = EnsureCustomColumnExists(ctx, db, "group_stats", "our_jid", "TEXT NOT NULL DEFAULT ''")
+	_, _ = db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS group_stats_our_jid_group_user_date_idx ON group_stats (our_jid, group_jid, user_jid, date_str)")
+
+	// 4. Add our_jid to bot_user_xp and ensure all columns exist
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "our_jid", "TEXT NOT NULL DEFAULT ''")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "ttt_wins", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "ttt_losses", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "ttt_draws", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "wcg_wins", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "wcg_games", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "wcg_rating", "INTEGER DEFAULT 1000")
+	_, _ = db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS bot_user_xp_our_jid_user_idx ON bot_user_xp (our_jid, user_jid)")
+
+	// 5. Add our_jid to bot_group_user_xp and ensure all columns exist
+	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "our_jid", "TEXT NOT NULL DEFAULT ''")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "ttt_wins", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "ttt_losses", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "ttt_draws", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "wcg_wins", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "wcg_games", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "wcg_rating", "INTEGER DEFAULT 1000")
+	_, _ = db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS bot_group_user_xp_our_jid_group_user_idx ON bot_group_user_xp (our_jid, group_jid, user_jid)")
+
+	// 6. Ensure our_jid exists on bot_filters, bot_bgm, and bot_sticker_cmds
+	_ = EnsureCustomColumnExists(ctx, db, "bot_filters", "our_jid", "TEXT NOT NULL DEFAULT ''")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_bgm", "our_jid", "TEXT NOT NULL DEFAULT ''")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_sticker_cmds", "our_jid", "TEXT NOT NULL DEFAULT ''")
+
+	// 7. For SQLite legacy tables with non-composite primary keys, migrate table definitions to composite PKs
+	if db.Dialect == dbutil.SQLite {
+		botSettingsSchema := `CREATE TABLE IF NOT EXISTS bot_settings (
+			our_jid TEXT NOT NULL DEFAULT '',
+			key     TEXT NOT NULL,
+			value   TEXT NOT NULL,
+			PRIMARY KEY (our_jid, key)
+		)`
+		_ = MigrateSQLiteTableToCompositePK(ctx, db, "bot_settings", botSettingsSchema, "our_jid, key, value", "COALESCE(our_jid, ''), key, value")
+
+		callMediaSchema := `CREATE TABLE IF NOT EXISTS call_media_config (
+			our_jid    TEXT NOT NULL DEFAULT '',
+			jid        TEXT NOT NULL,
+			kind       TEXT NOT NULL DEFAULT 'audio',
+			file_path  TEXT NOT NULL,
+			updated_at BIGINT DEFAULT 0,
+			PRIMARY KEY (our_jid, jid, kind)
+		)`
+		_ = MigrateSQLiteTableToCompositePK(ctx, db, "call_media_config", callMediaSchema, "our_jid, jid, kind, file_path, updated_at", "COALESCE(our_jid, ''), jid, kind, file_path, COALESCE(updated_at, 0)")
+
+		groupStatsSchema := `CREATE TABLE IF NOT EXISTS group_stats (
+			our_jid   TEXT NOT NULL DEFAULT '',
+			group_jid TEXT NOT NULL,
+			user_jid  TEXT NOT NULL,
+			date_str  TEXT NOT NULL,
+			msg_count INTEGER NOT NULL DEFAULT 1,
+			PRIMARY KEY (our_jid, group_jid, user_jid, date_str)
+		)`
+		_ = MigrateSQLiteTableToCompositePK(ctx, db, "group_stats", groupStatsSchema, "our_jid, group_jid, user_jid, date_str, msg_count", "COALESCE(our_jid, ''), group_jid, user_jid, date_str, COALESCE(msg_count, 1)")
+
+		botUserXPSchema := `CREATE TABLE IF NOT EXISTS bot_user_xp (
+			our_jid    TEXT NOT NULL DEFAULT '',
+			user_jid   TEXT NOT NULL,
+			xp         INTEGER NOT NULL DEFAULT 0,
+			ttt_wins   INTEGER NOT NULL DEFAULT 0,
+			ttt_losses INTEGER NOT NULL DEFAULT 0,
+			ttt_draws  INTEGER NOT NULL DEFAULT 0,
+			wcg_wins   INTEGER NOT NULL DEFAULT 0,
+			wcg_games  INTEGER NOT NULL DEFAULT 0,
+			wcg_rating INTEGER NOT NULL DEFAULT 1000,
+			PRIMARY KEY (our_jid, user_jid)
+		)`
+		_ = MigrateSQLiteTableToCompositePK(ctx, db, "bot_user_xp", botUserXPSchema, "our_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws, wcg_wins, wcg_games, wcg_rating", "COALESCE(our_jid, ''), user_jid, COALESCE(xp, 0), COALESCE(ttt_wins, 0), COALESCE(ttt_losses, 0), COALESCE(ttt_draws, 0), COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000)")
+
+		botGroupUserXPSchema := `CREATE TABLE IF NOT EXISTS bot_group_user_xp (
+			our_jid    TEXT NOT NULL DEFAULT '',
+			group_jid  TEXT NOT NULL,
+			user_jid   TEXT NOT NULL,
+			xp         INTEGER NOT NULL DEFAULT 0,
+			ttt_wins   INTEGER NOT NULL DEFAULT 0,
+			ttt_losses INTEGER NOT NULL DEFAULT 0,
+			ttt_draws  INTEGER NOT NULL DEFAULT 0,
+			wcg_wins   INTEGER NOT NULL DEFAULT 0,
+			wcg_games  INTEGER NOT NULL DEFAULT 0,
+			wcg_rating INTEGER NOT NULL DEFAULT 1000,
+			PRIMARY KEY (our_jid, group_jid, user_jid)
+		)`
+		_ = MigrateSQLiteTableToCompositePK(ctx, db, "bot_group_user_xp", botGroupUserXPSchema, "our_jid, group_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws, wcg_wins, wcg_games, wcg_rating", "COALESCE(our_jid, ''), group_jid, user_jid, COALESCE(xp, 0), COALESCE(ttt_wins, 0), COALESCE(ttt_losses, 0), COALESCE(ttt_draws, 0), COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000)")
+	}
+
 	return nil
 }

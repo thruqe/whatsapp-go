@@ -31,9 +31,9 @@ var (
 )
 
 const (
-	ClientChrome ClientType = iota
-	ClientAndroid
-	ClientIos
+	ClientChrome  ClientType = iota
+	ClientAndroid ClientType = iota
+	ClientIos     ClientType = iota
 )
 
 // ParseClientType converts a platform name string to its ClientType enum.
@@ -49,8 +49,8 @@ func ParseClientType(s string) (ClientType, bool) {
 // Config holds configuration parameters for a Client instance.
 type Config struct {
 	Session         string
-	DataDir         string // Directory to store session data (default: "auth")
-	Database        string // Database connection URL or "sqlite" (default: "sqlite")
+	DataDir         string // Directory for logs and the shared SQLite database (default: next to the binary)
+	Database        string // Database connection URL or "sqlite" (default: "sqlite"). Can also be set via DATABASE_URL_<phone> env var for per-session override.
 	ClientType      ClientType
 	Verbose         bool
 	SkipOldMessages bool
@@ -72,21 +72,24 @@ func NewClient(cfg Config) *Client {
 	return c
 }
 
-// DefaultAuthDir returns the path to the auth directory located in the directory where the binary exists.
-func DefaultAuthDir() string {
+// DefaultDataDir returns the directory next to the running binary (or cwd when
+// running via `go run`/tests).
+func DefaultDataDir() string {
 	if exePath, err := os.Executable(); err == nil {
-		exeDir := filepath.Dir(exePath)
-		// If running via 'go run' or temporary test runner, fallback to current working directory
 		if !strings.Contains(exePath, "go-build") && !strings.Contains(exePath, "/tmp/") && !strings.Contains(exePath, `\Temp\`) {
-			return filepath.Join(exeDir, "auth")
+			return filepath.Dir(exePath)
 		}
 	}
-	return "auth"
+	return "."
 }
+
+// DefaultAuthDir is kept for backward-compatibility with any external callers;
+// it now delegates to DefaultDataDir.
+func DefaultAuthDir() string { return DefaultDataDir() }
 
 func (c *Client) applyDefaults() {
 	if c.Config.DataDir == "" {
-		c.Config.DataDir = DefaultAuthDir()
+		c.Config.DataDir = DefaultDataDir()
 	}
 }
 
@@ -104,7 +107,9 @@ func (c *Client) Container() *sqlstore.Container {
 	return c.container
 }
 
-// InitSession initializes session directory, logger, database store container, and whatsmeow client.
+// InitSession initializes the logger, shared database store container, and whatsmeow client.
+// All sessions share a single database file (SQLite) or a single Postgres database;
+// no per-session directory is created.
 func (c *Client) InitSession(ctx context.Context) error {
 	c.applyDefaults()
 
@@ -112,28 +117,26 @@ func (c *Client) InitSession(ctx context.Context) error {
 		return errors.New("session phone number is required")
 	}
 
-	sessionDir := filepath.Join(c.Config.DataDir, c.Config.Session)
-	if err := os.MkdirAll(sessionDir, 0755); err != nil {
-		return fmt.Errorf("failed to create session dir %q: %w", sessionDir, err)
-	}
-
-	if err := utils.InitLogger(sessionDir, c.Config.Verbose); err != nil {
+	// Logs go into DataDir/logs/ — shared across all sessions.
+	if err := utils.InitLogger(c.Config.DataDir, c.Config.Verbose); err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
-
-	dbPath := filepath.Join(sessionDir, c.Config.Session+".db")
 
 	waLevel := "INFO"
 	if c.Config.Verbose {
 		waLevel = "DEBUG"
 	}
 
+	// Shared database path for SQLite: DataDir/whatsrook.db
+	dbPath := filepath.Join(c.Config.DataDir, "whatsrook.db")
+
 	container, err := c.initStore(ctx, dbPath, waLevel)
 	if err != nil {
 		return fmt.Errorf("failed to open db: %w", err)
 	}
 
-	deviceStore, err := container.GetFirstDevice(ctx)
+	// Retrieve existing device for this session phone number, or create a new one.
+	deviceStore, err := c.getOrCreateDevice(ctx, container)
 	if err != nil {
 		_ = container.Close()
 		return fmt.Errorf("failed to get device: %w", err)
@@ -160,6 +163,28 @@ func (c *Client) InitSession(ctx context.Context) error {
 	c.mu.Unlock()
 
 	return nil
+}
+
+// getOrCreateDevice finds an existing device matching the session phone number
+// in the shared container, or returns a freshly created (unpaired) device.
+func (c *Client) getOrCreateDevice(ctx context.Context, container *sqlstore.Container) (*store.Device, error) {
+	devices, err := container.GetAllDevices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	phone := c.Config.Session
+	// Strip leading '+' so we can do a prefix match on JID users like "447911123456.0".
+	phone = strings.TrimPrefix(phone, "+")
+
+	for _, dev := range devices {
+		if dev.ID != nil && strings.HasPrefix(dev.ID.User, phone) {
+			return dev, nil
+		}
+	}
+
+	// No matching device — return a new unpaired device.
+	return container.NewDevice(), nil
 }
 
 // Close closes the underlying database store container.
@@ -216,38 +241,25 @@ func (c *Client) Logout(ctx context.Context) error {
 	return cli.Logout(ctx)
 }
 
-// WipeSession removes the session folder and all contained database/cache files.
-func WipeSession(sessionDir string) {
-	if err := os.RemoveAll(sessionDir); err != nil && !os.IsNotExist(err) {
-		slog.Error("failed to remove session directory", "path", sessionDir, "err", err)
-		return
-	}
-	if err := os.MkdirAll(sessionDir, 0755); err != nil {
-		slog.Error("failed to recreate session directory", "path", sessionDir, "err", err)
-	}
-}
+// WipeSession is a no-op kept for backward-compatibility.
+// Directory-based session wiping is no longer used; use Client.ClearSessionDB
+// to remove only the affected device record from the shared database.
+func WipeSession(_ string) {}
 
-// ClearSessionDB deletes current session device records from database store and wipes local session directory.
-func (c *Client) ClearSessionDB(ctx context.Context, sessionDir string) {
+// ClearSessionDB deletes the current session's device record from the shared
+// database. Other sessions stored in the same database are not affected.
+func (c *Client) ClearSessionDB(ctx context.Context, _ string) {
 	c.mu.Lock()
 	cli := c.rawClient
-	container := c.container
 	c.mu.Unlock()
 
 	if cli != nil && cli.Store != nil {
 		if err := cli.Store.Delete(ctx); err != nil {
 			slog.Warn("failed to delete session device store", "err", err)
 		}
-	} else if container != nil {
-		if devices, err := container.GetAllDevices(ctx); err == nil {
-			for _, dev := range devices {
-				_ = container.DeleteDevice(ctx, dev)
-			}
-		}
 	}
 
 	_ = c.Close()
-	WipeSession(sessionDir)
 }
 
 func sanitizeDBURL(rawURL string) string {
@@ -289,6 +301,13 @@ func (c *Client) initStore(ctx context.Context, dbPath, waLevel string) (*sqlsto
 	dbLog := utils.WhatsmeowStyle("Database", waLevel, true)
 
 	dbConn := c.Config.Database
+	if dbConn == "" {
+		// Per-session override: DATABASE_URL_<phone> takes priority over generic env vars.
+		phone := strings.TrimPrefix(c.Config.Session, "+")
+		if phone != "" {
+			dbConn = os.Getenv("DATABASE_URL_" + phone)
+		}
+	}
 	if dbConn == "" {
 		dbConn = os.Getenv("DATABASE_URL")
 	}

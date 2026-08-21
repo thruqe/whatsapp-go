@@ -7,13 +7,13 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/rs/zerolog v1.35.1 // indirect
 	go.mau.fi/util v0.10.0 // indirect
-	google.golang.org/protobuf v1.36.12
 )
 
 require (
 	github.com/lib/pq v1.12.3
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	go.mau.fi/whatsmeow v0.0.0-20260816113502-fb386f152837
+	google.golang.org/protobuf v1.36.12
 	modernc.org/sqlite v1.56.0
 )
 

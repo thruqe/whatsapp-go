@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -59,7 +57,7 @@ type Bot struct {
 // Initiates a new Bot instance
 func NewBot(cfg BotConfig) *Bot {
 	if cfg.DataDir == "" {
-		cfg.DataDir = whatsrook.DefaultAuthDir()
+		cfg.DataDir = whatsrook.DefaultDataDir()
 	}
 	if cfg.WSPort <= 0 {
 		cfg.WSPort = 3000
@@ -83,11 +81,6 @@ func (b *Bot) Start(ctx context.Context) error {
 	// TODO: Add more robust validation
 	if b.cfg.Session == "" {
 		return errors.New("session phone number is required")
-	}
-
-	sessionDir := filepath.Join(b.cfg.DataDir, b.cfg.Session)
-	if err := os.MkdirAll(sessionDir, 0755); err != nil {
-		return fmt.Errorf("failed to create session dir %q: %w", sessionDir, err)
 	}
 
 	// Initialize core WhatsApp client
@@ -156,7 +149,7 @@ func (b *Bot) Start(ctx context.Context) error {
 	}()
 
 	for {
-		err := b.runSession(ctx, sessionDir)
+		err := b.runSession(ctx)
 
 		// Clean shutdown or context cancelled
 		// Exit normally.
@@ -165,20 +158,24 @@ func (b *Bot) Start(ctx context.Context) error {
 		}
 
 		// Session logged out (401 or unpaired)
-		// Clear database/session files and exit so caller can enter idle mode.
+		// Clear device record from shared DB and exit so caller can enter idle mode.
 		if errors.Is(err, whatsrook.ErrLoggedOut) || strings.Contains(err.Error(), "logged out") || b.loggedOut.Load() {
-			slog.Warn("Logged out session detected — session database and local files cleared.")
+			slog.Warn("Logged out session detected — device record cleared from shared database.")
 			b.loggedOut.Store(false)
-			whatsrook.WipeSession(sessionDir)
 			return whatsrook.ErrLoggedOut
 		}
 
-		// Pairing stalled (malformed WA notification). Wipe the session and retry.
+		// Pairing stalled (malformed WA notification). Wipe the device record and retry.
 		if errors.Is(err, whatsrook.ErrPairTimeout) {
 			slog.Error("session error", "err", "Pairing timed out — WhatsApp sent a bad response.")
-			slog.Warn("session action", "warn", "The session directory will be cleared and a new code generated.")
+			slog.Warn("session action", "warn", "The device record will be cleared and a new code generated.")
 
-			whatsrook.WipeSession(sessionDir)
+			b.mu.Lock()
+			cli := b.client
+			b.mu.Unlock()
+			if cli != nil {
+				cli.ClearSessionDB(ctx, "")
+			}
 
 			for i := 10; i > 0; i-- {
 				fmt.Printf("\r  Retrying in %2ds…", i)
@@ -198,7 +195,7 @@ func (b *Bot) Start(ctx context.Context) error {
 	}
 }
 
-func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
+func (b *Bot) runSession(ctx context.Context) error {
 	sessionCtx, sessionCancel := context.WithCancel(ctx)
 	defer sessionCancel()
 
@@ -254,7 +251,7 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 			})
 
 			if err := cli.Connect(); err != nil {
-				slog.Warn("connect failed before logout, wiping local files only", "err", err)
+				slog.Warn("connect failed before logout, clearing device record only", "err", err)
 			} else {
 				logoutCtx, logoutCancel := context.WithTimeout(sessionCtx, 10*time.Second)
 				select {
@@ -272,9 +269,8 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 			}
 		}
 
-		_ = b.client.Close()
-		whatsrook.WipeSession(sessionDir)
-		slog.Info("session directory cleared successfully", "session", b.cfg.Session)
+		b.client.ClearSessionDB(sessionCtx, "")
+		slog.Info("session device record cleared successfully", "session", b.cfg.Session)
 		return nil
 	}
 
@@ -300,8 +296,8 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 	} else {
 		if err := cli.Connect(); err != nil {
 			if b.loggedOut.Load() || strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "logged out") {
-				slog.Warn("Connect failed due to logged-out status — clearing session database and local files...", "err", err)
-				b.client.ClearSessionDB(sessionCtx, sessionDir)
+				slog.Warn("Connect failed due to logged-out status — clearing device record from shared database...", "err", err)
+				b.client.ClearSessionDB(sessionCtx, "")
 				return whatsrook.ErrLoggedOut
 			}
 			return err
@@ -309,8 +305,8 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 	}
 
 	if b.loggedOut.Load() {
-		slog.Warn("Session logged out — clearing session database and local files...")
-		b.client.ClearSessionDB(sessionCtx, sessionDir)
+		slog.Warn("Session logged out — clearing device record from shared database...")
+		b.client.ClearSessionDB(sessionCtx, "")
 		return whatsrook.ErrLoggedOut
 	}
 
@@ -324,8 +320,8 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 		select {
 		case <-sessionCtx.Done():
 			if b.loggedOut.Load() {
-				slog.Warn("Session logged out during runtime — clearing session database and local files...")
-				b.client.ClearSessionDB(ctx, sessionDir)
+				slog.Warn("Session logged out during runtime — clearing device record from shared database...")
+				b.client.ClearSessionDB(ctx, "")
 				return whatsrook.ErrLoggedOut
 			}
 			return nil
@@ -334,8 +330,8 @@ func (b *Bot) runSession(ctx context.Context, sessionDir string) error {
 			b.hub.Broadcast(ack)
 		}
 		if b.loggedOut.Load() {
-			slog.Warn("Session logged out during runtime — clearing session database and local files...")
-			b.client.ClearSessionDB(ctx, sessionDir)
+			slog.Warn("Session logged out during runtime — clearing device record from shared database...")
+			b.client.ClearSessionDB(ctx, "")
 			return whatsrook.ErrLoggedOut
 		}
 	}

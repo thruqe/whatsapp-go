@@ -288,18 +288,22 @@ func awardTTTXP(ctx *Context, userJID types.JID, amount int, resultType string) 
 		drawInc = 1
 	}
 
+	ourJID := ""
+	if s != nil {
+		ourJID = s.JID
+	}
 	groupJID := ctx.Chat.ToNonAD().String()
 	normJID := NormalizeUserJID(ctx.Ctx, ctx.Client, userJID)
 	cleanJID := normJID.String()
 
-	_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (group_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT(group_jid, user_jid) DO UPDATE SET
+	_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (our_jid, group_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT(our_jid, group_jid, user_jid) DO UPDATE SET
 			xp = CASE WHEN bot_group_user_xp.xp + EXCLUDED.xp < 0 THEN 0 ELSE bot_group_user_xp.xp + EXCLUDED.xp END,
 			ttt_wins = bot_group_user_xp.ttt_wins + EXCLUDED.ttt_wins,
 			ttt_losses = bot_group_user_xp.ttt_losses + EXCLUDED.ttt_losses,
 			ttt_draws = bot_group_user_xp.ttt_draws + EXCLUDED.ttt_draws`,
-		groupJID, cleanJID, amount, winInc, lossInc, drawInc)
+		ourJID, groupJID, cleanJID, amount, winInc, lossInc, drawInc)
 }
 
 func handleLeaderboard(ctx *Context) error {
@@ -316,6 +320,7 @@ func handleLeaderboard(ctx *Context) error {
 		return ctx.Reply("Database connection unavailable.")
 	}
 
+	ourJID := s.JID
 	groupJID := ctx.Chat.ToNonAD().String()
 
 	groupName := "Group"
@@ -329,7 +334,7 @@ func handleLeaderboard(ctx *Context) error {
 
 	rows, err := db.Query(ctx.Ctx, `SELECT user_jid, xp, ttt_wins, ttt_losses, ttt_draws, COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000) 
 		FROM bot_group_user_xp 
-		WHERE group_jid = $1`, groupJID)
+		WHERE our_jid = $1 AND group_jid = $2`, ourJID, groupJID)
 	if err != nil {
 		return ctx.Reply("Failed to fetch group leaderboard.")
 	}
@@ -831,17 +836,21 @@ func saveUnscrambleStats(ctx *Context, game *cliutils.UnscrambleGame, winner *cl
 			}
 		}
 
+		ourJID := ""
+		if game.Client != nil && game.Client.Store != nil && game.Client.Store.ID != nil {
+			ourJID = game.Client.Store.ID.String()
+		}
 		normJID := NormalizeUserJID(ctx.Ctx, game.Client, p.MentionJID)
 		cleanJID := normJID.String()
 
-		_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (group_jid, user_jid, xp, wcg_wins, wcg_games, wcg_rating)
-			VALUES ($1, $2, $3, $4, 1, $5)
-			ON CONFLICT(group_jid, user_jid) DO UPDATE SET
+		_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (our_jid, group_jid, user_jid, xp, wcg_wins, wcg_games, wcg_rating)
+			VALUES ($1, $2, $3, $4, $5, 1, $6)
+			ON CONFLICT(our_jid, group_jid, user_jid) DO UPDATE SET
 				xp = CASE WHEN bot_group_user_xp.xp + EXCLUDED.xp < 0 THEN 0 ELSE bot_group_user_xp.xp + EXCLUDED.xp END,
 				wcg_wins = bot_group_user_xp.wcg_wins + EXCLUDED.wcg_wins,
 				wcg_games = bot_group_user_xp.wcg_games + 1,
-				wcg_rating = CASE WHEN bot_group_user_xp.wcg_rating + $6 < 100 THEN 100 ELSE bot_group_user_xp.wcg_rating + $6 END`,
-			groupJID, cleanJID, xpEarned, winInc, 1000+ratingDelta, ratingDelta)
+				wcg_rating = CASE WHEN bot_group_user_xp.wcg_rating + $7 < 100 THEN 100 ELSE bot_group_user_xp.wcg_rating + $7 END`,
+			ourJID, groupJID, cleanJID, xpEarned, winInc, 1000+ratingDelta, ratingDelta)
 	}
 }
 
@@ -1536,17 +1545,21 @@ func saveWCGChainStats(ctx *Context, game *cliutils.WCGGame, winner *cliutils.WC
 			}
 		}
 
+		ourJID := ""
+		if game.Client != nil && game.Client.Store != nil && game.Client.Store.ID != nil {
+			ourJID = game.Client.Store.ID.String()
+		}
 		normJID := NormalizeUserJID(ctx.Ctx, game.Client, p.MentionJID)
 		cleanJID := normJID.String()
 
-		_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (group_jid, user_jid, xp, wcg_wins, wcg_games, wcg_rating)
-			VALUES ($1, $2, $3, $4, 1, $5)
-			ON CONFLICT(group_jid, user_jid) DO UPDATE SET
+		_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (our_jid, group_jid, user_jid, xp, wcg_wins, wcg_games, wcg_rating)
+			VALUES ($1, $2, $3, $4, $5, 1, $6)
+			ON CONFLICT(our_jid, group_jid, user_jid) DO UPDATE SET
 				xp = CASE WHEN bot_group_user_xp.xp + EXCLUDED.xp < 0 THEN 0 ELSE bot_group_user_xp.xp + EXCLUDED.xp END,
 				wcg_wins = bot_group_user_xp.wcg_wins + EXCLUDED.wcg_wins,
 				wcg_games = bot_group_user_xp.wcg_games + 1,
-				wcg_rating = CASE WHEN bot_group_user_xp.wcg_rating + $6 < 100 THEN 100 ELSE bot_group_user_xp.wcg_rating + $6 END`,
-			groupJID, cleanJID, xpEarned, winInc, 1000+ratingDelta, ratingDelta)
+				wcg_rating = CASE WHEN bot_group_user_xp.wcg_rating + $7 < 100 THEN 100 ELSE bot_group_user_xp.wcg_rating + $7 END`,
+			ourJID, groupJID, cleanJID, xpEarned, winInc, 1000+ratingDelta, ratingDelta)
 	}
 }
 
