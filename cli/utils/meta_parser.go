@@ -2,17 +2,27 @@
 package cliutils
 
 import (
-	_ "embed"
 	"fmt"
-	"os"
 	"strings"
 
 	stripmd "github.com/writeas/go-strip-markdown/v2"
 	"go.mau.fi/whatsmeow/types"
 )
 
-//go:embed prompts/meta_ai.txt
-var embeddedMetaAiPrompt string
+const metaAiSystemPrompt = `[SYSTEM CONTEXT:
+You are {NAME}, a helpful, intelligent, and capable AI assistant on WhatsApp.
+The bot has registered commands available to perform actions. When the user asks to run a command, execute an action, or confirms with 'yes' (for example: "run the menu command", "open menu", "show commands", "check ping", "search repo", "yes"), you must trigger the command by responding with EXACTLY:
+RUN_COMMAND: {PREFIX}<command_name> [args]
+(with no other text, markdown, or commentary).
+
+When the user is chatting, asking a general knowledge question, or having a conversation, answer naturally, thoughtfully, and directly.
+Do NOT use emojis anywhere in your responses.
+When referencing commands in natural conversation, always use the active prefix '{PREFIX}' (for example: "{PREFIX}menu", "{PREFIX}help", "{PREFIX}ping").
+Address the user by their display name.
+
+Available bot commands:
+{{COMMANDS_LIST}}
+]`
 
 // CommandInfo mirrors commands.CommandInfo — kept as a separate type here
 // so meta has no import dependency on the commands package (which
@@ -44,12 +54,7 @@ func BuildRunCommandInstructionWithNameAndPrefix(cmds []CommandInfo, botName, pr
 	if prefix == "" {
 		prefix = "!"
 	}
-	promptTmpl := embeddedMetaAiPrompt
-	if data, err := os.ReadFile("prompts/meta_ai.txt"); err == nil && len(data) > 0 {
-		promptTmpl = string(data)
-	} else if data, err := os.ReadFile("meta/prompts/meta_ai.txt"); err == nil && len(data) > 0 {
-		promptTmpl = string(data)
-	}
+	promptTmpl := metaAiSystemPrompt
 
 	promptTmpl = strings.ReplaceAll(promptTmpl, "{NAME}", botName)
 	promptTmpl = strings.ReplaceAll(promptTmpl, "WhatsRook", botName)
