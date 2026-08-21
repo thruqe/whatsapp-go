@@ -135,6 +135,12 @@ func (m *MessageBuilder) Send() error {
 		return ctx.React(m.reaction)
 
 	case "image":
+		if len(m.mentions) > 0 {
+			if m.asReply {
+				return ctx.ReplyWithImageWithMentions(m.mediaData, m.mediaMime, m.mediaCaption, m.mentions)
+			}
+			return ctx.SendImageWithMentions(m.mediaData, m.mediaMime, m.mediaCaption, m.mentions)
+		}
 		if m.asReply {
 			return ctx.ReplyWithImage(m.mediaData, m.mediaMime, m.mediaCaption)
 		}
