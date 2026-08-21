@@ -3,8 +3,8 @@ package cliutils
 import (
 	"sync"
 
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
+	clistore "whatsrook/cli/store"
 )
 
 const (
@@ -13,7 +13,7 @@ const (
 
 type PendingCall struct {
 	Target string
-	Kind   sqlstore.CallMediaKind
+	Kind   clistore.CallMediaKind
 }
 
 var (

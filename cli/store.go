@@ -53,7 +53,7 @@ func (s *Store) GetSetting(ctx context.Context, key string) (string, error) {
 		return "", nil
 	}
 	s.Init(ctx)
-	return s.SQLStore.GetSetting(ctx, key)
+	return clistore.GetSetting(ctx, s.SQLStore, key)
 }
 
 // PutSetting saves a key-value setting to the bot_settings table.
@@ -62,7 +62,7 @@ func (s *Store) PutSetting(ctx context.Context, key, value string) error {
 		return nil
 	}
 	s.Init(ctx)
-	return s.SQLStore.PutSetting(ctx, key, value)
+	return clistore.PutSetting(ctx, s.SQLStore, key, value)
 }
 
 // DeleteSetting removes a key-value setting from the bot_settings table.
@@ -71,23 +71,23 @@ func (s *Store) DeleteSetting(ctx context.Context, key string) error {
 		return nil
 	}
 	s.Init(ctx)
-	return s.SQLStore.DeleteSetting(ctx, key)
+	return clistore.DeleteSetting(ctx, s.SQLStore, key)
 }
 
 // GetCallMediaConfig retrieves call media configuration from the call_media_config table.
-func (s *Store) GetCallMediaConfig(ctx context.Context, sender types.JID, kind sqlstore.CallMediaKind) (string, error) {
+func (s *Store) GetCallMediaConfig(ctx context.Context, sender types.JID, kind clistore.CallMediaKind) (string, error) {
 	if s == nil || s.SQLStore == nil {
 		return "", nil
 	}
 	s.Init(ctx)
-	return s.SQLStore.GetCallMediaConfig(ctx, sender, kind)
+	return clistore.GetCallMediaConfig(ctx, s.SQLStore, sender, kind)
 }
 
 // PutCallMediaConfig stores call media configuration in the call_media_config table.
-func (s *Store) PutCallMediaConfig(ctx context.Context, sender types.JID, kind sqlstore.CallMediaKind, filePath string) error {
+func (s *Store) PutCallMediaConfig(ctx context.Context, sender types.JID, kind clistore.CallMediaKind, filePath string) error {
 	if s == nil || s.SQLStore == nil {
 		return nil
 	}
 	s.Init(ctx)
-	return s.SQLStore.PutCallMediaConfig(ctx, sender, kind, filePath)
+	return clistore.PutCallMediaConfig(ctx, s.SQLStore, sender, kind, filePath)
 }
