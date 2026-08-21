@@ -1,8 +1,6 @@
 module go.mau.fi/whatsmeow
 
-go 1.25.0
-
-toolchain go1.26.5
+go 1.27.0
 
 retract (
 	v0.1.1 // Retraction carrier only; use @main.
