@@ -185,18 +185,26 @@ func (ctx *PluginContext) SendImage(data []byte, mimetype, caption string) error
 	return err
 }
 
-// ReplyWithImage uploads and sends an image as a reply.
-func (ctx *PluginContext) ReplyWithImage(data []byte, mimetype, caption string) error {
+// SendImageWithMentions uploads and sends an image with mentioned JIDs to the current chat.
+func (ctx *PluginContext) SendImageWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error {
 	ctx.StopAutoLoader()
 	if mimetype == "" {
-		slog.Warn("ReplyWithImage: mimetype is empty, defaulting to image/jpeg")
+		slog.Warn("SendImageWithMentions: mimetype is empty, defaulting to image/jpeg")
 		mimetype = "image/jpeg"
 	}
-	cinfo := ctx.replyContextInfo()
-	slog.Debug("Building ReplyWithImage", "data_len", len(data), "mimetype", mimetype, "caption", caption, "context_info", cinfo)
+	var cinfo *waE2E.ContextInfo
+	if len(mentions) > 0 {
+		cinfo = &waE2E.ContextInfo{}
+		for _, m := range mentions {
+			if !m.IsEmpty() {
+				cinfo.MentionedJID = append(cinfo.MentionedJID, m.ToNonAD().String())
+			}
+		}
+	}
+	slog.Debug("Building SendImageWithMentions", "data_len", len(data), "mimetype", mimetype, "caption", caption)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaImage)
 	if err != nil {
-		slog.Error("ReplyWithImage: upload failed", "err", err)
+		slog.Error("SendImageWithMentions: upload failed", "err", err)
 		return fmt.Errorf("image upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -213,14 +221,138 @@ func (ctx *PluginContext) ReplyWithImage(data []byte, mimetype, caption string) 
 		},
 	}
 	*msg.ImageMessage.FileLength = uint64(len(data))
-	slog.Debug("Sending ReplyWithImage", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	slog.Debug("Sending SendImageWithMentions", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("ReplyWithImage failed", "err", err)
+		slog.Error("SendImageWithMentions failed", "err", err)
 	} else {
-		slog.Debug("ReplyWithImage sent successfully")
+		slog.Debug("SendImageWithMentions sent successfully")
 	}
 	return err
+}
+
+// ReplyWithImage uploads and sends an image as a reply.
+func (ctx *PluginContext) ReplyWithImage(data []byte, mimetype, caption string) error {
+	return ctx.ReplyWithImageWithMentions(data, mimetype, caption, nil)
+}
+
+// ReplyWithImageWithMentions uploads and sends an image as a reply with mentioned JIDs.
+func (ctx *PluginContext) ReplyWithImageWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error {
+	ctx.StopAutoLoader()
+	if mimetype == "" {
+		slog.Warn("ReplyWithImageWithMentions: mimetype is empty, defaulting to image/jpeg")
+		mimetype = "image/jpeg"
+	}
+	cinfo := ctx.replyContextInfo()
+	if cinfo == nil && len(mentions) > 0 {
+		cinfo = &waE2E.ContextInfo{}
+	}
+	if cinfo != nil {
+		for _, m := range mentions {
+			if !m.IsEmpty() {
+				cinfo.MentionedJID = append(cinfo.MentionedJID, m.ToNonAD().String())
+			}
+		}
+	}
+	slog.Debug("Building ReplyWithImageWithMentions", "data_len", len(data), "mimetype", mimetype, "caption", caption, "context_info", cinfo)
+	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaImage)
+	if err != nil {
+		slog.Error("ReplyWithImageWithMentions: upload failed", "err", err)
+		return fmt.Errorf("image upload failed: %w", err)
+	}
+	msg := &waE2E.Message{
+		ImageMessage: &waE2E.ImageMessage{
+			URL:           &uploaded.URL,
+			DirectPath:    &uploaded.DirectPath,
+			MediaKey:      uploaded.MediaKey,
+			Mimetype:      &mimetype,
+			FileEncSHA256: uploaded.FileEncSHA256,
+			FileSHA256:    uploaded.FileSHA256,
+			FileLength:    new(uint64),
+			Caption:       &caption,
+			ContextInfo:   cinfo,
+		},
+	}
+	*msg.ImageMessage.FileLength = uint64(len(data))
+	slog.Debug("Sending ReplyWithImageWithMentions", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
+	if err != nil {
+		slog.Error("ReplyWithImageWithMentions failed", "err", err)
+	} else {
+		slog.Debug("ReplyWithImageWithMentions sent successfully")
+	}
+	return err
+}
+
+// AlbumMediaItem represents an image or video item inside an album.
+type AlbumMediaItem struct {
+	Data     []byte
+	Mimetype string
+	Caption  string
+}
+
+// ReplyWithAlbum sends multiple images as an album reply with optional mentions on the first image.
+func (ctx *PluginContext) ReplyWithAlbum(items []AlbumMediaItem, mentions []types.JID) error {
+	ctx.StopAutoLoader()
+	if len(items) == 0 {
+		return nil
+	}
+	if len(items) == 1 {
+		mime := items[0].Mimetype
+		if mime == "" {
+			mime = "image/jpeg"
+		}
+		return ctx.ReplyWithImageWithMentions(items[0].Data, mime, items[0].Caption, mentions)
+	}
+
+	count := uint32(len(items))
+	cinfo := ctx.replyContextInfo()
+	if cinfo == nil && len(mentions) > 0 {
+		cinfo = &waE2E.ContextInfo{}
+	}
+	if cinfo != nil {
+		for _, m := range mentions {
+			if !m.IsEmpty() {
+				cinfo.MentionedJID = append(cinfo.MentionedJID, m.ToNonAD().String())
+			}
+		}
+	}
+
+	for i, item := range items {
+		mime := item.Mimetype
+		if mime == "" {
+			mime = "image/jpeg"
+		}
+		uploaded, err := ctx.Client.Upload(ctx.Ctx, item.Data, whatsmeow.MediaImage)
+		if err != nil {
+			slog.Error("ReplyWithAlbum: upload failed", "index", i, "err", err)
+			continue
+		}
+		imgMsg := &waE2E.ImageMessage{
+			URL:           &uploaded.URL,
+			DirectPath:    &uploaded.DirectPath,
+			MediaKey:      uploaded.MediaKey,
+			Mimetype:      &mime,
+			FileEncSHA256: uploaded.FileEncSHA256,
+			FileSHA256:    uploaded.FileSHA256,
+			FileLength:    proto.Uint64(uint64(len(item.Data))),
+			Caption:       proto.String(item.Caption),
+		}
+		if i == 0 {
+			imgMsg.ContextInfo = cinfo
+		}
+		msg := &waE2E.Message{
+			ImageMessage: imgMsg,
+			AlbumMessage: &waE2E.AlbumMessage{
+				ExpectedImageCount: proto.Uint32(count),
+			},
+		}
+		_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
+		if err != nil {
+			slog.Error("ReplyWithAlbum: send item failed", "index", i, "err", err)
+		}
+	}
+	return nil
 }
 
 // SendVideo uploads and sends a video to the current chat.

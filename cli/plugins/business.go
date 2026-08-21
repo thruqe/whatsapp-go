@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 	cliutils "whatsrook/cli/utils"
+	"whatsrook/utils"
 )
 
 func init() {
@@ -16,14 +18,6 @@ func init() {
 		Category:    "business",
 		IsPublic:    true,
 		Handler:     handleBusinessProfile,
-	})
-	Register(&Command{
-		Name:        "catalog",
-		Alias:       "products",
-		Description: "View WhatsApp Business catalog products of a business account",
-		Category:    "business",
-		IsPublic:    true,
-		Handler:     handleBusinessCatalog,
 	})
 	Register(&Command{
 		Name:        "bizhours",
@@ -95,36 +89,19 @@ func handleBusinessProfile(ctx *Context) error {
 		}
 	}
 
-	return ctx.ReplyWithMentions(sb.String(), []types.JID{rawTarget})
-}
-
-func handleBusinessCatalog(ctx *Context) error {
-	rawTarget, queryJID, err := cliutils.ResolveBusinessTarget(ctx.Ctx, ctx.Client, ctx.GetTargets(), ctx.Chat, ctx.GetPrefix(), "catalog")
-	if err != nil {
-		return ctx.Reply(err.Error())
-	}
-
-	profile, errFetch := cliutils.FetchBusinessProfileAndValidate(ctx.Ctx, ctx.Client, rawTarget, queryJID)
-	if errFetch != nil || profile == nil {
-		_ = ctx.ReplyWithMentions(fmt.Sprintf("User @%s is not an actual WhatsApp Business account or profile is unavailable.", rawTarget.User), []types.JID{rawTarget})
-		return nil
-	}
-
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "*Business Profile & Catalog Summary*\n\n")
-	fmt.Fprintf(&sb, "*Target:* @%s\n", rawTarget.User)
-	if profile.Email != "" {
-		fmt.Fprintf(&sb, "*Email:* %s\n", profile.Email)
-	}
-	if profile.Address != "" {
-		fmt.Fprintf(&sb, "*Address:* %s\n", profile.Address)
-	}
-	if len(profile.Categories) > 0 {
-		cats := make([]string, len(profile.Categories))
-		for i, c := range profile.Categories {
-			cats[i] = c.Name
+	var pfpData []byte
+	if ctx.Client != nil {
+		if picInfo, errPic := ctx.Client.GetProfilePictureInfo(ctx.Ctx, queryJID, &whatsmeow.GetProfilePictureParams{}); errPic == nil && picInfo != nil && picInfo.URL != "" {
+			pfpData, _ = utils.FetchURLBytes(ctx.Ctx, picInfo.URL)
 		}
-		fmt.Fprintf(&sb, "*Categories:* %s\n", strings.Join(cats, ", "))
+		if len(pfpData) == 0 && rawTarget != queryJID {
+			if picInfo, errPic := ctx.Client.GetProfilePictureInfo(ctx.Ctx, rawTarget, &whatsmeow.GetProfilePictureParams{}); errPic == nil && picInfo != nil && picInfo.URL != "" {
+				pfpData, _ = utils.FetchURLBytes(ctx.Ctx, picInfo.URL)
+			}
+		}
+	}
+	if len(pfpData) > 0 {
+		return ctx.ReplyWithImageWithMentions(pfpData, "image/jpeg", sb.String(), []types.JID{rawTarget})
 	}
 
 	return ctx.ReplyWithMentions(sb.String(), []types.JID{rawTarget})
