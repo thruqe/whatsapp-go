@@ -3,53 +3,52 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
+	"strings"
 )
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
+	if len(os.Args) < 2 {
+		printUsage()
+		os.Exit(1)
+	}
+
+	subcommand := strings.ToLower(os.Args[1])
+	subArgs := os.Args[2:]
+
+	switch subcommand {
+	case "bump":
+		if err := runBump(subArgs); err != nil {
+			fmt.Fprintf(os.Stderr, "Error running bump: %v\n", err)
+			os.Exit(1)
+		}
+	case "proto":
+		if err := runProto(subArgs); err != nil {
+			fmt.Fprintf(os.Stderr, "Error running proto: %v\n", err)
+			os.Exit(1)
+		}
+	case "help", "-h", "--help":
+		printUsage()
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown command %q.\n\n", os.Args[1])
+		printUsage()
 		os.Exit(1)
 	}
 }
 
-func run() error {
-	wd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
-	}
+func printUsage() {
+	fmt.Println(`WhatsRook Development Scripts CLI
 
-	// scripts/ is expected to be a direct child of the repo root
-	rootDir := filepath.Dir(wd)
-	protoDir := filepath.Join(rootDir, "proto")
-	protoSrc := filepath.Join(protoDir, "ws.proto")
-	outDir := filepath.Join(protoDir, "wsproto")
+Usage:
+  go run ./scripts <command> [arguments...]
 
-	if _, err := os.Stat(filepath.Join(protoDir, "buf.yaml")); err != nil {
-		return fmt.Errorf("buf.yaml not found in %s: %w", protoDir, err)
-	}
-	if _, err := os.Stat(filepath.Join(protoDir, "buf.gen.yaml")); err != nil {
-		return fmt.Errorf("buf.gen.yaml not found in %s: %w", protoDir, err)
-	}
-	if _, err := os.Stat(protoSrc); err != nil {
-		return fmt.Errorf("proto source not found: %w", err)
-	}
+Available Commands:
+  bump   [version]  Bump release version to current date (D.M.YY) or specified version across metadata files
+  proto  [filter]   Compile and update all wa-core protobuf definitions using protoc
+  help              Display this help message
 
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create output dir: %w", err)
-	}
-
-	fmt.Printf("Generating Go code from %s...\n", protoSrc)
-
-	cmd := exec.Command("go", "run", "github.com/bufbuild/buf/cmd/buf@v1.32.0", "generate")
-	cmd.Dir = protoDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("buf generate failed: %w", err)
-	}
-
-	fmt.Printf("Successfully generated Protobuf code in %s\n", outDir)
-	return nil
+Examples:
+  go run ./scripts bump
+  go run ./scripts bump 21.8.26
+  go run ./scripts proto
+  go run ./scripts proto waE2E`)
 }
