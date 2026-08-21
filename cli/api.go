@@ -4,15 +4,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
-	"whatsrook/proto/wsproto"
-
 	"github.com/coder/websocket"
-	"google.golang.org/protobuf/proto"
 )
 
 // Hub manages all connected WebSocket clients and provides concurrent
@@ -64,13 +62,11 @@ func (h *Hub) ConnectedClientsCount() int {
 
 // ServeWS returns an HTTP handler that upgrades connections to the
 // WebSocket protocol, registers them with the hub, and runs read/write
-// loops using Protobuf binary framing.
+// loops using JSON text framing.
 func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		subprotocols := []string{"protobuf"}
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 			InsecureSkipVerify: dev,
-			Subprotocols:       subprotocols,
 		})
 		if err != nil {
 			slog.Error("ws accept failed", "err", err)
@@ -101,7 +97,7 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 			_ = conn.Close(websocket.StatusNormalClosure, "session ended")
 		}()
 
-		// single writer goroutine — Protobuf binary frames only
+		// single writer goroutine — JSON text frames
 		go func() {
 			ticker := time.NewTicker(10 * time.Second)
 			defer ticker.Stop()
@@ -122,14 +118,13 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 						return
 					}
 
-					frame := EventMessageToProto(msg)
-					data, err := proto.Marshal(frame)
+					data, err := json.Marshal(msg)
 					if err != nil {
-						slog.Error("failed to marshal proto event frame", "err", err)
+						slog.Error("failed to marshal JSON event", "err", err)
 						continue
 					}
 
-					if err := conn.Write(ctx, websocket.MessageBinary, data); err != nil {
+					if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 						cancel()
 						return
 					}
@@ -137,27 +132,21 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 			}
 		}()
 
-		// reader loop — Protobuf binary frames only
+		// reader loop — JSON text frames
 		for {
 			msgType, data, err := conn.Read(ctx)
 			if err != nil {
 				break
 			}
 
-			if msgType != websocket.MessageBinary {
-				slog.Warn("rejected non-binary text frame: Protobuf binary frames required")
+			if msgType != websocket.MessageText {
+				slog.Warn("rejected non-text frame: JSON text frames required")
 				continue
 			}
 
-			var frame wsproto.ControlFrame
-			if err := proto.Unmarshal(data, &frame); err != nil {
-				slog.Warn("bad protobuf control frame", "err", err)
-				continue
-			}
-
-			ctrl, err := ControlProtoToMessage(&frame)
-			if err != nil {
-				slog.Warn("failed to convert proto control frame", "err", err)
+			var ctrl ControlMessage
+			if err := json.Unmarshal(data, &ctrl); err != nil {
+				slog.Warn("bad JSON control frame", "err", err)
 				continue
 			}
 
@@ -172,6 +161,6 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 			}
 		}
 
-		slog.Info("websocket client disconnected", "subprotocol", conn.Subprotocol())
+		slog.Info("websocket client disconnected")
 	}
 }

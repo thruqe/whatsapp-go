@@ -170,7 +170,7 @@ func TestPostgresLiveIntegration(t *testing.T) {
 
 	var msgCount int
 	dateStr := time.Now().Format("2006-01-02")
-	err = db.QueryRow(ctx, "SELECT msg_count FROM group_stats WHERE group_jid=$1 AND user_jid=$2 AND date_str=$3", groupJID.String(), senderJID.String(), dateStr).Scan(&msgCount)
+	err = db.QueryRow(ctx, "SELECT msg_count FROM group_stats WHERE our_jid=$1 AND group_jid=$2 AND user_jid=$3 AND date_str=$4", s.JID, groupJID.String(), senderJID.String(), dateStr).Scan(&msgCount)
 	if err != nil || msgCount < 2 {
 		t.Errorf("group_stats msg_count = %d (err: %v), expected >= 2", msgCount, err)
 	}
@@ -178,9 +178,9 @@ func TestPostgresLiveIntegration(t *testing.T) {
 	// ─── 9. Test bot_group_user_xp with CASE WHEN ───
 	t.Log("Testing bot_group_user_xp (tictactoe / unscramble / wcg)...")
 	_, err = db.Exec(ctx, `
-		INSERT INTO bot_group_user_xp (group_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws, wcg_wins, wcg_games, wcg_rating)
-		VALUES ($1, $2, 100, 1, 0, 0, 1, 1, 1050)
-		ON CONFLICT(group_jid, user_jid) DO UPDATE SET
+		INSERT INTO bot_group_user_xp (our_jid, group_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws, wcg_wins, wcg_games, wcg_rating)
+		VALUES ($1, $2, $3, 100, 1, 0, 0, 1, 1, 1050)
+		ON CONFLICT(our_jid, group_jid, user_jid) DO UPDATE SET
 			xp = CASE WHEN bot_group_user_xp.xp + EXCLUDED.xp < 0 THEN 0 ELSE bot_group_user_xp.xp + EXCLUDED.xp END,
 			ttt_wins = bot_group_user_xp.ttt_wins + EXCLUDED.ttt_wins,
 			ttt_losses = bot_group_user_xp.ttt_losses + EXCLUDED.ttt_losses,
@@ -188,7 +188,7 @@ func TestPostgresLiveIntegration(t *testing.T) {
 			wcg_wins = bot_group_user_xp.wcg_wins + EXCLUDED.wcg_wins,
 			wcg_games = bot_group_user_xp.wcg_games + EXCLUDED.wcg_games,
 			wcg_rating = CASE WHEN bot_group_user_xp.wcg_rating + 50 < 100 THEN 100 ELSE bot_group_user_xp.wcg_rating + 50 END
-	`, groupJID.String(), senderJID.String())
+	`, s.JID, groupJID.String(), senderJID.String())
 	if err != nil {
 		t.Fatalf("bot_group_user_xp insert failed: %v", err)
 	}
@@ -197,10 +197,10 @@ func TestPostgresLiveIntegration(t *testing.T) {
 	rows, err := db.Query(ctx, `
 		SELECT user_jid, xp, ttt_wins, ttt_losses, ttt_draws, COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000) 
 		FROM bot_group_user_xp 
-		WHERE group_jid=$1 
+		WHERE our_jid=$1 AND group_jid=$2 
 		ORDER BY xp DESC 
 		LIMIT 10
-	`, groupJID.String())
+	`, s.JID, groupJID.String())
 	if err != nil {
 		t.Fatalf("bot_group_user_xp query failed: %v", err)
 	}

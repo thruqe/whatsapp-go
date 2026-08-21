@@ -61,7 +61,7 @@ Options:
   -p, --pair             Request a pair code using the --session phone number
   -P, --port <port>      WebSocket/HTTP server port (default: 3000 or $PORT)
   -c, --client <type>    Client type: chrome (default), android, ios
-  -db, --database <url>  Database connection: sqlite (default) or postgres URL
+  -db, --database <url>  Database connection: sqlite (default) or postgres URL. Per-session override: DATABASE_URL_<phone>
   -q, --qrcode           Print the QR code to stdout for scanning
   -l, --logout           Remove the session auth files and exit
   -u, --update [channel] Check and perform update; optionally pass "stable" or "beta" to
