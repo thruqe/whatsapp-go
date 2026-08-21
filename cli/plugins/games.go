@@ -14,7 +14,6 @@ import (
 	"time"
 	"unicode"
 
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 
 	cliutils "whatsrook/cli/utils"
@@ -269,7 +268,7 @@ func awardTTTXP(ctx *Context, userJID types.JID, amount int, resultType string) 
 		return
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return
 	}
@@ -311,7 +310,7 @@ func handleLeaderboard(ctx *Context) error {
 		return ctx.Reply("Leaderboards are group-specific! Please use .leaderboard inside a group chat to view that group's leaderboard.")
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Leaderboard store unavailable.")
 	}
@@ -787,7 +786,7 @@ func saveUnscrambleStats(ctx *Context, game *cliutils.UnscrambleGame, winner *cl
 		return
 	}
 
-	s, ok := game.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(game.Client)
 	if !ok {
 		return
 	}
@@ -1496,7 +1495,7 @@ func saveWCGChainStats(ctx *Context, game *cliutils.WCGGame, winner *cliutils.WC
 		return
 	}
 
-	s, ok := game.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(game.Client)
 	if !ok {
 		return
 	}

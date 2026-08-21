@@ -631,7 +631,7 @@ func handleSetSudo(ctx *Context) error {
 	}
 	targets := ctx.GetTargets()
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -688,7 +688,7 @@ func handleDelSudo(ctx *Context) error {
 		}
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -736,7 +736,7 @@ func handleListSudo(ctx *Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -785,7 +785,7 @@ func handleBan(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Usage:\n- %sban @user\n- %sban 1234567890\n- Reply to a user's message with %sban", p, p, p))
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -855,7 +855,7 @@ func handleUnban(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Usage:\n- %sunban @user\n- %sunban 1234567890\n- Reply to a user's message with %sunban", p, p, p))
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -903,7 +903,7 @@ func handleMode(ctx *Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -938,8 +938,12 @@ func handleUpdateCommand(ctx *Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
-	s, _ := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
-	channel := updater.GetChannel(ctx.Ctx, s)
+	s, _ := getStore(ctx)
+	var sqlS *sqlstore.SQLStore
+	if s != nil {
+		sqlS = s.SQLStore
+	}
+	channel := updater.GetChannel(ctx.Ctx, sqlS)
 
 	if len(ctx.Args) == 0 {
 		return showUpdateStatus(ctx, channel)
@@ -952,12 +956,12 @@ func handleUpdateCommand(ctx *Context) error {
 		return performCheck(ctx)
 	case "stable":
 		if s != nil {
-			_ = updater.SetChannel(ctx.Ctx, s, "stable")
+			_ = updater.SetChannel(ctx.Ctx, s.SQLStore, "stable")
 		}
 		return ctx.Reply(fmt.Sprintf("Update channel set to stable. Run %supdate check to verify available releases.", p))
 	case "beta":
 		if s != nil {
-			_ = updater.SetChannel(ctx.Ctx, s, "beta")
+			_ = updater.SetChannel(ctx.Ctx, s.SQLStore, "beta")
 		}
 		return ctx.Reply(fmt.Sprintf("Update channel set to beta. Run %supdate check to verify available releases.", p))
 	case "channel":
@@ -965,7 +969,7 @@ func handleUpdateCommand(ctx *Context) error {
 			ch := strings.ToLower(ctx.Args[1])
 			if ch == "stable" || ch == "beta" {
 				if s != nil {
-					_ = updater.SetChannel(ctx.Ctx, s, ch)
+					_ = updater.SetChannel(ctx.Ctx, s.SQLStore, ch)
 				}
 				return ctx.Reply(fmt.Sprintf("Update channel set to %s.", ch))
 			}
@@ -983,8 +987,12 @@ func handleUpgradeCommand(ctx *Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
-	s, _ := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
-	channel := updater.GetChannel(ctx.Ctx, s)
+	s, _ := getStore(ctx)
+	var sqlS *sqlstore.SQLStore
+	if s != nil {
+		sqlS = s.SQLStore
+	}
+	channel := updater.GetChannel(ctx.Ctx, sqlS)
 	return performUpgrade(ctx, channel == "beta")
 }
 

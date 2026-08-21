@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow/appstate"
@@ -519,7 +517,7 @@ func handleReport(ctx *Context) error {
 }
 
 func handleVV(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 
 	args := strings.Fields(ctx.RawArgs)
 	if len(args) > 0 {
@@ -592,7 +590,7 @@ func handleVV(ctx *Context) error {
 	return nil
 }
 
-func sendVVMenu(ctx *Context, s *sqlstore.SQLStore) error {
+func sendVVMenu(ctx *Context, s *StoreWrapper) error {
 	dest := "chat"
 	if s != nil {
 		if val, err := s.GetSetting(ctx.Ctx, "vv_destination"); err == nil && val != "" {
@@ -611,7 +609,7 @@ func sendVVMenu(ctx *Context, s *sqlstore.SQLStore) error {
 	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s VV Unwrapper", ctx.GetBotName()), buttons)
 }
 
-func sendVVCustomizeGuide(ctx *Context, s *sqlstore.SQLStore) error {
+func sendVVCustomizeGuide(ctx *Context, s *StoreWrapper) error {
 	p := ctx.GetPrefix()
 	dest := "chat"
 	if s != nil {

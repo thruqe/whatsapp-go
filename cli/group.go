@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	clistore "whatsrook/cli/store"
 	cliutils "whatsrook/cli/utils"
 	"whatsrook/utils"
 
@@ -28,11 +29,11 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 
 	// Process joins (Welcome)
 	if len(g.Join) > 0 {
-		status, _ := s.GetSetting(ctx, "welcome_status:"+chatKey)
+		status, _ := clistore.GetSetting(ctx, s, "welcome_status:"+chatKey)
 		if status == "on" {
-			tag, _ := s.GetSetting(ctx, "welcome_tag:"+chatKey)
-			descOpt, _ := s.GetSetting(ctx, "welcome_desc:"+chatKey)
-			customMsg, _ := s.GetSetting(ctx, "welcome_msg:"+chatKey)
+			tag, _ := clistore.GetSetting(ctx, s, "welcome_tag:"+chatKey)
+			descOpt, _ := clistore.GetSetting(ctx, s, "welcome_desc:"+chatKey)
+			customMsg, _ := clistore.GetSetting(ctx, s, "welcome_msg:"+chatKey)
 
 			info, err := cli.GetGroupInfo(ctx, g.JID)
 			groupName := "the group"
@@ -125,11 +126,11 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 
 	// Process leaves (Goodbye)
 	if len(g.Leave) > 0 {
-		status, _ := s.GetSetting(ctx, "goodbye_status:"+chatKey)
+		status, _ := clistore.GetSetting(ctx, s, "goodbye_status:"+chatKey)
 		if status == "on" {
-			tag, _ := s.GetSetting(ctx, "goodbye_tag:"+chatKey)
-			descOpt, _ := s.GetSetting(ctx, "goodbye_desc:"+chatKey)
-			customMsg, _ := s.GetSetting(ctx, "goodbye_msg:"+chatKey)
+			tag, _ := clistore.GetSetting(ctx, s, "goodbye_tag:"+chatKey)
+			descOpt, _ := clistore.GetSetting(ctx, s, "goodbye_desc:"+chatKey)
+			customMsg, _ := clistore.GetSetting(ctx, s, "goodbye_msg:"+chatKey)
 
 			info, err := cli.GetGroupInfo(ctx, g.JID)
 			groupName := "the group"
@@ -236,7 +237,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	}
 
 	chatKey := g.JID.String()
-	status, _ := s.GetSetting(ctx, "events_status:"+chatKey)
+	status, _ := clistore.GetSetting(ctx, s, "events_status:"+chatKey)
 	if status != "on" {
 		return
 	}

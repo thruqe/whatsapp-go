@@ -19,7 +19,6 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
@@ -144,7 +143,7 @@ func init() {
 	})
 }
 
-func UpdateOwnerLastActive(ctx context.Context, s *sqlstore.SQLStore) {
+func UpdateOwnerLastActive(ctx context.Context, s *StoreWrapper) {
 	now := time.Now()
 	cliutils.AFKMu.Lock()
 	cliutils.LastActiveCache = now
@@ -155,7 +154,7 @@ func UpdateOwnerLastActive(ctx context.Context, s *sqlstore.SQLStore) {
 	}
 }
 
-func GetOwnerLastActive(ctx context.Context, s *sqlstore.SQLStore) time.Time {
+func GetOwnerLastActive(ctx context.Context, s *StoreWrapper) time.Time {
 	cliutils.AFKMu.RLock()
 	cached := cliutils.LastActiveCache
 	cliutils.AFKMu.RUnlock()
@@ -174,7 +173,7 @@ func GetOwnerLastActive(ctx context.Context, s *sqlstore.SQLStore) time.Time {
 }
 
 func handleAFK(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store unavailable.")
 	}
@@ -254,7 +253,7 @@ func handleAFK(ctx *Context) error {
 	}
 }
 
-func setAFKStatus(ctx *Context, s *sqlstore.SQLStore, reason string) error {
+func setAFKStatus(ctx *Context, s *StoreWrapper, reason string) error {
 	lastActive := GetOwnerLastActive(ctx.Ctx, s)
 	nowStr := time.Now().Format("2006-01-02 15:04:05 MST")
 	lastActiveStr := lastActive.Format("2006-01-02 15:04:05 MST")
@@ -301,7 +300,7 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 	if client == nil || client.Store == nil || client.Store.ID == nil || evt == nil {
 		return false
 	}
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(client)
 	if !ok {
 		return false
 	}
@@ -516,7 +515,7 @@ func StopAutoBioScheduler() {
 }
 
 func handleAutoBio(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -590,7 +589,7 @@ func handleAutoBio(ctx *Context) error {
 	return sendAutoBioMenu(ctx, s)
 }
 
-func sendAutoBioMenu(ctx *Context, s *sqlstore.SQLStore) error {
+func sendAutoBioMenu(ctx *Context, s *StoreWrapper) error {
 	enabled, _ := s.GetSetting(ctx.Ctx, "autobio_enabled")
 	statusStr := "DISABLED"
 	if enabled == "true" {
@@ -616,7 +615,7 @@ func sendAutoBioMenu(ctx *Context, s *sqlstore.SQLStore) error {
 	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AutoBio Updater", ctx.GetBotName()), buttons)
 }
 
-func sendAutoBioCustomizeGuide(ctx *Context, s *sqlstore.SQLStore) error {
+func sendAutoBioCustomizeGuide(ctx *Context, s *StoreWrapper) error {
 	p := ctx.GetPrefix()
 	tzStr := getAutoBioTimezone(ctx.Ctx, s)
 	previewBio := generateBioText(tzStr)
@@ -637,7 +636,7 @@ func sendAutoBioCustomizeGuide(ctx *Context, s *sqlstore.SQLStore) error {
 	return ctx.Reply(strings.TrimSpace(sb.String()))
 }
 
-func getAutoBioTimezone(ctx context.Context, s *sqlstore.SQLStore) string {
+func getAutoBioTimezone(ctx context.Context, s *StoreWrapper) string {
 	tz, err := s.GetSetting(ctx, "autobio_timezone")
 	if err == nil && tz != "" {
 		return tz
@@ -673,7 +672,7 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 		return "", nil
 	}
 
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getSQLStore(client)
 	if !ok || s == nil || s.GetDB() == nil {
 		return "", nil
 	}
@@ -699,7 +698,7 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 	return bioText, nil
 }
 
-func getUserTimezone(ctx context.Context, s *sqlstore.SQLStore) string {
+func getUserTimezone(ctx context.Context, s *StoreWrapper) string {
 	tz, err := s.GetSetting(ctx, "timezone")
 	if err != nil || tz == "" {
 		return "UTC"
@@ -708,7 +707,7 @@ func getUserTimezone(ctx context.Context, s *sqlstore.SQLStore) string {
 }
 
 func handleTimezone(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -762,7 +761,7 @@ func handleTimezone(ctx *Context) error {
 	return renderTimezonePage(ctx, s, 1)
 }
 
-func renderTimezonePage(ctx *Context, s *sqlstore.SQLStore, page int) error {
+func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 	currentTZ := getUserTimezone(ctx.Ctx, s)
 
 	pageSize := 3
@@ -1002,10 +1001,10 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		inWizard = false
 	}
 
-	var s *sqlstore.SQLStore
+	var s *StoreWrapper
 	var okStore bool
 	if client != nil && client.Store != nil {
-		s, okStore = client.Store.Identities.(*sqlstore.SQLStore)
+		s, okStore = getSQLStore(client)
 	}
 	text := utils.ExtractMessageText(evt)
 
@@ -1147,6 +1146,10 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		newBio := strings.TrimSpace(text)
 		_ = client.SetStatusMessage(ctx, types.SetStatusInput{Text: &newBio})
 
+		if okStore {
+			DismissBotNamePrompt(ctx, s)
+		}
+
 		cliutils.BotWizardMu.Lock()
 		delete(cliutils.PendingWizardState, key)
 		cliutils.BotWizardMu.Unlock()
@@ -1159,7 +1162,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 }
 
 func handleSetBot(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1226,6 +1229,7 @@ func handleSetBot(ctx *Context) error {
 				cliutils.BotWizardMu.Lock()
 				delete(cliutils.PendingWizardState, key)
 				cliutils.BotWizardMu.Unlock()
+				DismissBotNamePrompt(ctx.Ctx, s)
 				return sendWizardSummaryCard(ctx)
 			}
 
@@ -1316,7 +1320,7 @@ func sendSetBotPage(ctx *Context, pageNum int) error {
 	}
 
 	thumbStatus := "None (Default)"
-	if s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore); ok {
+	if s, ok := getStore(ctx); ok {
 		if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
 			if _, errStat := os.Stat(custom); errStat == nil {
 				thumbStatus = "Custom Thumbnail"
@@ -1366,7 +1370,8 @@ func sendWizardSummaryCard(ctx *Context) error {
 	}
 
 	thumbStatus := "None (Default)"
-	if s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore); ok {
+	if s, ok := getStore(ctx); ok {
+		DismissBotNamePrompt(ctx.Ctx, s)
 		if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
 			if _, errStat := os.Stat(custom); errStat == nil {
 				thumbStatus = "Custom Thumbnail"
@@ -1391,7 +1396,7 @@ func handleLikeStatusCmd(ctx *Context) error {
 		return ctx.Reply("Restricted to bot owner and sudoers.")
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -1430,7 +1435,7 @@ func handleLikeStatusCmd(ctx *Context) error {
 	}
 }
 
-func sendLikeStatusMenu(ctx *Context, s *sqlstore.SQLStore) error {
+func sendLikeStatusMenu(ctx *Context, s *StoreWrapper) error {
 	status, _ := s.GetSetting(ctx.Ctx, "likestatus_status")
 	if status == "" {
 		status = "off"
@@ -1470,7 +1475,7 @@ func sendLikeStatusCustomizeGuide(ctx *Context) error {
 }
 
 func handlePrefix(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return sendText(ctx, "Settings store unavailable.")
 	}
@@ -1642,7 +1647,7 @@ func handleSetCmd(ctx *Context) error {
 		return ctx.Reply("Invalid sticker (no FileSHA256 found).")
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1671,7 +1676,7 @@ func handleDelCmd(ctx *Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1719,7 +1724,7 @@ func handleDelCmd(ctx *Context) error {
 }
 
 func handleGetCmd(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1775,7 +1780,7 @@ func handleDisableCmd(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Command %q does not exist.", cmdName))
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1811,7 +1816,7 @@ func handleEnableCmd(ctx *Context) error {
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1849,7 +1854,7 @@ func handleAutoVV(ctx *Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1926,7 +1931,7 @@ func handleAutoStatusSave(ctx *Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
