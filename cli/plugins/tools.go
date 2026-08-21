@@ -336,8 +336,12 @@ func handleFancy(ctx *Context) error {
 		}
 
 		var sb strings.Builder
-		sb.WriteString("Please provide a font number and text to convert, or reply to a message with *" + p + "fancy <font_number>*.\n\n")
-		sb.WriteString("Use *" + p + "fontlist* to view all available font numbers.\n\n")
+		sb.WriteString("Please provide a font number and text to convert, or reply to a message with *")
+		sb.WriteString(p)
+		sb.WriteString("fancy <font_number>*.\n\n")
+		sb.WriteString("Use *")
+		sb.WriteString(p)
+		sb.WriteString("fontlist* to view all available font numbers.\n\n")
 		sb.WriteString("Usage Examples:\n")
 		fmt.Fprintf(&sb, "• `%sfancy 14 Hello World`\n", p)
 		fmt.Fprintf(&sb, "• `%sfancy 14` (as reply to a message)\n", p)
@@ -570,7 +574,7 @@ func fetchGoogleTTS(ctx context.Context, text string, lang string) ([]byte, erro
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Google TTS returned HTTP status %d", resp.StatusCode)
+		return nil, fmt.Errorf("google TTS returned HTTP status %d", resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(resp.Body)

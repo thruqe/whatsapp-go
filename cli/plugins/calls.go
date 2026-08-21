@@ -1108,9 +1108,6 @@ func placeCallWithAudio(ctx *Context, target, audioPath string) error {
 	return ctx.ReplyWithMentions(fmt.Sprintf("Calling %s...", userTag), []types.JID{mentionJID})
 }
 
-func placeVideoCall(ctx *Context, target string) error {
-	return placeVideoCallWithMedia(ctx, target, "")
-}
 
 func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 	client := getWACallerClient(ctx.Client)

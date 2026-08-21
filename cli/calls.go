@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
-	commands "whatsrook/cli/plugins"
 	clistore "whatsrook/cli/store"
 	cliutils "whatsrook/cli/utils"
 
@@ -15,13 +14,6 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-func (b *Bot) handleAutoAcceptCall(ctx context.Context, v *events.CallOffer) {
-	cli := b.client.WAClient()
-	if cli == nil || v == nil {
-		return
-	}
-	commands.HandleAutoAcceptIncomingCall(ctx, cli, v)
-}
 
 func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 	cli := b.client.WAClient()

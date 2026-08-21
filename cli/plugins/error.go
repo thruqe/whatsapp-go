@@ -71,7 +71,7 @@ func LogHandlerErrWithContext(cctx *Context, name string, err error) {
 	}
 
 	if pErr, ok := err.(*PluginError); ok {
-		_ = cctx.Reply(fmt.Sprintf("%s", pErr.UserMessage))
+		_ = cctx.Reply(pErr.UserMessage)
 		return
 	}
 

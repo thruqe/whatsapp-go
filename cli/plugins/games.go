@@ -551,34 +551,6 @@ func minimax(board *[9]string, depth int, isMaximizing bool) int {
 	}
 }
 
-func getRandomWord(length int) (string, string) {
-	words, ok := cliutils.WCGDictionary[length]
-	if !ok || len(words) == 0 {
-		words = cliutils.WCGDictionary[3]
-		length = 3
-	}
-
-	word := words[cliutils.WcgRng.Intn(len(words))]
-	return word, scrambleWord(word)
-}
-
-func scrambleWord(word string) string {
-	runes := []rune(word)
-	n := len(runes)
-	if n <= 1 {
-		return word
-	}
-
-	for range 10 {
-		cliutils.WcgRng.Shuffle(n, func(i, j int) {
-			runes[i], runes[j] = runes[j], runes[i]
-		})
-		if string(runes) != word {
-			break
-		}
-	}
-	return strings.ToUpper(string(runes))
-}
 
 func HandleUnscrambleInput(ctx *Context, text string) bool {
 	chatKey := ctx.Chat.String()
@@ -625,7 +597,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 
 	// Process the guess (release lock first, ProcessGuess needs its own lock)
 	game.Mu.Unlock()
-	correct, gameOver, winner, currentPlayer, elapsed := game.ProcessGuess(text, senderLID)
+	correct, gameOver, _, currentPlayer, elapsed := game.ProcessGuess(text, senderLID)
 
 	if correct {
 		_ = ctx.React("✅")
@@ -634,7 +606,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
 		if gameOver {
-			finishUnscrambleGame(ctx, game, winner)
+			finishUnscrambleGame(ctx, game)
 			return true
 		}
 
@@ -648,7 +620,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
 	if gameOver {
-		finishUnscrambleGame(ctx, game, winner)
+		finishUnscrambleGame(ctx, game)
 		return true
 	}
 
@@ -658,6 +630,14 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 
 func handleUnscramble(ctx *Context) error {
 	chatKey := ctx.Chat.String()
+
+	arg0 := ""
+	if len(ctx.Args) > 0 {
+		arg0 = strings.ToLower(ctx.Args[0])
+	}
+	if arg0 == "lb" || arg0 == "leaderboard" {
+		return handleUnscrambleLeaderboard(ctx)
+	}
 
 	existingGame := cliutils.GetUnscrambleGame(chatKey)
 	if existingGame != nil {
@@ -743,9 +723,9 @@ func startUnscrambleTurn(ctx *Context, game *cliutils.UnscrambleGame) {
 			Chat:   game.ChatJID,
 		}
 
-		gameOver, winner := game.EliminateCurrentPlayer()
+		gameOver, _ := game.EliminateCurrentPlayer()
 		if gameOver {
-			finishUnscrambleGame(cctx, game, winner)
+			finishUnscrambleGame(cctx, game)
 		} else {
 			_ = cctx.Reply(fmt.Sprintf("Time's up for @%s! Eliminating player...", currentPlayer.Tag))
 			startUnscrambleTurn(cctx, game)
@@ -755,7 +735,7 @@ func startUnscrambleTurn(ctx *Context, game *cliutils.UnscrambleGame) {
 	game.SetTurnTimer(timer)
 }
 
-func finishUnscrambleGame(ctx *Context, game *cliutils.UnscrambleGame, winner *cliutils.UnscramblePlayer) {
+func finishUnscrambleGame(ctx *Context, game *cliutils.UnscrambleGame) {
 	winner, standings := game.FinishGame()
 	saveUnscrambleStats(ctx, game, winner)
 
@@ -1075,17 +1055,15 @@ func ValidateWordParallel(word string) bool {
 		}()
 	}
 
-	validCount := 0
 	for range apiChecks {
 		if <-resCh {
-			validCount++
 			// If at least 1 reliable API validates the word, accept it immediately!
 			cancel()
 			return true
 		}
 	}
 
-	return validCount > 0
+	return false
 }
 
 func isBuiltinWord(w string) bool {

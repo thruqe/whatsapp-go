@@ -115,10 +115,6 @@ func handleUnarchive(ctx *Context) error {
 	return ctx.Reply("Chat unarchived.")
 }
 
-//go:fix inline
-func ptr[T any](v T) *T {
-	return new(v)
-}
 
 func handlePin(ctx *Context) error {
 	ci := ctx.GetContextInfo()
@@ -467,7 +463,7 @@ func handleReport(ctx *Context) error {
 	}
 
 	for i := 0; i < count; i++ {
-		//nolint:staticcheck
+		//lint:ignore SA1019 intentional use of internal API for spam reporting
 		reqID := ctx.Client.DangerousInternals().GenerateRequestID()
 
 		iqNode := waBinary.Node{
@@ -487,7 +483,7 @@ func handleReport(ctx *Context) error {
 			},
 		}
 
-		//nolint:staticcheck
+		//lint:ignore SA1019 intentional use of internal API for spam reporting
 		_, err := ctx.Client.DangerousInternals().SendNodeAndGetData(ctx.Ctx, iqNode)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf("Failed to submit spam report on iteration %d: %s", i+1, err.Error()))
