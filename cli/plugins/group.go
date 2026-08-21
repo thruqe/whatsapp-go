@@ -2332,8 +2332,8 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 			continue
 		}
 
-		if strings.HasPrefix(key, "automute:") {
-			groupJIDStr := strings.TrimPrefix(key, "automute:")
+		if after, ok0 := strings.CutPrefix(key, "automute:"); ok0 {
+			groupJIDStr := after
 			groupJID, err := types.ParseJID(groupJIDStr)
 			if err != nil || groupJID.Server != types.GroupServer {
 				continue
@@ -2402,8 +2402,8 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 				slog.Error("automute: failed to send close notice", "group", groupJIDStr, "err", sendErr)
 			}
 
-		} else if strings.HasPrefix(key, "autounmute:") {
-			groupJIDStr := strings.TrimPrefix(key, "autounmute:")
+		} else if after, ok0 := strings.CutPrefix(key, "autounmute:"); ok0 {
+			groupJIDStr := after
 			groupJID, err := types.ParseJID(groupJIDStr)
 			if err != nil || groupJID.Server != types.GroupServer {
 				slog.Warn("autounmute: bad group JID, skipping", "raw", groupJIDStr, "err", err)

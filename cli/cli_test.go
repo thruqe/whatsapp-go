@@ -113,8 +113,7 @@ func TestBot_LoggedOut_EventHandling(t *testing.T) {
 }
 
 func TestAutoMuteScheduler_Lifecycle(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Should not panic or emit errors with nil client or nil store
 	commands.StartAutoMuteScheduler(ctx, nil)
@@ -130,8 +129,7 @@ func TestAutoMuteScheduler_Lifecycle(t *testing.T) {
 }
 
 func TestAutoBioScheduler_Lifecycle(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Should not panic or emit errors with nil client or nil store
 	commands.StartAutoBioScheduler(ctx, nil)

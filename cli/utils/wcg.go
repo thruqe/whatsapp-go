@@ -231,10 +231,7 @@ func (g *WCGGame) StartTurn() (reqChar rune, minLen int, timeLimitSec int, curre
 	g.TurnStartTime = time.Now()
 
 	// Dynamic time limit: Round 1 = 25s, decreasing by 2s per round down to minimum of 6s
-	timeLimitSec = 25 - (g.RoundCount-1)*2
-	if timeLimitSec < 6 {
-		timeLimitSec = 6
-	}
+	timeLimitSec = max(25-(g.RoundCount-1)*2, 6)
 
 	return g.RequiredChar, g.MinLength, timeLimitSec, currentPlayer
 }
@@ -379,7 +376,7 @@ func (g *WCGGame) GetSortedPlayers() []*WCGPlayer {
 
 	sorted := make([]*WCGPlayer, len(g.Players))
 	copy(sorted, g.Players)
-	for i := 0; i < len(sorted); i++ {
+	for i := range sorted {
 		for j := i + 1; j < len(sorted); j++ {
 			if sorted[j].Score > sorted[i].Score {
 				sorted[i], sorted[j] = sorted[j], sorted[i]

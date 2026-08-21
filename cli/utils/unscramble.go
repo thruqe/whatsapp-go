@@ -368,7 +368,7 @@ func (g *UnscrambleGame) GetSortedPlayers() []*UnscramblePlayer {
 
 	sorted := make([]*UnscramblePlayer, len(g.Players))
 	copy(sorted, g.Players)
-	for i := 0; i < len(sorted); i++ {
+	for i := range sorted {
 		for j := i + 1; j < len(sorted); j++ {
 			if sorted[j].Score > sorted[i].Score {
 				sorted[i], sorted[j] = sorted[j], sorted[i]
@@ -429,7 +429,7 @@ func GetRandomWord(length int) (original string, scrambled string) {
 	if !ok || len(words) == 0 {
 		// Fallback: generate random letters
 		var b strings.Builder
-		for i := 0; i < length; i++ {
+		for range length {
 			b.WriteByte(byte('a' + rand.Intn(26)))
 		}
 		original = b.String()
@@ -446,7 +446,7 @@ func GetRandomWord(length int) (original string, scrambled string) {
 func scrambleString(s string) string {
 	runes := []rune(s)
 	// Try up to 10 times to get a different arrangement
-	for attempt := 0; attempt < 10; attempt++ {
+	for range 10 {
 		rand.Shuffle(len(runes), func(i, j int) {
 			runes[i], runes[j] = runes[j], runes[i]
 		})

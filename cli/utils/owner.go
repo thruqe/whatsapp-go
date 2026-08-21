@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -45,8 +46,8 @@ func CleanShellOutput(raw string) string {
 		if strings.Contains(line, "\r") {
 			parts := strings.Split(line, "\r")
 			var last string
-			for i := len(parts) - 1; i >= 0; i-- {
-				trimmed := strings.TrimRight(parts[i], " \t")
+			for _, part := range slices.Backward(parts) {
+				trimmed := strings.TrimRight(part, " \t")
 				if trimmed != "" {
 					last = trimmed
 					break

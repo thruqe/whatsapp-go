@@ -59,8 +59,8 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 	slog.Debug("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
 
-	if strings.HasPrefix(text, "cancel_loader_") {
-		loaderID := strings.TrimPrefix(text, "cancel_loader_")
+	if after, ok := strings.CutPrefix(text, "cancel_loader_"); ok {
+		loaderID := after
 		slog.Info("Cancel interactive loader button pressed", "loaderID", loaderID)
 		if utils.CancelLoader(loaderID) {
 			return true
@@ -833,8 +833,8 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 			if customStr == "" {
 				customStr = "chat.whatsapp.com"
 			}
-			domains := strings.Split(customStr, ",")
-			for _, d := range domains {
+			domains := strings.SplitSeq(customStr, ",")
+			for d := range domains {
 				d = strings.TrimSpace(strings.ToLower(d))
 				if d != "" && strings.Contains(lowerText, d) {
 					violation = true

@@ -21,6 +21,7 @@ import (
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"whatsrook"
+	clistore "whatsrook/cli/store"
 )
 
 const (
@@ -35,7 +36,7 @@ var EmbeddedAppVersion = func() string {
 	if v, err := whatsrook.GetVersion(); err == nil && v.Raw != "" {
 		return v.Raw
 	}
-	return "18.8.26"
+	return "21.8.26"
 }()
 
 // Backward-compatible exports for external callers.
@@ -178,7 +179,7 @@ func GetChannel(ctx context.Context, store *sqlstore.SQLStore) string {
 	if store == nil {
 		return "stable"
 	}
-	ch, err := store.GetSetting(ctx, ChannelKey)
+	ch, err := clistore.GetSetting(ctx, store, ChannelKey)
 	if err != nil || ch == "" {
 		return "stable"
 	}
@@ -194,7 +195,7 @@ func SetChannel(ctx context.Context, store *sqlstore.SQLStore, channel string) e
 	if channel != "stable" && channel != "beta" {
 		return fmt.Errorf("invalid channel %q", channel)
 	}
-	return store.PutSetting(ctx, ChannelKey, channel)
+	return clistore.PutSetting(ctx, store, ChannelKey, channel)
 }
 
 // ParseVersion converts a semver string into a Version struct.

@@ -12,7 +12,7 @@ import (
 // GroupParticipantMetadata contains details of a group participant.
 type GroupParticipantMetadata struct {
 	JID          types.JID `json:"jid"`
-	LID          types.JID `json:"lid,omitempty"`
+	LID          types.JID `json:"lid"`
 	IsAdmin      bool      `json:"is_admin"`
 	IsSuperAdmin bool      `json:"is_super_admin"`
 	DisplayName  string    `json:"display_name,omitempty"`
@@ -24,8 +24,8 @@ type GroupMetadata struct {
 	Name                   string                     `json:"name"`
 	Topic                  string                     `json:"topic"`
 	TopicID                string                     `json:"topic_id,omitempty"`
-	TopicSetAt             time.Time                  `json:"topic_set_at,omitempty"`
-	TopicSetBy             types.JID                  `json:"topic_set_by,omitempty"`
+	TopicSetAt             time.Time                  `json:"topic_set_at"`
+	TopicSetBy             types.JID                  `json:"topic_set_by"`
 	OwnerJID               types.JID                  `json:"owner_jid"`
 	CreatedAt              time.Time                  `json:"created_at"`
 	IsLocked               bool                       `json:"is_locked"`
@@ -35,8 +35,8 @@ type GroupMetadata struct {
 	MembershipApprovalMode bool                       `json:"membership_approval_mode"`
 	IsIncognito            bool                       `json:"is_incognito"`
 	IsCommunity            bool                       `json:"is_community"`
-	ParentJID              types.JID                  `json:"parent_jid,omitempty"`
-	LinkedParentJID        types.JID                  `json:"linked_parent_jid,omitempty"`
+	ParentJID              types.JID                  `json:"parent_jid"`
+	LinkedParentJID        types.JID                  `json:"linked_parent_jid"`
 	IsDefaultSubgroup      bool                       `json:"is_default_subgroup"`
 	Participants           []GroupParticipantMetadata `json:"participants,omitempty"`
 	ParticipantCount       int                        `json:"participant_count"`

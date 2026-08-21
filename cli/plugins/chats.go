@@ -115,8 +115,9 @@ func handleUnarchive(ctx *Context) error {
 	return ctx.Reply("Chat unarchived.")
 }
 
+//go:fix inline
 func ptr[T any](v T) *T {
-	return &v
+	return new(v)
 }
 
 func handlePin(ctx *Context) error {
@@ -143,22 +144,22 @@ func handlePin(ctx *Context) error {
 
 		var participantStr *string
 		if ctx.Chat.Server == "g.us" && !quotedSender.IsEmpty() {
-			participantStr = ptr(quotedSender.ToNonAD().String())
+			participantStr = new(quotedSender.ToNonAD().String())
 		}
 
 		pinMsg := &waE2E.Message{
 			PinInChatMessage: &waE2E.PinInChatMessage{
 				Key: &waCommon.MessageKey{
-					FromMe:      ptr(quotedFromMe),
+					FromMe:      new(quotedFromMe),
 					ID:          ci.StanzaID,
-					RemoteJID:   ptr(ctx.Chat.String()),
+					RemoteJID:   new(ctx.Chat.String()),
 					Participant: participantStr,
 				},
 				Type:              waE2E.PinInChatMessage_PIN_FOR_ALL.Enum(),
-				SenderTimestampMS: ptr(time.Now().UnixMilli()),
+				SenderTimestampMS: new(time.Now().UnixMilli()),
 			},
 			MessageContextInfo: &waE2E.MessageContextInfo{
-				MessageAddOnDurationInSecs: ptr(uint32(604800)), // 7 days (standard WhatsApp pin duration)
+				MessageAddOnDurationInSecs: new(uint32(604800)), // 7 days (standard WhatsApp pin duration)
 			},
 		}
 
@@ -204,19 +205,19 @@ func handleUnpin(ctx *Context) error {
 
 		var participantStr *string
 		if ctx.Chat.Server == "g.us" && !quotedSender.IsEmpty() {
-			participantStr = ptr(quotedSender.ToNonAD().String())
+			participantStr = new(quotedSender.ToNonAD().String())
 		}
 
 		unpinMsg := &waE2E.Message{
 			PinInChatMessage: &waE2E.PinInChatMessage{
 				Key: &waCommon.MessageKey{
-					FromMe:      ptr(quotedFromMe),
+					FromMe:      new(quotedFromMe),
 					ID:          ci.StanzaID,
-					RemoteJID:   ptr(ctx.Chat.String()),
+					RemoteJID:   new(ctx.Chat.String()),
 					Participant: participantStr,
 				},
 				Type:              waE2E.PinInChatMessage_UNPIN_FOR_ALL.Enum(),
-				SenderTimestampMS: ptr(time.Now().UnixMilli()),
+				SenderTimestampMS: new(time.Now().UnixMilli()),
 			},
 		}
 
