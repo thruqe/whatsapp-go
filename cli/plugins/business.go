@@ -66,26 +66,26 @@ func handleBusinessProfile(ctx *Context) error {
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "*WhatsApp Business Profile*\n\n")
-	fmt.Fprintf(&sb, "*Target:* @%s\n", rawTarget.User)
+	fmt.Fprintf(&sb, "WhatsApp Business Profile\n\n")
+	fmt.Fprintf(&sb, "Target: @%s\n", rawTarget.User)
 
 	if len(profile.Categories) > 0 {
 		cats := make([]string, len(profile.Categories))
 		for i, c := range profile.Categories {
 			cats[i] = c.Name
 		}
-		fmt.Fprintf(&sb, "*Categories:* %s\n", strings.Join(cats, ", "))
+		fmt.Fprintf(&sb, "Categories: %s\n", strings.Join(cats, ", "))
 	}
 	if profile.Email != "" {
-		fmt.Fprintf(&sb, "*Email:* %s\n", profile.Email)
+		fmt.Fprintf(&sb, "Email: %s\n", profile.Email)
 	}
 	if profile.Address != "" {
-		fmt.Fprintf(&sb, "*Address:* %s\n", profile.Address)
+		fmt.Fprintf(&sb, "Address: %s\n", profile.Address)
 	}
 	if len(profile.BusinessHours) > 0 {
-		fmt.Fprintf(&sb, "*Operating Hours:* %d schedule entries\n", len(profile.BusinessHours))
+		fmt.Fprintf(&sb, "Operating Hours: %d schedule entries\n", len(profile.BusinessHours))
 		if profile.BusinessHoursTimeZone != "" {
-			fmt.Fprintf(&sb, "*TimeZone:* %s\n", profile.BusinessHoursTimeZone)
+			fmt.Fprintf(&sb, "TimeZone: %s\n", profile.BusinessHoursTimeZone)
 		}
 	}
 
@@ -120,10 +120,10 @@ func handleBusinessHours(ctx *Context) error {
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "*Business Operating Hours*\n\n")
-	fmt.Fprintf(&sb, "*Business:* @%s\n", rawTarget.User)
+	fmt.Fprintf(&sb, "Business Operating Hours\n\n")
+	fmt.Fprintf(&sb, "Business: @%s\n", rawTarget.User)
 	if profile.BusinessHoursTimeZone != "" {
-		fmt.Fprintf(&sb, "*Timezone:* %s\n", profile.BusinessHoursTimeZone)
+		fmt.Fprintf(&sb, "Timezone: %s\n", profile.BusinessHoursTimeZone)
 	}
 	fmt.Fprintf(&sb, "\n")
 
@@ -136,9 +136,9 @@ func handleBusinessHours(ctx *Context) error {
 				day = "Schedule"
 			}
 			if bh.OpenTime != "" && bh.CloseTime != "" {
-				fmt.Fprintf(&sb, "• *%s*: %s - %s (%s)\n", day, bh.OpenTime, bh.CloseTime, bh.Mode)
+				fmt.Fprintf(&sb, "• %s: %s - %s (%s)\n", day, bh.OpenTime, bh.CloseTime, bh.Mode)
 			} else {
-				fmt.Fprintf(&sb, "• *%s*: %s\n", day, bh.Mode)
+				fmt.Fprintf(&sb, "• %s: %s\n", day, bh.Mode)
 			}
 		}
 	}
@@ -168,10 +168,10 @@ func handleIsBusiness(ctx *Context) error {
 		for i, c := range profile.Categories {
 			cats[i] = c.Name
 		}
-		fmt.Fprintf(&sb, "*Category:* %s\n", strings.Join(cats, ", "))
+		fmt.Fprintf(&sb, "Category: %s\n", strings.Join(cats, ", "))
 	}
 	if profile.Email != "" {
-		fmt.Fprintf(&sb, "*Email:* %s\n", profile.Email)
+		fmt.Fprintf(&sb, "Email: %s\n", profile.Email)
 	}
 
 	return ctx.ReplyWithMentions(sb.String(), []types.JID{rawTarget})
@@ -256,21 +256,21 @@ func handleBusinessLink(ctx *Context) error {
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "*Business Short Link Target*\n\n")
+	fmt.Fprintf(&sb, "Business Short Link Target\n\n")
 	if target.VerifiedName != "" {
-		fmt.Fprintf(&sb, "*Verified Name:* %s\n", target.VerifiedName)
+		fmt.Fprintf(&sb, "Verified Name: %s\n", target.VerifiedName)
 	}
 	if target.PushName != "" {
-		fmt.Fprintf(&sb, "*Push Name:* %s\n", target.PushName)
+		fmt.Fprintf(&sb, "Push Name: %s\n", target.PushName)
 	}
 	if !target.JID.IsEmpty() {
-		fmt.Fprintf(&sb, "*Target Account:* @%s\n", target.JID.User)
+		fmt.Fprintf(&sb, "Target Account: @%s\n", target.JID.User)
 	}
 	if target.VerifiedLevel != "" {
-		fmt.Fprintf(&sb, "*Verification Level:* %s\n", target.VerifiedLevel)
+		fmt.Fprintf(&sb, "Verification Level: %s\n", target.VerifiedLevel)
 	}
 	if target.Message != "" {
-		fmt.Fprintf(&sb, "*Pre-filled Message:* %s\n", target.Message)
+		fmt.Fprintf(&sb, "Pre-filled Message: %s\n", target.Message)
 	}
 
 	if !target.JID.IsEmpty() {

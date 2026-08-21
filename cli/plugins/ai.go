@@ -154,7 +154,7 @@ func handleCSAI(ctx *Context) error {
 			if err := s.PutSetting(ctx.Ctx, "csai_prompt", trait.Instruction); err != nil {
 				return ctx.Reply("Failed to save AI personality trait.")
 			}
-			return ctx.Reply(fmt.Sprintf("Saved AI personality trait to *%s*!\n\nInstruction: %s", trait.Name, trait.Instruction))
+			return ctx.Reply(fmt.Sprintf("Saved AI personality trait to %s!\n\nInstruction: %s", trait.Name, trait.Instruction))
 		}
 	}
 
@@ -184,7 +184,7 @@ func handleCSAI(ctx *Context) error {
 		if idxVal, err := strconv.Atoi(subCmd); err == nil && idxVal >= 1 && idxVal <= len(cliutils.DefaultCSAITraits) {
 			trait := cliutils.DefaultCSAITraits[idxVal-1]
 			_ = s.PutSetting(ctx.Ctx, "csai_prompt", trait.Instruction)
-			return ctx.Reply(fmt.Sprintf("Saved AI personality trait to *%s*!\n\nInstruction: %s", trait.Name, trait.Instruction))
+			return ctx.Reply(fmt.Sprintf("Saved AI personality trait to %s!\n\nInstruction: %s", trait.Name, trait.Instruction))
 		}
 		if idxVal, err := strconv.Atoi(subCmd); err == nil && idxVal == 11 {
 			return ctx.Reply(fmt.Sprintf("To set a custom trait/prompt, please type:\n`%scsai custom <your custom prompt / how you want the AI to refer to you>`\n\nExample:\n`%scsai custom Always refer to me as Boss and be concise.`", p, p))
@@ -222,15 +222,15 @@ func renderCSAIPage(ctx *Context, s *StoreWrapper, page int) error {
 	p := ctx.GetPrefix()
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "*Custom AI Personality & Trait Configuration* (Page %d of %d)\n\n", page, totalPages)
-	fmt.Fprintf(&sb, "*Active AI Trait/Prompt:* %s\n\n", currentPrompt)
+	fmt.Fprintf(&sb, "Custom AI Personality & Trait Configuration (Page %d of %d)\n\n", page, totalPages)
+	fmt.Fprintf(&sb, "Active AI Trait/Prompt: %s\n\n", currentPrompt)
 	sb.WriteString("Select a personality trait for Meta AI below:\n\n")
 
 	for idx, trait := range pageItems {
 		globalIdx := startIdx + idx + 1
-		fmt.Fprintf(&sb, "%d. *%s*: %s\n", globalIdx, trait.Name, trait.Instruction)
+		fmt.Fprintf(&sb, "%d. %s: %s\n", globalIdx, trait.Name, trait.Instruction)
 	}
-	sb.WriteString("11. *Custom Trait / How You Refer To Me*: Enter your own custom prompt.\n")
+	sb.WriteString("11. Custom Trait / How You Refer To Me: Enter your own custom prompt.\n")
 
 	var buttons []struct{ ID, Text string }
 	for idx, trait := range pageItems {
@@ -924,9 +924,9 @@ func handleWhy(ctx *Context) error {
 
 	if totalPulls > 0 {
 		if totalPages > 1 {
-			fmt.Fprintf(&sb, "\n\n*Related Questions (Page %d of %d):*", page, totalPages)
+			fmt.Fprintf(&sb, "\n\nRelated Questions (Page %d of %d):", page, totalPages)
 		} else {
-			sb.WriteString("\n\n*Related Questions:*")
+			sb.WriteString("\n\nRelated Questions:")
 		}
 		for i, pull := range res.Pulls {
 			label := strings.TrimSpace(pull.Label)

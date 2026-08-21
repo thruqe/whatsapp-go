@@ -158,7 +158,7 @@ func handleBlocklist(ctx *Context) error {
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "*BLOCKED CONTACTS (%d total)*\n\n", len(bl.JIDs))
+	fmt.Fprintf(&sb, "BLOCKED CONTACTS (%d total)\n\n", len(bl.JIDs))
 
 	var mentions []types.JID
 	for i, jid := range bl.JIDs {

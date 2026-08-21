@@ -2198,19 +2198,19 @@ func handleListMute(ctx *Context) error {
 
 	p := ctx.GetPrefix()
 	var sb strings.Builder
-	sb.WriteString("*Group Mute/Unmute Schedule Status*\n\n")
-	fmt.Fprintf(&sb, "*Configured Timezone:* %s\n\n", tz)
+	sb.WriteString("Group Mute/Unmute Schedule Status\n\n")
+	fmt.Fprintf(&sb, "Configured Timezone: %s\n\n", tz)
 
 	if muteTime != "" {
-		fmt.Fprintf(&sb, "*Automute (Group Close):* %s daily\n", muteTime)
+		fmt.Fprintf(&sb, "Automute (Group Close): %s daily\n", muteTime)
 	} else {
-		sb.WriteString("*Automute (Group Close):* Disabled\n")
+		sb.WriteString("Automute (Group Close): Disabled\n")
 	}
 
 	if unmuteTime != "" {
-		fmt.Fprintf(&sb, "*Autounmute (Group Open):* %s daily\n", unmuteTime)
+		fmt.Fprintf(&sb, "Autounmute (Group Open): %s daily\n", unmuteTime)
 	} else {
-		sb.WriteString("*Autounmute (Group Open):* Disabled\n")
+		sb.WriteString("Autounmute (Group Open): Disabled\n")
 	}
 
 	sb.WriteString("\nCommands:\n")
@@ -2382,9 +2382,9 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 			groupName := info.GroupName.Name
 			var noticeText string
 			if unmuteTime != "" {
-				noticeText = fmt.Sprintf("*%s* has been closed, and will be opened by *%s* at *%s*.", groupName, unmuteTime, tzName)
+				noticeText = fmt.Sprintf("%s has been closed, and will be opened by %s at %s.", groupName, unmuteTime, tzName)
 			} else {
-				noticeText = fmt.Sprintf("*%s* has been closed.", groupName)
+				noticeText = fmt.Sprintf("%s has been closed.", groupName)
 			}
 			if _, sendErr := client.SendMessage(ctx, groupJID, &waE2E.Message{Conversation: &noticeText}); sendErr != nil {
 				slog.Error("automute: failed to send close notice", "group", groupJIDStr, "err", sendErr)
@@ -2444,7 +2444,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 
 			slog.Info("autounmute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
 			groupName := info.GroupName.Name
-			noticeText := fmt.Sprintf("*%s* has been opened.", groupName)
+			noticeText := fmt.Sprintf("%s has been opened.", groupName)
 			if _, sendErr := client.SendMessage(ctx, groupJID, &waE2E.Message{Conversation: &noticeText}); sendErr != nil {
 				slog.Error("autounmute: failed to send open notice", "group", groupJIDStr, "err", sendErr)
 			}
