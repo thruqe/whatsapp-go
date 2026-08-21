@@ -49,10 +49,7 @@ func PackageH264NALU(nalu []byte) [][]byte {
 	var out [][]byte
 	offset := 0
 	for offset < len(body) {
-		end := offset + fragSize
-		if end > len(body) {
-			end = len(body)
-		}
+		end := min(offset+fragSize, len(body))
 		chunk := body[offset:end]
 
 		fuHeader := originalType

@@ -555,8 +555,7 @@ func isRetryableConnectError(err error) bool {
 		return true
 	}
 
-	var statusErr socket.ErrWithStatusCode
-	if errors.As(err, &statusErr) {
+	if statusErr, ok := errors.AsType[socket.ErrWithStatusCode](err); ok {
 		switch statusErr.StatusCode {
 		case 408, 500, 501, 502, 503, 504:
 			return true
@@ -985,7 +984,7 @@ Loop:
 				}
 			}()
 			ticker.Reset(30 * time.Second)
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				select {
 				case <-doneChan:
 					ticker.Stop()
@@ -1101,11 +1100,9 @@ func (cli *Client) ParseWebMessage(chatJID types.JID, webMsg *waWeb.WebMessageIn
 		}
 	}
 	info := types.MessageInfo{
-		MessageSource: types.MessageSource{
-			Chat:     chatJID,
-			IsFromMe: webMsg.GetKey().GetFromMe(),
-			IsGroup:  chatJID.Server == types.GroupServer,
-		},
+		Chat:      chatJID,
+		IsFromMe:  webMsg.GetKey().GetFromMe(),
+		IsGroup:   chatJID.Server == types.GroupServer,
 		ID:        webMsg.GetKey().GetID(),
 		PushName:  webMsg.GetPushName(),
 		Timestamp: time.Unix(int64(webMsg.GetMessageTimestamp()), 0),

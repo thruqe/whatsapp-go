@@ -189,10 +189,7 @@ func CryptPayload(keys *E2eSrtpKeys, ssrc uint32, seq uint16, roc uint32, payloa
 
 // ProtectSrtcp encrypts and authenticates one RTCP packet.
 func ProtectSrtcp(keys *E2eSrtpKeys, senderSsrc, index uint32, rtcp []byte) ([]byte, error) {
-	split := len(rtcp)
-	if split > rtcpHeaderLen {
-		split = rtcpHeaderLen
-	}
+	split := min(len(rtcp), rtcpHeaderLen)
 	out := append([]byte(nil), rtcp[:split]...)
 	body, err := CryptPayload(keys, senderSsrc, uint16(index), index>>16, rtcp[split:])
 	if err != nil {

@@ -2,6 +2,7 @@ package signaling
 
 import (
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -171,9 +172,7 @@ func buildWaitingRoomRequest(
 ) waBinary.Node {
 	// Source of truth: https://github.com/tulir/whatsmeow/blob/3775fbadf88fdf44ada62ae5c5db5d7cc6f26259/voip/call_link.go#L96-L122
 	attrs := waBinary.Attrs{"call-id": callID, "call-creator": creator}
-	for key, value := range extraAttrs {
-		attrs[key] = value
-	}
+	maps.Copy(attrs, extraAttrs)
 	return waBinary.Node{
 		Tag: "call", Attrs: waBinary.Attrs{"to": types.NewJID(callID, "call"), "id": requestID},
 		Content: []waBinary.Node{{Tag: tag, Attrs: attrs, Content: children}},

@@ -3,6 +3,7 @@ package relay
 import (
 	"fmt"
 	"net"
+	"slices"
 
 	"github.com/pion/datachannel"
 	"github.com/pion/dtls/v3"
@@ -135,8 +136,8 @@ func ConnectRelayMedia(relayAddr *net.UDPAddr, opts ...Option) (*RelayMediaChann
 	// Roll back already-allocated resources if a later step fails.
 	var cleanup []func() error
 	fail := func(err error) (*RelayMediaChannel, error) {
-		for i := len(cleanup) - 1; i >= 0; i-- {
-			_ = cleanup[i]()
+		for _, c := range slices.Backward(cleanup) {
+			_ = c()
 		}
 		lg.Debug().Err(err).Msg("relay media connect failed")
 		return nil, &CallTransportError{Op: "connect", Err: err}

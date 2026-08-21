@@ -15,9 +15,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/mail"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -249,12 +251,7 @@ func businessEligibilityQuery(features []types.BusinessFeature) (infoQuery, erro
 }
 
 func isBusinessEligibilityFeature(feature types.BusinessFeature) bool {
-	for _, known := range businessEligibilityFeatures {
-		if feature == known {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(businessEligibilityFeatures, feature)
 }
 
 func (cli *Client) GetBusinessLinkedAccounts(ctx context.Context) (*types.BusinessLinkedAccounts, error) {
@@ -463,10 +460,8 @@ func requiredBusinessEnumAttr(node waBinary.Node, attr string, allowed ...string
 	if err := attrs.Error(); err != nil {
 		return "", fmt.Errorf("parse %s: %w", node.Tag, err)
 	}
-	for _, candidate := range allowed {
-		if value == candidate {
-			return value, nil
-		}
+	if slices.Contains(allowed, value) {
+		return value, nil
 	}
 	return "", fmt.Errorf("invalid %s %s %q", node.Tag, attr, value)
 }
@@ -524,10 +519,8 @@ func validateBusinessEligibilityStatus(feature types.BusinessFeature, status str
 	default:
 		allowed = []string{"FAIL", "SUCCESS"}
 	}
-	for _, candidate := range allowed {
-		if status == candidate {
-			return nil
-		}
+	if slices.Contains(allowed, status) {
+		return nil
 	}
 	return fmt.Errorf("invalid %s eligibility status %q", feature, status)
 }
@@ -1686,21 +1679,21 @@ func optionalString(value string) *string {
 	if value == "" {
 		return nil
 	}
-	return proto.String(value)
+	return new(value)
 }
 
 func optionalPositiveInt64(value int64) *int64 {
 	if value == 0 {
 		return nil
 	}
-	return proto.Int64(value)
+	return new(value)
 }
 
 func optionalPositiveUint32(value uint32) *uint32 {
 	if value == 0 {
 		return nil
 	}
-	return proto.Uint32(value)
+	return new(value)
 }
 
 func BuildBusinessProductMessage(params BusinessProductMessageParams) (*waE2E.Message, error) {
@@ -1734,20 +1727,20 @@ func BuildBusinessProductMessage(params BusinessProductMessageParams) (*waE2E.Me
 	}
 	priceAmount1000 := optionalPositiveInt64(params.PriceAmount1000)
 	if pricePresent {
-		priceAmount1000 = proto.Int64(params.PriceAmount1000)
+		priceAmount1000 = new(params.PriceAmount1000)
 	}
 	salePriceAmount1000 := optionalPositiveInt64(params.SalePriceAmount1000)
 	if params.SalePricePresent {
-		salePriceAmount1000 = proto.Int64(params.SalePriceAmount1000)
+		salePriceAmount1000 = new(params.SalePriceAmount1000)
 	}
 	return &waE2E.Message{ProductMessage: &waE2E.ProductMessage{
 		Product: &waE2E.ProductMessage_ProductSnapshot{
-			ProductImage: params.ProductImage, ProductID: proto.String(params.ProductID), Title: proto.String(params.Title),
+			ProductImage: params.ProductImage, ProductID: new(params.ProductID), Title: new(params.Title),
 			Description: optionalString(params.Description), CurrencyCode: optionalString(params.CurrencyCode),
 			PriceAmount1000: priceAmount1000, SalePriceAmount1000: salePriceAmount1000,
 			RetailerID: optionalString(params.RetailerID), URL: optionalString(params.URL), ProductImageCount: optionalPositiveUint32(params.ProductImageCount),
 		},
-		BusinessOwnerJID: proto.String(params.BusinessOwnerJID.ToNonAD().String()), Body: optionalString(params.Body), Footer: optionalString(params.Footer), ContextInfo: params.ContextInfo,
+		BusinessOwnerJID: new(params.BusinessOwnerJID.ToNonAD().String()), Body: optionalString(params.Body), Footer: optionalString(params.Footer), ContextInfo: params.ContextInfo,
 	}}, nil
 }
 
@@ -1781,14 +1774,14 @@ func BuildBusinessProductListMessage(params BusinessProductListMessageParams) (*
 				return nil, fmt.Errorf("duplicate product ID %q", productID)
 			}
 			seen[productID] = struct{}{}
-			products[productIndex] = &waE2E.ListMessage_Product{ProductID: proto.String(productID)}
+			products[productIndex] = &waE2E.ListMessage_Product{ProductID: new(productID)}
 		}
 		sections[index] = &waE2E.ListMessage_ProductSection{Title: optionalString(section.Title), Products: products}
 	}
 	return &waE2E.Message{ListMessage: &waE2E.ListMessage{
-		Title: proto.String(params.Title), Description: optionalString(params.Description), ButtonText: proto.String(params.ButtonText),
+		Title: new(params.Title), Description: optionalString(params.Description), ButtonText: new(params.ButtonText),
 		ListType: waE2E.ListMessage_PRODUCT_LIST.Enum(), FooterText: optionalString(params.Footer),
-		ProductListInfo: &waE2E.ListMessage_ProductListInfo{ProductSections: sections, BusinessOwnerJID: proto.String(params.BusinessOwnerJID.ToNonAD().String())}, ContextInfo: params.ContextInfo,
+		ProductListInfo: &waE2E.ListMessage_ProductListInfo{ProductSections: sections, BusinessOwnerJID: new(params.BusinessOwnerJID.ToNonAD().String())}, ContextInfo: params.ContextInfo,
 	}}, nil
 }
 
@@ -1806,10 +1799,10 @@ func BuildBusinessOrderMessage(params BusinessOrderMessageParams) (*waE2E.Messag
 		return nil, errors.New("business order message field is too large")
 	}
 	return &waE2E.Message{OrderMessage: &waE2E.OrderMessage{
-		OrderID: proto.String(params.OrderID), Thumbnail: params.Thumbnail, ItemCount: proto.Int32(params.ItemCount),
+		OrderID: new(params.OrderID), Thumbnail: params.Thumbnail, ItemCount: new(params.ItemCount),
 		Status: params.Status.Enum(), Surface: waE2E.OrderMessage_CATALOG.Enum(), Message: optionalString(params.Message),
-		OrderTitle: optionalString(params.OrderTitle), SellerJID: proto.String(params.SellerJID.ToNonAD().String()), Token: optionalString(params.Token),
-		TotalAmount1000: proto.Int64(params.TotalAmount1000), TotalCurrencyCode: proto.String(params.TotalCurrencyCode), CatalogType: optionalString(params.CatalogType), ContextInfo: params.ContextInfo,
+		OrderTitle: optionalString(params.OrderTitle), SellerJID: new(params.SellerJID.ToNonAD().String()), Token: optionalString(params.Token),
+		TotalAmount1000: new(params.TotalAmount1000), TotalCurrencyCode: new(params.TotalCurrencyCode), CatalogType: optionalString(params.CatalogType), ContextInfo: params.ContextInfo,
 	}}, nil
 }
 
@@ -1840,12 +1833,12 @@ func BuildBusinessListMessage(params BusinessListMessageParams) (*waE2E.Message,
 				return nil, fmt.Errorf("duplicate business list row ID %q", row.ID)
 			}
 			seen[row.ID] = struct{}{}
-			rows[rowIndex] = &waE2E.ListMessage_Row{RowID: proto.String(row.ID), Title: proto.String(row.Title), Description: optionalString(row.Description)}
+			rows[rowIndex] = &waE2E.ListMessage_Row{RowID: new(row.ID), Title: new(row.Title), Description: optionalString(row.Description)}
 		}
 		sections[sectionIndex] = &waE2E.ListMessage_Section{Title: optionalString(section.Title), Rows: rows}
 	}
 	return &waE2E.Message{ListMessage: &waE2E.ListMessage{
-		Title: proto.String(params.Title), Description: optionalString(params.Description), ButtonText: proto.String(params.ButtonText),
+		Title: new(params.Title), Description: optionalString(params.Description), ButtonText: new(params.ButtonText),
 		ListType: waE2E.ListMessage_SINGLE_SELECT.Enum(), Sections: sections, FooterText: optionalString(params.Footer), ContextInfo: params.ContextInfo,
 	}}, nil
 }
@@ -1869,13 +1862,13 @@ func BuildBusinessNativeFlowButtonsMessage(params BusinessNativeFlowButtonsMessa
 		buttons[index] = &waE2E.ButtonsMessage_Button{
 			Type: waE2E.ButtonsMessage_Button_NATIVE_FLOW.Enum(),
 			NativeFlowInfo: &waE2E.ButtonsMessage_Button_NativeFlowInfo{
-				Name: proto.String(button.Name), ParamsJSON: proto.String(button.ParamsJSON),
+				Name: new(button.Name), ParamsJSON: new(button.ParamsJSON),
 			},
 		}
 	}
 	headerType := waE2E.ButtonsMessage_EMPTY
 	message := &waE2E.ButtonsMessage{
-		ContentText: proto.String(params.Body), FooterText: optionalString(params.Footer), Buttons: buttons, HeaderType: headerType.Enum(), ContextInfo: params.ContextInfo,
+		ContentText: new(params.Body), FooterText: optionalString(params.Footer), Buttons: buttons, HeaderType: headerType.Enum(), ContextInfo: params.ContextInfo,
 	}
 	if params.Title != "" {
 		headerType = waE2E.ButtonsMessage_TEXT
@@ -1952,15 +1945,15 @@ func BuildBusinessFlowMessage(params BusinessFlowMessageParams) (*waE2E.Message,
 
 func buildBusinessInteractiveNativeFlow(body, footer, name, buttonParams string, contextInfo *waE2E.ContextInfo) *waE2E.Message {
 	interactive := &waE2E.InteractiveMessage{
-		Body:        &waE2E.InteractiveMessage_Body{Text: proto.String(body)},
+		Body:        &waE2E.InteractiveMessage_Body{Text: new(body)},
 		ContextInfo: contextInfo,
 		InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
-			Buttons:        []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{{Name: proto.String(name), ButtonParamsJSON: proto.String(buttonParams)}},
+			Buttons:        []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{{Name: new(name), ButtonParamsJSON: new(buttonParams)}},
 			MessageVersion: proto.Int32(1),
 		}},
 	}
 	if footer != "" {
-		interactive.Footer = &waE2E.InteractiveMessage_Footer{Text: proto.String(footer)}
+		interactive.Footer = &waE2E.InteractiveMessage_Footer{Text: new(footer)}
 	}
 	return &waE2E.Message{InteractiveMessage: interactive}
 }
@@ -2449,7 +2442,7 @@ func (cli *Client) businessAccessToken(ctx context.Context) (businessAccessToken
 	}
 	var token businessAccessToken
 	var err error
-	for attempt := 0; attempt < 2; attempt++ {
+	for range 2 {
 		token, err = cli.acquireBusinessAccessToken(ctx, state)
 		if !errors.Is(err, errBusinessIncorrectNonce) {
 			break
@@ -2552,20 +2545,16 @@ func businessCatalogMutationVariablesWithActor(variables map[string]any, actorID
 		return nil, fmt.Errorf("business catalog mutation variables are missing input")
 	}
 	result := make(map[string]any, len(variables))
-	for key, value := range variables {
-		result[key] = value
-	}
+	maps.Copy(result, variables)
 	actorInput := make(map[string]any, len(input)+1)
-	for key, value := range input {
-		actorInput[key] = value
-	}
+	maps.Copy(actorInput, input)
 	actorInput["actor_id"] = actorID
 	result["input"] = actorInput
 	return result, nil
 }
 
 func (cli *Client) executeBusinessCatalogMutation(ctx context.Context, documentID string, variables map[string]any) (json.RawMessage, error) {
-	for attempt := 0; attempt < 2; attempt++ {
+	for attempt := range 2 {
 		token, err := cli.businessAccessToken(ctx)
 		if err != nil {
 			return nil, err

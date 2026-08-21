@@ -1,7 +1,7 @@
 package rtp
 
 import (
-	"sort"
+	"slices"
 	"sync"
 )
 
@@ -91,9 +91,7 @@ func (s *RtcpReceptionStatsSet) Reports(nowMs uint64) []*RtcpReceptionReport {
 		streams[ssrc] = stream
 	}
 	s.mu.Unlock()
-	sort.Slice(ssrcs, func(i, j int) bool {
-		return ssrcs[i] < ssrcs[j]
-	})
+	slices.Sort(ssrcs)
 	reports := make([]*RtcpReceptionReport, 0, len(ssrcs))
 	for _, ssrc := range ssrcs {
 		if report := streams[ssrc].Report(nowMs); report != nil {

@@ -356,15 +356,15 @@ func TestOutgoingPeerAcceptLifecycle(t *testing.T) {
 	from := types.JID{User: "222222222222222", Server: types.HiddenUserServer}
 
 	eng.onPreAccept(&events.CallPreAccept{
-		BasicCallMeta: types.BasicCallMeta{CallID: "CID", From: from},
+		CallID: "CID", From: from,
 	})
 	if got := call.State(); got != CallPhaseRinging {
 		t.Fatalf("after preaccept phase = %d, want Ringing", got)
 	}
 
 	eng.onAccept(&events.CallAccept{
-		BasicCallMeta: types.BasicCallMeta{CallID: "CID", From: from},
-		Data:          &waBinary.Node{Tag: "accept"},
+		CallID: "CID", From: from,
+		Data: &waBinary.Node{Tag: "accept"},
 	})
 	if got := call.State(); got != CallPhaseConnecting {
 		t.Fatalf("after accept phase = %d, want Connecting", got)
@@ -384,8 +384,8 @@ func TestOutgoingAcceptRekeysToAnsweringDevice(t *testing.T) {
 	}
 
 	eng.onAccept(&events.CallAccept{
-		BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: answeringDevice},
-		Data:          &waBinary.Node{Tag: "accept"},
+		CallID: call.ID(), From: answeringDevice,
+		Data: &waBinary.Node{Tag: "accept"},
 	})
 
 	if rekeyed != answeringDevice.String() {
@@ -472,8 +472,8 @@ func TestUnqualifiedAcceptPreservesRelayElectedPeerDevice(t *testing.T) {
 	eng.onRelay(call.ID(), relay)
 
 	eng.onAccept(&events.CallAccept{
-		BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: peerJID()},
-		Data:          &waBinary.Node{Tag: "accept"},
+		CallID: call.ID(), From: peerJID(),
+		Data: &waBinary.Node{Tag: "accept"},
 	})
 
 	if len(rekeyed) != 1 || rekeyed[0] != companion.String() {
@@ -493,8 +493,8 @@ func TestOutgoingPeerAcceptCallbackFiresOnceAfterMediaStarted(t *testing.T) {
 	var accepted int
 	call.OnPeerAccept(func() { accepted++ })
 	event := &events.CallAccept{
-		BasicCallMeta: types.BasicCallMeta{CallID: "CID", From: peerJID()},
-		Data:          &waBinary.Node{Tag: "accept"},
+		CallID: "CID", From: peerJID(),
+		Data: &waBinary.Node{Tag: "accept"},
 	}
 
 	eng.onAccept(event)
@@ -508,8 +508,8 @@ func TestOutgoingPeerAcceptCallbackFiresOnceAfterMediaStarted(t *testing.T) {
 func TestOutgoingPeerAcceptCallbackReplaysAfterRegistration(t *testing.T) {
 	eng, call := testEngineWithOutgoingCall()
 	eng.onAccept(&events.CallAccept{
-		BasicCallMeta: types.BasicCallMeta{CallID: "CID", From: peerJID()},
-		Data:          &waBinary.Node{Tag: "accept"},
+		CallID: "CID", From: peerJID(),
+		Data: &waBinary.Node{Tag: "accept"},
 	})
 	var accepted int
 
@@ -527,8 +527,8 @@ func TestOutgoingPeerAcceptIgnoredAfterCallEnded(t *testing.T) {
 	call.OnPeerAccept(func() { accepted++ })
 
 	eng.onAccept(&events.CallAccept{
-		BasicCallMeta: types.BasicCallMeta{CallID: "CID", From: peerJID()},
-		Data:          &waBinary.Node{Tag: "accept"},
+		CallID: "CID", From: peerJID(),
+		Data: &waBinary.Node{Tag: "accept"},
 	})
 
 	if accepted != 0 {
@@ -540,10 +540,10 @@ func TestOutgoingPeerAcceptDoesNotRegressActiveCall(t *testing.T) {
 	eng, call := testEngineWithOutgoingCall()
 	call.setPhase(CallPhaseActive)
 
-	eng.onPreAccept(&events.CallPreAccept{BasicCallMeta: types.BasicCallMeta{CallID: "CID"}})
+	eng.onPreAccept(&events.CallPreAccept{CallID: "CID"})
 	eng.onAccept(&events.CallAccept{
-		BasicCallMeta: types.BasicCallMeta{CallID: "CID"},
-		Data:          &waBinary.Node{Tag: "accept"},
+		CallID: "CID",
+		Data:   &waBinary.Node{Tag: "accept"},
 	})
 	if got := call.State(); got != CallPhaseActive {
 		t.Fatalf("phase = %d, want Active", got)
@@ -555,7 +555,7 @@ func TestPeerRejectEndsCall(t *testing.T) {
 	var reason string
 	call.OnEnd(func(r string) { reason = r })
 
-	eng.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: "CID"}})
+	eng.onReject(&events.CallReject{CallID: "CID"})
 	if got := call.State(); got != CallPhaseEnded {
 		t.Fatalf("phase = %d, want Ended", got)
 	}

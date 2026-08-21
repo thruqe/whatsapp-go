@@ -124,8 +124,8 @@ type BusinessProductStatus struct {
 }
 
 type BusinessProductVariant struct {
-	Availability      BusinessVariantAvailability `json:"availability,omitempty"`
-	ListingDetails    BusinessVariantListing      `json:"listing_details,omitempty"`
+	Availability      BusinessVariantAvailability `json:"availability"`
+	ListingDetails    BusinessVariantListing      `json:"listing_details"`
 	Types             []BusinessVariantType       `json:"types,omitempty"`
 	VariantProperties []BusinessVariantProperty   `json:"variant_properties,omitempty"`
 }
@@ -160,7 +160,7 @@ type BusinessVariantThumbnail struct {
 	ID                 string             `json:"id,omitempty"`
 	OriginalURL        string             `json:"original_image_url,omitempty"`
 	RequestURL         string             `json:"request_image_url,omitempty"`
-	OriginalDimensions BusinessDimensions `json:"original_dimensions,omitempty"`
+	OriginalDimensions BusinessDimensions `json:"original_dimensions"`
 }
 
 type BusinessDimensions struct {

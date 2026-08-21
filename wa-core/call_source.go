@@ -166,9 +166,9 @@ func WAVFile(path string) (AudioSource, error) {
 func wavMono(b []byte, channels int) []float32 {
 	frames := len(b) / (channels * 2)
 	out := make([]float32, frames)
-	for i := 0; i < frames; i++ {
+	for i := range frames {
 		var acc int32
-		for c := 0; c < channels; c++ {
+		for c := range channels {
 			off := (i*channels + c) * 2
 			acc += int32(int16(binary.LittleEndian.Uint16(b[off:])))
 		}

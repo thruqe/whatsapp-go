@@ -324,7 +324,7 @@ func generateSecurityCodeFingerprint(ctx context.Context, identifier, keys []byt
 	input = append(input, identifier...)
 	digest := sha512.Sum512(input)
 	input = make([]byte, 0, len(digest)+len(keys))
-	for index := 0; index < securityCodeIterations; index++ {
+	for index := range securityCodeIterations {
 		if index%64 == 0 {
 			if err := ctx.Err(); err != nil {
 				return "", err

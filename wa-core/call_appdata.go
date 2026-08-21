@@ -206,7 +206,7 @@ func (s *appDataSender) sendReaction(emoji string) error {
 	}
 	s.transactionID++
 	payload := encodeAppDataReaction(s.transactionID, emoji)
-	for i := 0; i < appDataRetransmitCount; i++ {
+	for i := range appDataRetransmitCount {
 		s.sequenceNumber++
 		s.timestamp += appDataTimestampStep
 		header := &rtp.RtpHeader{

@@ -68,7 +68,7 @@ func fcbGains() *fcbGainsT {
 		for ix := 0; ix <= uvGainIdxLen; ix++ {
 			fcbGainsV.uv[ix] = float32(math.Pow(10, float64(0.05*(float32(ix)*uvGainStepDB+uvGainMinDB))))
 		}
-		for ix := 0; ix < fcbgVN; ix++ {
+		for ix := range fcbgVN {
 			fcbGainsV.v[ix] = float32(math.Pow(10, float64(0.05*(float32(ix)*vGainStepDB+vGainMinDB))))
 		}
 	})
@@ -78,7 +78,7 @@ func fcbGains() *fcbGainsT {
 func celpDot(a, b []float32, l int) float32 {
 	// Source of truth: https://github.com/oxidezap/whatsapp-rust/blob/ed12f359a086b28e807ba236f0977af1000859fe/wacore/src/voip/mlow/smpl_celpdec.rs#L79-L86
 	var r float32
-	for i := 0; i < l; i++ {
+	for i := range l {
 		r += a[i] * b[i]
 	}
 	return r
@@ -93,14 +93,14 @@ func lpcInterpol(lsf []float32, prevLsf *[SmplOrder]float32, interpol []float32,
 	}
 	var ilsf [SmplOrder]float32
 	prevFactor := float32(-1.0)
-	for j := 0; j < numSubframes; j++ {
+	for j := range numSubframes {
 		if interpol[j] == prevFactor {
 			aOut[j] = aOut[j-1]
 		} else {
 			if interpol[j] == 1.0 {
 				copy(ilsf[:], lsf[:SmplOrder])
 			} else {
-				for k := 0; k < SmplOrder; k++ {
+				for k := range SmplOrder {
 					ilsf[k] = prevLsf[k]*(1.0-interpol[j]) + lsf[k]*interpol[j]
 				}
 			}
@@ -119,7 +119,7 @@ func acbDequant(lowRate bool, acbIdx int32, acbG *[acbgM]float32) {
 		cb = &cbAcbgainsLRQ14
 	}
 	const sc = 1.0 / float32(int32(1)<<14)
-	for m := 0; m < acbgM; m++ {
+	for m := range acbgM {
 		acbG[m] = float32(cb[int(acbIdx)*acbgM+m]) * sc
 	}
 }
@@ -136,10 +136,10 @@ func acbSynthesize(fcbSubfrlen int, acbBasis []float32, acbGIn *[acbgM]float32, 
 		acbG[0] = (f0 + 2.0*f1) / 3.0
 		acbG[1] = (f0 - f1) / 3.0
 	}
-	for i := 0; i < fcbSubfrlen; i++ {
+	for i := range fcbSubfrlen {
 		acb[i] = acbG[0] * acbBasis[i]
 	}
-	for i := 0; i < fcbSubfrlen; i++ {
+	for i := range fcbSubfrlen {
 		acb[i] += acbG[1] * acbBasis[fcbSubfrlen+i]
 	}
 }
@@ -155,17 +155,17 @@ func pitchSharp(x []float32, lag, l int) {
 func synLTPBasis(lags []float32, nLags int, state []float32, stateLen int, acbBasis []float32) {
 	// Source of truth: https://github.com/oxidezap/whatsapp-rust/blob/ed12f359a086b28e807ba236f0977af1000859fe/wacore/src/voip/mlow/smpl_celpdec.rs#L202-L269
 	p := stateLen - nLags*celpLagSubfrLen
-	for subfr := 0; subfr < nLags; subfr++ {
+	for subfr := range nLags {
 		iLag := int(math.Floor(float64(lags[subfr])))
 		if float32(iLag) == lags[subfr] {
 			il := iLag
-			for i := 0; i < celpLagSubfrLen; i++ {
+			for i := range celpLagSubfrLen {
 				state[p+i] = state[p+i-il]
 			}
-			for i := 0; i < celpLagSubfrLen; i++ {
+			for i := range celpLagSubfrLen {
 				acbBasis[subfr*celpLagSubfrLen+i] = state[p+i]
 			}
-			for i := 0; i < celpLagSubfrLen; i++ {
+			for i := range celpLagSubfrLen {
 				acbBasis[(nLags+subfr)*celpLagSubfrLen+i] = state[p+i-il-1] + state[p+i-il+1]
 			}
 		} else {
@@ -173,9 +173,9 @@ func synLTPBasis(lags []float32, nLags int, state []float32, stateLen int, acbBa
 			baseFirst := p + (-1 - il - celpLTPInterpolDelay)
 			first := celpDot(state[baseFirst:], celpInterpolKernel[:], 2*celpLTPInterpolDelay)
 			srcBase := p + (-il - celpLTPInterpolDelay)
-			for nn := 0; nn < celpLagSubfrLen; nn++ {
+			for nn := range celpLagSubfrLen {
 				var ret float32
-				for i := 0; i < 8; i++ {
+				for i := range 8 {
 					s0 := state[srcBase+nn+i]
 					s1 := state[srcBase+nn+15-i]
 					ret += (s0 + s1) * celpInterpolKernel[i]
@@ -184,12 +184,12 @@ func synLTPBasis(lags []float32, nLags int, state []float32, stateLen int, acbBa
 			}
 			baseLast := p + (celpLagSubfrLen - il - celpLTPInterpolDelay)
 			last := celpDot(state[baseLast:], celpInterpolKernel[:], 2*celpLTPInterpolDelay)
-			for i := 0; i < celpLagSubfrLen; i++ {
+			for i := range celpLagSubfrLen {
 				acbBasis[subfr*celpLagSubfrLen+i] = state[p+i]
 			}
 			b1 := (nLags + subfr) * celpLagSubfrLen
 			acbBasis[b1] = first + state[p+1]
-			for i := 0; i < celpLagSubfrLen-2; i++ {
+			for i := range celpLagSubfrLen - 2 {
 				acbBasis[b1+1+i] = state[p+i] + state[p+i+2]
 			}
 			iLast := celpLagSubfrLen - 1
@@ -215,7 +215,7 @@ func celpDecode(acbState []float32, acbStateLen int, voiced bool, acbGainIdx int
 		var acbGain [acbgM]float32
 		acbDequant(lowRate, acbGainIdx, &acbGain)
 		acbSynthesize(subfrlen, acbBasis, &acbGain, highBoost, acb)
-		for i := 0; i < subfrlen; i++ {
+		for i := range subfrlen {
 			lpcRes[i] += acb[i]
 		}
 	}
@@ -228,9 +228,9 @@ func celpDecode(acbState []float32, acbStateLen int, voiced bool, acbGainIdx int
 // prefix at ybuf[base-16..base].
 func filtAR16(x []float32, a *[SmplOrder + 1]float32, ybuf []float32, base, n int) {
 	// Source of truth: https://github.com/oxidezap/whatsapp-rust/blob/ed12f359a086b28e807ba236f0977af1000859fe/wacore/src/voip/mlow/smpl_celpdec.rs#L308-L319
-	for nn := 0; nn < n; nn++ {
+	for nn := range n {
 		res := x[nn]
-		for i := 0; i < SmplOrder; i++ {
+		for i := range SmplOrder {
 			res -= a[SmplOrder-i] * ybuf[base+nn-SmplOrder+i]
 		}
 		ybuf[base+nn] = res
@@ -309,10 +309,7 @@ func (s *CelpDecState) SynthFrame(nlsf []float32, lsfInterpolIdx int, pulses []i
 	gains := fcbGains()
 	var a [SmplSubfrCount][SmplOrder + 1]float32
 	var lsfs [SmplSubfrCount][SmplOrder]float32
-	idx := lsfInterpolIdx
-	if idx > 1 {
-		idx = 1
-	}
+	idx := min(lsfInterpolIdx, 1)
 	numSubframes := SmplSubfrCount
 	subframeLen := SmplSubfrLen
 	interpol := lsfInterpol4[idx][:]
@@ -330,7 +327,7 @@ func (s *CelpDecState) SynthFrame(nlsf []float32, lsfInterpolIdx int, pulses []i
 	if params.Voiced {
 		gainTab = gains.v[:]
 	}
-	for pos := 0; pos < SmplIntfLen; pos++ {
+	for pos := range SmplIntfLen {
 		if pulses[pos] != 0 {
 			sf := pos / subframeLen
 			lpcRes[pos] = float32(pulses[pos]) * gainTab[params.FcbgIdx[sf]]

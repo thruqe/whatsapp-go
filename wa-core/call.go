@@ -40,12 +40,10 @@ func (cli *Client) handleCallEvent(ctx context.Context, node *waBinary.Node) {
 	switch child.Tag {
 	case "offer":
 		cli.dispatchEvent(&events.CallOffer{
-			BasicCallMeta: basicMeta,
-			CallRemoteMeta: types.CallRemoteMeta{
-				RemotePlatform: ag.String("platform"),
-				RemoteVersion:  ag.String("version"),
-			},
-			Data: &child,
+			BasicCallMeta:  basicMeta,
+			RemotePlatform: ag.String("platform"),
+			RemoteVersion:  ag.String("version"),
+			Data:           &child,
 		})
 	case "offer_notice":
 		cli.dispatchEvent(&events.CallOfferNotice{
@@ -61,30 +59,24 @@ func (cli *Client) handleCallEvent(ctx context.Context, node *waBinary.Node) {
 		})
 	case "accept":
 		cli.dispatchEvent(&events.CallAccept{
-			BasicCallMeta: basicMeta,
-			CallRemoteMeta: types.CallRemoteMeta{
-				RemotePlatform: ag.String("platform"),
-				RemoteVersion:  ag.String("version"),
-			},
-			Data: &child,
+			BasicCallMeta:  basicMeta,
+			RemotePlatform: ag.String("platform"),
+			RemoteVersion:  ag.String("version"),
+			Data:           &child,
 		})
 	case "preaccept":
 		cli.dispatchEvent(&events.CallPreAccept{
-			BasicCallMeta: basicMeta,
-			CallRemoteMeta: types.CallRemoteMeta{
-				RemotePlatform: ag.String("platform"),
-				RemoteVersion:  ag.String("version"),
-			},
-			Data: &child,
+			BasicCallMeta:  basicMeta,
+			RemotePlatform: ag.String("platform"),
+			RemoteVersion:  ag.String("version"),
+			Data:           &child,
 		})
 	case "transport":
 		cli.dispatchEvent(&events.CallTransport{
-			BasicCallMeta: basicMeta,
-			CallRemoteMeta: types.CallRemoteMeta{
-				RemotePlatform: ag.String("platform"),
-				RemoteVersion:  ag.String("version"),
-			},
-			Data: &child,
+			BasicCallMeta:  basicMeta,
+			RemotePlatform: ag.String("platform"),
+			RemoteVersion:  ag.String("version"),
+			Data:           &child,
 		})
 	case "terminate":
 		cli.dispatchEvent(&events.CallTerminate{
