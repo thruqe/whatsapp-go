@@ -9,7 +9,7 @@ Welcome to WhatsRook.
   - `whatsrook`: Core library entrypoint and high-level client abstraction.
   - `whatsrook/wa-core`: WhatsApp protocol core library and VoIP call engine (`wacaller`), binary XML node encoding/decoding, socket engine, SRTP/SRTCP media pipeline, STUN NAT traversal, audio/video playout controllers, and database stores (`wa-core/store/sqlstore`).
   - `whatsrook/utils`: Core protocol & messaging abstractions over `wa-core`, media transcode engine (JPEG/Opus/FFmpeg), and logging (`utils/logger.go`).
-  - `whatsrook/cli`: WhatsApp bot CLI application, plugin commands (`cli/plugins`), and consolidated CLI feature utilities (`cli/utils`: media downloaders, font styling, URL validators, prompts, timezones, Meta AI parsers, games, quote card renderer).
+  - `whatsrook/cli`: WhatsApp bot CLI application, plugin commands (`cli/plugins`), and consolidated CLI feature utilities (`cli/utils`: media downloaders, font styling, URL validators, prompts, timezones, Meta AI parsers, games).
 
 ## Development Management
 

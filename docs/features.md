@@ -33,7 +33,7 @@ WhatsRook provides a complete, high-performance toolkit for interacting with Wha
 - **Per-Session Settings**: All bot settings (prefix, bot name, sudoers, anticall, AFK, filters, games) are isolated per session (`our_jid`) in shared databases.
 - **Extensible Plugins**: Modular plugin architecture (`cli/plugins`) covering:
   - **AI**: Gemini & Meta AI query integrations, vision analysis, prompt management.
-  - **Tools**: Font styling (`fancy` with support for replied messages), URL screenshots, quote card renderers, sticker generators.
+  - **Tools**: Font styling (`fancy` with support for replied messages), URL screenshots, sticker generators.
   - **Games**: Tic-Tac-Toe, Word Scramble, Word Chain Game (WCG), XP points tracking.
   - **Filters & BGM**: Trigger-based automated message responses and audio background music playout.
   - **Administration**: Sudoers management, bot restarts, runtime updater.
