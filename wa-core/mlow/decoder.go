@@ -185,7 +185,7 @@ func (d *MlowDecoder) decodeActiveFrame(frame []byte, outLen int) []float32 {
 	out := make([]float32, 0, 3*SmplIntfLen)
 	packetLags := make([]float32, 0, 3*8)
 	var avgNormBr float32
-	for f := 0; f < 3; f++ {
+	for f := range 3 {
 		lsf := DecodeSmplLsf(dec, tbl, &d.state.Lstate, config, f)
 		pulses := DecodeSmplPulses(dec, mem, SmplIntfLen, numSubframes, 1, int32(config), lsf.Stage1)
 		voiced := lsf.Stage1 == 1
@@ -196,7 +196,7 @@ func (d *MlowDecoder) decodeActiveFrame(frame []byte, outLen int) []float32 {
 		params := CelpDecParams{Voiced: voiced, SfPulses: pulses.Subfr, TotalPulses: total}
 		if voiced {
 			pr := DecodeSmplPitch(dec, mem, &d.state.Lstate, SmplIntfLen, numSubframes, int32(config), pulses.Subfr)
-			for b := 0; b < 8; b++ {
+			for b := range 8 {
 				v := float64(pr.BlockLags[b])*0.5 + 32.0
 				if v > 320.0 {
 					v = 320.0

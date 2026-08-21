@@ -860,14 +860,10 @@ func parseGroupLinkTargetNode(groupNode *waBinary.Node) (types.GroupLinkTarget, 
 		jidKey = types.NewJID(ag.String("id"), types.GroupServer)
 	}
 	return types.GroupLinkTarget{
-		JID: jidKey,
-		GroupName: types.GroupName{
-			Name:      ag.OptionalString("subject"),
-			NameSetAt: ag.OptionalUnixTime("s_t"),
-		},
-		GroupIsDefaultSub: types.GroupIsDefaultSub{
-			IsDefaultSubGroup: groupNode.GetChildByTag("default_sub_group").Tag == "default_sub_group",
-		},
+		JID:               jidKey,
+		Name:              ag.OptionalString("subject"),
+		NameSetAt:         ag.OptionalUnixTime("s_t"),
+		IsDefaultSubGroup: groupNode.GetChildByTag("default_sub_group").Tag == "default_sub_group",
 	}, ag.Error()
 }
 

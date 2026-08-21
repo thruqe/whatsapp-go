@@ -176,10 +176,7 @@ func (s *RtcpReceptionStats) Report(nowMs uint64) *RtcpReceptionReport {
 	lostInterval := int64(expectedInterval) - int64(receivedInterval)
 	var fractionLost uint8
 	if expectedInterval != 0 && lostInterval > 0 {
-		fraction := (lostInterval * 256) / int64(expectedInterval)
-		if fraction > 255 {
-			fraction = 255
-		}
+		fraction := min((lostInterval*256)/int64(expectedInterval), 255)
 		fractionLost = uint8(fraction)
 	}
 	s.expectedPrior = expected
@@ -197,16 +194,10 @@ func (s *RtcpReceptionStats) Report(nowMs uint64) *RtcpReceptionReport {
 		if nowMs < s.lastSenderReportAtMs {
 			elapsed = 0
 		}
-		value := elapsed * 65_536 / 1000
-		if value > uint64(^uint32(0)) {
-			value = uint64(^uint32(0))
-		}
+		value := min(elapsed*65_536/1000, uint64(^uint32(0)))
 		dlsr = uint32(value)
 	}
-	jitter := s.jitterQ4 >> 4
-	if jitter > uint64(^uint32(0)) {
-		jitter = uint64(^uint32(0))
-	}
+	jitter := min(s.jitterQ4>>4, uint64(^uint32(0)))
 	return &RtcpReceptionReport{
 		Ssrc: s.ssrc, FractionLost: fractionLost, CumulativeLost: int32(cumulativeLost),
 		ExtendedHighestSequence: s.sequenceCycles | uint32(s.maxSequence),

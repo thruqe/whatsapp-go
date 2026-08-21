@@ -216,8 +216,14 @@ func (cli *Client) Download(ctx context.Context, msg DownloadableMessage) ([]byt
 	if len(msg.GetDirectPath()) == 0 {
 		return nil, ErrNoURLPresent
 	}
+	encSHA256 := msg.GetFileEncSHA256()
+	mediaKey := msg.GetMediaKey()
+	// TODO more proper check for unencrypted media?
+	if encSHA256 == nil && mediaKey != nil {
+		mediaKey = nil
+	}
 	return cli.DownloadMediaWithPath(
-		ctx, msg.GetDirectPath(), msg.GetFileEncSHA256(), msg.GetFileSHA256(), msg.GetMediaKey(),
+		ctx, msg.GetDirectPath(), encSHA256, msg.GetFileSHA256(), mediaKey,
 		mediaType, mediaTypeToMMSType[mediaType], false,
 	)
 }
@@ -324,7 +330,7 @@ func shouldRetryMediaDownload(err error) bool {
 }
 
 func (cli *Client) downloadPossiblyEncryptedMediaWithRetries(ctx context.Context, url string, checksum []byte) (file, mac []byte, err error) {
-	for retryNum := 0; retryNum < 5; retryNum++ {
+	for retryNum := range 5 {
 		if checksum == nil {
 			file, err = cli.downloadMedia(ctx, url)
 		} else {
@@ -334,8 +340,7 @@ func (cli *Client) downloadPossiblyEncryptedMediaWithRetries(ctx context.Context
 			return
 		}
 		retryDuration := time.Duration(retryNum+1) * time.Second
-		var httpErr DownloadHTTPError
-		if errors.As(err, &httpErr) {
+		if httpErr, ok := errors.AsType[DownloadHTTPError](err); ok {
 			retryDuration = retryafter.Parse(httpErr.Response.Header.Get("Retry-After"), retryDuration)
 		}
 		cli.Log.Warnf("Failed to download media due to network error: %v, retrying in %s...", err, retryDuration)

@@ -351,7 +351,7 @@ func (e *engine) runMedia(ctx context.Context, callID string, call *Call, callKe
 		}()
 		if groupMode.Load() {
 			installed := false
-			for attempt := 0; attempt < groupRegistryInstallMaxAttempts; attempt++ {
+			for range groupRegistryInstallMaxAttempts {
 				if err = ctx.Err(); err != nil {
 					return err
 				}

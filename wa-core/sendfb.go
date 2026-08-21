@@ -237,7 +237,7 @@ func (cli *Client) sendGroupV3(
 		return "", nil, fmt.Errorf("failed to create sender key distribution message to send %s to %s: %w", id, to, err)
 	}
 	skdm := &waMsgTransport.MessageTransport_Protocol_Ancillary_SenderKeyDistributionMessage{
-		GroupID:                             proto.String(to.String()),
+		GroupID:                             new(to.String()),
 		AxolotlSenderKeyDistributionMessage: signalSKDMessage.Serialize(),
 	}
 
@@ -466,8 +466,8 @@ func (cli *Client) prepareMessageNodeV3(
 	}
 
 	dsm := &waMsgTransport.MessageTransport_Protocol_Integral_DeviceSentMessage{
-		DestinationJID: proto.String(to.String()),
-		Phash:          proto.String(""),
+		DestinationJID: new(to.String()),
+		Phash:          new(""),
 	}
 
 	start = time.Now()

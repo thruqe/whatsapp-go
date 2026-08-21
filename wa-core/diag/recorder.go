@@ -12,6 +12,7 @@ package diag
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sync"
@@ -57,9 +58,7 @@ func (r *Recorder) Emit(stream string, fields map[string]any) {
 	// ts_ms is always set by the recorder; a caller-supplied ts_ms is overwritten so
 	// the timeline is the recorder's own clock.
 	rec := make(map[string]any, len(fields)+1)
-	for k, v := range fields {
-		rec[k] = v
-	}
+	maps.Copy(rec, fields)
 	rec["ts_ms"] = time.Now().UnixMilli()
 
 	r.mu.Lock()

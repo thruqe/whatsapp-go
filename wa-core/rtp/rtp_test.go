@@ -58,7 +58,8 @@ func mustHex(t *testing.T, s string) []byte {
 	return b
 }
 
-func u32ptr(v uint32) *uint32 { return &v }
+//go:fix inline
+func u32ptr(v uint32) *uint32 { return new(v) }
 
 // TestEncodeHeadersMatchKAT checks the 16-byte speech and 20-byte DTX header encodings.
 func TestEncodeHeadersMatchKAT(t *testing.T) {
@@ -177,9 +178,9 @@ func TestParseCapturedVideoOrientationWithoutTransportSequence(t *testing.T) {
 
 func TestVideoStreamMatchesCapturedWebFrameMetadata(t *testing.T) {
 	stream := NewVideoRtpStream(0x11223344, 4500)
-	first := EncodeRtpHeader(ptrRtpHeader(stream.NextPacket(false, 0x08)))
-	second := EncodeRtpHeader(ptrRtpHeader(stream.NextPacket(true, 0x08)))
-	third := EncodeRtpHeader(ptrRtpHeader(stream.NextPacket(true, 0x20)))
+	first := EncodeRtpHeader(new(stream.NextPacket(false, 0x08)))
+	second := EncodeRtpHeader(new(stream.NextPacket(true, 0x08)))
+	third := EncodeRtpHeader(new(stream.NextPacket(true, 0x20)))
 
 	_, firstExtension, ok := RtpExtensionProfileAndData(first)
 	if !ok {
@@ -205,8 +206,9 @@ func TestVideoStreamMatchesCapturedWebFrameMetadata(t *testing.T) {
 	}
 }
 
+//go:fix inline
 func ptrRtpHeader(header RtpHeader) *RtpHeader {
-	return &header
+	return new(header)
 }
 
 // TestEstimateWireBytesMatchKAT checks the on-wire size estimator for speech/DTX/priming.

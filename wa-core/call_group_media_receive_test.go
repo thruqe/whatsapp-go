@@ -716,7 +716,7 @@ func TestParticipantReceiveRegistrySRTCPRekeyIsConcurrentSafe(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 200; i++ {
+		for i := range 200 {
 			if _, reportErr := srtcpSender.senderReport(rtp.RtcpSenderStats{}, uint64(i), nil); reportErr != nil {
 				errs <- reportErr
 				return
@@ -725,7 +725,7 @@ func TestParticipantReceiveRegistrySRTCPRekeyIsConcurrentSafe(t *testing.T) {
 	}()
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 200; i++ {
+		for range 200 {
 			_, _, _ = registry.UnprotectSRTCP(peerSSRC, peerPacket)
 		}
 	}()
