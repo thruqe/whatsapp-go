@@ -3,46 +3,63 @@
 > [!CAUTION]
 > **Educational project only.** Review [DISCLAIMER](DISCLAIMER.md) before use.
 
-Connect to your WhatsApp and manage it programmatically.
+A command-line tool and Go library to connect to WhatsApp.
 
-## Key Links
+## Resources
 
-- [Documentation](https://thruqe.github.io/whatsrook-docs/)
 - [Deployment Console](https://wha-console.onrender.com)
 - [Telegram Channel](https://t.me/whatsrook)
 
-## Features
+## Documentation
 
-- Send and receive messages (text, media, reactions, polls)
-- Download and decrypt incoming media (images, audio, video, documents)
-- Manage group participants, metadata, and permissions
-- Interact with WhatsApp channels and story status updates
-- Schedule messages and event-driven automated workflows
-- Set presence states, typing indicators, and read receipts
+- [Features](docs/features.md)
+- [Configuration](docs/CONFIGURATION.md)
+- [Database & Storage](docs/database.md)
+- [Contributing & Governance](docs/contributing.md)
 
-## Configuration
+## Quick Start
 
-Configure WhatsRook via environment variables (e.g., `.env`) or CLI flags:
+### Installation
 
-| Environment Variable | CLI Flag          | Default  | Description                                                         |
-| -------------------- | ----------------- | -------- | ------------------------------------------------------------------- |
-| `SESSION`            | `-s, --session`   | —        | Target phone number with country code (e.g., `2348000000000`)       |
-| `CLIENT`             | `-c, --client`    | `chrome` | Target client identity platform: `chrome`, `android`, `ios`         |
-| `PAIR`               | `-p, --pair`      | `false`  | Request an 8-character pairing code instead of QR code              |
-| `QRCODE`             | `-q, --qrcode`    | `false`  | Render terminal ASCII QR code for initial authentication            |
-| `DATABASE_URL`       | `-db, --database` | `sqlite` | Connection string (`postgres://user:pass@host:5432/db` or `sqlite`) |
-| `VERBOSE`            | `-v, --verbose`   | `false`  | Enable structured debug logging                                     |
-| `PORT`               | `-P, --port`      | `3000`   | Local HTTP/WebSocket server listening port                          |
+#### Linux & macOS
 
-## Database & Storage
+```bash
+curl -fsSL https://raw.githubusercontent.com/Thruqe/whatsrook/master/scripts/installer/install.sh | bash
+```
 
-WhatsRook defaults to embedded SQLite for local prototyping, but uses PostgreSQL for production workloads.
+#### Windows (PowerShell)
 
-- To provision managed storage, configure a free tier on [Supabase](https://supabase.com) and assign the connection string to `DATABASE_URL`.
-- For advanced schema and migration behavior, review the [Database & Storage Guide](https://thruqe.github.io/whatsrook-docs/DATABASE).
+```powershell
+irm https://raw.githubusercontent.com/Thruqe/whatsrook/master/scripts/installer/install.ps1 | iex
+```
 
-## Contributing & Governance
+#### Build from Source
 
-- **Contributing:** Please review the [Code of Conduct](https://www.google.com/search?q=CODE_OF_CONDUCT.md) before submitting pull requests.
-- **Disclaimer:** Review the full liability terms in [DISCLAIMER](DISCLAIMER.md).
-- **License:** Distributed under the [MIT License](https://www.google.com/search?q=LICENSE).
+```bash
+task build
+```
+
+### Pair and Connect
+
+Authenticate using an 8-character pairing code:
+```bash
+whatsrook -s 2348000000000 -p
+```
+
+Or scan an ASCII QR code:
+```bash
+whatsrook -s 2348000000000 -q
+```
+
+## Acknowledgements
+
+WhatsRook is built upon and inspired by the incredible work of the open-source community:
+
+- **[whatsmeow](https://github.com/tulir/whatsmeow)** — WhatsApp multi-device protocol library in Go.
+- **[whatsapp-rust](https://github.com/oxidezap/whatsapp-rust)** — WhatsApp Web protocol and calling architecture in Rust.
+- **[hypermeow](https://github.com/polymorfa/hypermeow)** — WhatsApp protocol enhancements and VoIP engine extensions.
+- **[whatsapp-rust-bridge](https://github.com/oxidezap/whatsapp-rust-bridge)** — WhatsApp protocol bindings and media bridge.
+
+## License
+
+Distributed under the [MIT License](LICENSE).
