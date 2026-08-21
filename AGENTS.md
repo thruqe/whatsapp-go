@@ -17,5 +17,5 @@ Utilize the [Taskfile](./Taskfile.yml)
 
 ## Relevant Documentation
 
-- [Docs](https://github.com/Thruqe/whatsrook-docs)
+- [Docs](./docs)
 - [Security](./SECURITY.md)
