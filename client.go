@@ -1,4 +1,3 @@
-// Core WhatsRook WhatsApp client abstraction over wa-core.
 package whatsrook
 
 import (
