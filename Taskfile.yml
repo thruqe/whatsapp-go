@@ -17,6 +17,13 @@ tasks:
       - go mod tidy
       - cd cli && go mod download && go mod tidy
 
+  fix:
+    desc: Apply go fix modernizers across all modules
+    cmds:
+      - go fix ./...
+      - cd wa-core && go fix ./...
+      - cd cli && go fix ./...
+
   fmt:
     desc: Format and vet all Go code
     cmds:
