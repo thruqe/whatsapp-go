@@ -68,7 +68,7 @@ func TestEncodeHeadersMatchKAT(t *testing.T) {
 	if got := hex.EncodeToString(EncodeRtpHeader(&speech)); got != k.Rtp.SpeechHeader16 {
 		t.Errorf("speechHeader16 = %s, want %s", got, k.Rtp.SpeechHeader16)
 	}
-	dtx := RtpHeader{Marker: false, PayloadType: 120, SequenceNumber: 2, Timestamp: 320, Ssrc: k.Inputs.SSRC, ExtensionWord: u32ptr(0x30010000)}
+	dtx := RtpHeader{Marker: false, PayloadType: 120, SequenceNumber: 2, Timestamp: 320, Ssrc: k.Inputs.SSRC, ExtensionWord: new(uint32(0x30010000))}
 	if got := hex.EncodeToString(EncodeRtpHeader(&dtx)); got != k.Rtp.DtxHeader20 {
 		t.Errorf("dtxHeader20 = %s, want %s", got, k.Rtp.DtxHeader20)
 	}
