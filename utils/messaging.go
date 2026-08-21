@@ -756,7 +756,7 @@ func (ctx *PluginContext) IsSudo() bool {
 		slog.Debug("IsSudo result: false (settings store unavailable)", "sender", ctx.Sender.String())
 		return false
 	}
-	raw, err := s.GetSetting(ctx.Ctx, "sudoers")
+	raw, err := getSetting(ctx.Ctx, s, "sudoers")
 	if err != nil || raw == "" {
 		slog.Debug("IsSudo result: false (no sudoers configured)", "sender", ctx.Sender.String())
 		return false
@@ -787,7 +787,7 @@ func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) 
 	if !ok {
 		return false
 	}
-	raw, err := s.GetSetting(ctx, "sudoers")
+	raw, err := getSetting(ctx, s, "sudoers")
 	if err != nil || raw == "" {
 		return false
 	}
@@ -800,6 +800,26 @@ func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) 
 		}
 	}
 	return false
+}
+
+func getSetting(ctx context.Context, s *sqlstore.SQLStore, key string) (string, error) {
+	if s == nil {
+		return "", nil
+	}
+	db := s.GetDB()
+	if db == nil {
+		return "", nil
+	}
+	ourJID := s.JID
+	if parsed, err := types.ParseJID(s.JID); err == nil && !parsed.IsEmpty() {
+		ourJID = parsed.ToNonAD().String()
+	}
+	var val string
+	err := db.QueryRow(ctx, "SELECT value FROM bot_settings WHERE our_jid=$1 AND key=$2", ourJID, key).Scan(&val)
+	if err != nil {
+		err = db.QueryRow(ctx, "SELECT value FROM bot_settings WHERE (our_jid='' OR our_jid IS NULL) AND key=$1 LIMIT 1", key).Scan(&val)
+	}
+	return val, err
 }
 
 // IsTargetSudo checks if a given target is a registered sudo user or the bot owner.

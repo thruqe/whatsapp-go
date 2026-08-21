@@ -408,10 +408,53 @@ func migration7SessionIsolation(ctx context.Context, db *dbutil.Database) error 
 	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "wcg_rating", "INTEGER DEFAULT 1000")
 	_, _ = db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS bot_group_user_xp_our_jid_group_user_idx ON bot_group_user_xp (our_jid, group_jid, user_jid)")
 
-	// 6. Ensure our_jid exists on bot_filters, bot_bgm, and bot_sticker_cmds
-	_ = EnsureCustomColumnExists(ctx, db, "bot_filters", "our_jid", "TEXT NOT NULL DEFAULT ''")
-	_ = EnsureCustomColumnExists(ctx, db, "bot_bgm", "our_jid", "TEXT NOT NULL DEFAULT ''")
-	_ = EnsureCustomColumnExists(ctx, db, "bot_sticker_cmds", "our_jid", "TEXT NOT NULL DEFAULT ''")
+	if db.Dialect == dbutil.Postgres {
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS our_jid TEXT NOT NULL DEFAULT ''")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_settings DROP CONSTRAINT IF EXISTS bot_settings_pkey")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_settings DROP CONSTRAINT IF EXISTS bot_settings_key_key")
+		_, _ = db.Exec(ctx, "DROP INDEX IF EXISTS bot_settings_key_idx")
+		_, _ = db.Exec(ctx, "DELETE FROM bot_settings a USING bot_settings b WHERE a.ctid < b.ctid AND a.our_jid = b.our_jid AND a.key = b.key")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_settings ADD PRIMARY KEY (our_jid, key)")
+		_, _ = db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS bot_settings_our_jid_key_idx ON bot_settings (our_jid, key)")
+
+		_, _ = db.Exec(ctx, "ALTER TABLE call_media_config ADD COLUMN IF NOT EXISTS our_jid TEXT NOT NULL DEFAULT ''")
+		_, _ = db.Exec(ctx, "ALTER TABLE call_media_config DROP CONSTRAINT IF EXISTS call_media_config_pkey")
+		_, _ = db.Exec(ctx, "ALTER TABLE call_media_config DROP CONSTRAINT IF EXISTS call_media_config_jid_kind_key")
+		_, _ = db.Exec(ctx, "DROP INDEX IF EXISTS call_media_config_jid_kind_idx")
+		_, _ = db.Exec(ctx, "DELETE FROM call_media_config a USING call_media_config b WHERE a.ctid < b.ctid AND a.our_jid = b.our_jid AND a.jid = b.jid AND a.kind = b.kind")
+		_, _ = db.Exec(ctx, "ALTER TABLE call_media_config ADD PRIMARY KEY (our_jid, jid, kind)")
+		_, _ = db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS call_media_config_our_jid_jid_kind_idx ON call_media_config (our_jid, jid, kind)")
+
+		_, _ = db.Exec(ctx, "ALTER TABLE group_stats ADD COLUMN IF NOT EXISTS our_jid TEXT NOT NULL DEFAULT ''")
+		_, _ = db.Exec(ctx, "ALTER TABLE group_stats DROP CONSTRAINT IF EXISTS group_stats_pkey")
+		_, _ = db.Exec(ctx, "DELETE FROM group_stats a USING group_stats b WHERE a.ctid < b.ctid AND a.our_jid = b.our_jid AND a.group_jid = b.group_jid AND a.user_jid = b.user_jid AND a.date_str = b.date_str")
+		_, _ = db.Exec(ctx, "ALTER TABLE group_stats ADD PRIMARY KEY (our_jid, group_jid, user_jid, date_str)")
+
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp ADD COLUMN IF NOT EXISTS our_jid TEXT NOT NULL DEFAULT ''")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp DROP CONSTRAINT IF EXISTS bot_user_xp_pkey")
+		_, _ = db.Exec(ctx, "DELETE FROM bot_user_xp a USING bot_user_xp b WHERE a.ctid < b.ctid AND a.our_jid = b.our_jid AND a.user_jid = b.user_jid")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp ADD PRIMARY KEY (our_jid, user_jid)")
+
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_group_user_xp ADD COLUMN IF NOT EXISTS our_jid TEXT NOT NULL DEFAULT ''")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_group_user_xp DROP CONSTRAINT IF EXISTS bot_group_user_xp_pkey")
+		_, _ = db.Exec(ctx, "DELETE FROM bot_group_user_xp a USING bot_group_user_xp b WHERE a.ctid < b.ctid AND a.our_jid = b.our_jid AND a.group_jid = b.group_jid AND a.user_jid = b.user_jid")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_group_user_xp ADD PRIMARY KEY (our_jid, group_jid, user_jid)")
+
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_filters ADD COLUMN IF NOT EXISTS our_jid TEXT NOT NULL DEFAULT ''")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_filters DROP CONSTRAINT IF EXISTS bot_filters_pkey")
+		_, _ = db.Exec(ctx, "DELETE FROM bot_filters a USING bot_filters b WHERE a.ctid < b.ctid AND a.our_jid = b.our_jid AND a.trigger_word = b.trigger_word")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_filters ADD PRIMARY KEY (our_jid, trigger_word)")
+
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_bgm ADD COLUMN IF NOT EXISTS our_jid TEXT NOT NULL DEFAULT ''")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_bgm DROP CONSTRAINT IF EXISTS bot_bgm_pkey")
+		_, _ = db.Exec(ctx, "DELETE FROM bot_bgm a USING bot_bgm b WHERE a.ctid < b.ctid AND a.our_jid = b.our_jid AND a.trigger_word = b.trigger_word")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_bgm ADD PRIMARY KEY (our_jid, trigger_word)")
+
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_sticker_cmds ADD COLUMN IF NOT EXISTS our_jid TEXT NOT NULL DEFAULT ''")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_sticker_cmds DROP CONSTRAINT IF EXISTS bot_sticker_cmds_pkey")
+		_, _ = db.Exec(ctx, "DELETE FROM bot_sticker_cmds a USING bot_sticker_cmds b WHERE a.ctid < b.ctid AND a.our_jid = b.our_jid AND a.sticker_sha256 = b.sticker_sha256")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_sticker_cmds ADD PRIMARY KEY (our_jid, sticker_sha256)")
+	}
 
 	// 7. For SQLite legacy tables with non-composite primary keys, migrate table definitions to composite PKs
 	if db.Dialect == dbutil.SQLite {

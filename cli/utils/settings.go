@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
+	clistore "whatsrook/cli/store"
 )
 
 const (
@@ -140,8 +142,28 @@ func DismissBotNamePrompt(ctx context.Context, s *sqlstore.SQLStore) {
 	if s == nil {
 		return
 	}
-	_ = s.PutSetting(ctx, BotNamePromptDismissedKey, "true")
+	_ = clistore.PutSetting(ctx, s, BotNamePromptDismissedKey, "true")
 	BotNamePromptDismissedCacheMu.Lock()
 	BotNamePromptDismissedCache[s.JID] = true
+	if s.JID != "" {
+		if parsed, err := types.ParseJID(s.JID); err == nil && !parsed.IsEmpty() {
+			BotNamePromptDismissedCache[parsed.ToNonAD().String()] = true
+		}
+	}
+	BotNamePromptDismissedCacheMu.Unlock()
+}
+
+func ResetBotNamePromptDismissed(ctx context.Context, s *sqlstore.SQLStore) {
+	if s == nil {
+		return
+	}
+	_ = clistore.PutSetting(ctx, s, BotNamePromptDismissedKey, "false")
+	BotNamePromptDismissedCacheMu.Lock()
+	delete(BotNamePromptDismissedCache, s.JID)
+	if s.JID != "" {
+		if parsed, err := types.ParseJID(s.JID); err == nil && !parsed.IsEmpty() {
+			delete(BotNamePromptDismissedCache, parsed.ToNonAD().String())
+		}
+	}
 	BotNamePromptDismissedCacheMu.Unlock()
 }

@@ -109,6 +109,8 @@ func (c *Container) Upgrade(ctx context.Context) error {
 		}
 	}
 
+	_, _ = c.db.Exec(ctx, "UPDATE whatsmeow_version SET version=18, compat=18 WHERE version > 18")
+
 	err := c.db.Upgrade(ctx)
 	if err != nil {
 		return err
@@ -238,6 +240,32 @@ func (c *Container) Close() error {
 		return c.db.Close()
 	}
 	return nil
+}
+
+// Database returns the underlying database handle.
+func (c *Container) Database() *dbutil.Database {
+	if c == nil {
+		return nil
+	}
+	return c.db
+}
+
+// GetDB returns the underlying database handle for backward compatibility.
+func (c *Container) GetDB() *dbutil.Database {
+	return c.Database()
+}
+
+// Database returns the underlying database handle.
+func (s *SQLStore) Database() *dbutil.Database {
+	if s == nil || s.Container == nil {
+		return nil
+	}
+	return s.Container.db
+}
+
+// GetDB returns the underlying database handle for backward compatibility.
+func (s *SQLStore) GetDB() *dbutil.Database {
+	return s.Database()
 }
 
 // PutDevice stores the given device in this database. This should be called through Device.Save()
