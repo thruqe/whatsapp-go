@@ -90,8 +90,6 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	s, okStore := client.Store.Identities.(*sqlstore.SQLStore)
 	if okStore {
 		clistore.InitTables(ctx, s)
-		StartAutoMuteScheduler(ctx, client)
-		StartAutoBioScheduler(ctx, client)
 		if fontStyle, err := s.GetSetting(ctx, "font_style"); err == nil && fontStyle != "" {
 			cliutils.SetFontStyle(fontStyle)
 		}

@@ -1,17 +1,23 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 )
 
-func tmpCron() {
+func tmpCron(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		cleanOldTempFiles()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cleanOldTempFiles()
+		}
 	}
 }
 
