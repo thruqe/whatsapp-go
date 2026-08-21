@@ -774,10 +774,7 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 	}
 
 	startIdx := (page - 1) * pageSize
-	endIdx := startIdx + pageSize
-	if endIdx > len(cliutils.SupportedTimezones) {
-		endIdx = len(cliutils.SupportedTimezones)
-	}
+	endIdx := min(startIdx+pageSize, len(cliutils.SupportedTimezones))
 
 	pageItems := cliutils.SupportedTimezones[startIdx:endIdx]
 	p := ctx.GetPrefix()

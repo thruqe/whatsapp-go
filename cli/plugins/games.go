@@ -450,7 +450,7 @@ func renderTTTBoard(g *cliutils.TTTGame) string {
 
 func renderTTTGrid(board *[9]string) string {
 	display := make([]string, 9)
-	for i := 0; i < 9; i++ {
+	for i := range 9 {
 		if board[i] == "" {
 			display[i] = strconv.Itoa(i + 1)
 		} else {
@@ -496,7 +496,7 @@ func bestTTTMove(board *[9]string) int {
 	bestScore := math.MinInt32
 	move := -1
 
-	for i := 0; i < 9; i++ {
+	for i := range 9 {
 		if board[i] == "" {
 			board[i] = "O"
 			score := minimax(board, 0, false)
@@ -524,7 +524,7 @@ func minimax(board *[9]string, depth int, isMaximizing bool) int {
 
 	if isMaximizing {
 		bestScore := math.MinInt32
-		for i := 0; i < 9; i++ {
+		for i := range 9 {
 			if board[i] == "" {
 				board[i] = "O"
 				score := minimax(board, depth+1, false)
@@ -537,7 +537,7 @@ func minimax(board *[9]string, depth int, isMaximizing bool) int {
 		return bestScore
 	} else {
 		bestScore := math.MaxInt32
-		for i := 0; i < 9; i++ {
+		for i := range 9 {
 			if board[i] == "" {
 				board[i] = "X"
 				score := minimax(board, depth+1, true)
@@ -569,7 +569,7 @@ func scrambleWord(word string) string {
 		return word
 	}
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		cliutils.WcgRng.Shuffle(n, func(i, j int) {
 			runes[i], runes[j] = runes[j], runes[i]
 		})
@@ -1076,7 +1076,7 @@ func ValidateWordParallel(word string) bool {
 	}
 
 	validCount := 0
-	for i := 0; i < len(apiChecks); i++ {
+	for range apiChecks {
 		if <-resCh {
 			validCount++
 			// If at least 1 reliable API validates the word, accept it immediately!

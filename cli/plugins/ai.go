@@ -216,10 +216,7 @@ func renderCSAIPage(ctx *Context, s *StoreWrapper, page int) error {
 	}
 
 	startIdx := (page - 1) * pageSize
-	endIdx := startIdx + pageSize
-	if endIdx > len(cliutils.DefaultCSAITraits) {
-		endIdx = len(cliutils.DefaultCSAITraits)
-	}
+	endIdx := min(startIdx+pageSize, len(cliutils.DefaultCSAITraits))
 
 	pageItems := cliutils.DefaultCSAITraits[startIdx:endIdx]
 	p := ctx.GetPrefix()
@@ -915,10 +912,7 @@ func handleWhy(ctx *Context) error {
 	}
 
 	startIdx := (page - 1) * pageSize
-	endIdx := startIdx + pageSize
-	if endIdx > totalPulls {
-		endIdx = totalPulls
-	}
+	endIdx := min(startIdx+pageSize, totalPulls)
 	var pagePulls []cliutils.WhyPull
 	if totalPulls > 0 && startIdx < totalPulls {
 		pagePulls = res.Pulls[startIdx:endIdx]

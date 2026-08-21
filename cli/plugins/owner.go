@@ -682,10 +682,8 @@ func handleDelSudo(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Usage:\n- %sdelsudo @user\n- %sdelsudo 1234567890\n- Reply to a user's message with %sdelsudo", p, p, p))
 	}
 	targets := ctx.GetTargets()
-	for _, target := range targets {
-		if ctx.IsTargetOwner(target) {
-			return ctx.Reply("⚠️ Cannot remove the bot owner from sudoers.")
-		}
+	if slices.ContainsFunc(targets, ctx.IsTargetOwner) {
+		return ctx.Reply("⚠️ Cannot remove the bot owner from sudoers.")
 	}
 
 	s, ok := getStore(ctx)
