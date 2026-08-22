@@ -20,6 +20,7 @@ type CLIArgs struct {
 	Verbose         bool
 	Client          string
 	Database        string
+	RedisURL        string
 	SkipOldMessages bool
 	Port            int
 }
@@ -39,6 +40,7 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		pair     = fs.Bool("p", false, "")
 		client   = fs.String("c", "", "")
 		database = fs.String("db", "", "")
+		redisURL = fs.String("redis", "", "")
 		port     = fs.Int("P", defaultPort, "")
 		qr       = fs.Bool("q", false, "")
 		logout   = fs.Bool("l", false, "")
@@ -51,6 +53,7 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 	fs.BoolVar(pair, "pair", false, "")
 	fs.StringVar(client, "client", "", "")
 	fs.StringVar(database, "database", "", "")
+	fs.StringVar(redisURL, "redis-url", "", "")
 	fs.IntVar(port, "port", defaultPort, "")
 	fs.BoolVar(qr, "qrcode", false, "")
 	fs.BoolVar(logout, "logout", false, "")
@@ -68,6 +71,7 @@ Options:
   -P, --port <port>      WebSocket/HTTP server port (default: 3000 or $PORT)
   -c, --client <type>    Client type: chrome (default), android, ios
   -db, --database <url>  Database connection: sqlite (default) or postgres URL. Per-session override: DATABASE_URL_<phone>
+  -redis <url>           Redis cache connection URL (e.g. redis://localhost:6379/0). Defaults to in-memory cache if omitted
   -q, --qrcode           Print the QR code to stdout for scanning
   -l, --logout           Remove the session auth files and exit
   -u, --update [channel] Check and perform update; optionally pass "stable" or "beta" to
@@ -172,13 +176,21 @@ Options:
 		}
 	}
 
-	// 5. Port resolution (CLI flag > PORT / WS_PORT env var > 3000)
+	// 5. Redis URL resolution (CLI flag > REDIS_URL env var > "")
+	redisVal := ""
+	if explicitFlags["redis"] || explicitFlags["redis-url"] {
+		redisVal = *redisURL
+	} else if envRedis := os.Getenv("REDIS_URL"); envRedis != "" {
+		redisVal = envRedis
+	}
+
+	// 6. Port resolution (CLI flag > PORT / WS_PORT env var > 3000)
 	portVal := defaultPort
 	if explicitFlags["P"] || explicitFlags["port"] {
 		portVal = *port
 	}
 
-	// 6. Other boolean flags (CLI flag > env var)
+	// 7. Other boolean flags (CLI flag > env var)
 	logoutVal := *logout
 	if !explicitFlags["l"] && !explicitFlags["logout"] {
 		logoutVal = getEnvBool("LOGOUT")
@@ -211,6 +223,7 @@ Options:
 		Verbose:         verboseVal,
 		Client:          clientVal,
 		Database:        dbVal,
+		RedisURL:        redisVal,
 		SkipOldMessages: skipOldVal,
 		Port:            portVal,
 	}

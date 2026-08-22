@@ -4,8 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"sync"
 	"time"
+
+	"whatsrook/utils/cache"
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
@@ -33,18 +34,10 @@ const (
 	`
 )
 
-var (
-	settingCache    sync.Map
-	settingCacheTTL = 5 * time.Second
-)
-
-type settingCacheItem struct {
-	val       string
-	updatedAt time.Time
-}
+const settingCacheTTL = 5 * time.Second
 
 func settingCacheKey(ourJID, key string) string {
-	return ourJID + ":" + key
+	return "setting:" + ourJID + ":" + key
 }
 
 func ourJIDStr(s *sqlstore.SQLStore) string {
@@ -74,11 +67,8 @@ func GetSetting(ctx context.Context, s *sqlstore.SQLStore, key string) (string, 
 	ourJID := ourJIDStr(s)
 	cacheKey := settingCacheKey(ourJID, key)
 
-	if cached, ok := settingCache.Load(cacheKey); ok {
-		item := cached.(settingCacheItem)
-		if time.Since(item.updatedAt) < settingCacheTTL {
-			return item.val, nil
-		}
+	if val, ok, _ := cache.Get(ctx, cacheKey); ok {
+		return val, nil
 	}
 
 	var val string
@@ -94,13 +84,13 @@ func GetSetting(ctx context.Context, s *sqlstore.SQLStore, key string) (string, 
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		settingCache.Store(cacheKey, settingCacheItem{val: "", updatedAt: time.Now()})
+		_ = cache.Set(ctx, cacheKey, "", settingCacheTTL)
 		return "", nil
 	}
 	if err == nil {
-		settingCache.Store(cacheKey, settingCacheItem{val: val, updatedAt: time.Now()})
+		_ = cache.Set(ctx, cacheKey, val, settingCacheTTL)
 		if s.JID != "" && s.JID != ourJID {
-			settingCache.Store(settingCacheKey(s.JID, key), settingCacheItem{val: val, updatedAt: time.Now()})
+			_ = cache.Set(ctx, settingCacheKey(s.JID, key), val, settingCacheTTL)
 		}
 	}
 	return val, err
@@ -119,9 +109,9 @@ func PutSetting(ctx context.Context, s *sqlstore.SQLStore, key, value string) er
 
 	ourJID := ourJIDStr(s)
 	cacheKey := settingCacheKey(ourJID, key)
-	settingCache.Store(cacheKey, settingCacheItem{val: value, updatedAt: time.Now()})
+	_ = cache.Set(ctx, cacheKey, value, settingCacheTTL)
 	if s.JID != "" && s.JID != ourJID {
-		settingCache.Store(settingCacheKey(s.JID, key), settingCacheItem{val: value, updatedAt: time.Now()})
+		_ = cache.Set(ctx, settingCacheKey(s.JID, key), value, settingCacheTTL)
 	}
 
 	_, err := db.Exec(ctx, putSettingQuery, ourJID, key, value)
@@ -140,9 +130,9 @@ func DeleteSetting(ctx context.Context, s *sqlstore.SQLStore, key string) error 
 	InitTables(ctx, s)
 
 	ourJID := ourJIDStr(s)
-	settingCache.Delete(settingCacheKey(ourJID, key))
+	_ = cache.Delete(ctx, settingCacheKey(ourJID, key))
 	if s.JID != "" && s.JID != ourJID {
-		settingCache.Delete(settingCacheKey(s.JID, key))
+		_ = cache.Delete(ctx, settingCacheKey(s.JID, key))
 	}
 
 	_, err := db.Exec(ctx, deleteSettingQuery, ourJID, key)

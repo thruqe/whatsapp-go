@@ -192,4 +192,17 @@ func TestParseCLIArgs_OverridesEnv(t *testing.T) {
 	if args5.Session != "2348099887766" {
 		t.Errorf("expected Session=2348099887766 from positional arg, got %q", args5.Session)
 	}
+
+	// Case 6: -redis overrides REDIS_URL env var
+	t.Setenv("REDIS_URL", "redis://localhost:6379/1")
+	args6 := parseCLIArgsFrom([]string{"-redis", "redis://remote-redis:6379/2"})
+	if args6.RedisURL != "redis://remote-redis:6379/2" {
+		t.Errorf("expected RedisURL from flag, got %q", args6.RedisURL)
+	}
+
+	// Case 7: REDIS_URL env var fallback when flag not set
+	args7 := parseCLIArgsFrom([]string{})
+	if args7.RedisURL != "redis://localhost:6379/1" {
+		t.Errorf("expected RedisURL from env var, got %q", args7.RedisURL)
+	}
 }

@@ -11,6 +11,7 @@ WhatsRook can be configured using environment variables (e.g. from a `.env` file
 | `PAIR`               | `-p, --pair`      | `false`  | Request an 8-character pairing code instead of scanning a QR code. |
 | `QRCODE`             | `-q, --qrcode`    | `false`  | Render terminal ASCII QR code for initial authentication. |
 | `DATABASE_URL`       | `-db, --database` | `sqlite` | Database connection string (`sqlite` or `postgres://user:pass@host:5432/db?sslmode=disable`). |
+| `REDIS_URL`          | `-redis`          | —        | Redis cache connection string (`redis://[:password@]host:5432/0`). Defaults to fast in-memory store if omitted. |
 | `VERBOSE`            | `-v, --verbose`   | `false`  | Enable structured debug logging (`slog.LevelDebug`). |
 | `PORT`               | `-P, --port`      | `3000`   | Local HTTP/WebSocket server listening port. |
 
