@@ -68,16 +68,16 @@ func init() {
 		Handler:     handleSetBot,
 	})
 	Register(&Command{
-		Name:        "reconfigure",
-		Alias:       "reconfig",
+		Name:        "reconfig",
+		Alias:       "reconfigure",
 		Description: "Reconfigure bot settings and re-bring the setup wizard",
 		Category:    "settings",
 		IsPublic:    true,
 		Handler:     handleReconfigure,
 	})
 	Register(&Command{
-		Name:        "likestatus",
-		Alias:       "autolike",
+		Name:        "autolike",
+		Alias:       "likestatus",
 		Description: "Automatically react with love emojis to incoming status broadcasts",
 		Category:    "settings",
 		IsPublic:    false,
@@ -116,27 +116,29 @@ func init() {
 		Handler:     handleGetCmd,
 	})
 	Register(&Command{
-		Name:        "disablecmd",
+		Name:        "discmd",
+		Alias:       "disablecmd",
 		Description: "Disable a command globally for normal users",
 		Category:    "settings",
 		Handler:     handleDisableCmd,
 	})
 	Register(&Command{
-		Name:        "enablecmd",
+		Name:        "encmd",
+		Alias:       "enablecmd",
 		Description: "Enable a previously disabled command",
 		Category:    "settings",
 		Handler:     handleEnableCmd,
 	})
 	Register(&Command{
-		Name:        "autovv",
-		Alias:       "vvauto",
+		Name:        "autoview",
+		Alias:       "autovv",
 		Description: "Toggle automatic ViewOnce message forwarding to DM",
 		Category:    "settings",
 		Handler:     handleAutoVV,
 	})
 	Register(&Command{
-		Name:        "autostatus",
-		Alias:       "statussave",
+		Name:        "savestatus",
+		Alias:       "autostatus",
 		Description: "Toggle automatic status updates saving to DM",
 		Category:    "settings",
 		Handler:     handleAutoStatusSave,

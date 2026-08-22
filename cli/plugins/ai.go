@@ -76,8 +76,8 @@ func init() {
 		Handler:      handleFFmpeg,
 	})
 	Register(&Command{
-		Name:         "downloadMessage",
-		Alias:        "dlmsg",
+		Name:         "dlmsg",
+		Alias:        "downloadMessage",
 		Description:  "Download media from a message by ID or quoted message",
 		Category:     "ai",
 		HideFromMenu: true,
