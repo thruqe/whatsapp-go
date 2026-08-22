@@ -7,6 +7,25 @@ import (
 )
 
 type Context = utils.PluginContext
+type TextBuilder = utils.TextBuilder
+
+func NewText(initial ...string) *TextBuilder {
+	return utils.NewText(initial...)
+}
+
+var (
+	Bold      = utils.Bold
+	Boldf     = utils.Boldf
+	Italic    = utils.Italic
+	Italicf   = utils.Italicf
+	Code      = utils.Code
+	Codef     = utils.Codef
+	CodeBlock = utils.CodeBlock
+	Strike    = utils.Strike
+	Strikef   = utils.Strikef
+	Quote     = utils.Quote
+	Quotef    = utils.Quotef
+)
 
 type Handler func(ctx *Context) error
 

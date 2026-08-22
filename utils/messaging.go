@@ -41,7 +41,12 @@ func (ctx *PluginContext) SendText(text string) error {
 	return err
 }
 
-// SendMessage sends a message to any JID and automatically dismisses any active loader.
+// SendTextf formats and sends a simple text message to the current chat.
+func (ctx *PluginContext) SendTextf(format string, args ...any) error {
+	return ctx.SendText(fmt.Sprintf(format, args...))
+}
+
+// SendSendMessage sends a message to any JID and automatically dismisses any active loader.
 func (ctx *PluginContext) SendMessage(to types.JID, msg *waE2E.Message, extra ...whatsmeow.SendRequestExtra) (whatsmeow.SendResponse, error) {
 	ctx.StopAutoLoader()
 	var reqExtra whatsmeow.SendRequestExtra
@@ -72,6 +77,11 @@ func (ctx *PluginContext) Send(content any, extra ...whatsmeow.SendRequestExtra)
 		reqExtra = extra[0]
 	}
 	return ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg, reqExtra)
+}
+
+// Sendf formats and sends unified text content with optional SendRequestExtra parameters.
+func (ctx *PluginContext) Sendf(format string, args ...any) (whatsmeow.SendResponse, error) {
+	return ctx.Send(fmt.Sprintf(format, args...))
 }
 
 // Edit edits an existing message in the current chat by message ID.
@@ -113,6 +123,11 @@ func (ctx *PluginContext) Delete(msgID types.MessageID, senderJID ...types.JID) 
 func (ctx *PluginContext) Reply(text string) error {
 	_, err := ctx.ReplyWithID(text)
 	return err
+}
+
+// Replyf formats and sends a text message replying to the current message.
+func (ctx *PluginContext) Replyf(format string, args ...any) error {
+	return ctx.Reply(fmt.Sprintf(format, args...))
 }
 
 // ReplyWithID sends a text message replying to the current message and returns the sent MessageID.

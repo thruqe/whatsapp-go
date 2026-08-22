@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -131,6 +132,21 @@ func (c *PluginContext) GetArgOrDefault(index int, defaultVal string) string {
 // ReplyError sends a formatted error reply to the current chat.
 func (c *PluginContext) ReplyError(msg string) error {
 	return c.Reply("⚠️ " + msg)
+}
+
+// ReplyErrorf formats and sends an error reply to the current chat.
+func (c *PluginContext) ReplyErrorf(format string, args ...any) error {
+	return c.Reply("⚠️ " + fmt.Sprintf(format, args...))
+}
+
+// Text initializes a new TextBuilder bound to this PluginContext.
+func (c *PluginContext) Text(initial ...string) *TextBuilder {
+	return NewTextWithContext(c, initial...)
+}
+
+// NewText initializes a new TextBuilder bound to this PluginContext.
+func (c *PluginContext) NewText(initial ...string) *TextBuilder {
+	return NewTextWithContext(c, initial...)
 }
 
 // Rook returns a WARook builder engine bound to this PluginContext.

@@ -614,19 +614,18 @@ func sendVVCustomizeGuide(ctx *Context, s *StoreWrapper) error {
 		}
 	}
 
-	var sb strings.Builder
-	sb.WriteString("╭━━━〔 VIEWONCE CUSTOMIZATION GUIDE 〕━━━\n\n")
-	sb.WriteString("Choose where unwrapped ViewOnce media is sent:\n")
-	fmt.Fprintf(&sb, "• Current Chat  : `%svv dest chat`\n", p)
-	fmt.Fprintf(&sb, "• Bot Owner DM  : `%svv dest owner`\n", p)
-	fmt.Fprintf(&sb, "• Specific JID  : `%svv dest 1234567890` or `%svv dest <group_jid>`\n\n", p, p)
-
-	sb.WriteString("Examples:\n")
-	fmt.Fprintf(&sb, "1. `%svv dest chat` (Resends media in the active chat)\n", p)
-	fmt.Fprintf(&sb, "2. `%svv dest owner` (Sends unwrapped media directly to owner DM)\n", p)
-	fmt.Fprintf(&sb, "3. `%svv dest 1234567890` (Sends to specified phone number)\n\n", p)
-
-	fmt.Fprintf(&sb, "Current Destination: `%s`", dest)
-
-	return ctx.Reply(strings.TrimSpace(sb.String()))
+	return ctx.Text().
+		Header("VIEWONCE CUSTOMIZATION GUIDE").
+		Section("Choose where unwrapped ViewOnce media is sent").
+		Bulletf("Current Chat : %svv dest chat", p).
+		Bulletf("Bot Owner DM : %svv dest owner", p).
+		Bulletf("Specific JID : %svv dest 1234567890 or %svv dest <group_jid>", p, p).
+		Blank().
+		Section("Examples").
+		Numberedf(1, "%svv dest chat (Resends media in the active chat)", p).
+		Numberedf(2, "%svv dest owner (Sends unwrapped media directly to owner DM)", p).
+		Numberedf(3, "%svv dest 1234567890 (Sends to specified phone number)", p).
+		Blank().
+		Linef("Current Destination: %s", dest).
+		Reply()
 }
