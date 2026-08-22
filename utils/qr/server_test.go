@@ -1,9 +1,12 @@
 package qr
 
 import (
+	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -38,7 +41,16 @@ func TestQRServerLifecycle(t *testing.T) {
 		t.Errorf("expected non-empty HTML body")
 	}
 
-	// 2. Query QR PNG before code is set (expect 503)
+	// 2. Query 404 for invalid path
+	resp404, err := http.Get(baseURL + "/invalid")
+	if err == nil {
+		resp404.Body.Close()
+		if resp404.StatusCode != http.StatusNotFound {
+			t.Errorf("expected 404 for invalid path, got %d", resp404.StatusCode)
+		}
+	}
+
+	// 3. Query QR PNG before code is set (expect 503)
 	respPNG, err := http.Get(baseURL + "/qr.png")
 	if err != nil {
 		t.Fatalf("failed to query qr.png: %v", err)
@@ -48,8 +60,30 @@ func TestQRServerLifecycle(t *testing.T) {
 		t.Errorf("expected status 503 before code set, got %d", respPNG.StatusCode)
 	}
 
-	// 3. Set code and query QR PNG (expect 200 with image/png)
+	// 4. Test SSE connection
+	sseCtx, sseCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer sseCancel()
+
+	sseReq, _ := http.NewRequestWithContext(sseCtx, "GET", baseURL+"/events", nil)
+	sseResp, err := http.DefaultClient.Do(sseReq)
+	if err != nil {
+		t.Fatalf("failed to connect to SSE /events: %v", err)
+	}
+
+	if ct := sseResp.Header.Get("Content-Type"); !strings.Contains(ct, "text/event-stream") {
+		t.Errorf("expected text/event-stream content-type, got %q", ct)
+	}
+
+	// 5. Update code and read SSE event + QR PNG
 	srv.UpdateCode("test-qr-data-123456789")
+
+	reader := bufio.NewReader(sseResp.Body)
+	line, err := reader.ReadString('\n')
+	if err == nil && !strings.Contains(line, "data:") {
+		t.Errorf("expected SSE event line starting with data:, got %q", line)
+	}
+	_ = sseResp.Body.Close()
+
 	respPNG2, err := http.Get(baseURL + "/qr.png")
 	if err != nil {
 		t.Fatalf("failed to query qr.png after update: %v", err)
@@ -62,16 +96,16 @@ func TestQRServerLifecycle(t *testing.T) {
 		t.Errorf("expected Content-Type image/png, got %q", ct)
 	}
 
-	// 4. Mark as paired and close
+	// 6. Mark as paired and close
 	srv.SetPaired()
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 
 	if err := srv.Close(); err != nil {
 		t.Errorf("Close returned error: %v", err)
 	}
 
-	// 5. Verify server is stopped and port is released
-	time.Sleep(50 * time.Millisecond)
+	// 7. Verify server is stopped and port is released
+	time.Sleep(20 * time.Millisecond)
 	_, errPostClose := http.Get(baseURL + "/")
 	if errPostClose == nil {
 		t.Errorf("expected connection error after server close, but request succeeded")
