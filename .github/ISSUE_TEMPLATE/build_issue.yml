@@ -1,0 +1,45 @@
+name: 🏗️ Build or Compilation Issue
+description: Report a problem building WhatsRook, CGO/cross-compilation issues, or toolchain errors
+title: "[Build]: "
+labels: ["build"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please use this template if you encounter errors compiling or building WhatsRook.
+  - type: input
+    id: command
+    attributes:
+      label: Build Command
+      description: The exact command used to build (e.g. `task build`, `go build ./...`, `task test`).
+      placeholder: "task build"
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Compiler Error Output
+      description: Paste the complete build or compiler error output.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: go-version
+    attributes:
+      label: Go Version & Architecture
+      description: Output of `go version` and `go env GOOS GOARCH`
+      placeholder: "go1.24.0 linux/amd64"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Host Operating System
+      placeholder: "e.g. Ubuntu 24.04 LTS / macOS Sequoia / Windows 11"
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other details (e.g. CGO settings, custom flags, installed tools like gcc or ffmpeg).
