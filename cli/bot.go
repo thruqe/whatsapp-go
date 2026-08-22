@@ -19,6 +19,7 @@ import (
 	"whatsrook/cli/updater"
 	cliutils "whatsrook/cli/utils"
 	"whatsrook/utils"
+	"whatsrook/utils/qr"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -466,15 +467,37 @@ func (b *Bot) runQR(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	qrServer, err := qr.StartServer()
+	if err != nil {
+		slog.Warn("failed to start temporary qr server", "err", err)
+	} else {
+		defer func() {
+			_ = qrServer.Close()
+			slog.Debug("temporary qr server closed and port released", "port", qrServer.Port())
+		}()
+		slog.Info("temporary QR server started", "url", qrServer.URL())
+		if b.cfg.QRCode {
+			fmt.Printf("\n==> Open this URL in your browser to scan the QR code: %s\n\n", qrServer.URL())
+		}
+	}
+
 	for evt := range qrChan {
 		if evt.Event == "code" {
-			if b.cfg.QRCode {
-				fmt.Println("QR code:", evt.Code)
+			if qrServer != nil {
+				qrServer.UpdateCode(evt.Code)
 			}
 			b.hub.Broadcast(EventMessage{
 				Kind:    EventPairQR,
 				Payload: PairQRPayload{Code: evt.Code},
 			})
+		} else if evt.Event == "success" {
+			if qrServer != nil {
+				qrServer.SetPaired()
+				time.Sleep(1 * time.Second)
+			}
+			slog.Info("QR code pairing successful, shutting down temporary QR server")
+			return nil
 		} else {
 			slog.Debug("qr channel event", "event", evt.Event)
 		}

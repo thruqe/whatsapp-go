@@ -143,3 +143,53 @@ func TestAutoBioScheduler_Lifecycle(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	commands.StopAutoBioScheduler()
 }
+
+func TestParseCLIArgs_OverridesEnv(t *testing.T) {
+	// Set env vars
+	t.Setenv("PAIR", "true")
+	t.Setenv("QRCODE", "false")
+	t.Setenv("SESSION", "111111111111")
+	t.Setenv("CLIENT", "android")
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db")
+
+	// Case 1: -q overrides PAIR=true in env
+	args := parseCLIArgsFrom([]string{"-s", "2348060598068", "-q"})
+	if !args.QRCode {
+		t.Errorf("expected QRCode=true when -q is passed, got false")
+	}
+	if args.Pair {
+		t.Errorf("expected Pair=false when -q is passed, despite PAIR=true in env")
+	}
+	if args.Session != "2348060598068" {
+		t.Errorf("expected Session=2348060598068, got %q", args.Session)
+	}
+
+	// Case 2: -p overrides QRCODE=true in env
+	t.Setenv("PAIR", "false")
+	t.Setenv("QRCODE", "true")
+	args2 := parseCLIArgsFrom([]string{"-s", "2348060598068", "-p"})
+	if !args2.Pair {
+		t.Errorf("expected Pair=true when -p is passed, got false")
+	}
+	if args2.QRCode {
+		t.Errorf("expected QRCode=false when -p is passed, despite QRCODE=true in env")
+	}
+
+	// Case 3: -c overrides CLIENT env var
+	args3 := parseCLIArgsFrom([]string{"-c", "chrome"})
+	if args3.Client != "chrome" {
+		t.Errorf("expected Client=chrome when -c chrome passed, got %q", args3.Client)
+	}
+
+	// Case 4: -db overrides DATABASE_URL env var
+	args4 := parseCLIArgsFrom([]string{"-db", "sqlite"})
+	if args4.Database != "sqlite" {
+		t.Errorf("expected Database=sqlite when -db sqlite passed, got %q", args4.Database)
+	}
+
+	// Case 5: Positional phone argument overrides SESSION env var
+	args5 := parseCLIArgsFrom([]string{"2348099887766"})
+	if args5.Session != "2348099887766" {
+		t.Errorf("expected Session=2348099887766 from positional arg, got %q", args5.Session)
+	}
+}
