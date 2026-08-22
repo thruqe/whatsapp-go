@@ -62,11 +62,11 @@ tasks:
       - go run ./scripts/*.go proto {{.CLI_ARGS}}
 
   build:
-    desc: "Build binary executable into {{.BIN_PATH}}"
+    desc: "Build stripped, optimized binary executable into {{.BIN_PATH}}"
     cmds:
       - cmd: mkdir -p bin
         platforms: [linux, darwin, windows]
-      - cd cli && go build -v -o ../{{.BIN_PATH}} .
+      - cd cli && go build -trimpath -ldflags="-s -w -buildid=" -v -o ../{{.BIN_PATH}} .
 
   clean:
     desc: Remove build artifacts and temporary files
