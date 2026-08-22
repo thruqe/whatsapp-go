@@ -27,34 +27,28 @@ import (
 func init() {
 	Register(&Command{
 		Name:        "call",
-		Description: "Call a number, playing your saved (or next-provided) audio",
+		Alias:       "phone",
+		Description: "Call a number or open the interactive call menu",
 		Category:    "calls",
 		IsPublic:    true,
 		Handler:     handleCall,
 	})
 	Register(&Command{
-		Name:        "setcallaudio",
-		Description: "Set your default audio file to be played when calling",
+		Name:        "callaudio",
+		Alias:       "setcallaudio",
+		Description: "Call a number with audio, or set your default call audio",
 		Category:    "calls",
 		IsPublic:    true,
-		Handler:     handleSetCallAudio,
-	})
-
-	Register(&Command{
-		Name:        "videocall",
-		Description: "Call a number with video, playing your saved (or next-provided) video",
-		Category:    "calls",
-		IsPublic:    true,
-		Handler:     handleVideoCall,
+		Handler:     handleCallAudio,
 	})
 	Register(&Command{
-		Name:        "setvideocall",
-		Description: "Set your default video file to be played when video calling",
+		Name:        "callvideo",
+		Alias:       "videocall",
+		Description: "Call a number with video, or set your default call video",
 		Category:    "calls",
 		IsPublic:    true,
-		Handler:     handleSetVideoCall,
+		Handler:     handleCallVideo,
 	})
-
 	Register(&Command{
 		Name:        "anticall",
 		Description: "Configure anti-call security to automatically reject incoming WhatsApp calls",
@@ -62,13 +56,13 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleAntiCall,
 	})
-
 	Register(&Command{
-		Name:        "autoacceptcall",
-		Description: "Toggle or check automatic call answering for incoming calls",
+		Name:        "voicemail",
+		Alias:       "autoacceptcall",
+		Description: "Toggle or check automated voicemail answering for incoming calls",
 		Category:    "calls",
 		IsPublic:    true,
-		Handler:     handleAutoAcceptCallCmd,
+		Handler:     handleVoicemailCmd,
 	})
 }
 
@@ -238,13 +232,63 @@ func saveVideo(ctx *Context, sender types.JID, path string) error {
 }
 
 func handleCall(ctx *Context) error {
+	p := ctx.GetPrefix()
+	targets := ctx.GetTargets()
+	if len(targets) < 1 {
+		body := fmt.Sprintf("Call Management\n\nSelect an action below:\n- %scallaudio [number] - Audio call & media\n- %scallvideo [number] - Video call & media\n- %svoicemail [on/off] - Automated voicemail", p, p, p)
+		buttons := []struct{ ID, Text string }{
+			{ID: p + "callaudio", Text: "Call Audio"},
+			{ID: p + "callvideo", Text: "Call Video"},
+			{ID: p + "voicemail", Text: "Voicemail"},
+		}
+		return sendInteractiveButtons(ctx, body, fmt.Sprintf("%s Calls", ctx.GetBotName()), buttons)
+	}
+
+	targetJID := targets[0]
+	targetMention := "@" + targetJID.User
+	args := strings.Fields(ctx.RawArgs)
+	if len(args) > 0 {
+		sub := strings.ToLower(args[0])
+		if sub == "video" || sub == "v" {
+			return handleCallVideo(ctx)
+		}
+		if sub == "audio" || sub == "a" {
+			return handleCallAudio(ctx)
+		}
+	}
+
+	// Show choice buttons for target
+	body := fmt.Sprintf("Place Call to %s\n\nSelect call type:", targetMention)
+	buttons := []struct{ ID, Text string }{
+		{ID: fmt.Sprintf("%scallaudio %s", p, targetJID.User), Text: "Audio Call"},
+		{ID: fmt.Sprintf("%scallvideo %s", p, targetJID.User), Text: "Video Call"},
+	}
+	return sendInteractiveButtonsWithMentions(ctx, body, fmt.Sprintf("%s Calls", ctx.GetBotName()), buttons, []types.JID{targetJID})
+}
+
+func handleCallAudio(ctx *Context) error {
+	var audioMsg *waE2E.AudioMessage
+	if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil {
+		if ci := ext.GetContextInfo(); ci != nil && ci.QuotedMessage != nil {
+			audioMsg = ci.QuotedMessage.GetAudioMessage()
+		}
+	}
+
+	if audioMsg != nil {
+		return handleSetCallAudio(ctx)
+	}
+
 	targets := ctx.GetTargets()
 	if len(targets) < 1 {
 		p := ctx.GetPrefix()
-		return ctx.Reply("Usage: " + p + "call <number or reply>")
+		if path, ok := getSavedAudio(ctx, ctx.Sender); ok {
+			baseName := filepath.Base(path)
+			return ctx.Reply(fmt.Sprintf("🎙️ *Default Call Audio Set*: `%s`\n\nUsage:\n• `%scallaudio <number>` to place audio call\n• Reply to new audio with `%scallaudio` to update", baseName, p, p))
+		}
+		return ctx.Reply(fmt.Sprintf("Usage: `%scallaudio <number>`\n\nTo set your default call audio, reply to any voice note or audio file with `%scallaudio`.", p, p))
 	}
-	target := targets[0].String()
 
+	target := targets[0].String()
 	_ = ctx.Reply("⚠️ Notice: Outgoing call commands are highly unstable on WhatsApp Web protocol and very unlikely to work reliably.")
 
 	if path, ok := getSavedAudio(ctx, ctx.Sender); ok {
@@ -299,16 +343,7 @@ func handleSetCallAudio(ctx *Context) error {
 	return ctx.Reply("Default call audio set successfully.")
 }
 
-func handleVideoCall(ctx *Context) error {
-	targets := ctx.GetTargets()
-	if len(targets) < 1 {
-		p := ctx.GetPrefix()
-		return ctx.Reply("Usage: " + p + "videocall <number or reply>")
-	}
-	target := targets[0].String()
-
-	_ = ctx.Reply("⚠️ Notice: Outgoing video call commands are highly unstable on WhatsApp Web protocol and very unlikely to work reliably.")
-
+func handleCallVideo(ctx *Context) error {
 	var videoMsg *waE2E.VideoMessage
 	if msg := ctx.Evt.Message.GetVideoMessage(); msg != nil {
 		videoMsg = msg
@@ -317,6 +352,22 @@ func handleVideoCall(ctx *Context) error {
 			videoMsg = ci.QuotedMessage.GetVideoMessage()
 		}
 	}
+
+	targets := ctx.GetTargets()
+	if len(targets) < 1 {
+		if videoMsg != nil {
+			return handleSetVideoCall(ctx)
+		}
+		p := ctx.GetPrefix()
+		if path, ok := getSavedVideo(ctx, ctx.Sender); ok {
+			baseName := filepath.Base(path)
+			return ctx.Reply(fmt.Sprintf("📹 *Default Call Video Set*: `%s`\n\nUsage:\n• `%scallvideo <number>` to place video call\n• Reply to new video with `%scallvideo` to update", baseName, p, p))
+		}
+		return ctx.Reply(fmt.Sprintf("Usage: `%scallvideo <number>`\n\nTo set your default call video, reply to any video with `%scallvideo`.", p, p))
+	}
+
+	target := targets[0].String()
+	_ = ctx.Reply("⚠️ Notice: Outgoing video call commands are highly unstable on WhatsApp Web protocol and very unlikely to work reliably.")
 
 	if videoMsg != nil {
 		data, err := ctx.Client.Download(ctx.Ctx, videoMsg)
@@ -570,9 +621,9 @@ func splitCSV(s string) []string {
 	return out
 }
 
-func handleAutoAcceptCallCmd(ctx *Context) error {
+func handleVoicemailCmd(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("Only sudoers/bot owners can configure autoacceptcall.")
+		return ctx.Reply("Only sudoers/bot owners can configure voicemail.")
 	}
 
 	s, err := mediaStore(ctx)
@@ -580,6 +631,7 @@ func handleAutoAcceptCallCmd(ctx *Context) error {
 		return ctx.Reply("Storage unavailable.")
 	}
 
+	p := ctx.GetPrefix()
 	arg := ""
 	if len(ctx.Args) > 0 {
 		arg = strings.ToLower(ctx.Args[0])
@@ -588,15 +640,15 @@ func handleAutoAcceptCallCmd(ctx *Context) error {
 	switch arg {
 	case "on", "enable":
 		if err := s.PutSetting(ctx.Ctx, cliutils.AutoAcceptCallSettingKey, "on"); err != nil {
-			return ctx.Reply("Failed to enable autoacceptcall.")
+			return ctx.Reply("Failed to enable voicemail.")
 		}
-		return ctx.Reply("Auto accept call enabled! Incoming voice and video calls will be automatically answered using the media set for your `.call` and `.videocall`.")
+		return ctx.Reply("Voicemail enabled! Incoming voice and video calls will be automatically answered using your configured call media.")
 
 	case "off", "disable":
 		if err := s.PutSetting(ctx.Ctx, cliutils.AutoAcceptCallSettingKey, "off"); err != nil {
-			return ctx.Reply("Failed to disable autoacceptcall.")
+			return ctx.Reply("Failed to disable voicemail.")
 		}
-		return ctx.Reply("Auto accept call disabled.")
+		return ctx.Reply("Voicemail disabled.")
 
 	default:
 		status, _ := s.GetSetting(ctx.Ctx, cliutils.AutoAcceptCallSettingKey)
@@ -606,7 +658,6 @@ func handleAutoAcceptCallCmd(ctx *Context) error {
 		audioPath := resolveSavedCallAudio(ctx.Client, ctx.Sender)
 		videoPath := resolveSavedCallVideo(ctx.Client, ctx.Sender)
 
-		p := ctx.GetPrefix()
 		audioStatus := "Set"
 		if audioPath == "" {
 			audioStatus = "Not Set"
@@ -616,8 +667,22 @@ func handleAutoAcceptCallCmd(ctx *Context) error {
 			videoStatus = "Not Set"
 		}
 
-		bodyText := fmt.Sprintf("AutoAcceptCall Status: *%s*\n\nConfigured Call Media:\n- Call Audio: %s\n- Call Video: %s\n\nUsage:\n- `%sautoacceptcall on`\n- `%sautoacceptcall off`\n\n_AutoAcceptCall automatically answers incoming calls with the media saved via `%scall` / `%ssetcallaudio` and `%svideocall` / `%ssetvideocall`._", strings.ToUpper(status), audioStatus, videoStatus, p, p, p, p, p, p)
-		return ctx.Reply(bodyText)
+		bodyText := fmt.Sprintf("╭━━━〔 VOICEMAIL CONFIGURATION 〕━━━\n│ Status : %s\n│ Audio  : %s\n│ Video  : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically answer incoming calls with your saved call media.\n\nUsage:\n• `%svoicemail on`\n• `%svoicemail off`", strings.ToUpper(status), audioStatus, videoStatus, p, p)
+
+		var actionButton struct{ ID, Text string }
+		if status == "on" {
+			actionButton = struct{ ID, Text string }{ID: p + "voicemail off", Text: "Deactivate"}
+		} else {
+			actionButton = struct{ ID, Text string }{ID: p + "voicemail on", Text: "Activate"}
+		}
+
+		buttons := []struct{ ID, Text string }{
+			actionButton,
+			{ID: p + "callaudio", Text: "Call Audio"},
+			{ID: p + "callvideo", Text: "Call Video"},
+		}
+
+		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s Voicemail", ctx.GetBotName()), buttons)
 	}
 }
 

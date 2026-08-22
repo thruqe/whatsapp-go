@@ -27,8 +27,8 @@ import (
 
 func init() {
 	Register(&Command{
-		Name:        "savecontact",
-		Alias:       "savec",
+		Name:        "contact",
+		Alias:       "savecontact",
 		Description: "Save a user to your WhatsApp contact list via AppState sync and send a native vCard",
 		Category:    "tools",
 		IsPublic:    true,
@@ -42,8 +42,8 @@ func init() {
 		Handler:     handleFont,
 	})
 	Register(&Command{
-		Name:        "fontlist",
-		Alias:       "fonts",
+		Name:        "fonts",
+		Alias:       "fontlist",
 		Description: "List all available font numbers and preview styles",
 		Category:    "tools",
 		IsPublic:    true,
@@ -74,8 +74,8 @@ func init() {
 		Handler:     handleTTS,
 	})
 	Register(&Command{
-		Name:        "userinfo",
-		Alias:       "whois",
+		Name:        "whois",
+		Alias:       "userinfo",
 		Description: "Display detailed profile information and profile photo of a WhatsApp user",
 		Category:    "tools",
 		IsPublic:    true,

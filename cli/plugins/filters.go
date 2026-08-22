@@ -31,29 +31,33 @@ func init() {
 		Handler:     handleMention,
 	})
 	Register(&Command{
-		Name:        "addfilter",
-		Description: "Add an auto-response filter for a trigger word. Usage: addfilter [word] [response text] (or reply to a message)",
+		Name:        "filteradd",
+		Alias:       "addfilter",
+		Description: "Add an auto-response filter for a trigger word. Usage: filteradd [word] [response text] (or reply to a message)",
 		Category:    "filters",
 		IsPublic:    true,
 		Handler:     handleAddFilter,
 	})
 	Register(&Command{
-		Name:        "getfilter",
-		Description: "Get the auto-response message for a trigger word. Usage: getfilter [word]",
+		Name:        "filterget",
+		Alias:       "getfilter",
+		Description: "Get the auto-response message for a trigger word. Usage: filterget [word]",
 		Category:    "filters",
 		IsPublic:    true,
 		Handler:     handleGetFilter,
 	})
 	Register(&Command{
-		Name:        "listfilters",
-		Description: "List all active auto-response filters. Usage: listfilters",
+		Name:        "filters",
+		Alias:       "listfilters",
+		Description: "List all active auto-response filters. Usage: filters",
 		Category:    "filters",
 		IsPublic:    true,
 		Handler:     handleListFilters,
 	})
 	Register(&Command{
-		Name:        "delfilter",
-		Description: "Remove an auto-response filter. Usage: delfilter [word]",
+		Name:        "filterdel",
+		Alias:       "delfilter",
+		Description: "Remove an auto-response filter. Usage: filterdel [word]",
 		Category:    "filters",
 		IsPublic:    true,
 		Handler:     handleDelFilter,
