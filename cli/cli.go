@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -25,13 +26,18 @@ type CLIArgs struct {
 
 func parseCLIArgs() CLIArgs {
 	loadDotEnv(".env", "../.env")
-	fs := flag.NewFlagSet("whatsrook", flag.ExitOnError)
+	return parseCLIArgsFrom(os.Args[1:])
+}
+
+func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
+	fs := flag.NewFlagSet("whatsrook", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
 
 	defaultPort := getEnvInt("PORT", getEnvInt("WS_PORT", 3000))
 	var (
-		session  = fs.String("s", os.Getenv("SESSION"), "")
+		session  = fs.String("s", "", "")
 		pair     = fs.Bool("p", false, "")
-		client   = fs.String("c", "chrome", "")
+		client   = fs.String("c", "", "")
 		database = fs.String("db", "", "")
 		port     = fs.Int("P", defaultPort, "")
 		qr       = fs.Bool("q", false, "")
@@ -41,15 +47,15 @@ func parseCLIArgs() CLIArgs {
 		noSkip   = fs.Bool("no-skip-old", false, "")
 	)
 
-	fs.StringVar(session, "session", *session, "")
-	fs.BoolVar(pair, "pair", *pair, "")
-	fs.StringVar(client, "client", *client, "")
-	fs.StringVar(database, "database", *database, "")
-	fs.IntVar(port, "port", *port, "")
-	fs.BoolVar(qr, "qrcode", *qr, "")
-	fs.BoolVar(logout, "logout", *logout, "")
-	fs.BoolVar(update, "update", *update, "")
-	fs.BoolVar(verbose, "verbose", *verbose, "")
+	fs.StringVar(session, "session", "", "")
+	fs.BoolVar(pair, "pair", false, "")
+	fs.StringVar(client, "client", "", "")
+	fs.StringVar(database, "database", "", "")
+	fs.IntVar(port, "port", defaultPort, "")
+	fs.BoolVar(qr, "qrcode", false, "")
+	fs.BoolVar(logout, "logout", false, "")
+	fs.BoolVar(update, "update", false, "")
+	fs.BoolVar(verbose, "verbose", false, "")
 
 	fs.Usage = func() {
 		fmt.Print(`Usage: whatsrook [-session <phone_number>] [OPTIONS]
@@ -72,19 +78,30 @@ Options:
 `)
 	}
 
-	_ = fs.Parse(os.Args[1:])
+	_ = fs.Parse(cmdArgs)
 
-	sessionVal := *session
+	// Record which flags were explicitly set via command-line arguments
+	explicitFlags := make(map[string]bool)
+	fs.Visit(func(f *flag.Flag) {
+		explicitFlags[f.Name] = true
+	})
+
+	// 1. Session resolution (CLI flag > Positional arg > SESSION env var)
+	sessionVal := ""
+	if explicitFlags["s"] || explicitFlags["session"] {
+		sessionVal = *session
+	}
+
 	var updateChannel string
 	if fs.NArg() > 0 {
 		for _, arg := range fs.Args() {
 			lower := strings.ToLower(strings.TrimSpace(arg))
 			// Capture an explicit channel switch alongside -u/--update.
-			if *update && (lower == "stable" || lower == "beta") {
+			if (explicitFlags["u"] || explicitFlags["update"]) && (lower == "stable" || lower == "beta") {
 				updateChannel = lower
 				continue
 			}
-			// Existing phone-number positional arg detection.
+			// Positional phone number detection
 			if sessionVal == "" {
 				cleanArg := strings.TrimPrefix(arg, "+")
 				if len(cleanArg) >= 7 && len(cleanArg) <= 15 {
@@ -102,15 +119,49 @@ Options:
 			}
 		}
 	}
-
-	clientVal := *client
-	if clientVal == "chrome" && os.Getenv("CLIENT") != "" {
-		clientVal = os.Getenv("CLIENT")
+	if sessionVal == "" {
+		sessionVal = os.Getenv("SESSION")
 	}
 
-	dbVal := *database
-	if dbVal == "" {
-		if envDB := os.Getenv("DATABASE_URL"); envDB != "" {
+	// 2. Pair vs QRCode resolution (CLI flags strictly override env vars)
+	isQRFlag := explicitFlags["q"] || explicitFlags["qrcode"]
+	isPairFlag := explicitFlags["p"] || explicitFlags["pair"]
+
+	var pairVal bool
+	var qrVal bool
+
+	if isQRFlag {
+		qrVal = *qr
+		pairVal = false // Explicit -q forces QR mode and cancels any PAIR in env
+	} else if isPairFlag {
+		pairVal = *pair
+		qrVal = false // Explicit -p forces Pair mode and cancels any QRCODE in env
+	} else {
+		// Fallback to environment variables if neither flag was specified
+		qrVal = getEnvBool("QRCODE")
+		pairVal = getEnvBool("PAIR")
+		if qrVal && pairVal {
+			pairVal = false // Default to QR if both were set in env
+		}
+	}
+
+	// 3. Client identity resolution (CLI flag > CLIENT env var > default "chrome")
+	clientVal := "chrome"
+	if explicitFlags["c"] || explicitFlags["client"] {
+		clientVal = *client
+	} else if envClient := os.Getenv("CLIENT"); envClient != "" {
+		clientVal = envClient
+	}
+
+	// 4. Database URL resolution (CLI flag > DATABASE_URL_<phone> > DATABASE_URL/POSTGRES_URL/DB_URL > "sqlite")
+	var dbVal string
+	if explicitFlags["db"] || explicitFlags["database"] {
+		dbVal = *database
+	} else {
+		phone := strings.TrimPrefix(sessionVal, "+")
+		if phone != "" && os.Getenv("DATABASE_URL_"+phone) != "" {
+			dbVal = os.Getenv("DATABASE_URL_" + phone)
+		} else if envDB := os.Getenv("DATABASE_URL"); envDB != "" {
 			dbVal = envDB
 		} else if envPG := os.Getenv("POSTGRES_URL"); envPG != "" {
 			dbVal = envPG
@@ -121,18 +172,47 @@ Options:
 		}
 	}
 
+	// 5. Port resolution (CLI flag > PORT / WS_PORT env var > 3000)
+	portVal := defaultPort
+	if explicitFlags["P"] || explicitFlags["port"] {
+		portVal = *port
+	}
+
+	// 6. Other boolean flags (CLI flag > env var)
+	logoutVal := *logout
+	if !explicitFlags["l"] && !explicitFlags["logout"] {
+		logoutVal = getEnvBool("LOGOUT")
+	}
+
+	updateVal := *update
+	if !explicitFlags["u"] && !explicitFlags["update"] {
+		updateVal = getEnvBool("UPDATE")
+	}
+
+	verboseVal := *verbose
+	if !explicitFlags["v"] && !explicitFlags["verbose"] {
+		verboseVal = getEnvBool("VERBOSE")
+	}
+
+	skipOldVal := true
+	if explicitFlags["no-skip-old"] {
+		skipOldVal = !*noSkip
+	} else if envSkip := os.Getenv("SKIP_OLD_MESSAGES"); envSkip != "" {
+		skipOldVal = getEnvBool("SKIP_OLD_MESSAGES")
+	}
+
 	return CLIArgs{
 		Session:         sessionVal,
-		Pair:            *pair || getEnvBool("PAIR"),
-		QRCode:          *qr || getEnvBool("QRCODE"),
-		Logout:          *logout || getEnvBool("LOGOUT"),
-		Update:          *update || getEnvBool("UPDATE"),
+		Pair:            pairVal,
+		QRCode:          qrVal,
+		Logout:          logoutVal,
+		Update:          updateVal,
 		UpdateChannel:   updateChannel,
-		Verbose:         *verbose || getEnvBool("VERBOSE"),
+		Verbose:         verboseVal,
 		Client:          clientVal,
 		Database:        dbVal,
-		SkipOldMessages: !*noSkip,
-		Port:            *port,
+		SkipOldMessages: skipOldVal,
+		Port:            portVal,
 	}
 }
 
