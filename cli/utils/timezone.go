@@ -1,8 +1,6 @@
 package cliutils
 
 import (
-	"embed"
-	"encoding/json"
 	"strings"
 	"sync"
 )
@@ -17,24 +15,12 @@ type WindowsTZEntry struct {
 }
 
 var (
-	tzEntries    []WindowsTZEntry
 	tzLoadOnce   sync.Once
 	tzAliasIndex map[string]string // lowercased alias -> canonical IANA name
 )
 
-//go:embed resources/timezones/timezones.json
-var timezoneFS embed.FS
-
 func loadTimezoneAliases() {
 	tzLoadOnce.Do(func() {
-		data, err := timezoneFS.ReadFile("resources/timezones/timezones.json")
-		if err != nil {
-			return
-		}
-		if err := json.Unmarshal(data, &tzEntries); err != nil {
-			return
-		}
-
 		tzAliasIndex = make(map[string]string)
 		for _, e := range tzEntries {
 			if len(e.UTC) == 0 {
