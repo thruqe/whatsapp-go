@@ -957,30 +957,29 @@ func handleGStats(ctx *Context) error {
 	}
 	defer rows.Close()
 
-	var mentions []types.JID
-	var sb strings.Builder
-	sb.WriteString(" *Group Activity Statistics (from message secrets)*\n\n")
-	sb.WriteString(fmt.Sprintf("• Total messages tracked: %d\n", totalMsgs))
-	sb.WriteString(fmt.Sprintf("• Unique active senders: %d\n\n", activeUsers))
-	sb.WriteString(" *Top Active Participants:*\n")
+	tb := ctx.Text().
+		Header("Group Activity Statistics").
+		Fieldf("Total messages tracked", "%d", totalMsgs).
+		Fieldf("Unique active senders", "%d", activeUsers).
+		Blank().
+		Section("Top Active Participants")
 
 	rank := 1
 	for rows.Next() {
 		var userStr string
 		var count int
 		if err := rows.Scan(&userStr, &count); err == nil {
-			uj, err := types.ParseJID(userStr)
-			if err == nil {
+			if uj, err := types.ParseJID(userStr); err == nil {
 				uj = uj.ToNonAD()
 				resolvedJID, username := ctx.ResolveMention(uj)
-				fmt.Fprintf(&sb, "%d. @%s (%d msgs)\n", rank, username, count)
-				mentions = append(mentions, resolvedJID)
+				tb.Numbered(rank, fmt.Sprintf("@%s (%d msgs)", username, count)).
+					Mentions(resolvedJID)
 				rank++
 			}
 		}
 	}
 
-	return ctx.ReplyWithMentions(sb.String(), mentions)
+	return tb.Reply()
 }
 
 func handlePoll(ctx *Context) error {
@@ -1264,13 +1263,15 @@ func handleListOnline(ctx *Context) error {
 		return ctx.Reply("No online participants detected in this group.")
 	}
 
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Online Participants (%d):\n\n", len(onlineJIDs)))
+	tb := ctx.Text().
+		Header(fmt.Sprintf("Online Participants (%d)", len(onlineJIDs))).
+		Mentions(onlineJIDs...)
+
 	for _, name := range displayNames {
-		fmt.Fprintf(&sb, "- %s\n", name)
+		tb.Bullet(name)
 	}
 
-	return ctx.ReplyWithMentions(sb.String(), onlineJIDs)
+	return tb.Reply()
 }
 
 func handleKickAll(ctx *Context) error {
@@ -1336,8 +1337,7 @@ func handleCommunity(ctx *Context) error {
 		return ctx.Reply("Failed to fetch joined groups or no groups joined.")
 	}
 
-	var sb strings.Builder
-	sb.WriteString("╭━━━〔 GROUPS & COMMUNITIES 〕━━━\n│\n")
+	tb := ctx.Text().Header("GROUPS & COMMUNITIES")
 
 	for i, g := range groups {
 		groupName := g.Name
@@ -1361,11 +1361,13 @@ func handleCommunity(ctx *Context) error {
 			link = "https://chat.whatsapp.com/" + code
 		}
 
-		fmt.Fprintf(&sb, "│ %d. %s [%s]\n│    Members: %d\n│    Link: %s\n│\n", i+1, groupName, typeTag, memberCount, link)
+		tb.Numbered(i+1, fmt.Sprintf("%s [%s]", Bold(groupName), typeTag)).
+			Indent(3, fmt.Sprintf("Members: %d", memberCount)).NewLine().
+			Indent(3, fmt.Sprintf("Link: %s", link)).NewLine().
+			Blank()
 	}
 
-	sb.WriteString("╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	return ctx.Reply(strings.TrimSpace(sb.String()))
+	return tb.Reply()
 }
 
 func handleChannels(ctx *Context) error {
@@ -1374,8 +1376,8 @@ func handleChannels(ctx *Context) error {
 		return ctx.Reply("No subscribed channels/newsletters found.")
 	}
 
-	var sb strings.Builder
-	sb.WriteString("╭━━━〔 SUBSCRIBED CHANNELS 〕━━━\n│\n")
+	tb := ctx.Text().Header("SUBSCRIBED CHANNELS")
+
 	for i, n := range newsletters {
 		name := n.ThreadMeta.Name.Text
 		if name == "" {
@@ -1390,10 +1392,14 @@ func handleChannels(ctx *Context) error {
 		if n.ThreadMeta.InviteCode != "" {
 			link = "https://whatsapp.com/channel/" + n.ThreadMeta.InviteCode
 		}
-		fmt.Fprintf(&sb, "│ %d. %s\n│    Role: %s | Followers: %d\n│    Link: %s\n│\n", i+1, name, role, subs, link)
+
+		tb.Numbered(i+1, Bold(name)).
+			Indent(3, fmt.Sprintf("Role: %s | Followers: %d", role, subs)).NewLine().
+			Indent(3, fmt.Sprintf("Link: %s", link)).NewLine().
+			Blank()
 	}
-	sb.WriteString("╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	return ctx.Reply(strings.TrimSpace(sb.String()))
+
+	return tb.Reply()
 }
 
 func handleLeave(ctx *Context) error {

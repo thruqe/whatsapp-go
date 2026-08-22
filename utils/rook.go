@@ -36,6 +36,11 @@ func (r *WARook) NewMessage(text string) *MessageBuilder {
 	return &MessageBuilder{rook: r, text: text}
 }
 
+// NewText creates a TextBuilder bound to the current context.
+func (r *WARook) NewText(initial ...string) *TextBuilder {
+	return NewTextWithContext(r.ctx, initial...)
+}
+
 // NewList creates a ListBuilder with the given body and button-open label.
 func (r *WARook) NewList(body, buttonText string) *ListBuilder {
 	return &ListBuilder{rook: r, body: body, buttonText: buttonText}

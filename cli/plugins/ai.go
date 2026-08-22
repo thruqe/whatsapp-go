@@ -221,16 +221,18 @@ func renderCSAIPage(ctx *Context, s *StoreWrapper, page int) error {
 	pageItems := cliutils.DefaultCSAITraits[startIdx:endIdx]
 	p := ctx.GetPrefix()
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Custom AI Personality & Trait Configuration (Page %d of %d)\n\n", page, totalPages)
-	fmt.Fprintf(&sb, "Active AI Trait/Prompt: %s\n\n", currentPrompt)
-	sb.WriteString("Select a personality trait for Meta AI below:\n\n")
+	tb := ctx.Text().
+		Header(fmt.Sprintf("Custom AI Personality & Trait Configuration (Page %d of %d)", page, totalPages)).
+		Field("Active AI Trait/Prompt", currentPrompt).
+		Blank().
+		Line("Select a personality trait for Meta AI below:").
+		Blank()
 
 	for idx, trait := range pageItems {
 		globalIdx := startIdx + idx + 1
-		fmt.Fprintf(&sb, "%d. %s: %s\n", globalIdx, trait.Name, trait.Instruction)
+		tb.Numbered(globalIdx, fmt.Sprintf("%s: %s", Bold(trait.Name), trait.Instruction))
 	}
-	sb.WriteString("11. Custom Trait / How You Refer To Me: Enter your own custom prompt.\n")
+	tb.Numbered(11, "Custom Trait / How You Refer To Me: Enter your own custom prompt.")
 
 	var buttons []struct{ ID, Text string }
 	for idx, trait := range pageItems {
@@ -258,12 +260,13 @@ func renderCSAIPage(ctx *Context, s *StoreWrapper, page int) error {
 		})
 	}
 
-	sb.WriteString("\nTo select a personality, tap a button above or type:\n")
-	fmt.Fprintf(&sb, "- `%scsai <number>` (e.g. `%scsai 3`)\n", p, p)
-	fmt.Fprintf(&sb, "- `%scsai custom <prompt>` (e.g. `%scsai custom Refer to me as Sir`)\n", p, p)
-	fmt.Fprintf(&sb, "- `%scsai reset` (to restore default AI behavior)", p)
+	tb.Blank().
+		Line("To select a personality, tap a button above or type:").
+		Bulletf("%scsai <number> (e.g. %scsai 3)", p, p).
+		Bulletf("%scsai custom <prompt> (e.g. %scsai custom Refer to me as Sir)", p, p).
+		Bulletf("%scsai reset (to restore default AI behavior)", p)
 
-	return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+	return sendInteractiveButtons(ctx, tb.Trimmed(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }
 
 func isMediaGenerationPrompt(prompt string) bool {

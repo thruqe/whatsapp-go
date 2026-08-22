@@ -427,38 +427,37 @@ func replyWithAliveAudioCard(ctx *Context, data []byte, bodyText, ownerName stri
 
 func sendAliveCustomizeGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
-	var sb strings.Builder
-	sb.WriteString("╭━━━〔 ALIVE CUSTOMIZATION GUIDE 〕━━━\n\n")
-	sb.WriteString("Usage:\n")
-	fmt.Fprintf(&sb, "• Check Alive Status : `%salive`\n", p)
-	fmt.Fprintf(&sb, "• Custom Message     : `%salive msg <your custom template>` or `%salive <template>`\n", p, p)
-	fmt.Fprintf(&sb, "• Reply with Media   : Reply to an image, video, or audio message with `%salive` to set it as your alive media!\n", p)
-	fmt.Fprintf(&sb, "  - Image/Video      : Sent with your custom text template as the caption.\n")
-	fmt.Fprintf(&sb, "  - Audio            : Sent as an audio voice note with a music card (context info).\n")
-	fmt.Fprintf(&sb, "• Custom Media URL   : `%salive media <url | clear>`\n", p)
-	fmt.Fprintf(&sb, "• Reset Template     : `%salive msg reset`\n\n", p)
-
-	sb.WriteString("Available Placeholders:\n")
-	sb.WriteString("- `@user` / `{user}`     : Sender mention tag\n")
-	sb.WriteString("- `@name` / `{name}`     : Sender pushname\n")
-	sb.WriteString("- `@uptime` / `{uptime}` : Active system uptime\n")
-	sb.WriteString("- `@bot` / `{bot}`       : Bot display name\n")
-	sb.WriteString("- `@owner` / `{owner}`   : Bot owner user ID\n")
-	sb.WriteString("- `@latency` / `{latency}`: Response latency\n")
-	sb.WriteString("- `@ram` / `{ram}`       : Allocated RAM usage\n")
-	sb.WriteString("- `@goroutines` / `{goroutines}`: Active Go routines\n")
-	sb.WriteString("- `@version` / `{version}` : Engine version\n")
-	sb.WriteString("- `@prefix` / `{prefix}` : Active command prefix\n")
-	sb.WriteString("- `@fact` / `{fact}`     : Random fact from API\n")
-	sb.WriteString("- `@quote` / `{quote}`   : Random quote from API\n")
-	sb.WriteString("- `@joke` / `{joke}`     : Random joke from API\n")
-	sb.WriteString("- `@rizz` / `{rizz}`     : Random rizz from API\n\n")
-
-	sb.WriteString("Example Custom Templates:\n")
-	fmt.Fprintf(&sb, "`%salive msg Hello @name! @bot is active. Uptime: @uptime`\n", p)
-	fmt.Fprintf(&sb, "`%salive @user I am alive @uptime`\n", p)
-
-	return ctx.Reply(strings.TrimSpace(sb.String()))
+	return ctx.Text().
+		Header("ALIVE CUSTOMIZATION GUIDE").
+		Section("Usage").
+		Bulletf("Check Alive Status : %salive", p).
+		Bulletf("Custom Message     : %salive msg <your custom template> or %salive <template>", p, p).
+		Bulletf("Reply with Media   : Reply to an image, video, or audio message with %salive to set it as your alive media!", p).
+		Indent(4, "- Image/Video : Sent with your custom text template as the caption.").NewLine().
+		Indent(4, "- Audio       : Sent as an audio voice note with a music card (context info).").NewLine().
+		Bulletf("Custom Media URL   : %salive media <url | clear>", p).
+		Bulletf("Reset Template     : %salive msg reset", p).
+		Blank().
+		Section("Available Placeholders").
+		Bullet("@user / {user}     : Sender mention tag").
+		Bullet("@name / {name}     : Sender pushname").
+		Bullet("@uptime / {uptime} : Active system uptime").
+		Bullet("@bot / {bot}       : Bot display name").
+		Bullet("@owner / {owner}   : Bot owner user ID").
+		Bullet("@latency / {latency}: Response latency").
+		Bullet("@ram / {ram}       : Allocated RAM usage").
+		Bullet("@goroutines / {goroutines}: Active Go routines").
+		Bullet("@version / {version} : Engine version").
+		Bullet("@prefix / {prefix} : Active command prefix").
+		Bullet("@fact / {fact}     : Random fact from API").
+		Bullet("@quote / {quote}   : Random quote from API").
+		Bullet("@joke / {joke}     : Random joke from API").
+		Bullet("@rizz / {rizz}     : Random rizz from API").
+		Blank().
+		Section("Example Custom Templates").
+		Linef("%salive msg Hello @name! @bot is active. Uptime: @uptime", p).
+		Linef("%salive @user I am alive @uptime", p).
+		Reply()
 }
 
 func handleCPU(ctx *Context) error {
@@ -471,14 +470,13 @@ func handleCPU(ctx *Context) error {
 		usageStr = fmt.Sprintf("%.2f%%", u)
 	}
 
-	res := fmt.Sprintf("CPU Information\n\n"+
-		"• Model: %s\n"+
-		"• Cores/Threads: %d\n"+
-		"• Load Average: %s\n"+
-		"• Current Usage: %s",
-		model, cores, loadAvg, usageStr)
-
-	return ctx.Reply(res)
+	return ctx.Text().
+		Header("CPU Information").
+		Field("Model", model).
+		Fieldf("Cores/Threads", "%d", cores).
+		Field("Load Average", loadAvg).
+		Field("Current Usage", usageStr).
+		Reply()
 }
 
 func handleMemory(ctx *Context) error {
@@ -487,30 +485,24 @@ func handleMemory(ctx *Context) error {
 	procAlloc := float64(m.Alloc) / 1024 / 1024
 	procSys := float64(m.Sys) / 1024 / 1024
 
-	sysMem, err := cliutils.GetSystemMemory()
-	var sysInfo string
-	if err != nil {
-		sysInfo = fmt.Sprintf("• System Memory: Error reading (%v)\n", err)
+	tb := ctx.Text().Header("Memory Information")
+	if sysMem, err := cliutils.GetSystemMemory(); err != nil {
+		tb.Bulletf("System Memory: Error reading (%v)", err)
 	} else {
 		totalGB := float64(sysMem.Total) / 1024 / 1024
 		availableGB := float64(sysMem.Available) / 1024 / 1024
 		usedGB := totalGB - availableGB
 		percent := (usedGB / totalGB) * 100
 
-		sysInfo = fmt.Sprintf(
-			"• Total System Memory: %.2f GB\n"+
-				"• Used System Memory: %.2f GB (%.1f%%)\n"+
-				"• Available System Memory: %.2f GB\n",
-			totalGB, usedGB, percent, availableGB)
+		tb.Fieldf("Total System Memory", "%.2f GB", totalGB).
+			Fieldf("Used System Memory", "%.2f GB (%.1f%%)", usedGB, percent).
+			Fieldf("Available System Memory", "%.2f GB", availableGB)
 	}
 
-	res := fmt.Sprintf("Memory Information\n\n"+
-		"%s"+
-		"• Process Allocated: %.2f MB\n"+
-		"• Process System Reserved: %.2f MB",
-		sysInfo, procAlloc, procSys)
-
-	return ctx.Reply(res)
+	return tb.
+		Fieldf("Process Allocated", "%.2f MB", procAlloc).
+		Fieldf("Process System Reserved", "%.2f MB", procSys).
+		Reply()
 }
 
 func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
@@ -538,9 +530,9 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 	fakeCtx := &Context{
 		Ctx:    ctx,
 		Client: client,
+		Evt:    evt,
 		Chat:   evt.Info.Chat,
 		Sender: evt.Info.Sender,
-		Evt:    evt,
 	}
 
 	var prefixes []string
@@ -668,37 +660,27 @@ func handleMenu(ctx *Context) error {
 		}
 	}
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "╭━━━〔 %s 〕━━━\n", toFancy(ctx.GetBotName()))
-	fmt.Fprintf(&sb, "│╭──────────────\n")
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("User    : %s", user)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Os      : %s", platform)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mem     : %s", utils.FormatBytes(usedRAM))))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Plugins : %d", displayedCount)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mode    : %s", botMode)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Uptime  : %s", uptime)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Version : %s", updater.GetAppVersion())))
-	fmt.Fprintf(&sb, "│╰──────────────\n")
-	fmt.Fprintf(&sb, "╰━━━━━━━━━━━━━━━\n")
+	tb := ctx.Text().
+		Header(toFancy(ctx.GetBotName())).
+		Field("User", toFancy(user)).
+		Field("OS", toFancy(platform)).
+		Field("Mem", toFancy(utils.FormatBytes(usedRAM))).
+		Field("Plugins", toFancy(fmt.Sprintf("%d", displayedCount))).
+		Field("Mode", toFancy(botMode)).
+		Field("Uptime", toFancy(uptime)).
+		Field("Version", toFancy(updater.GetAppVersion())).
+		Blank()
 
 	for _, cat := range categoryOrder {
 		cmds := categories[cat]
-		catLabel := "*〔 " + toFancy(strings.ToUpper(cat)) + " 〕*"
-
-		fmt.Fprintf(&sb, "╭─────────────\n")
-		fmt.Fprintf(&sb, "│ %s\n", catLabel)
-		fmt.Fprintf(&sb, "╰┬────────────\n")
-		fmt.Fprintf(&sb, "┌┤\n")
-
+		tb.Section(toFancy(strings.ToUpper(cat)))
 		for _, e := range cmds {
-			fmt.Fprintf(&sb, "││◦ %s\n", toFancy(e.name))
+			tb.Bullet(toFancy(e.name))
 		}
-
-		fmt.Fprintf(&sb, "│╰────────────\n")
-		fmt.Fprintf(&sb, "╰─────────────\n\n")
+		tb.Blank()
 	}
 
-	menuText := strings.TrimRight(sb.String(), "\n")
+	menuText := tb.Trimmed()
 
 	authDir := GetSessionAuthDir(ctx.Client)
 	videoPath := filepath.Join(authDir, "custom_menu_thumbnail.mp4")

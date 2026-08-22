@@ -270,30 +270,29 @@ func setAFKStatus(ctx *Context, s *StoreWrapper, reason string) error {
 
 func sendAFKCustomizeGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
-	var sb strings.Builder
-	sb.WriteString("[ AFK CUSTOMIZATION GUIDE ]\n\n")
-	sb.WriteString("Usage:\n")
-	fmt.Fprintf(&sb, "* Activate AFK       : `%safk <reason>`\n", p)
-	fmt.Fprintf(&sb, "* Deactivate AFK     : `%safk off` or `%safk back`\n", p, p)
-	fmt.Fprintf(&sb, "* Custom Message     : `%safk msg <your custom template>`\n", p)
-	fmt.Fprintf(&sb, "* Custom Media URL   : `%safk media <url | clear>`\n", p)
-	fmt.Fprintf(&sb, "* Reset Template     : `%safk msg reset`\n\n", p)
-
-	sb.WriteString("Available Placeholders & Tags:\n")
-	sb.WriteString("- {reason} or @reason         : Reason for being AFK\n")
-	sb.WriteString("- {time} or @time             : Time AFK mode was set\n")
-	sb.WriteString("- {last_available} or @time   : Owner's last available active timestamp\n")
-	sb.WriteString("- {fact} or @fact             : Random interesting fact\n")
-	sb.WriteString("- {quote} or @quote           : Random inspirational quote\n")
-	sb.WriteString("- {joke} or @joke             : Random funny joke\n")
-	sb.WriteString("- {rizz} or @rizz             : Random smooth pickup line / rizz\n")
-	sb.WriteString("- {user} or @user             : Mention sender tag (@username)\n")
-	sb.WriteString("- {group} or @group           : Group name (if in group)\n\n")
-
-	sb.WriteString("Example Custom Template:\n")
-	fmt.Fprintf(&sb, "`%safk msg Hello {user}! Owner has been AFK since {time} (Last active: {last_available}). Reason: {reason}. Here is a joke for you: {joke}`\n", p)
-
-	return ctx.Reply(strings.TrimSpace(sb.String()))
+	return ctx.Text().
+		Header("AFK CUSTOMIZATION GUIDE").
+		Section("Usage").
+		Bulletf("Activate AFK   : %safk <reason>", p).
+		Bulletf("Deactivate AFK : %safk off or %safk back", p, p).
+		Bulletf("Custom Message : %safk msg <your custom template>", p).
+		Bulletf("Custom Media   : %safk media <url | clear>", p).
+		Bulletf("Reset Template : %safk msg reset", p).
+		Blank().
+		Section("Available Placeholders & Tags").
+		Bullet("{reason} / @reason : Reason for being AFK").
+		Bullet("{time} / @time : Time AFK mode was set").
+		Bullet("{last_available} / @last_available : Owner's last available active timestamp").
+		Bullet("{fact} / @fact : Random interesting fact").
+		Bullet("{quote} / @quote : Random inspirational quote").
+		Bullet("{joke} / @joke : Random funny joke").
+		Bullet("{rizz} / @rizz : Random smooth pickup line / rizz").
+		Bullet("{user} / @user : Mention sender tag (@username)").
+		Bullet("{group} / @group : Group name (if in group)").
+		Blank().
+		Section("Example Custom Template").
+		Linef("%safk msg Hello {user}! Owner has been AFK since {time} (Last active: {last_available}). Reason: {reason}. Here is a joke for you: {joke}", p).
+		Reply()
 }
 
 func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *events.Message, text string) bool {
@@ -620,20 +619,20 @@ func sendAutoBioCustomizeGuide(ctx *Context, s *StoreWrapper) error {
 	tzStr := getAutoBioTimezone(ctx.Ctx, s)
 	previewBio := generateBioText(tzStr)
 
-	var sb strings.Builder
-	sb.WriteString("╭━━━〔 AUTOBIO CUSTOMIZATION GUIDE 〕━━━\n\n")
-	sb.WriteString("Available Customizations:\n")
-	fmt.Fprintf(&sb, "• Set Timezone : `%sautobio tz <IANA Timezone>`\n", p)
-	fmt.Fprintf(&sb, "• Force Update : `%sautobio now`\n\n", p)
-
-	sb.WriteString("Examples:\n")
-	fmt.Fprintf(&sb, "1. `%sautobio tz Africa/Lagos`\n", p)
-	fmt.Fprintf(&sb, "2. `%sautobio tz America/New_York`\n", p)
-	fmt.Fprintf(&sb, "3. `%sautobio now` (Force status bio refresh right now)\n\n", p)
-
-	fmt.Fprintf(&sb, "Current Live Bio Preview:\n\"%s\"", previewBio)
-
-	return ctx.Reply(strings.TrimSpace(sb.String()))
+	return ctx.Text().
+		Header("AUTOBIO CUSTOMIZATION GUIDE").
+		Section("Available Customizations").
+		Bulletf("Set Timezone : %sautobio tz <IANA Timezone>", p).
+		Bulletf("Force Update : %sautobio now", p).
+		Blank().
+		Section("Examples").
+		Numberedf(1, "%sautobio tz Africa/Lagos", p).
+		Numberedf(2, "%sautobio tz America/New_York", p).
+		Numberedf(3, "%sautobio now (Force status bio refresh right now)", p).
+		Blank().
+		Section("Current Live Bio Preview").
+		Linef("%q", previewBio).
+		Reply()
 }
 
 func getAutoBioTimezone(ctx context.Context, s *StoreWrapper) string {
@@ -779,10 +778,12 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 	pageItems := cliutils.SupportedTimezones[startIdx:endIdx]
 	p := ctx.GetPrefix()
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Timezone Configuration (Page %d of %d, Total: %d)\n\n", page, totalPages, len(cliutils.SupportedTimezones))
-	fmt.Fprintf(&sb, "Current Timezone: %s\n\n", currentTZ)
-	sb.WriteString("Select your local timezone below so automute & autounmute execute at your exact local time:\n\n")
+	tb := ctx.Text().
+		Header(fmt.Sprintf("Timezone Configuration (Page %d of %d, Total: %d)", page, totalPages, len(cliutils.SupportedTimezones))).
+		Field("Current Timezone", currentTZ).
+		Blank().
+		Line("Select your local timezone below so automute & autounmute execute at your exact local time:").
+		Blank()
 
 	for idx, tz := range pageItems {
 		globalIdx := startIdx + idx + 1
@@ -798,7 +799,7 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 			}
 			offsetStr = fmt.Sprintf(" (UTC%+03d:%02d)", hours, mins)
 		}
-		fmt.Fprintf(&sb, "%d. *%s*%s\n", globalIdx, tz, offsetStr)
+		tb.Numbered(globalIdx, Bold(tz)+offsetStr)
 	}
 
 	var buttons []struct{ ID, Text string }
@@ -827,10 +828,11 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 		})
 	}
 
-	sb.WriteString("\nTap a button above to select your timezone, or type:\n")
-	fmt.Fprintf(&sb, "`%stimezone <Name>` (e.g. `%stimezone Africa/Lagos`)", p, p)
+	tb.Blank().
+		Line("Tap a button above to select your timezone, or type:").
+		Linef("%stimezone <Name> (e.g. %stimezone Africa/Lagos)", p, p)
 
-	return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+	return sendInteractiveButtons(ctx, tb.Trimmed(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }
 
 func handleReconfigure(ctx *Context) error {
@@ -1325,12 +1327,11 @@ func sendSetBotPage(ctx *Context, pageNum int) error {
 		}
 	}
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "╭━━━〔 BOT CUSTOMIZATION 〕━━━\n")
-	fmt.Fprintf(&sb, "│ Name      : %s\n", botName)
-	fmt.Fprintf(&sb, "│ Thumbnail : %s\n", thumbStatus)
-	fmt.Fprintf(&sb, "│ Prefix    : %s\n", curPrefix)
-	fmt.Fprintf(&sb, "╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	tb := ctx.Text().
+		Header("BOT CUSTOMIZATION").
+		Field("Name", botName).
+		Field("Thumbnail", thumbStatus).
+		Field("Prefix", curPrefix)
 
 	var buttons []struct{ ID, Text string }
 
@@ -1355,7 +1356,7 @@ func sendSetBotPage(ctx *Context, pageNum int) error {
 		}
 	}
 
-	return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("%s Settings", botName), buttons)
+	return sendInteractiveButtons(ctx, tb.Trimmed(), fmt.Sprintf("%s Settings", botName), buttons)
 }
 
 func sendWizardSummaryCard(ctx *Context) error {
@@ -1376,16 +1377,15 @@ func sendWizardSummaryCard(ctx *Context) error {
 		}
 	}
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Bot Customization Completed!\n\n")
-	fmt.Fprintf(&sb, "╭━━━〔 BOT CONFIGURATION 〕━━━\n")
-	fmt.Fprintf(&sb, "│ Name      : %s\n", botName)
-	fmt.Fprintf(&sb, "│ Thumbnail : %s\n", thumbStatus)
-	fmt.Fprintf(&sb, "│ Prefix    : %s\n", curPrefix)
-	fmt.Fprintf(&sb, "╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
-	fmt.Fprintf(&sb, "Type %smenu anytime to view your updated bot commands menu! (Or %sreconfigure to adjust settings)", p, p)
-
-	return ctx.Reply(sb.String())
+	return ctx.Text().
+		Header("Bot Customization Completed!").
+		Section("BOT CONFIGURATION").
+		Field("Name", botName).
+		Field("Thumbnail", thumbStatus).
+		Field("Prefix", curPrefix).
+		Blank().
+		Linef("Type %smenu anytime to view your updated bot commands menu! (Or %sreconfigure to adjust settings)", p, p).
+		Reply()
 }
 
 func handleLikeStatusCmd(ctx *Context) error {
@@ -1458,17 +1458,16 @@ func sendLikeStatusMenu(ctx *Context, s *StoreWrapper) error {
 
 func sendLikeStatusCustomizeGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
-	var sb strings.Builder
-	sb.WriteString("╭━━━〔 LIKESTATUS CUSTOMIZATION GUIDE 〕━━━\n\n")
-	sb.WriteString("Description:\n")
-	sb.WriteString("When enabled, WhatsRook will automatically react to every incoming status/story broadcast with a randomly selected love emoji.\n\n")
-
-	sb.WriteString("Commands:\n")
-	fmt.Fprintf(&sb, "• Enable Auto-Like  : `%slikestatus on`\n", p)
-	fmt.Fprintf(&sb, "• Disable Auto-Like : `%slikestatus off`\n", p)
-	fmt.Fprintf(&sb, "• Toggle Status     : `%slikestatus toggle`\n", p)
-
-	return ctx.Reply(strings.TrimSpace(sb.String()))
+	return ctx.Text().
+		Header("LIKESTATUS CUSTOMIZATION GUIDE").
+		Section("Description").
+		Line("When enabled, WhatsRook will automatically react to every incoming status/story broadcast with a randomly selected love emoji.").
+		Blank().
+		Section("Commands").
+		Bulletf("Enable Auto-Like  : %slikestatus on", p).
+		Bulletf("Disable Auto-Like : %slikestatus off", p).
+		Bulletf("Toggle Status     : %slikestatus toggle", p).
+		Reply()
 }
 
 func handlePrefix(ctx *Context) error {
@@ -1540,22 +1539,21 @@ func handlePrivacy(ctx *Context) error {
 	}
 
 	p := ctx.GetPrefix()
-	var sb strings.Builder
-	sb.WriteString("WhatsApp Account Privacy Settings\n\n")
+	tb := ctx.Text().Header("WhatsApp Account Privacy Settings")
 
 	if privacy != nil {
-		fmt.Fprintf(&sb, "Last Seen: %s\n", privacy.LastSeen)
-		fmt.Fprintf(&sb, "Profile Photo: %s\n", privacy.Profile)
-		fmt.Fprintf(&sb, "Status: %s\n", privacy.Status)
-		fmt.Fprintf(&sb, "Read Receipts: %s\n", privacy.ReadReceipts)
-		fmt.Fprintf(&sb, "Group Add: %s\n", privacy.GroupAdd)
-		fmt.Fprintf(&sb, "Online: %s\n", privacy.Online)
-		fmt.Fprintf(&sb, "Call Add: %s\n", privacy.CallAdd)
+		tb.Field("Last Seen", string(privacy.LastSeen)).
+			Field("Profile Photo", string(privacy.Profile)).
+			Field("Status", string(privacy.Status)).
+			Field("Read Receipts", string(privacy.ReadReceipts)).
+			Field("Group Add", string(privacy.GroupAdd)).
+			Field("Online", string(privacy.Online)).
+			Field("Call Add", string(privacy.CallAdd))
 	} else {
-		sb.WriteString("Privacy settings unavailable.\n")
+		tb.Line("Privacy settings unavailable.")
 	}
 
-	sb.WriteString("\nTap a button below to configure privacy:")
+	tb.Blank().Line("Tap a button below to configure privacy:")
 
 	buttons := []struct{ ID, Text string }{
 		{
@@ -1572,7 +1570,7 @@ func handlePrivacy(ctx *Context) error {
 		},
 	}
 
-	return sendInteractiveButtons(ctx, sb.String(), "Powered by WhatsRook", buttons)
+	return sendInteractiveButtons(ctx, tb.Trimmed(), "Powered by WhatsRook", buttons)
 }
 
 func updatePrivacySetting(ctx *Context, nameStr, valStr string) error {
@@ -1738,14 +1736,13 @@ func handleGetCmd(ctx *Context) error {
 	}
 	defer rows.Close()
 
-	var sb strings.Builder
-	sb.WriteString("Sticker Command Mappings:\n\n")
+	tb := ctx.Text().Header("Sticker Command Mappings")
 
 	count := 0
 	for rows.Next() {
 		var sha, cmdName string
 		if err := rows.Scan(&sha, &cmdName); err == nil {
-			fmt.Fprintf(&sb, "- %s -> %s\n", sha[:8]+"...", cmdName)
+			tb.Bulletf("%s -> %s", sha[:8]+"...", cmdName)
 			count++
 		}
 	}
@@ -1754,7 +1751,7 @@ func handleGetCmd(ctx *Context) error {
 		return ctx.Reply("No sticker commands configured.")
 	}
 
-	return ctx.Reply(sb.String())
+	return tb.Reply()
 }
 
 func handleDisableCmd(ctx *Context) error {

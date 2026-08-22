@@ -1,11 +1,9 @@
 package plugins
 
 import (
-	"fmt"
 	"strings"
 
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types"
 	cliutils "whatsrook/cli/utils"
 	"whatsrook/utils"
 )
@@ -37,47 +35,40 @@ func handleBusinessProfile(ctx *Context) error {
 
 	profile, errFetch := cliutils.FetchBusinessProfileAndValidate(ctx.Ctx, ctx.Client, rawTarget, queryJID)
 	if errFetch != nil || profile == nil {
-		_ = ctx.ReplyWithMentions(fmt.Sprintf("User @%s is not an actual WhatsApp Business account or profile is unavailable.", rawTarget.User), []types.JID{rawTarget})
-		return nil
+		return ctx.Text().
+			Linef("User @%s is not an actual WhatsApp Business account or profile is unavailable.", rawTarget.User).
+			Mentions(rawTarget).
+			Reply()
 	}
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "WhatsApp Business Profile\n\n")
-	fmt.Fprintf(&sb, "Target: @%s\n", rawTarget.User)
+	tb := ctx.Text().
+		Header("WhatsApp Business Profile").
+		Field("Target", "@"+rawTarget.User, rawTarget)
 
 	if len(profile.Categories) > 0 {
 		cats := make([]string, len(profile.Categories))
 		for i, c := range profile.Categories {
 			cats[i] = c.Name
 		}
-		fmt.Fprintf(&sb, "Categories: %s\n", strings.Join(cats, ", "))
+		tb.Field("Categories", strings.Join(cats, ", "))
 	}
-	if profile.Description != "" {
-		fmt.Fprintf(&sb, "Bio: %s\n", strings.TrimSpace(profile.Description))
-	}
-	if profile.Email != "" {
-		fmt.Fprintf(&sb, "Email: %s\n", profile.Email)
-	}
-	if profile.Address != "" {
-		fmt.Fprintf(&sb, "Address: %s\n", profile.Address)
-	}
-	if len(profile.Websites) > 0 {
-		fmt.Fprintf(&sb, "Websites: %s\n", strings.Join(profile.Websites, ", "))
-	}
+	tb.FieldIf(profile.Description != "", "Bio", strings.TrimSpace(profile.Description)).
+		FieldIf(profile.Email != "", "Email", profile.Email).
+		FieldIf(profile.Address != "", "Address", profile.Address).
+		FieldIf(len(profile.Websites) > 0, "Websites", strings.Join(profile.Websites, ", "))
+
 	if len(profile.BusinessHours) > 0 {
-		fmt.Fprintf(&sb, "Operating Hours: %d schedule entries\n", len(profile.BusinessHours))
-		if profile.BusinessHoursTimeZone != "" {
-			fmt.Fprintf(&sb, "TimeZone: %s\n", profile.BusinessHoursTimeZone)
-		}
+		tb.Fieldf("Operating Hours", "%d schedule entries", len(profile.BusinessHours)).
+			FieldIf(profile.BusinessHoursTimeZone != "", "TimeZone", profile.BusinessHoursTimeZone)
 		for _, bh := range profile.BusinessHours {
 			day := bh.DayOfWeek
 			if day == "" {
 				day = "Schedule"
 			}
 			if bh.OpenTime != "" && bh.CloseTime != "" {
-				fmt.Fprintf(&sb, "• %s: %s - %s (%s)\n", day, bh.OpenTime, bh.CloseTime, bh.Mode)
+				tb.Bulletf("%s: %s - %s (%s)", day, bh.OpenTime, bh.CloseTime, bh.Mode)
 			} else {
-				fmt.Fprintf(&sb, "• %s: %s\n", day, bh.Mode)
+				tb.Bulletf("%s: %s", day, bh.Mode)
 			}
 		}
 	}
@@ -94,16 +85,16 @@ func handleBusinessProfile(ctx *Context) error {
 		}
 	}
 	if len(pfpData) > 0 {
-		return ctx.ReplyWithImageWithMentions(pfpData, "image/jpeg", sb.String(), []types.JID{rawTarget})
+		return tb.ReplyWithImage(pfpData, "image/jpeg")
 	}
 
-	return ctx.ReplyWithMentions(sb.String(), []types.JID{rawTarget})
+	return tb.Reply()
 }
 
 func handleBusinessLink(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %sbizlink <code>\n- %sbizlink https://wa.me/message/<code>", p, p))
+		return ctx.Replyf("Usage:\n- %sbizlink <code>\n- %sbizlink https://wa.me/message/<code>", p, p)
 	}
 
 	rawArg := strings.TrimSpace(ctx.Args[0])
@@ -126,29 +117,15 @@ func handleBusinessLink(ctx *Context) error {
 
 	target, err := ctx.Client.ResolveBusinessMessageLink(ctx.Ctx, code)
 	if err != nil || target == nil {
-		return ctx.Reply(fmt.Sprintf("Could not resolve business link code %q: %v", code, err))
+		return ctx.Replyf("Could not resolve business link code %q: %v", code, err)
 	}
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Business Short Link Target\n\n")
-	if target.VerifiedName != "" {
-		fmt.Fprintf(&sb, "Verified Name: %s\n", target.VerifiedName)
-	}
-	if target.PushName != "" {
-		fmt.Fprintf(&sb, "Push Name: %s\n", target.PushName)
-	}
-	if !target.JID.IsEmpty() {
-		fmt.Fprintf(&sb, "Target Account: @%s\n", target.JID.User)
-	}
-	if target.VerifiedLevel != "" {
-		fmt.Fprintf(&sb, "Verification Level: %s\n", target.VerifiedLevel)
-	}
-	if target.Message != "" {
-		fmt.Fprintf(&sb, "Pre-filled Message: %s\n", target.Message)
-	}
-
-	if !target.JID.IsEmpty() {
-		return ctx.ReplyWithMentions(sb.String(), []types.JID{target.JID})
-	}
-	return ctx.Reply(sb.String())
+	return ctx.Text().
+		Header("Business Short Link Target").
+		FieldIf(target.VerifiedName != "", "Verified Name", target.VerifiedName).
+		FieldIf(target.PushName != "", "Push Name", target.PushName).
+		FieldIf(!target.JID.IsEmpty(), "Target Account", "@"+target.JID.User, target.JID).
+		FieldIf(target.VerifiedLevel != "", "Verification Level", target.VerifiedLevel).
+		FieldIf(target.Message != "", "Pre-filled Message", target.Message).
+		Reply()
 }

@@ -541,19 +541,18 @@ func sendAntiCallMenu(ctx *Context, s *StoreWrapper) error {
 
 func sendAntiCallCustomizeGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
-	var sb strings.Builder
-	sb.WriteString("╭━━━〔 ANTICALL CUSTOMIZATION GUIDE 〕━━━\n\n")
-	sb.WriteString("Available Customizations:\n")
-	fmt.Fprintf(&sb, "• Contacts Only Restriction : `%santicall contacts on | off`\n", p)
-	fmt.Fprintf(&sb, "• Country Code Whitelist    : `%santicall cc add | del | clear <code >`\n", p)
-	fmt.Fprintf(&sb, "• Max Warning Threshold     : `%santicall warn <number>`\n\n", p)
-
-	sb.WriteString("Examples:\n")
-	fmt.Fprintf(&sb, "1. `%santicall contacts on` (Reject calls from non-contacts)\n", p)
-	fmt.Fprintf(&sb, "2. `%santicall cc add 234` (Allow calls from country code +234)\n", p)
-	fmt.Fprintf(&sb, "3. `%santicall warn 3` (Set warning limit before auto-block to 3)\n", p)
-
-	return ctx.Reply(strings.TrimSpace(sb.String()))
+	return ctx.Text().
+		Header("ANTICALL CUSTOMIZATION GUIDE").
+		Section("Available Customizations").
+		Bulletf("Contacts Only Restriction : %santicall contacts on | off", p).
+		Bulletf("Country Code Whitelist    : %santicall cc add | del | clear <code>", p).
+		Bulletf("Max Warning Threshold     : %santicall warn <number>", p).
+		Blank().
+		Section("Examples").
+		Numberedf(1, "%santicall contacts on (Reject calls from non-contacts)", p).
+		Numberedf(2, "%santicall cc add 234 (Allow calls from country code +234)", p).
+		Numberedf(3, "%santicall warn 3 (Set warning limit before auto-block to 3)", p).
+		Reply()
 }
 
 func splitCSV(s string) []string {
