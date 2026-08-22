@@ -1,0 +1,43 @@
+# Configuration for PR path-based labeling (actions/labeler)
+build:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - 'Taskfile.yml'
+          - 'go.mod'
+          - 'go.sum'
+          - 'version.txt'
+          - 'scripts/**'
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '*.md'
+          - 'LICENSE'
+
+area:core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '*.go'
+          - 'wa-core/**'
+
+area:cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'cli/**'
+
+area:plugins:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'cli/plugins/**'
+
+area:voip:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'wa-core/wacaller/**'
+
+area:utils:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'utils/**'

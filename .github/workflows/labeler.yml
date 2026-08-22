@@ -1,0 +1,95 @@
+name: Issue & PR Triage Labeler
+
+on:
+  issues:
+    types: [opened, edited]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  triage-issue:
+    name: Auto-label Issue
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Triage Issue by Content
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+            if (!issue) return;
+
+            const text = `${issue.title}\n${issue.body || ''}`.toLowerCase();
+            const labelsToAdd = new Set();
+
+            const patterns = {
+              'build': [
+                /\bbuild\b/, /\bcompil(e|ing|ation)\b/, /\bgo build\b/,
+                /\btaskfile\b/, /\bci\b/, /\baction(s)?\b/, /\brelease\b/,
+                /\bgolangci\b/, /\bstaticcheck\b/, /\bgofmt\b/, /\btoolchain\b/
+              ],
+              'bug': [
+                /\bbug\b/, /\bpanic\b/, /\bcrash\b/, /\bfatal\b/, /\bsegfault\b/,
+                /\bnil pointer\b/, /\bbroken\b/, /\berror\b/, /\bfailed\b/, /\bexception\b/
+              ],
+              'enhancement': [
+                /\bfeature\b/, /\benhancement\b/, /\bproposal\b/, /\brequest\b/,
+                /\bsuggestion\b/, /\badd support\b/, /\bimplement\b/
+              ],
+              'documentation': [
+                /\bdoc(s)?\b/, /\bdocumentation\b/, /\breadme\b/, /\btypo\b/, /\bguide\b/
+              ],
+              'area:voip': [
+                /\bvoip\b/, /\bcall(s|ing)?\b/, /\bwacaller\b/, /\bsrtp\b/, /\bsrtcp\b/,
+                /\bstun\b/, /\baudio\b/, /\bvideo playout\b/
+              ],
+              'area:cli': [
+                /\bcli\b/, /\bterminal\b/, /\bbot\b/, /\bflags\b/, /\bprompt\b/
+              ],
+              'area:plugins': [
+                /\bplugin(s)?\b/, /\bcommand(s)?\b/, /\bhandler\b/
+              ],
+              'area:core': [
+                /\bwa-core\b/, /\bcore\b/, /\bqr(code)?\b/, /\bpair(ing)?\b/,
+                /\bsocket\b/, /\bbinary xml\b/, /\bhandshake\b/, /\bprotocol\b/
+              ],
+              'area:utils': [
+                /\bffmpeg\b/, /\btranscod(e|ing)\b/, /\bopus\b/, /\bjpeg\b/, /\blogger\b/
+              ]
+            };
+
+            for (const [label, regexList] of Object.entries(patterns)) {
+              if (regexList.some(regex => regex.test(text))) {
+                labelsToAdd.add(label);
+              }
+            }
+
+            if (labelsToAdd.size > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: Array.from(labelsToAdd)
+              });
+              console.log(`Applied labels to issue #${issue.number}:`, Array.from(labelsToAdd));
+            } else {
+              console.log(`No specific keywords matched for issue #${issue.number}.`);
+            }
+
+  triage-pr:
+    name: Auto-label PR (File Paths)
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Label PR based on Changed Files
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+          sync-labels: true
