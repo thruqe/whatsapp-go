@@ -1,0 +1,64 @@
+name: 🐛 Bug Report
+description: Report a bug, crash, or unexpected behavior in WhatsRook
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! Please provide as much detail as possible to help us investigate.
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Run command '...'
+        2. Send message '...'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or Stack Trace
+      description: Paste any relevant terminal output, logs from `bin/logs/`, or stack traces.
+      render: shell
+  - type: input
+    id: go-version
+    attributes:
+      label: Go Version
+      description: Output of `go version`
+      placeholder: "e.g. go version go1.24.0 linux/amd64"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating System / Environment
+      placeholder: "e.g. Ubuntu 24.04, macOS Sonoma (arm64), Windows 11"
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate.
+          required: true
+        - label: I have read [CONTRIBUTING.md](https://github.com/Thruqe/whatsrook/blob/master/CONTRIBUTING.md).
+          required: true

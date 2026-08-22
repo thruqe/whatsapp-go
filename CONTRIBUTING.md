@@ -4,7 +4,7 @@ Welcome to WhatsRook. Review the following guidelines before submitting issues o
 
 ## 1. Development Management
 
-All development workflows are managed through the [Taskfile](../Taskfile.yml):
+All development workflows are managed through the [Taskfile](./Taskfile.yml):
 
 | Task      | Command        | Description                                                         |
 | :-------- | :------------- | :------------------------------------------------------------------ |
@@ -20,7 +20,7 @@ All development workflows are managed through the [Taskfile](../Taskfile.yml):
 
 ## 2. Architecture & Guidelines
 
-- **Architecture Guidelines**: Refer to [AGENTS.md](../AGENTS.md) for package layering and boundaries between `whatsrook`, `wa-core`, `utils`, and `cli`.
+- **Architecture Guidelines**: Refer to [AGENTS.md](./AGENTS.md) for package layering and boundaries between `whatsrook`, `wa-core`, `utils`, and `cli`.
 - **Code Quality**: Always run `task fmt` before opening a pull request.
 - **Testing**: Ensure existing tests pass and add unit tests for new logic with `task test`.
 - **Commits**: Follow conventional commit conventions (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`).
@@ -34,6 +34,6 @@ All development workflows are managed through the [Taskfile](../Taskfile.yml):
 
 ## 4. Governance & Policies
 
-- **Code of Conduct**: Review [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) before participating in discussions or submitting PRs.
-- **Security Policy**: For reporting vulnerabilities, consult [SECURITY.md](../SECURITY.md).
-- **Disclaimer**: Review liability and educational use terms in [DISCLAIMER.md](../DISCLAIMER.md).
+- **Code of Conduct**: Review [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) before participating in discussions or submitting PRs.
+- **Security Policy**: For reporting vulnerabilities, consult [SECURITY.md](./SECURITY.md).
+- **Disclaimer**: Review liability and educational use terms in [DISCLAIMER.md](./DISCLAIMER.md).
