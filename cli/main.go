@@ -16,6 +16,7 @@ import (
 
 	"whatsrook"
 	"whatsrook/cli/updater"
+	"whatsrook/utils/cache"
 )
 
 func main() {
@@ -64,6 +65,10 @@ func main() {
 	}
 
 	args := parseCLIArgs()
+	cache.Init(args.RedisURL)
+	defer func() {
+		_ = cache.Close()
+	}()
 
 	if args.Update {
 		ctx := context.Background()
