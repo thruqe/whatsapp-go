@@ -85,7 +85,7 @@ jobs:
           GOCACHE: ${{ github.workspace }}/.gocache-${{ matrix.target.os }}-${{ matrix.target.arch }}
         run: |
           BIN_NAME="whatsrook${{ matrix.target.ext }}"
-          cd cli && go build -v -o "../$BIN_NAME" .
+          cd cli && go build -trimpath -ldflags="-s -w -buildid=" -v -o "../$BIN_NAME" .
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
 
       - name: Verify Binary
