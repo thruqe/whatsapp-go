@@ -335,8 +335,8 @@ func (ctx *PluginContext) ReplyWithAlbum(items []AlbumMediaItem, mentions []type
 			Mimetype:      &mime,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uint64(len(item.Data))),
-			Caption:       proto.String(item.Caption),
+			FileLength:    new(uint64(len(item.Data))),
+			Caption:       new(item.Caption),
 		}
 		if i == 0 {
 			imgMsg.ContextInfo = cinfo
@@ -344,7 +344,7 @@ func (ctx *PluginContext) ReplyWithAlbum(items []AlbumMediaItem, mentions []type
 		msg := &waE2E.Message{
 			ImageMessage: imgMsg,
 			AlbumMessage: &waE2E.AlbumMessage{
-				ExpectedImageCount: proto.Uint32(count),
+				ExpectedImageCount: new(count),
 			},
 		}
 		_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
