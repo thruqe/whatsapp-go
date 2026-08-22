@@ -1,13 +1,11 @@
 package qr
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/skip2/go-qrcode"
 )
@@ -90,11 +88,8 @@ func (s *Server) SetPaired() {
 	s.mu.Unlock()
 }
 
-// Close gracefully stops the temporary HTTP server and releases the port.
+// Close stops the temporary HTTP server and immediately releases the port.
 func (s *Server) Close() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
 	s.mu.Lock()
 	for ch := range s.subscribers {
 		close(ch)
@@ -102,7 +97,11 @@ func (s *Server) Close() error {
 	}
 	s.mu.Unlock()
 
-	return s.server.Shutdown(ctx)
+	if s.server != nil {
+		s.server.SetKeepAlivesEnabled(false)
+		return s.server.Close()
+	}
+	return nil
 }
 
 func (s *Server) notifySubscribers() {
@@ -158,6 +157,10 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Flush headers immediately so client connection is established
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
 	notifyChan := make(chan struct{}, 1)
 
 	s.mu.Lock()
@@ -172,7 +175,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 	}()
 
-	// Send initial state
+	// Send initial state if available
 	if paired {
 		_, _ = fmt.Fprintf(w, "data: paired\n\n")
 		flusher.Flush()
