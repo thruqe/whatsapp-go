@@ -127,8 +127,17 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	if (evt.IsViewOnce || evt.IsViewOnceV2 || utils.IsViewOnceMessage(evt.Message)) && okStore {
 		raw, _ := s.GetSetting(ctx, "autovv")
+		mode, _ := s.GetSetting(ctx, "autovv_mode")
+		slog.Info("[AutoVV] Intercepted ViewOnce message",
+			"msg_id", evt.Info.ID,
+			"chat", evt.Info.Chat.String(),
+			"sender", evt.Info.Sender.String(),
+			"is_from_me", evt.Info.IsFromMe,
+			"push_name", evt.Info.PushName,
+			"autovv_setting", raw,
+			"autovv_mode", mode,
+		)
 		if raw == "on" {
-			mode, _ := s.GetSetting(ctx, "autovv_mode")
 			var targetJID types.JID
 			if (mode == "public" || mode == "chat") && !evt.Info.Chat.IsEmpty() {
 				targetJID = evt.Info.Chat
@@ -136,11 +145,13 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 				targetJID = client.Store.ID.ToNonAD()
 			}
 
+			slog.Info("[AutoVV] Target JID resolved", "target_jid", targetJID.String(), "mode", mode)
+
 			if !targetJID.IsEmpty() {
 				go func() {
-					err := utils.UnwrapAndSendViewOnceMessage(context.Background(), client, evt.Message, evt.Info.Sender, evt.Info.PushName, targetJID, evt.Info.Chat)
+					err := utils.UnwrapAndSendViewOnceMessage(context.Background(), client, evt.Message, evt.Info.Sender, evt.Info.PushName, targetJID, evt.Info.ID, evt.Info.Chat)
 					if err != nil {
-						slog.Error("AutoVV forwarding failed", "chat", evt.Info.Chat.String(), "err", err)
+						slog.Error("[AutoVV] AutoVV forwarding failed", "chat", evt.Info.Chat.String(), "err", err)
 					}
 				}()
 			}

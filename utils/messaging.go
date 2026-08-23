@@ -1396,28 +1396,53 @@ func ExtractViewOnceMessage(msg *waE2E.Message) *waE2E.Message {
 }
 
 // UnwrapAndSendViewOnceMessage downloads the encrypted ViewOnce media, re-uploads it with fresh media keys (preventing "media unavailable" CDN expiry), and sends the clean unwrapped message object to target JID.
-func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client, msg *waE2E.Message, senderJID types.JID, pushName string, targetJID types.JID, sourceChat ...types.JID) error {
+// quoteID is the stanza ID of the original ViewOnce message; when non-empty the forwarded message quotes it so the recipient can see whose VV was intercepted.
+func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client, msg *waE2E.Message, senderJID types.JID, pushName string, targetJID types.JID, quoteID string, sourceChat ...types.JID) error {
 	if msg == nil || client == nil {
+		slog.Error("[AutoVV] UnwrapAndSendViewOnceMessage: invalid nil arguments", "msg_nil", msg == nil, "client_nil", client == nil)
 		return fmt.Errorf("invalid arguments")
 	}
 
+	var srcChat types.JID
+	if len(sourceChat) > 0 {
+		srcChat = sourceChat[0]
+	}
+
+	slog.Info("[AutoVV] UnwrapAndSendViewOnceMessage started",
+		"sender_jid", senderJID.String(),
+		"sender_non_ad", senderJID.ToNonAD().String(),
+		"push_name", pushName,
+		"target_jid", targetJID.String(),
+		"quote_id", quoteID,
+		"source_chat", srcChat.String(),
+		"is_group_source", srcChat.Server == "g.us",
+	)
+
 	unwrapped := ExtractViewOnceMessage(msg)
 	if unwrapped == nil {
+		slog.Error("[AutoVV] Failed to extract inner ViewOnce message")
 		return fmt.Errorf("failed to extract inner ViewOnce message")
 	}
 
+	var mediaType string
 	if img := unwrapped.GetImageMessage(); img != nil {
+		mediaType = "image"
+		slog.Debug("[AutoVV] Downloading ViewOnce image", "mimetype", img.GetMimetype(), "file_length", img.GetFileLength())
 		data, err := client.Download(ctx, img)
 		if err != nil {
+			slog.Error("[AutoVV] Failed to download viewonce image", "err", err)
 			return fmt.Errorf("failed to download viewonce image: %w", err)
 		}
 		if len(data) == 0 {
+			slog.Error("[AutoVV] Downloaded viewonce image data is empty")
 			return fmt.Errorf("downloaded viewonce image data is empty")
 		}
 		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaImage)
 		if errUp != nil {
+			slog.Error("[AutoVV] Failed to upload unwrapped viewonce image", "err", errUp)
 			return fmt.Errorf("failed to upload unwrapped viewonce image: %w", errUp)
 		}
+		slog.Debug("[AutoVV] Image uploaded successfully", "data_len", len(data), "url", uploaded.URL)
 		img.URL = &uploaded.URL
 		img.DirectPath = &uploaded.DirectPath
 		img.MediaKey = uploaded.MediaKey
@@ -1426,17 +1451,23 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		img.FileLength = new(uint64(len(data)))
 		img.ViewOnce = new(false)
 	} else if vid := unwrapped.GetVideoMessage(); vid != nil {
+		mediaType = "video"
+		slog.Debug("[AutoVV] Downloading ViewOnce video", "mimetype", vid.GetMimetype(), "file_length", vid.GetFileLength())
 		data, err := client.Download(ctx, vid)
 		if err != nil {
+			slog.Error("[AutoVV] Failed to download viewonce video", "err", err)
 			return fmt.Errorf("failed to download viewonce video: %w", err)
 		}
 		if len(data) == 0 {
+			slog.Error("[AutoVV] Downloaded viewonce video data is empty")
 			return fmt.Errorf("downloaded viewonce video data is empty")
 		}
 		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaVideo)
 		if errUp != nil {
+			slog.Error("[AutoVV] Failed to upload unwrapped viewonce video", "err", errUp)
 			return fmt.Errorf("failed to upload unwrapped viewonce video: %w", errUp)
 		}
+		slog.Debug("[AutoVV] Video uploaded successfully", "data_len", len(data), "url", uploaded.URL)
 		vid.URL = &uploaded.URL
 		vid.DirectPath = &uploaded.DirectPath
 		vid.MediaKey = uploaded.MediaKey
@@ -1445,11 +1476,15 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		vid.FileLength = new(uint64(len(data)))
 		vid.ViewOnce = new(false)
 	} else if aud := unwrapped.GetAudioMessage(); aud != nil {
+		mediaType = "audio"
+		slog.Debug("[AutoVV] Downloading ViewOnce audio", "mimetype", aud.GetMimetype(), "file_length", aud.GetFileLength())
 		data, err := client.Download(ctx, aud)
 		if err != nil {
+			slog.Error("[AutoVV] Failed to download viewonce audio", "err", err)
 			return fmt.Errorf("failed to download viewonce audio: %w", err)
 		}
 		if len(data) == 0 {
+			slog.Error("[AutoVV] Downloaded viewonce audio data is empty")
 			return fmt.Errorf("downloaded viewonce audio data is empty")
 		}
 		meta, cErr := EnsureOpusPTT(ctx, data)
@@ -1464,8 +1499,10 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		}
 		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaAudio)
 		if errUp != nil {
+			slog.Error("[AutoVV] Failed to upload unwrapped viewonce audio", "err", errUp)
 			return fmt.Errorf("failed to upload unwrapped viewonce audio: %w", errUp)
 		}
+		slog.Debug("[AutoVV] Audio uploaded successfully", "data_len", len(data), "url", uploaded.URL)
 		aud.URL = &uploaded.URL
 		aud.DirectPath = &uploaded.DirectPath
 		aud.MediaKey = uploaded.MediaKey
@@ -1476,8 +1513,64 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		aud.ViewOnce = new(false)
 	}
 
-	_, err := client.SendMessage(ctx, targetJID, unwrapped)
-	return err
+	// Quote the original ViewOnce message so the recipient can see whose VV was forwarded.
+	if quoteID != "" {
+		participant := senderJID.ToNonAD().String()
+		quotedClean := ExtractViewOnceMessage(msg)
+		if quotedClean != nil {
+			if img := quotedClean.GetImageMessage(); img != nil {
+				img.ContextInfo = nil
+			} else if vid := quotedClean.GetVideoMessage(); vid != nil {
+				vid.ContextInfo = nil
+			} else if aud := quotedClean.GetAudioMessage(); aud != nil {
+				aud.ContextInfo = nil
+			}
+		} else {
+			quotedClean = msg
+		}
+
+		ci := &waE2E.ContextInfo{
+			StanzaID:      &quoteID,
+			Participant:   &participant,
+			QuotedMessage: quotedClean,
+		}
+
+		if !srcChat.IsEmpty() && srcChat != targetJID {
+			remoteJID := srcChat.ToNonAD().String()
+			ci.RemoteJID = &remoteJID
+		}
+
+		remoteJIDStr := "<none>"
+		if ci.RemoteJID != nil {
+			remoteJIDStr = *ci.RemoteJID
+		}
+
+		slog.Info("[AutoVV] Quoted ContextInfo prepared",
+			"stanza_id", quoteID,
+			"participant", participant,
+			"remote_jid", remoteJIDStr,
+			"media_type", mediaType,
+			"target_jid", targetJID.String(),
+		)
+
+		if img := unwrapped.GetImageMessage(); img != nil {
+			img.ContextInfo = ci
+		} else if vid := unwrapped.GetVideoMessage(); vid != nil {
+			vid.ContextInfo = ci
+		} else if aud := unwrapped.GetAudioMessage(); aud != nil {
+			aud.ContextInfo = ci
+		}
+	} else {
+		slog.Warn("[AutoVV] quoteID is empty; forwarding without quote")
+	}
+
+	resp, err := client.SendMessage(ctx, targetJID, unwrapped)
+	if err != nil {
+		slog.Error("[AutoVV] SendMessage failed", "target_jid", targetJID.String(), "err", err)
+		return err
+	}
+	slog.Info("[AutoVV] Forwarded message sent successfully", "target_jid", targetJID.String(), "resp_id", resp.ID, "timestamp", resp.Timestamp)
+	return nil
 }
 
 // IsAdminRaw checks if a specific JID is a group admin.
