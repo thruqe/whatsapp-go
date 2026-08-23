@@ -203,22 +203,7 @@ func handleAlive(ctx *Context) error {
 			return ctx.Reply("Alive media URL updated successfully!")
 
 		case "help", "guide":
-			p := ctx.GetPrefix()
-			return ctx.Text().
-				Header("ALIVE CUSTOMIZATION GUIDE").
-				Section("Alive Template Formatting Variables:").
-				Bullet("&user / &mention : Tag the command caller").
-				Bullet("&pushname : Push name of the caller").
-				Bullet("&uptime : Current bot uptime").
-				Bullet("&ram : Allocated memory usage").
-				Bullet("&goroutines : Active Go routines").
-				Bullet("&latency : Response speed").
-				Bullet("&owner : Bot owner").
-				Blank().
-				Section("Media Customization:").
-				Bulletf("Reply to any Image, Video, or Audio with `%salive media` to set it as the alive background", p).
-				Bulletf("Use `%salive reset` to restore default text-only alive card", p).
-				Reply()
+			return sendAliveCustomizeGuide(ctx)
 
 		case "reset", "clear":
 			if !ctx.IsSudo() {
