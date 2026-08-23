@@ -50,6 +50,8 @@ jobs:
           cd cli && go test -v -race ./...
 
       - name: Verify Build
+        env:
+          GOEXPERIMENT: nojsonv2
         run: |
           go build -v ./...
           cd cli && go build -v .

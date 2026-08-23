@@ -63,6 +63,8 @@ tasks:
 
   build:
     desc: "Build stripped, optimized binary executable into {{.BIN_PATH}}"
+    env:
+      GOEXPERIMENT: nojsonv2
     cmds:
       - cmd: mkdir -p bin
         platforms: [linux, darwin, windows]

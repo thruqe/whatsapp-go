@@ -83,6 +83,7 @@ jobs:
           # there is no way for GOOS/GOARCH-specific compiled objects to be
           # reused across targets even if Go's own cache keying misbehaves.
           GOCACHE: ${{ github.workspace }}/.gocache-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          GOEXPERIMENT: nojsonv2
         run: |
           BIN_NAME="whatsrook${{ matrix.target.ext }}"
           cd cli && go build -trimpath -ldflags="-s -w -buildid=" -v -o "../$BIN_NAME" .
