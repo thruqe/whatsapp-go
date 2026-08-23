@@ -86,6 +86,40 @@ func putCachedSession(ctx context.Context, addr string, record *record.Session) 
 	return true
 }
 
+type l1SessionEntry struct {
+	raw []byte
+}
+
+type l1SessionMap = exsync.Map[string, l1SessionEntry]
+
+func (device *Device) getL1SessionCache() *l1SessionMap {
+	device.l1SessionCacheLock.Lock()
+	defer device.l1SessionCacheLock.Unlock()
+	if device.l1SessionCache == nil {
+		device.l1SessionCache = exsync.NewMap[string, l1SessionEntry]()
+	}
+	return device.l1SessionCache.(*l1SessionMap)
+}
+
+func (device *Device) sessionCacheKey(addr string) string {
+	user := "default"
+	if device.ID != nil && device.ID.User != "" {
+		user = device.ID.User
+	}
+	return "signal:session:" + user + ":" + addr
+}
+
+func (device *Device) InvalidateL1Session(addr string) {
+	if device.l1SessionCache != nil {
+		if l1, ok := device.l1SessionCache.(*l1SessionMap); ok {
+			l1.Delete(addr)
+		}
+	}
+	if device.ExternalCache != nil {
+		_ = device.ExternalCache.Delete(context.Background(), device.sessionCacheKey(addr))
+	}
+}
+
 func (device *Device) WithCachedSessions(ctx context.Context, addresses []string) (map[string]bool, context.Context, error) {
 	if len(addresses) == 0 {
 		return nil, ctx, nil
@@ -111,18 +145,54 @@ func (device *Device) WithCachedSessions(ctx context.Context, addresses []string
 		wrapped[addr] = sessionCacheEntry{Record: sessionRecord, Found: true}
 		return nil
 	}
-	if iterator, ok := device.Sessions.(sessionIterator); ok {
-		if err := iterator.IterateSessions(ctx, addresses, loadSession); err != nil {
-			return nil, ctx, fmt.Errorf("failed to prefetch sessions: %w", err)
+
+	// 1. Check in-memory L1 cache first
+	l1 := device.getL1SessionCache()
+	var missingAddresses []string
+	for _, addr := range addresses {
+		if entry, ok := l1.Get(addr); ok && len(entry.raw) > 0 {
+			if err := loadSession(addr, entry.raw); err == nil && existingSessions[addr] {
+				continue
+			}
 		}
-	} else {
-		sessions, err := device.Sessions.GetManySessions(ctx, addresses)
-		if err != nil {
-			return nil, ctx, fmt.Errorf("failed to prefetch sessions: %w", err)
+		// 2. Check universal cache (Redis / In-Memory Universal Store)
+		if device.ExternalCache != nil {
+			if rawBytes, ok, _ := device.ExternalCache.GetBytes(ctx, device.sessionCacheKey(addr)); ok && len(rawBytes) > 0 {
+				if err := loadSession(addr, rawBytes); err == nil && existingSessions[addr] {
+					l1.Set(addr, l1SessionEntry{raw: rawBytes})
+					continue
+				}
+			}
 		}
-		for addr, rawSess := range sessions {
-			if rawSess != nil {
-				_ = loadSession(addr, rawSess)
+		missingAddresses = append(missingAddresses, addr)
+	}
+
+	// 3. Query database only for cache misses
+	if len(missingAddresses) > 0 {
+		if iterator, ok := device.Sessions.(sessionIterator); ok {
+			if err := iterator.IterateSessions(ctx, missingAddresses, loadSession); err != nil {
+				return nil, ctx, fmt.Errorf("failed to prefetch sessions: %w", err)
+			}
+		} else {
+			sessions, err := device.Sessions.GetManySessions(ctx, missingAddresses)
+			if err != nil {
+				return nil, ctx, fmt.Errorf("failed to prefetch sessions: %w", err)
+			}
+			for addr, rawSess := range sessions {
+				if rawSess != nil {
+					_ = loadSession(addr, rawSess)
+				}
+			}
+		}
+
+		// Store retrieved sessions into L1 and Universal Cache
+		for _, addr := range missingAddresses {
+			if sess, ok := wrapped[addr]; ok && sess.Found {
+				rawBytes := sess.Record.Serialize()
+				l1.Set(addr, l1SessionEntry{raw: rawBytes})
+				if device.ExternalCache != nil {
+					_ = device.ExternalCache.Set(ctx, device.sessionCacheKey(addr), rawBytes, 0)
+				}
 			}
 		}
 	}
@@ -136,17 +206,27 @@ func (device *Device) PutCachedSessions(ctx context.Context) error {
 	if cache == nil {
 		return nil
 	}
+	l1 := device.getL1SessionCache()
 	dirtySessions := make(map[string][]byte)
 	for addr, item := range cache.Iter() {
 		if item.Dirty {
-			dirtySessions[addr] = item.Record.Serialize()
+			raw := item.Record.Serialize()
+			dirtySessions[addr] = raw
+			// Update in-memory L1 session cache & Universal Cache immediately
+			l1.Set(addr, l1SessionEntry{raw: raw})
+			if device.ExternalCache != nil {
+				_ = device.ExternalCache.Set(ctx, device.sessionCacheKey(addr), raw, 0)
+			}
 		}
 	}
 	if len(dirtySessions) > 0 {
-		err := device.Sessions.PutManySessions(ctx, dirtySessions)
-		if err != nil {
-			return fmt.Errorf("failed to store cached sessions: %w", err)
-		}
+		// Persist updated sessions to database asynchronously in the background
+		go func(dirty map[string][]byte) {
+			err := device.Sessions.PutManySessions(context.Background(), dirty)
+			if err != nil && device.Log != nil {
+				device.Log.Warnf("Failed to asynchronously persist cached sessions: %v", err)
+			}
+		}(dirtySessions)
 	}
 	cache.Clear()
 	return nil

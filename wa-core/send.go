@@ -15,10 +15,12 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/polymorfa/libsignal-protocol-go/groups"
@@ -79,15 +81,24 @@ type MessageDebugTimings struct {
 	LIDFetch time.Duration
 	Queue    time.Duration
 
-	Marshal         time.Duration
-	GetParticipants time.Duration
-	GetDevices      time.Duration
-	GroupEncrypt    time.Duration
-	PeerEncrypt     time.Duration
+	Marshal          time.Duration
+	GetParticipants  time.Duration
+	GetDevices       time.Duration
+	FetchLIDs        time.Duration
+	PrefetchSessions time.Duration
+	FetchPreKeys     time.Duration
+	DeviceEncrypt    time.Duration
+	SaveSessions     time.Duration
+	GroupEncrypt     time.Duration
+	PeerEncrypt      time.Duration
+
+	AddRecentMessage time.Duration
+	PutMessageSecret time.Duration
 
 	Send  time.Duration
 	Resp  time.Duration
 	Retry time.Duration
+	Total time.Duration
 }
 
 func (mdt MessageDebugTimings) MarshalZerologObject(evt *zerolog.Event) {
@@ -100,14 +111,38 @@ func (mdt MessageDebugTimings) MarshalZerologObject(evt *zerolog.Event) {
 		evt.Dur("get_participants", mdt.GetParticipants)
 	}
 	evt.Dur("get_devices", mdt.GetDevices)
+	if mdt.FetchLIDs != 0 {
+		evt.Dur("fetch_lids", mdt.FetchLIDs)
+	}
+	if mdt.PrefetchSessions != 0 {
+		evt.Dur("prefetch_sessions", mdt.PrefetchSessions)
+	}
+	if mdt.FetchPreKeys != 0 {
+		evt.Dur("fetch_prekeys", mdt.FetchPreKeys)
+	}
+	if mdt.DeviceEncrypt != 0 {
+		evt.Dur("device_encrypt", mdt.DeviceEncrypt)
+	}
 	if mdt.GroupEncrypt != 0 {
 		evt.Dur("group_encrypt", mdt.GroupEncrypt)
 	}
 	evt.Dur("peer_encrypt", mdt.PeerEncrypt)
+	if mdt.SaveSessions != 0 {
+		evt.Dur("save_sessions", mdt.SaveSessions)
+	}
+	if mdt.AddRecentMessage != 0 {
+		evt.Dur("add_recent_message", mdt.AddRecentMessage)
+	}
+	if mdt.PutMessageSecret != 0 {
+		evt.Dur("put_message_secret", mdt.PutMessageSecret)
+	}
 	evt.Dur("send", mdt.Send)
 	evt.Dur("resp", mdt.Resp)
 	if mdt.Retry != 0 {
 		evt.Dur("retry", mdt.Retry)
+	}
+	if mdt.Total != 0 {
+		evt.Dur("total", mdt.Total)
 	}
 }
 
@@ -165,6 +200,23 @@ type SendRequestExtra struct {
 	Meta *types.MsgMetaInfo
 	// use this only if you know what you are doing
 	AdditionalNodes *[]waBinary.Node
+
+	// AsyncAck: when set to true, SendMessage will dispatch the message immediately over the socket
+	// and return without blocking for the server's ACK response over the network.
+	// The response is awaited and processed asynchronously in the background.
+	AsyncAck bool
+	// OnAck: optional callback invoked when the server ACK or error is received in the background.
+	OnAck func(resp SendResponse, err error)
+}
+
+// SendMessageAsync sends the message asynchronously without blocking for the server ACK response.
+func (cli *Client) SendMessageAsync(ctx context.Context, to types.JID, message *waE2E.Message, extra ...SendRequestExtra) (SendResponse, error) {
+	var req SendRequestExtra
+	if len(extra) > 0 {
+		req = extra[0]
+	}
+	req.AsyncAck = true
+	return cli.SendMessage(ctx, to, message, req)
 }
 
 // SendMessage sends the given message.
@@ -192,16 +244,22 @@ type SendRequestExtra struct {
 // field in incoming message events to figure out what it contains is also a good way to learn how to
 // send the same kind of message.
 func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E.Message, extra ...SendRequestExtra) (resp SendResponse, err error) {
-	if cli == nil {
-		err = ErrClientIsNil
-		return
-	}
+	totalStart := time.Now()
 	var req SendRequestExtra
 	if len(extra) > 1 {
 		err = errors.New("only one extra parameter may be provided to SendMessage")
 		return
 	} else if len(extra) == 1 {
 		req = extra[0]
+	}
+
+	defer func() {
+		resp.DebugTimings.Total = time.Since(totalStart)
+	}()
+
+	if cli == nil {
+		err = ErrClientIsNil
+		return
 	}
 	if to.Device > 0 && !req.Peer {
 		err = ErrRecipientADJID
@@ -289,7 +347,7 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 			}
 
 			var participantNodes []waBinary.Node
-			participantNodes, _, err = cli.encryptMessageForDevices(ctx, []types.JID{req.InlineBotJID}, resp.ID, messagePlaintext, nil, waBinary.Attrs{})
+			participantNodes, _, err = cli.encryptMessageForDevices(ctx, []types.JID{req.InlineBotJID}, resp.ID, messagePlaintext, nil, waBinary.Attrs{}, &resp.DebugTimings)
 			if err != nil {
 				return
 			}
@@ -379,14 +437,18 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 
 	// Peer message retries aren't implemented yet
 	if !req.Peer {
+		startRecent := time.Now()
 		err = cli.addRecentMessage(ctx, to, req.ID, message, nil)
+		resp.DebugTimings.AddRecentMessage = time.Since(startRecent)
 		if err != nil {
 			return
 		}
 	}
 
 	if message.GetMessageContextInfo().GetMessageSecret() != nil {
+		startSecret := time.Now()
 		err = cli.Store.MsgSecrets.PutMessageSecret(ctx, to, ownID, req.ID, message.GetMessageContextInfo().GetMessageSecret())
+		resp.DebugTimings.PutMessageSecret = time.Since(startSecret)
 		if err != nil {
 			cli.Log.Warnf("Failed to store message secret key for outgoing message %s: %v", req.ID, err)
 		} else {
@@ -416,6 +478,75 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 		cli.cancelResponse(req.ID, respChan)
 		return
 	}
+
+	handleAckResponse := func(respNode *waBinary.Node, ackStart time.Time) (SendResponse, error) {
+		var subResp SendResponse
+		subResp.ID = req.ID
+		subResp.Sender = ownID
+		subResp.DebugTimings = resp.DebugTimings
+		subResp.DebugTimings.Resp = time.Since(ackStart)
+		if isDisconnectNode(respNode) {
+			rStart := time.Now()
+			var rErr error
+			respNode, rErr = cli.retryFrame(context.Background(), "message send", req.ID, data, respNode, 0)
+			subResp.DebugTimings.Retry = time.Since(rStart)
+			if rErr != nil {
+				return subResp, rErr
+			}
+		}
+		ag := respNode.AttrGetter()
+		subResp.ServerID = types.MessageServerID(ag.OptionalInt("server_id"))
+		subResp.Timestamp = ag.UnixTime("t")
+		var respErr error
+		if errorCode := ag.Int("error"); errorCode != 0 {
+			respErr = fmt.Errorf("%w %d", ErrServerReturnedError, errorCode)
+		}
+		expectedPHash := ag.OptionalString("phash")
+		if setParticipantHashMismatch(&subResp, phash, expectedPHash) {
+			cli.Log.Warnf("Server returned different participant list hash (%s != %s) when sending to %s. Some devices may not have received the message.", phash, expectedPHash, to)
+			switch to.Server {
+			case types.GroupServer:
+				cli.groupCacheLock.Lock()
+				delete(cli.groupCache, to)
+				cli.groupCacheLock.Unlock()
+			case types.BroadcastServer:
+			case types.DefaultUserServer, types.HiddenUserServer, types.BotServer, types.HostedServer, types.HostedLIDServer:
+				cli.userDevicesCacheLock.Lock()
+				delete(cli.userDevicesCache, to)
+				cli.userDevicesCacheLock.Unlock()
+			}
+		}
+		return subResp, respErr
+	}
+
+	if cli.AsyncMessageAck || req.AsyncAck {
+		resp.Timestamp = time.Now()
+		go func(rChan chan *waBinary.Node, reqID types.MessageID, timeout time.Duration, ackStart time.Time) {
+			var timeoutChan <-chan time.Time
+			if timeout > 0 {
+				timeoutChan = time.After(timeout)
+			} else {
+				timeoutChan = make(<-chan time.Time)
+			}
+			select {
+			case rNode := <-rChan:
+				asyncResp, asyncErr := handleAckResponse(rNode, ackStart)
+				if asyncErr != nil {
+					cli.Log.Warnf("Async server ACK error for message %s to %s: %v", reqID, to, asyncErr)
+				}
+				if req.OnAck != nil {
+					req.OnAck(asyncResp, asyncErr)
+				}
+			case <-timeoutChan:
+				cli.cancelResponse(reqID, rChan)
+				if req.OnAck != nil {
+					req.OnAck(resp, ErrMessageTimedOut)
+				}
+			}
+		}(respChan, req.ID, req.Timeout, start)
+		return resp, nil
+	}
+
 	var respNode *waBinary.Node
 	var timeoutChan <-chan time.Time
 	if req.Timeout > 0 {
@@ -434,38 +565,7 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 		err = ctx.Err()
 		return
 	}
-	resp.DebugTimings.Resp = time.Since(start)
-	if isDisconnectNode(respNode) {
-		start = time.Now()
-		respNode, err = cli.retryFrame(ctx, "message send", req.ID, data, respNode, 0)
-		resp.DebugTimings.Retry = time.Since(start)
-		if err != nil {
-			return
-		}
-	}
-	ag := respNode.AttrGetter()
-	resp.ServerID = types.MessageServerID(ag.OptionalInt("server_id"))
-	resp.Timestamp = ag.UnixTime("t")
-	if errorCode := ag.Int("error"); errorCode != 0 {
-		err = fmt.Errorf("%w %d", ErrServerReturnedError, errorCode)
-	}
-	expectedPHash := ag.OptionalString("phash")
-	if setParticipantHashMismatch(&resp, phash, expectedPHash) {
-		cli.Log.Warnf("Server returned different participant list hash (%s != %s) when sending to %s. Some devices may not have received the message.", phash, expectedPHash, to)
-		switch to.Server {
-		case types.GroupServer:
-			// TODO also invalidate device list caches
-			cli.groupCacheLock.Lock()
-			delete(cli.groupCache, to)
-			cli.groupCacheLock.Unlock()
-		case types.BroadcastServer:
-			// TODO do something
-		case types.DefaultUserServer, types.HiddenUserServer, types.BotServer, types.HostedServer, types.HostedLIDServer:
-			cli.userDevicesCacheLock.Lock()
-			delete(cli.userDevicesCache, to)
-			cli.userDevicesCacheLock.Unlock()
-		}
-	}
+	resp, err = handleAckResponse(respNode, start)
 	return
 }
 
@@ -1258,7 +1358,7 @@ func (cli *Client) prepareMessageNode(
 
 	start = time.Now()
 	participantNodes, includeIdentity, err := cli.encryptMessageForDevices(
-		ctx, allDevices, id, plaintext, dsmPlaintext, encAttrs,
+		ctx, allDevices, id, plaintext, dsmPlaintext, encAttrs, timings,
 	)
 	timings.PeerEncrypt = time.Since(start)
 	if err != nil {
@@ -1321,7 +1421,12 @@ func (cli *Client) encryptMessageForDevices(
 	id string,
 	msgPlaintext, dsmPlaintext []byte,
 	encAttrs waBinary.Attrs,
+	timings ...*MessageDebugTimings,
 ) ([]waBinary.Node, bool, error) {
+	var t *MessageDebugTimings
+	if len(timings) > 0 {
+		t = timings[0]
+	}
 	ownJID := cli.getOwnID()
 	ownLID := cli.getOwnLID()
 	includeIdentity := false
@@ -1333,7 +1438,11 @@ func (cli *Client) encryptMessageForDevices(
 			pnDevices = append(pnDevices, jid)
 		}
 	}
+	startLID := time.Now()
 	lidMappings, err := cli.Store.LIDs.GetManyLIDsForPNs(ctx, pnDevices)
+	if t != nil {
+		t.FetchLIDs = time.Since(startLID)
+	}
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to fetch LID mappings: %w", err)
 	}
@@ -1359,7 +1468,11 @@ func (cli *Client) encryptMessageForDevices(
 		sessionAddressToJID[addr] = jid
 	}
 
+	startPrefetch := time.Now()
 	existingSessions, ctx, err := cli.Store.WithCachedSessions(ctx, sessionAddresses)
+	if t != nil {
+		t.PrefetchSessions = time.Since(startPrefetch)
+	}
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to prefetch sessions: %w", err)
 	}
@@ -1369,34 +1482,77 @@ func (cli *Client) encryptMessageForDevices(
 			retryDevices = append(retryDevices, sessionAddressToJID[addr])
 		}
 	}
+	startPrekeys := time.Now()
 	bundles := cli.fetchPreKeysNoError(ctx, retryDevices)
+	if t != nil {
+		t.FetchPreKeys = time.Since(startPrekeys)
+	}
 
-	for _, jid := range allDevices {
-		plaintext := msgPlaintext
-		if jid == ownJID || jid == ownLID {
-			continue
-		}
-		if (jid.User == ownJID.User || jid.User == ownLID.User) && dsmPlaintext != nil {
-			plaintext = dsmPlaintext
-		}
-		encrypted, isPreKey, err := cli.encryptMessageForDeviceAndWrap(
-			ctx, plaintext, jid, encryptionIdentities[jid], bundles[jid], encAttrs, existingSessions,
-		)
-		if err != nil {
-			// TODO return these errors if it's a fatal one (like context cancellation or database)
-			cli.Log.Warnf("Failed to encrypt %s for %s: %v", id, jid, err)
+	type encResult struct {
+		index int
+		node  *waBinary.Node
+		isPK  bool
+		err   error
+	}
+
+	results := make([]encResult, len(allDevices))
+	workerCount := max(runtime.NumCPU(), 4)
+	if workerCount > len(allDevices) {
+		workerCount = len(allDevices)
+	}
+
+	taskChan := make(chan int, len(allDevices))
+	for i := range allDevices {
+		taskChan <- i
+	}
+	close(taskChan)
+
+	startEnc := time.Now()
+	var wg sync.WaitGroup
+	for w := 0; w < workerCount; w++ {
+		wg.Go(func() {
+			for idx := range taskChan {
+				jid := allDevices[idx]
+				if jid == ownJID || jid == ownLID {
+					continue
+				}
+				plaintext := msgPlaintext
+				if (jid.User == ownJID.User || jid.User == ownLID.User) && dsmPlaintext != nil {
+					plaintext = dsmPlaintext
+				}
+				encrypted, isPreKey, err := cli.encryptMessageForDeviceAndWrap(
+					ctx, plaintext, jid, encryptionIdentities[jid], bundles[jid], encAttrs, existingSessions,
+				)
+				results[idx] = encResult{index: idx, node: encrypted, isPK: isPreKey, err: err}
+			}
+		})
+	}
+	wg.Wait()
+
+	for _, res := range results {
+		if res.err != nil {
+			cli.Log.Warnf("Failed to encrypt %s for %s: %v", id, allDevices[res.index], res.err)
 			if ctx.Err() != nil {
-				return nil, false, err
+				return nil, false, res.err
 			}
 			continue
 		}
-
-		participantNodes = append(participantNodes, *encrypted)
-		if isPreKey {
-			includeIdentity = true
+		if res.node != nil {
+			participantNodes = append(participantNodes, *res.node)
+			if res.isPK {
+				includeIdentity = true
+			}
 		}
 	}
+	if t != nil {
+		t.DeviceEncrypt = time.Since(startEnc)
+	}
+
+	startSave := time.Now()
 	err = cli.Store.PutCachedSessions(ctx)
+	if t != nil {
+		t.SaveSessions = time.Since(startSave)
+	}
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to save cached sessions: %w", err)
 	}

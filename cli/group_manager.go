@@ -154,7 +154,78 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 		"newsletters", len(syncedNewsletters),
 	)
 
+	// 3. Trigger background device pre-warming for all group participants
+	if len(joinedGroups) > 0 {
+		go gm.WarmupDevices(context.Background(), cli, joinedGroups)
+	}
+
 	return nil
+}
+
+// WarmupDevices extracts all group participants from the synced groups and pre-fetches their companion device lists into memory.
+func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client, groups []*types.GroupInfo) {
+	if cli == nil || !cli.IsConnected() || len(groups) == 0 {
+		return
+	}
+
+	seen := make(map[types.JID]struct{})
+	var uniqueJIDs []types.JID
+	for _, g := range groups {
+		if g == nil {
+			continue
+		}
+		for _, p := range g.Participants {
+			targetJID := p.JID
+			if targetJID.IsEmpty() {
+				targetJID = p.PhoneNumber
+			}
+			if targetJID.IsEmpty() || targetJID.IsBot() {
+				continue
+			}
+			if _, ok := seen[targetJID]; !ok {
+				seen[targetJID] = struct{}{}
+				uniqueJIDs = append(uniqueJIDs, targetJID)
+			}
+		}
+	}
+
+	if len(uniqueJIDs) == 0 {
+		return
+	}
+
+	slog.Info("GroupManager: warming up participant device cache...", "unique_participants", len(uniqueJIDs))
+	start := time.Now()
+
+	// Chunk queries into batches of 150 to keep USync requests optimal
+	const batchSize = 150
+	totalCached := 0
+	var allDeviceJIDs []types.JID
+	for i := 0; i < len(uniqueJIDs); i += batchSize {
+		end := min(i+batchSize, len(uniqueJIDs))
+		batch := uniqueJIDs[i:end]
+		devices, err := cli.GetUserDevices(ctx, batch)
+		if err != nil {
+			slog.Debug("GroupManager: device warmup batch error", "batch_start", i, "err", err)
+		} else {
+			totalCached += len(devices)
+			allDeviceJIDs = append(allDeviceJIDs, devices...)
+		}
+	}
+
+	// Pre-warm in-memory L1 Signal sessions for all companion devices
+	if len(allDeviceJIDs) > 0 && cli.Store != nil {
+		var addrs []string
+		for _, d := range allDeviceJIDs {
+			addrs = append(addrs, d.SignalAddress().String())
+		}
+		_, _, _ = cli.Store.WithCachedSessions(ctx, addrs)
+	}
+
+	slog.Info("GroupManager: device and session cache warm up complete",
+		"total_participants", len(uniqueJIDs),
+		"companion_devices", totalCached,
+		"duration", time.Since(start),
+	)
 }
 
 func (gm *GroupManager) convertGroupInfo(ctx context.Context, cli *whatsmeow.Client, g *types.GroupInfo) *store.GroupMetadata {

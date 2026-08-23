@@ -38,6 +38,7 @@ type BotConfig struct {
 	DataDir         string
 	WSPort          int
 	Database        string
+	AsyncMessageAck bool
 }
 
 // Bot manages the CLI bot lifecycle: WhatsApp client init, event handling,
@@ -92,6 +93,7 @@ func (b *Bot) Start(ctx context.Context) error {
 		ClientType:      b.cfg.ClientType,
 		Verbose:         b.cfg.Verbose,
 		SkipOldMessages: b.cfg.SkipOldMessages,
+		AsyncMessageAck: b.cfg.AsyncMessageAck,
 	})
 
 	b.mu.Lock()
