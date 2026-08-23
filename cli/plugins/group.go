@@ -276,6 +276,15 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleGoodbye,
 	})
+	Register(&Command{
+		Name:        "captcha",
+		Alias:       "verify",
+		Description: "Configure captcha verification for newly joined group participants (on, off, toggle, time)",
+		Category:    "group",
+		GroupOnly:   true,
+		IsPublic:    false,
+		Handler:     handleCaptcha,
+	})
 }
 
 func handleTagAll(ctx *Context) error {
@@ -3099,4 +3108,426 @@ func sendGreetingCustomizeGuide(ctx *Context, kind string) error {
 	}
 
 	return ctx.Reply(strings.TrimSpace(sb.String()))
+}
+
+type PendingCaptcha struct {
+	GroupJID    types.JID
+	UserJID     types.JID
+	ResolvedJID types.JID
+	Username    string
+	Code        string
+	MsgID       types.MessageID
+	CreatedAt   time.Time
+	ExpiresAt   time.Time
+	Timer       *time.Timer
+}
+
+var (
+	pendingCaptchaMu sync.RWMutex
+	pendingCaptchas  = make(map[string]*PendingCaptcha)
+)
+
+func captchaKey(groupJID, userJID types.JID) string {
+	return groupJID.ToNonAD().String() + ":" + userJID.ToNonAD().String()
+}
+
+// RegisterPendingCaptcha registers a new pending captcha verification for a participant.
+func RegisterPendingCaptcha(groupJID, userJID, resolvedJID types.JID, username, code string, duration time.Duration, onTimeout func()) {
+	pendingCaptchaMu.Lock()
+	defer pendingCaptchaMu.Unlock()
+
+	key := captchaKey(groupJID, userJID)
+	if existing, ok := pendingCaptchas[key]; ok && existing.Timer != nil {
+		existing.Timer.Stop()
+	}
+
+	timer := time.AfterFunc(duration, func() {
+		pendingCaptchaMu.Lock()
+		_, ok := pendingCaptchas[key]
+		if ok {
+			delete(pendingCaptchas, key)
+		}
+		pendingCaptchaMu.Unlock()
+
+		if ok && onTimeout != nil {
+			onTimeout()
+		}
+	})
+
+	now := time.Now()
+	pendingCaptchas[key] = &PendingCaptcha{
+		GroupJID:    groupJID,
+		UserJID:     userJID,
+		ResolvedJID: resolvedJID,
+		Username:    username,
+		Code:        code,
+		CreatedAt:   now,
+		ExpiresAt:   now.Add(duration),
+		Timer:       timer,
+	}
+}
+
+// SetPendingCaptchaMsgID stores the verification message ID for revocation if cancelled.
+func SetPendingCaptchaMsgID(groupJID, userJID types.JID, msgID types.MessageID) {
+	pendingCaptchaMu.Lock()
+	defer pendingCaptchaMu.Unlock()
+
+	key := captchaKey(groupJID, userJID)
+	if p, ok := pendingCaptchas[key]; ok {
+		p.MsgID = msgID
+	}
+}
+
+// GetPendingCaptcha retrieves the pending captcha for a group participant if active.
+func GetPendingCaptcha(groupJID, userJID types.JID) (*PendingCaptcha, bool) {
+	pendingCaptchaMu.RLock()
+	defer pendingCaptchaMu.RUnlock()
+
+	p, ok := pendingCaptchas[captchaKey(groupJID, userJID)]
+	return p, ok
+}
+
+// RemovePendingCaptcha cancels and removes any pending captcha for a group participant.
+func RemovePendingCaptcha(groupJID, userJID types.JID) (*PendingCaptcha, bool) {
+	pendingCaptchaMu.Lock()
+	defer pendingCaptchaMu.Unlock()
+
+	key := captchaKey(groupJID, userJID)
+	p, ok := pendingCaptchas[key]
+	if ok {
+		if p.Timer != nil {
+			p.Timer.Stop()
+		}
+		delete(pendingCaptchas, key)
+	}
+	return p, ok
+}
+
+func formatCaptchaTimeout(sec int) string {
+	if sec <= 0 {
+		return "2 mins"
+	}
+	if sec%60 == 0 {
+		mins := sec / 60
+		if mins == 1 {
+			return "1 min"
+		}
+		return fmt.Sprintf("%d mins", mins)
+	}
+	return fmt.Sprintf("%d seconds", sec)
+}
+
+func findPendingCaptcha(client *whatsmeow.Client, chat, sender types.JID) (*PendingCaptcha, bool) {
+	pendingCaptchaMu.RLock()
+	defer pendingCaptchaMu.RUnlock()
+
+	chatStr := chat.ToNonAD().String()
+	senderNonAD := sender.ToNonAD()
+
+	for key, p := range pendingCaptchas {
+		if !strings.HasPrefix(key, chatStr+":") {
+			continue
+		}
+		if p.UserJID.ToNonAD() == senderNonAD || p.ResolvedJID.ToNonAD() == senderNonAD || p.UserJID.User == senderNonAD.User || p.ResolvedJID.User == senderNonAD.User {
+			return p, true
+		}
+		if client != nil && utils.IsSameUserRaw(context.Background(), client, p.UserJID, sender) {
+			return p, true
+		}
+	}
+	return nil, false
+}
+
+// HandlePendingCaptchaReply checks if an incoming message is a captcha verification answer.
+func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
+	if evt == nil || evt.Message == nil || evt.Info.Chat.Server != "g.us" {
+		return false
+	}
+
+	sender := evt.Info.Sender
+	chat := evt.Info.Chat
+
+	pending, ok := findPendingCaptcha(client, chat, sender)
+	if !ok {
+		return false
+	}
+
+	// Ignore messages sent before the pending captcha was created
+	if !evt.Info.Timestamp.IsZero() && evt.Info.Timestamp.Before(pending.CreatedAt.Add(-2*time.Second)) {
+		return false
+	}
+
+	text := strings.TrimSpace(utils.ExtractMessageText(evt))
+	if text == "" {
+		return false
+	}
+
+	// Check if user submitted the correct 4-digit code
+	if text == pending.Code {
+		RemovePendingCaptcha(chat, pending.UserJID)
+		RemovePendingCaptcha(chat, sender)
+		resolvedJID, username := utils.ResolveMentionRaw(ctx, client, sender)
+
+		pctx := &utils.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
+		tb := utils.NewTextWithContext(pctx)
+		tb.Header("Verification Successful")
+		tb.Linef("@%s has successfully confirmed their participant status. Welcome to the group!", username)
+		tb.Mentions(resolvedJID)
+		_ = tb.Send()
+		return true
+	}
+
+	// Check if user sent a numeric verification attempt that was wrong
+	cleanText := strings.TrimSpace(text)
+	allDigits := true
+	for _, r := range cleanText {
+		if r < '0' || r > '9' {
+			allDigits = false
+			break
+		}
+	}
+	if allDigits && (len(cleanText) == 4 || len(cleanText) == len(pending.Code)) {
+		resolvedJID, username := utils.ResolveMentionRaw(ctx, client, sender)
+
+		pctx := &utils.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
+		tb := utils.NewTextWithContext(pctx)
+		tb.Header("Incorrect Code")
+		tb.Linef("Please watch the verification video carefully and reply with the correct 4-digit code, @%s.", username)
+		tb.Mentions(resolvedJID)
+		_ = tb.Send()
+		return true
+	}
+
+	return false
+}
+
+func handleCaptcha(ctx *Context) error {
+	if ctx.Chat.Server != "g.us" {
+		return ctx.Reply("This command can only be used in a group.")
+	}
+
+	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("Failed to get group info: %v", err))
+	}
+
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
+		return ctx.Reply("Only group admins can configure captcha verification.")
+	}
+
+	// This plugin should only work if this bot is an admin
+	if !ctx.AmIAdmin(info) {
+		return ctx.Reply("Captcha verification requires this bot to be a group admin in order to remove unverified members.")
+	}
+
+	s, ok := getStore(ctx)
+	if !ok {
+		return ctx.Reply("Database store not available.")
+	}
+
+	chatKey := ctx.Chat.String()
+	statusKey := "captcha_status:" + chatKey
+	timeKey := "captcha_time:" + chatKey
+
+	groupName := ctx.Chat.String()
+	if info.GroupName.Name != "" {
+		groupName = info.GroupName.Name
+	}
+
+	p := ctx.GetPrefix()
+	args := strings.Fields(ctx.RawArgs)
+	if len(args) == 0 {
+		return sendCaptchaMenu(ctx, s, groupName)
+	}
+
+	sub := strings.ToLower(args[0])
+	switch sub {
+	case "on", "enable":
+		if err := s.PutSetting(ctx.Ctx, statusKey, "on"); err != nil {
+			return ctx.Reply("Failed to enable captcha: " + err.Error())
+		}
+		tb := ctx.Rook().NewText()
+		tb.Header("CAPTCHA ACTIVATED")
+		tb.Field("Group", groupName)
+		tb.Field("Status", "ACTIVE (ON)")
+		tb.Blank()
+		tb.Line("Captcha verification is now active. Newly joined participants are required to complete verification within the specified time limit or they will be kicked out.")
+
+		return ctx.Rook().NewButton(tb.Trimmed()).
+			Footer(ctx.GetBotName()+" Captcha").
+			Mentions(ctx.Sender).
+			Add(p+"captcha off", "Deactivate").
+			Add(p+"captcha time", "Set Timeout").
+			Send(ctx.Chat)
+
+	case "off", "disable":
+		if err := s.PutSetting(ctx.Ctx, statusKey, "off"); err != nil {
+			return ctx.Reply("Failed to disable captcha: " + err.Error())
+		}
+		tb := ctx.Rook().NewText()
+		tb.Header("CAPTCHA DEACTIVATED")
+		tb.Field("Group", groupName)
+		tb.Field("Status", "DISABLED (OFF)")
+		tb.Blank()
+		tb.Line("Captcha verification has been turned off for this group.")
+
+		return ctx.Rook().NewButton(tb.Trimmed()).
+			Footer(ctx.GetBotName()+" Captcha").
+			Mentions(ctx.Sender).
+			Add(p+"captcha on", "Activate").
+			Send(ctx.Chat)
+
+	case "toggle":
+		curr, _ := s.GetSetting(ctx.Ctx, statusKey)
+		next := "on"
+		if curr == "on" {
+			next = "off"
+		}
+		if err := s.PutSetting(ctx.Ctx, statusKey, next); err != nil {
+			return ctx.Reply("Failed to toggle captcha: " + err.Error())
+		}
+		verb := "activated"
+		if next == "off" {
+			verb = "deactivated"
+		}
+		tb := ctx.Rook().NewText()
+		tb.Header("CAPTCHA TOGGLED")
+		tb.Field("Group", groupName)
+		tb.Field("Status", strings.ToUpper(next))
+		tb.Blank()
+		tb.Linef("Captcha verification has been %s for this group.", verb)
+
+		btn := ctx.Rook().NewButton(tb.Trimmed()).
+			Footer(ctx.GetBotName() + " Captcha").
+			Mentions(ctx.Sender)
+
+		if next == "on" {
+			btn.Add(p+"captcha off", "Deactivate")
+		} else {
+			btn.Add(p+"captcha on", "Activate")
+		}
+		btn.Add(p+"captcha time", "Set Timeout")
+		return btn.Send(ctx.Chat)
+
+	case "time", "timeout", "duration":
+		if len(args) < 2 {
+			currTime, _ := s.GetSetting(ctx.Ctx, timeKey)
+			secVal := 120
+			if currTime != "" {
+				if t, err := strconv.Atoi(currTime); err == nil && t > 0 {
+					secVal = t
+				}
+			}
+			tb := ctx.Rook().NewText()
+			tb.Header("CAPTCHA TIMEOUT")
+			tb.Field("Group", groupName)
+			tb.Field("Timeout", formatCaptchaTimeout(secVal))
+			tb.Blank()
+			tb.Linef("To change verification time limit, use: %scaptcha time <seconds>", p)
+			tb.Linef("Example: %scaptcha time 120 (2 mins)", p)
+
+			return ctx.Rook().NewButton(tb.Trimmed()).
+				Footer(ctx.GetBotName()+" Captcha").
+				Mentions(ctx.Sender).
+				Add(p+"captcha time 60", "1 Min").
+				Add(p+"captcha time 120", "2 Mins").
+				Add(p+"captcha time 180", "3 Mins").
+				Send(ctx.Chat)
+		}
+		sec, parseErr := strconv.Atoi(args[1])
+		if parseErr != nil || sec < 10 || sec > 600 {
+			return ctx.Reply("Invalid timeout duration. Please specify a time between 10 and 600 seconds.")
+		}
+		if err := s.PutSetting(ctx.Ctx, timeKey, strconv.Itoa(sec)); err != nil {
+			return ctx.Reply("Failed to update timeout: " + err.Error())
+		}
+		tb := ctx.Rook().NewText()
+		tb.Header("CAPTCHA TIMEOUT SET")
+		tb.Field("Group", groupName)
+		tb.Field("Timeout", formatCaptchaTimeout(sec))
+		tb.Blank()
+		tb.Linef("Newly joined members will have %s to verify before being removed.", formatCaptchaTimeout(sec))
+
+		return ctx.Rook().NewButton(tb.Trimmed()).
+			Footer(ctx.GetBotName()+" Captcha").
+			Mentions(ctx.Sender).
+			Add(p+"captcha on", "Activate").
+			Add(p+"captcha off", "Deactivate").
+			Send(ctx.Chat)
+
+	case "help", "guide", "info":
+		return sendCaptchaGuide(ctx)
+
+	default:
+		return ctx.Reply("Usage: " + p + "captcha [on|off|toggle|time|help]")
+	}
+}
+
+func sendCaptchaMenu(ctx *Context, s *StoreWrapper, groupName string) error {
+	chatKey := ctx.Chat.String()
+	status, _ := s.GetSetting(ctx.Ctx, "captcha_status:"+chatKey)
+	if status == "" {
+		status = "off"
+	}
+	timeoutStr, _ := s.GetSetting(ctx.Ctx, "captcha_time:"+chatKey)
+	secVal := 120
+	if timeoutStr != "" {
+		if t, err := strconv.Atoi(timeoutStr); err == nil && t > 0 {
+			secVal = t
+		}
+	}
+
+	p := ctx.GetPrefix()
+	tb := ctx.Rook().NewText()
+	tb.Header("CAPTCHA CONFIGURATION")
+	tb.Field("Group", groupName)
+	tb.Field("Status", strings.ToUpper(status))
+	tb.Field("Timeout", formatCaptchaTimeout(secVal))
+	tb.Blank()
+	tb.Line("Description:")
+	tb.Line("Requires a newly joined participant to complete a verification when they join the group within a certain amount of time else it kicks them out for failing to verify their participant status.")
+	tb.Blank()
+	tb.Line("Note: This plugin only works if this bot is an admin.")
+
+	btnBuilder := ctx.Rook().NewButton(tb.Trimmed()).
+		Footer(ctx.GetBotName() + " Captcha Moderation").
+		Mentions(ctx.Sender)
+
+	if status == "on" {
+		btnBuilder.Add(p+"captcha off", "Deactivate")
+	} else {
+		btnBuilder.Add(p+"captcha on", "Activate")
+	}
+
+	btnBuilder.Add(p+"captcha time", "Set Timeout")
+	btnBuilder.Add(p+"captcha help", "Help / Guide")
+
+	return btnBuilder.Send(ctx.Chat)
+}
+
+func sendCaptchaGuide(ctx *Context) error {
+	p := ctx.GetPrefix()
+	tb := ctx.Rook().NewText()
+	tb.Header("CAPTCHA VERIFICATION GUIDE")
+	tb.Line("Description:")
+	tb.Line("Requires a newly joined participant to complete a verification when they join the group within a certain amount of time else it kicks them out for failing to verify their participant status.")
+	tb.Blank()
+	tb.Section("How It Works:")
+	tb.Numbered(1, "When a new participant joins, a 4-digit code animation video is generated using the captcha package.")
+	tb.Numbered(2, "The bot sends the video and an interactive button prompt tagging the newly joined participant.")
+	tb.Numbered(3, "The participant is expected to input the 4-digit code to confirm their status within the time limit.")
+	tb.Numbered(4, "If the code matches, their participant status is confirmed.")
+	tb.Numbered(5, "If they fail to verify within the time limit, they will be kicked out.")
+	tb.Blank()
+	tb.Section("Commands:")
+	tb.Bulletf("`%scaptcha on`       : Enable captcha verification", p)
+	tb.Bulletf("`%scaptcha off`      : Disable captcha verification", p)
+	tb.Bulletf("`%scaptcha toggle`   : Toggle captcha on/off", p)
+	tb.Bulletf("`%scaptcha time <sec>`: Set verification timeout in seconds (10-600s)", p)
+	tb.Bulletf("`%scaptcha help`     : Show this guide", p)
+	tb.Blank()
+	tb.Section("Requirements:")
+	tb.Bullet("This plugin only works if this bot is an admin.")
+
+	return ctx.Reply(tb.Trimmed())
 }

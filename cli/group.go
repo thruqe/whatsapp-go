@@ -1,14 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
+	"math/rand"
 	"strconv"
 	"strings"
+	"time"
+	"whatsrook/cli/captcha"
+	commands "whatsrook/cli/plugins"
 	clistore "whatsrook/cli/store"
 	cliutils "whatsrook/cli/utils"
 	"whatsrook/utils"
 
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
@@ -333,4 +340,203 @@ func (b *Bot) sendGroupEventMessageWithMentions(ctx context.Context, chatJID typ
 		},
 	}
 	_, _ = cli.SendMessage(ctx, chatJID, msg)
+}
+
+func formatTimeoutStr(sec int) string {
+	if sec <= 0 {
+		return "2 mins"
+	}
+	if sec%60 == 0 {
+		mins := sec / 60
+		if mins == 1 {
+			return "1 min"
+		}
+		return fmt.Sprintf("%d mins", mins)
+	}
+	return fmt.Sprintf("%d seconds", sec)
+}
+
+func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
+	if g == nil {
+		return
+	}
+	// Do not process group events that happened before the bot started
+	if !g.Timestamp.IsZero() && g.Timestamp.Before(b.startupTime) {
+		return
+	}
+
+	// Cancel pending captcha if participant left or was removed
+	if len(g.Leave) > 0 {
+		for _, participant := range g.Leave {
+			commands.RemovePendingCaptcha(g.JID, participant)
+		}
+	}
+	// Cancel pending captcha and delete verification message if participant was promoted to admin
+	if len(g.Promote) > 0 {
+		cli := b.client.WAClient()
+		for _, participant := range g.Promote {
+			if pending, ok := commands.RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
+				if cli != nil && pending.MsgID != "" {
+					_, _ = cli.SendMessage(ctx, g.JID, cli.BuildRevoke(g.JID, types.EmptyJID, pending.MsgID))
+				}
+			}
+		}
+	}
+	if len(g.Join) == 0 {
+		return
+	}
+
+	go b.processGroupCaptchaJoins(g)
+}
+
+func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
+	ctx := context.Background()
+	cli := b.client.WAClient()
+	if cli == nil {
+		return
+	}
+	s, ok := cli.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return
+	}
+
+	chatKey := g.JID.String()
+	status, _ := clistore.GetSetting(ctx, s, "captcha_status:"+chatKey)
+	if status != "on" {
+		return
+	}
+
+	info, err := cli.GetGroupInfo(ctx, g.JID)
+	if err != nil || info == nil {
+		return
+	}
+
+	// This plugin should only work if this bot is an admin
+	if cli.Store.ID == nil || !utils.IsAdminRaw(ctx, cli, info, *cli.Store.ID) {
+		slog.Warn("handleGroupCaptcha: bot is not an admin in group, skipping captcha verification", "group", chatKey)
+		return
+	}
+
+	// If group only allows admins to send messages, no need for verification
+	if info.IsAnnounce {
+		slog.Debug("handleGroupCaptcha: group is announce-only, skipping captcha verification", "group", chatKey)
+		return
+	}
+
+	groupName := g.JID.String()
+	if info.Name != "" {
+		groupName = info.Name
+	}
+
+	// Timeout setting (default 120s / 2 mins)
+	timeoutSec := 120
+	if rawTime, _ := clistore.GetSetting(ctx, s, "captcha_time:"+chatKey); rawTime != "" {
+		if t, err := strconv.Atoi(rawTime); err == nil && t >= 10 {
+			timeoutSec = t
+		}
+	}
+	timeoutDisplay := formatTimeoutStr(timeoutSec)
+
+	for _, participant := range g.Join {
+		// Skip if participant is the bot itself
+		if utils.IsSameUserRaw(ctx, cli, participant, *cli.Store.ID) {
+			continue
+		}
+		// Skip sudoers
+		if utils.IsSudoRaw(ctx, cli, participant) {
+			continue
+		}
+		// Skip if the joined participant is already an admin
+		if utils.IsAdminRaw(ctx, cli, info, participant) {
+			continue
+		}
+
+		resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, participant)
+
+		// Generate random 4-digit code
+		codeInt := rand.Intn(10000)
+		code := fmt.Sprintf("%04d", codeInt)
+
+		// Register pending captcha with timeout kick callback
+		partCopy := participant
+		resolvedCopy := resolvedJID
+		userCopy := username
+		commands.RegisterPendingCaptcha(
+			g.JID,
+			partCopy,
+			resolvedCopy,
+			userCopy,
+			code,
+			time.Duration(timeoutSec)*time.Second,
+			func() {
+				// Timeout reached, kick user
+				currentInfo, gErr := cli.GetGroupInfo(context.Background(), g.JID)
+				if gErr != nil || currentInfo == nil {
+					return
+				}
+				if !utils.IsAdminRaw(context.Background(), cli, currentInfo, *cli.Store.ID) {
+					slog.Warn("handleGroupCaptcha: bot is no longer admin to kick unverified participant", "group", g.JID.String(), "user", partCopy.String())
+					return
+				}
+
+				_, kErr := cli.UpdateGroupParticipants(context.Background(), g.JID, []types.JID{partCopy}, whatsmeow.ParticipantChangeRemove)
+				if kErr != nil {
+					slog.Error("handleGroupCaptcha: failed to kick unverified participant", "user", partCopy.String(), "err", kErr)
+					return
+				}
+
+				kickTb := utils.NewText()
+				kickTb.Linef("@%s was removed from the group for failing to complete the captcha verification within %s.", userCopy, timeoutDisplay)
+				b.sendGroupEventMessageWithMentions(context.Background(), g.JID, kickTb.Trimmed(), []types.JID{resolvedCopy})
+			},
+		)
+
+		// Generate 8-second captcha video using cli/captcha package
+		var vidBuf bytes.Buffer
+		errGen := captcha.Generate(&vidBuf, code, captcha.Options{
+			Seconds: 8.0,
+		})
+
+		var mediaUploaded *whatsmeow.UploadResponse
+		if errGen == nil && vidBuf.Len() > 0 {
+			uploaded, errUp := cli.Upload(ctx, vidBuf.Bytes(), whatsmeow.MediaVideo)
+			if errUp == nil {
+				mediaUploaded = &uploaded
+			} else {
+				slog.Error("handleGroupCaptcha: video upload failed", "err", errUp)
+			}
+		} else {
+			slog.Error("handleGroupCaptcha: captcha video generation failed", "err", errGen)
+		}
+
+		tbVid := utils.NewText()
+		tbVid.Linef("Welcome @%s! You are required to complete a verification code to join %s.", username, groupName)
+		tbVid.Linef("Please watch the video and reply with the 4-digit verification code within %s, otherwise you will be automatically removed.", timeoutDisplay)
+		formattedCaption := tbVid.Trimmed()
+
+		// Send video message as gifplayback if generated successfully
+		if mediaUploaded != nil {
+			mimetype := "video/mp4"
+			vidMsg := &waE2E.Message{
+				VideoMessage: &waE2E.VideoMessage{
+					URL:           &mediaUploaded.URL,
+					DirectPath:    &mediaUploaded.DirectPath,
+					MediaKey:      mediaUploaded.MediaKey,
+					Mimetype:      &mimetype,
+					GifPlayback:   new(bool),
+					FileEncSHA256: mediaUploaded.FileEncSHA256,
+					FileSHA256:    mediaUploaded.FileSHA256,
+					FileLength:    new(uint64(vidBuf.Len())),
+					Caption:       &formattedCaption,
+					ContextInfo: &waE2E.ContextInfo{
+						MentionedJID: []string{resolvedJID.String()},
+					},
+				},
+			}
+			*vidMsg.VideoMessage.GifPlayback = true
+			if resp, errSend := cli.SendMessage(ctx, g.JID, vidMsg); errSend == nil && resp.ID != "" {
+				commands.SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
+			}
+		}
+	}
 }

@@ -1496,10 +1496,7 @@ func (cli *Client) encryptMessageForDevices(
 	}
 
 	results := make([]encResult, len(allDevices))
-	workerCount := max(runtime.NumCPU(), 4)
-	if workerCount > len(allDevices) {
-		workerCount = len(allDevices)
-	}
+	workerCount := min(max(runtime.NumCPU(), 4), len(allDevices))
 
 	taskChan := make(chan int, len(allDevices))
 	for i := range allDevices {
@@ -1509,7 +1506,7 @@ func (cli *Client) encryptMessageForDevices(
 
 	startEnc := time.Now()
 	var wg sync.WaitGroup
-	for w := 0; w < workerCount; w++ {
+	for range workerCount {
 		wg.Go(func() {
 			for idx := range taskChan {
 				jid := allDevices[idx]

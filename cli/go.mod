@@ -8,12 +8,15 @@ replace go.mau.fi/whatsmeow => ../wa-core
 
 require (
 	github.com/coder/websocket v1.8.15
+	github.com/fogleman/gg v1.3.0
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/lib/pq v1.12.3
 	github.com/rs/zerolog v1.35.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/writeas/go-strip-markdown/v2 v2.1.1
 	go.mau.fi/util v0.10.0
 	go.mau.fi/whatsmeow v0.0.0-20260821141805-33cfac511629
+	golang.org/x/image v0.45.0
 	golang.org/x/term v0.45.0
 	golang.org/x/text v0.41.0
 	modernc.org/sqlite v1.57.0

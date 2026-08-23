@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	commands "whatsrook/cli/plugins"
 )
@@ -204,5 +206,97 @@ func TestParseCLIArgs_OverridesEnv(t *testing.T) {
 	args7 := parseCLIArgsFrom([]string{})
 	if args7.RedisURL != "redis://localhost:6379/1" {
 		t.Errorf("expected RedisURL from env var, got %q", args7.RedisURL)
+	}
+}
+
+func TestCaptchaCommand_Registered(t *testing.T) {
+	cmd, ok := commands.Get("captcha")
+	if !ok || cmd == nil {
+		t.Fatalf("expected 'captcha' command to be registered")
+	}
+	if cmd.Category != "group" {
+		t.Errorf("expected category to be 'group', got %s", cmd.Category)
+	}
+	if !cmd.GroupOnly {
+		t.Errorf("expected GroupOnly to be true")
+	}
+}
+
+func TestPendingCaptcha_Lifecycle(t *testing.T) {
+	groupJID := types.NewJID("123456789", types.GroupServer)
+	userJID := types.NewJID("987654321", types.DefaultUserServer)
+	resolvedJID := types.NewJID("987654321", types.DefaultUserServer)
+
+	var timeoutCalled atomic.Bool
+	code := "4829"
+
+	// 1. Register pending captcha with short duration
+	commands.RegisterPendingCaptcha(
+		groupJID,
+		userJID,
+		resolvedJID,
+		"TestUser",
+		code,
+		100*time.Millisecond,
+		func() {
+			timeoutCalled.Store(true)
+		},
+	)
+
+	// 2. Lookup pending captcha
+	pending, ok := commands.GetPendingCaptcha(groupJID, userJID)
+	if !ok || pending == nil {
+		t.Fatalf("expected pending captcha to exist")
+	}
+	if pending.Code != code {
+		t.Errorf("expected code %s, got %s", code, pending.Code)
+	}
+	if pending.Username != "TestUser" {
+		t.Errorf("expected username 'TestUser', got %s", pending.Username)
+	}
+
+	// 3. Let timer expire
+	time.Sleep(150 * time.Millisecond)
+
+	if !timeoutCalled.Load() {
+		t.Errorf("expected timeout callback to be invoked")
+	}
+
+	// 4. Verify it was deleted after timeout
+	_, okAfter := commands.GetPendingCaptcha(groupJID, userJID)
+	if okAfter {
+		t.Errorf("expected pending captcha to be removed after timeout")
+	}
+}
+
+func TestPendingCaptcha_ManualRemoval(t *testing.T) {
+	groupJID := types.NewJID("123456789", types.GroupServer)
+	userJID := types.NewJID("987654321", types.DefaultUserServer)
+	resolvedJID := types.NewJID("987654321", types.DefaultUserServer)
+
+	var timeoutCalled atomic.Bool
+	code := "1234"
+
+	commands.RegisterPendingCaptcha(
+		groupJID,
+		userJID,
+		resolvedJID,
+		"User2",
+		code,
+		200*time.Millisecond,
+		func() {
+			timeoutCalled.Store(true)
+		},
+	)
+
+	removed, ok := commands.RemovePendingCaptcha(groupJID, userJID)
+	if !ok || removed == nil {
+		t.Fatalf("expected pending captcha to be removed successfully")
+	}
+
+	time.Sleep(250 * time.Millisecond)
+
+	if timeoutCalled.Load() {
+		t.Errorf("timeout callback should not have been called after manual removal")
 	}
 }
