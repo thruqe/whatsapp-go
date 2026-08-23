@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
@@ -267,7 +266,7 @@ func setAFKStatus(ctx *Context, s *StoreWrapper, reason string) error {
 	resetAFKUserTracker()
 
 	p := ctx.GetPrefix()
-	return ctx.Reply(fmt.Sprintf("AFK mode activated.\n\nReason: %s\nTime: %s\nLast Available: %s\n\nTurn off anytime using `%safk back` or `%safk off`.", reason, nowStr, lastActiveStr, p, p))
+	return ctx.Replyf("AFK mode activated.\n\nReason: %s\nTime: %s\nLast Available: %s\n\nTurn off anytime using `%safk back` or `%safk off`.", reason, nowStr, lastActiveStr, p, p)
 }
 
 func sendAFKCustomizeGuide(ctx *Context) error {
@@ -557,24 +556,24 @@ func handleAutoBio(ctx *Context) error {
 		p := ctx.GetPrefix()
 		if len(ctx.Args) < 2 {
 			tz := getAutoBioTimezone(ctx.Ctx, s)
-			return ctx.Reply(fmt.Sprintf("Current AutoBio timezone: %s\n\nTo change timezone:\n- %sautobio tz Africa/Lagos\n- %sautobio tz America/New_York\n- %sautobio tz UTC", tz, p, p, p))
+			return ctx.Replyf("Current AutoBio timezone: %s\n\nTo change timezone:\n- %sautobio tz Africa/Lagos\n- %sautobio tz America/New_York\n- %sautobio tz UTC", tz, p, p, p)
 		}
 		newTZ := ctx.Args[1]
 		if _, err := time.LoadLocation(newTZ); err != nil {
-			return ctx.Reply(fmt.Sprintf("Invalid timezone: %q. Please use valid IANA format (e.g. Africa/Lagos, UTC, America/New_York).", newTZ))
+			return ctx.Replyf("Invalid timezone: %q. Please use valid IANA format (e.g. Africa/Lagos, UTC, America/New_York).", newTZ)
 		}
 		if err := s.PutSetting(ctx.Ctx, "autobio_timezone", newTZ); err != nil {
 			return ctx.Reply("Failed to save timezone setting.")
 		}
 		_, _ = updateAutoBio(ctx.Ctx, ctx.Client)
-		return ctx.Reply(fmt.Sprintf("AutoBio timezone updated to: %s!", newTZ))
+		return ctx.Replyf("AutoBio timezone updated to: %s!", newTZ)
 
 	case "now", "update":
 		bioText, err := updateAutoBio(ctx.Ctx, ctx.Client)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("Failed to update status bio: %v", err))
+			return ctx.Replyf("Failed to update status bio: %v", err)
 		}
-		return ctx.Reply(fmt.Sprintf("Status bio updated!\n\nNew Bio:\n\"%s\"", bioText))
+		return ctx.Replyf("Status bio updated!\n\nNew Bio:\n\"%s\"", bioText)
 
 	case "status":
 		enabled, _ := s.GetSetting(ctx.Ctx, "autobio_enabled")
@@ -584,7 +583,7 @@ func handleAutoBio(ctx *Context) error {
 		}
 		tzStr := getAutoBioTimezone(ctx.Ctx, s)
 		previewBio := generateBioText(tzStr)
-		return ctx.Reply(fmt.Sprintf("AutoBio Status: %s\nTimezone: %s\n\nLive Preview:\n\"%s\"", statusStr, tzStr, previewBio))
+		return ctx.Replyf("AutoBio Status: %s\nTimezone: %s\n\nLive Preview:\n\"%s\"", statusStr, tzStr, previewBio)
 	}
 
 	return sendAutoBioMenu(ctx, s)
@@ -599,7 +598,7 @@ func sendAutoBioMenu(ctx *Context, s *StoreWrapper) error {
 	tzStr := getAutoBioTimezone(ctx.Ctx, s)
 
 	p := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("╭━━━〔 AUTOBIO CONFIGURATION 〕━━━\n│ Status   : %s\n│ Timezone : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", statusStr, tzStr)
+	bodyText := Sprintf("╭━━━〔 AUTOBIO CONFIGURATION 〕━━━\n│ Status   : %s\n│ Timezone : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", statusStr, tzStr)
 
 	var actionButton struct{ ID, Text string }
 	if enabled == "true" {
@@ -613,7 +612,7 @@ func sendAutoBioMenu(ctx *Context, s *StoreWrapper) error {
 		{ID: p + "autobio customize", Text: "Customize"},
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AutoBio Updater", ctx.GetBotName()), buttons)
+	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AutoBio Updater", ctx.GetBotName()), buttons)
 }
 
 func sendAutoBioCustomizeGuide(ctx *Context, s *StoreWrapper) error {
@@ -662,7 +661,7 @@ func generateBioText(tzStr string) string {
 	quote := cliutils.BioQuotes[cliutils.AutoBioRng.Intn(len(cliutils.BioQuotes))]
 	cliutils.AutoBioRngMutex.Unlock()
 
-	return fmt.Sprintf("⏰ %s | %s", timeFormatted, quote)
+	return Sprintf("⏰ %s | %s", timeFormatted, quote)
 }
 
 func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error) {
@@ -723,7 +722,7 @@ func handleTimezone(ctx *Context) error {
 			if resolved, okLoc := cliutils.ResolveTimezoneAlias(tzName); okLoc {
 				tzName = resolved
 			} else {
-				return ctx.Reply(fmt.Sprintf("Invalid timezone: %q. Please select a valid IANA timezone, Windows timezone name, or abbreviation.", tzName))
+				return ctx.Replyf("Invalid timezone: %q. Please select a valid IANA timezone, Windows timezone name, or abbreviation.", tzName)
 			}
 		}
 
@@ -731,7 +730,7 @@ func handleTimezone(ctx *Context) error {
 		if err != nil {
 			return ctx.Reply("Failed to save timezone setting.")
 		}
-		return ctx.Reply(fmt.Sprintf("Bot timezone successfully set to *%s*.", tzName))
+		return ctx.Replyf("Bot timezone successfully set to *%s*.", tzName)
 	}
 
 	if len(ctx.Args) >= 2 && strings.ToLower(ctx.Args[0]) == "page" {
@@ -748,14 +747,14 @@ func handleTimezone(ctx *Context) error {
 		if err := s.PutSetting(ctx.Ctx, "timezone", tzName); err != nil {
 			return ctx.Reply("Failed to save timezone setting.")
 		}
-		return ctx.Reply(fmt.Sprintf("Bot timezone successfully set to *%s*.", tzName))
+		return ctx.Replyf("Bot timezone successfully set to *%s*.", tzName)
 	}
 
 	if len(ctx.Args) == 1 {
 		tzName := ctx.Args[0]
 		if _, err := time.LoadLocation(tzName); err == nil {
 			_ = s.PutSetting(ctx.Ctx, "timezone", tzName)
-			return ctx.Reply(fmt.Sprintf("Bot timezone successfully set to *%s*.", tzName))
+			return ctx.Replyf("Bot timezone successfully set to *%s*.", tzName)
 		}
 	}
 
@@ -781,7 +780,7 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 	p := ctx.GetPrefix()
 
 	tb := ctx.Text().
-		Header(fmt.Sprintf("Timezone Configuration (Page %d of %d, Total: %d)", page, totalPages, len(cliutils.SupportedTimezones))).
+		Headerf("Timezone Configuration (Page %d of %d, Total: %d)", page, totalPages, len(cliutils.SupportedTimezones)).
 		Field("Current Timezone", currentTZ).
 		Blank().
 		Line("Select your local timezone below so automute & autounmute execute at your exact local time:").
@@ -799,7 +798,7 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 			if mins < 0 {
 				mins = -mins
 			}
-			offsetStr = fmt.Sprintf(" (UTC%+03d:%02d)", hours, mins)
+			offsetStr = Sprintf(" (UTC%+03d:%02d)", hours, mins)
 		}
 		tb.Numbered(globalIdx, Bold(tz)+offsetStr)
 	}
@@ -812,7 +811,7 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 			btnText = btnText[:20]
 		}
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%stimezone setidx %d", p, globalIdx),
+			ID:   Sprintf("%stimezone setidx %d", p, globalIdx),
 			Text: btnText,
 		})
 	}
@@ -820,12 +819,12 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 	if page < totalPages {
 		nextPage := page + 1
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%stimezone page %d", p, nextPage),
-			Text: fmt.Sprintf("Next (Page %d)", nextPage),
+			ID:   Sprintf("%stimezone page %d", p, nextPage),
+			Text: Sprintf("Next (Page %d)", nextPage),
 		})
 	} else if page > 1 {
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%stimezone page 1", p),
+			ID:   Sprintf("%stimezone page 1", p),
 			Text: "First Page",
 		})
 	}
@@ -834,18 +833,18 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 		Line("Tap a button above to select your timezone, or type:").
 		Linef("%stimezone <Name> (e.g. %stimezone Africa/Lagos)", p, p)
 
-	return sendInteractiveButtons(ctx, tb.Trimmed(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+	return sendInteractiveButtons(ctx, tb.Trimmed(), Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }
 
 func handleReconfigure(ctx *Context) error {
-	key := fmt.Sprintf("%s:%s", ctx.Chat.ToNonAD().String(), ctx.Sender.ToNonAD().String())
+	key := ctx.Chat.ToNonAD().String() + ":" + ctx.Sender.ToNonAD().String()
 	cliutils.BotWizardMu.Lock()
 	cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "name", UpdatedAt: time.Now()}
 	cliutils.BotWizardMu.Unlock()
 
 	p := ctx.GetPrefix()
 	bodyText := "Bot Customization Wizard (Step 1/4)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):"
-	return ctx.Reply(fmt.Sprintf("%s\n\n(Tip: Type %sreconfigure anytime to restart this wizard)", bodyText, p))
+	return ctx.Replyf("%s\n\n(Tip: Type %sreconfigure anytime to restart this wizard)", bodyText, p)
 }
 
 func GetSessionAuthDir(client *whatsmeow.Client) string {
@@ -869,7 +868,7 @@ func GetSessionMediaDir(client *whatsmeow.Client, subdirs ...string) string {
 
 func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, isVideo bool) (string, error) {
 	if len(data) == 0 {
-		return "", fmt.Errorf("empty media data")
+		return "", errors.New("empty media data")
 	}
 
 	if authDir == "" {
@@ -879,9 +878,9 @@ func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, i
 	targetPath := filepath.Join(authDir, "custom_menu_thumbnail.mp4")
 
 	if isVideo {
-		tempInput := filepath.Join(authDir, fmt.Sprintf("input_%d.mp4", time.Now().UnixNano()))
+		tempInput := filepath.Join(authDir, Sprintf("input_%d.mp4", time.Now().UnixNano()))
 		if err := os.WriteFile(tempInput, data, 0644); err != nil {
-			return "", fmt.Errorf("failed to save temp video: %w", err)
+			return "", errors.New("failed to save temp video: " + err.Error())
 		}
 		defer os.Remove(tempInput)
 
@@ -896,16 +895,16 @@ func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, i
 			slog.Warn("ffmpeg video processing failed, checking raw video fallback", "err", err)
 			if len(data) <= 10*1024*1024 {
 				if errWrite := os.WriteFile(targetPath, data, 0644); errWrite != nil {
-					return "", fmt.Errorf("failed to write raw video fallback: %w", errWrite)
+					return "", errors.New("failed to write raw video fallback: " + errWrite.Error())
 				}
 			} else {
-				return "", fmt.Errorf("video file too large (>10MB) and ffmpeg processing failed: %w", err)
+				return "", errors.New("video file too large (>10MB) and ffmpeg processing failed: " + err.Error())
 			}
 		}
 	} else {
-		tempImg := filepath.Join(authDir, fmt.Sprintf("thumb_%d.jpg", time.Now().UnixNano()))
+		tempImg := filepath.Join(authDir, Sprintf("thumb_%d.jpg", time.Now().UnixNano()))
 		if err := os.WriteFile(tempImg, data, 0644); err != nil {
-			return "", fmt.Errorf("failed to save temp image: %w", err)
+			return "", errors.New("failed to save temp image: " + err.Error())
 		}
 		defer os.Remove(tempImg)
 
@@ -915,7 +914,7 @@ func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, i
 		if err := cmd.Run(); err != nil {
 			targetPath = filepath.Join(authDir, "custom_menu_thumbnail.jpg")
 			if errWrite := os.WriteFile(targetPath, data, 0644); errWrite != nil {
-				return "", fmt.Errorf("failed to save raw image fallback: %w", errWrite)
+				return "", errors.New("failed to save raw image fallback: " + errWrite.Error())
 			}
 		}
 	}
@@ -989,7 +988,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	}
 
 	senderUser := evt.Info.Sender.ToNonAD().User
-	key := fmt.Sprintf("%s:%s", evt.Info.Chat.ToNonAD().String(), evt.Info.Sender.ToNonAD().String())
+	key := evt.Info.Chat.ToNonAD().String() + ":" + evt.Info.Sender.ToNonAD().String()
 
 	cliutils.BotWizardMu.RLock()
 	session, inWizard := cliutils.PendingWizardState[key]
@@ -1066,7 +1065,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "thumb", UpdatedAt: time.Now()}
 		cliutils.BotWizardMu.Unlock()
 
-		msg := fmt.Sprintf("Bot name set to %q.\n\nBot Customization Wizard (Step 2/4)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.", newName)
+		msg := Sprintf("Bot name set to %q.\n\nBot Customization Wizard (Step 2/4)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.", newName)
 		_ = fakeCtx.Reply(msg)
 		return true
 
@@ -1085,7 +1084,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 		if err != nil || len(data) == 0 {
 			slog.Error("Wizard Step 2/4 (thumb): Media download failed", "chat", key, "err", err, "dataLen", len(data))
-			_ = fakeCtx.Reply(fmt.Sprintf("Failed to download media for thumbnail (error: %v). Please try sending another file.", err))
+			_ = fakeCtx.Replyf("Failed to download media for thumbnail (error: %v). Please try sending another file.", err)
 			return true
 		}
 
@@ -1094,7 +1093,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		targetPath, errProc := ProcessAndSaveThumbnail(ctx, authDir, data, isVideo)
 		if errProc != nil {
 			slog.Error("Wizard Step 2/4 (thumb): Thumbnail processing failed", "chat", key, "err", errProc)
-			_ = fakeCtx.Reply(fmt.Sprintf("Failed to process thumbnail: %v", errProc))
+			_ = fakeCtx.Replyf("Failed to process thumbnail: %v", errProc)
 			return true
 		}
 
@@ -1113,7 +1112,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 			{ID: p + "setbot prompt_prefix", Text: "Set Prefix"},
 			{ID: p + "setbot skip 3", Text: "Skip"},
 		}
-		_ = sendInteractiveButtons(fakeCtx, bodyText, fmt.Sprintf("%s Setup", fakeCtx.GetBotName()), buttons)
+		_ = sendInteractiveButtons(fakeCtx, bodyText, Sprintf("%s Setup", fakeCtx.GetBotName()), buttons)
 		return true
 
 	case "prefix":
@@ -1132,12 +1131,12 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "bio", UpdatedAt: time.Now()}
 		cliutils.BotWizardMu.Unlock()
 
-		bodyText := fmt.Sprintf("Prefix set to %q.\n\nBot Customization Wizard (Step 4/4)\n\nPlease send the text for your bot's WhatsApp status bio.\n\nOr click Skip to finish wizard.", newPrefix)
+		bodyText := Sprintf("Prefix set to %q.\n\nBot Customization Wizard (Step 4/4)\n\nPlease send the text for your bot's WhatsApp status bio.\n\nOr click Skip to finish wizard.", newPrefix)
 		buttons := []struct{ ID, Text string }{
 			{ID: p + "setbot prompt_bio", Text: "Set Bio"},
 			{ID: p + "setbot skip 4", Text: "Skip"},
 		}
-		_ = sendInteractiveButtons(fakeCtx, bodyText, fmt.Sprintf("%s Setup", fakeCtx.GetBotName()), buttons)
+		_ = sendInteractiveButtons(fakeCtx, bodyText, Sprintf("%s Setup", fakeCtx.GetBotName()), buttons)
 		return true
 
 	case "bio":
@@ -1170,7 +1169,7 @@ func handleSetBot(ctx *Context) error {
 
 	p := ctx.GetPrefix()
 	senderUser := ctx.Sender.ToNonAD().User
-	key := fmt.Sprintf("%s:%s", ctx.Chat.ToNonAD().String(), ctx.Sender.ToNonAD().String())
+	key := ctx.Chat.ToNonAD().String() + ":" + ctx.Sender.ToNonAD().String()
 	args := strings.Fields(ctx.RawArgs)
 
 	if len(args) > 0 {
@@ -1223,7 +1222,7 @@ func handleSetBot(ctx *Context) error {
 					{ID: p + "setbot prompt_bio", Text: "Set Bio"},
 					{ID: p + "setbot skip 4", Text: "Skip"},
 				}
-				return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s Setup", ctx.GetBotName()), buttons)
+				return sendInteractiveButtons(ctx, bodyText, Sprintf("%s Setup", ctx.GetBotName()), buttons)
 			}
 
 			if stepNum == 4 || stepNum == 0 {
@@ -1243,29 +1242,29 @@ func handleSetBot(ctx *Context) error {
 
 		case "name", "setname":
 			if len(args) < 2 {
-				return ctx.Reply(fmt.Sprintf("Usage: %sbotname <New Name>", p))
+				return ctx.Replyf("Usage: %sbotname <New Name>", p)
 			}
 			newName := strings.Join(args[1:], " ")
 			_ = s.PutSetting(ctx.Ctx, cliutils.BotNameSettingKey, newName)
 			DismissBotNamePrompt(ctx.Ctx, s)
 			_ = s.PutSetting(ctx.Ctx, cliutils.BotNameAwaitingInputPrefix+senderUser, "")
 			cliutils.ClearInstructionCache()
-			return ctx.Reply(fmt.Sprintf("Bot name successfully updated to: %q!", newName))
+			return ctx.Replyf("Bot name successfully updated to: %q!", newName)
 
 		case "prefix", "setprefix":
 			if len(args) < 2 {
-				return ctx.Reply(fmt.Sprintf("Usage: %ssetprefix <symbol>", p))
+				return ctx.Replyf("Usage: %ssetprefix <symbol>", p)
 			}
 			newPrefix := args[1]
 			if strings.EqualFold(newPrefix, "none") || strings.EqualFold(newPrefix, "empty") {
 				newPrefix = "empty"
 			}
 			_ = s.PutSetting(ctx.Ctx, cliutils.PrefixSettingKey, newPrefix)
-			return ctx.Reply(fmt.Sprintf("Command prefix updated to: %q!", newPrefix))
+			return ctx.Replyf("Command prefix updated to: %q!", newPrefix)
 
 		case "bio", "setbio":
 			if len(args) < 2 {
-				return ctx.Reply(fmt.Sprintf("Usage: %sbio <text>", p))
+				return ctx.Replyf("Usage: %sbio <text>", p)
 			}
 			newBio := strings.Join(args[1:], " ")
 			if err := ctx.Client.SetStatusMessage(ctx.Ctx, types.SetStatusInput{Text: &newBio}); err != nil {
@@ -1300,12 +1299,12 @@ func handleSetBot(ctx *Context) error {
 				{ID: p + "reconfigure", Text: "Start Wizard"},
 				{ID: p + "setbot setup_ignore", Text: "Keep Default"},
 			}
-			return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+			return sendInteractiveButtons(ctx, bodyText, Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 
 		case "setup_ignore":
 			DismissBotNamePrompt(ctx.Ctx, s)
 			_ = s.PutSetting(ctx.Ctx, cliutils.BotNameAwaitingInputPrefix+senderUser, "")
-			return ctx.Reply(fmt.Sprintf("Kept default bot name. Change anytime using %sreconfigure or %ssetbot", p, p))
+			return ctx.Replyf("Kept default bot name. Change anytime using %sreconfigure or %ssetbot", p, p)
 		}
 	}
 
@@ -1358,7 +1357,7 @@ func sendSetBotPage(ctx *Context, pageNum int) error {
 		}
 	}
 
-	return sendInteractiveButtons(ctx, tb.Trimmed(), fmt.Sprintf("%s Settings", botName), buttons)
+	return sendInteractiveButtons(ctx, tb.Trimmed(), Sprintf("%s Settings", botName), buttons)
 }
 
 func sendWizardSummaryCard(ctx *Context) error {
@@ -1430,7 +1429,7 @@ func handleLikeStatusCmd(ctx *Context) error {
 		return sendLikeStatusCustomizeGuide(ctx)
 
 	default:
-		return ctx.Reply(fmt.Sprintf("Usage: %slikestatus [on|off|toggle|customize]", ctx.GetPrefix()))
+		return ctx.Replyf("Usage: %slikestatus [on|off|toggle|customize]", ctx.GetPrefix())
 	}
 }
 
@@ -1441,7 +1440,7 @@ func sendLikeStatusMenu(ctx *Context, s *StoreWrapper) error {
 	}
 
 	p := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("╭━━━〔 LIFESTATUS AUTO-REACTION 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically reacts to status broadcasts with random love emojis (❤️, 💕, 💖, 💗, 💓, 💞, 💘, 💌, 🥰, 😍).", strings.ToUpper(status))
+	bodyText := Sprintf("╭━━━〔 LIFESTATUS AUTO-REACTION 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically reacts to status broadcasts with random love emojis (❤️, 💕, 💖, 💗, 💓, 💞, 💘, 💌, 🥰, 😍).", strings.ToUpper(status))
 
 	var actionButton struct{ ID, Text string }
 	if status == "on" {
@@ -1455,7 +1454,7 @@ func sendLikeStatusMenu(ctx *Context, s *StoreWrapper) error {
 		{ID: p + "likestatus customize", Text: "Customize"},
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s LikeStatus", ctx.GetBotName()), buttons)
+	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s LikeStatus", ctx.GetBotName()), buttons)
 }
 
 func sendLikeStatusCustomizeGuide(ctx *Context) error {
@@ -1484,9 +1483,9 @@ func handlePrefix(ctx *Context) error {
 			return sendText(ctx, "Failed to retrieve prefix configuration.")
 		}
 		if raw == "" {
-			return sendText(ctx, fmt.Sprintf("Prefix: %q (default)", cliutils.DefaultPrefix))
+			return ctx.SendTextf("Prefix: %q (default)", cliutils.DefaultPrefix)
 		}
-		return sendText(ctx, fmt.Sprintf("Prefix(es): %s", raw))
+		return ctx.SendTextf("Prefix(es): %s", raw)
 	}
 
 	parts := strings.Fields(ctx.RawArgs)
@@ -1517,10 +1516,10 @@ func handlePrefix(ctx *Context) error {
 		if p == "empty" {
 			display = append(display, "(no prefix)")
 		} else {
-			display = append(display, fmt.Sprintf("%q", p))
+			display = append(display, Sprintf("%q", p))
 		}
 	}
-	return sendText(ctx, fmt.Sprintf("Prefix updated to: %s", strings.Join(display, ", ")))
+	return ctx.SendTextf("Prefix updated to: %s", strings.Join(display, ", "))
 }
 
 func handlePrivacy(ctx *Context) error {
@@ -1559,15 +1558,15 @@ func handlePrivacy(ctx *Context) error {
 
 	buttons := []struct{ ID, Text string }{
 		{
-			ID:   fmt.Sprintf("%sprivacy last all", p),
+			ID:   Sprintf("%sprivacy last all", p),
 			Text: "Last Seen: Everyone",
 		},
 		{
-			ID:   fmt.Sprintf("%sprivacy last contacts", p),
+			ID:   Sprintf("%sprivacy last contacts", p),
 			Text: "Last Seen: Contacts",
 		},
 		{
-			ID:   fmt.Sprintf("%sprivacy last none", p),
+			ID:   Sprintf("%sprivacy last none", p),
 			Text: "Last Seen: Nobody",
 		},
 	}
@@ -1613,10 +1612,10 @@ func updatePrivacySetting(ctx *Context, nameStr, valStr string) error {
 
 	_, err := ctx.Client.SetPrivacySetting(ctx.Ctx, name, val)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to update privacy setting %s: %v", name, err))
+		return ctx.Replyf("Failed to update privacy setting %s: %v", name, err)
 	}
 
-	return ctx.Reply(fmt.Sprintf("Successfully updated privacy setting *%s* to *%s*.", name, val))
+	return ctx.Replyf("Successfully updated privacy setting *%s* to *%s*.", name, val)
 }
 
 func handleSetCmd(ctx *Context) error {
@@ -1631,7 +1630,7 @@ func handleSetCmd(ctx *Context) error {
 
 	_, exists := Get(cmdName)
 	if !exists {
-		return ctx.Reply(fmt.Sprintf(" Command %q does not exist.", cmdName))
+		return ctx.Replyf(" Command %q does not exist.", cmdName)
 	}
 
 	quoted := ctx.GetQuotedMessage()
@@ -1665,7 +1664,7 @@ func handleSetCmd(ctx *Context) error {
 		return ctx.Reply("Failed to link sticker command.")
 	}
 
-	return ctx.Reply(fmt.Sprintf("Sticker linked to command %q.", cmdName))
+	return ctx.Replyf("Sticker linked to command %q.", cmdName)
 }
 
 func handleDelCmd(ctx *Context) error {
@@ -1714,10 +1713,10 @@ func handleDelCmd(ctx *Context) error {
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		return ctx.Reply(fmt.Sprintf("No sticker linked to command %q.", cmdName))
+		return ctx.Replyf("No sticker linked to command %q.", cmdName)
 	}
 
-	return ctx.Reply(fmt.Sprintf("Mapped sticker(s) for command %q removed.", cmdName))
+	return ctx.Replyf("Mapped sticker(s) for command %q removed.", cmdName)
 }
 
 func handleGetCmd(ctx *Context) error {
@@ -1763,7 +1762,7 @@ func handleDisableCmd(ctx *Context) error {
 
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %sdisablecmd <command_name>\nExample:\n- %sdisablecmd weather", p, p))
+		return ctx.Replyf("Usage:\n- %sdisablecmd <command_name>\nExample:\n- %sdisablecmd weather", p, p)
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
@@ -1773,7 +1772,7 @@ func handleDisableCmd(ctx *Context) error {
 
 	_, exists := Get(cmdName)
 	if !exists {
-		return ctx.Reply(fmt.Sprintf("Command %q does not exist.", cmdName))
+		return ctx.Replyf("Command %q does not exist.", cmdName)
 	}
 
 	s, ok := getStore(ctx)
@@ -1789,7 +1788,7 @@ func handleDisableCmd(ctx *Context) error {
 	disabled := strings.Fields(raw)
 	for _, d := range disabled {
 		if strings.EqualFold(d, cmdName) {
-			return ctx.Reply(fmt.Sprintf("Command %q is already disabled.", cmdName))
+			return ctx.Replyf("Command %q is already disabled.", cmdName)
 		}
 	}
 
@@ -1798,7 +1797,7 @@ func handleDisableCmd(ctx *Context) error {
 		return ctx.Reply("Failed to disable command.")
 	}
 
-	return ctx.Reply(fmt.Sprintf("Command %q has been disabled.", cmdName))
+	return ctx.Replyf("Command %q has been disabled.", cmdName)
 }
 
 func handleEnableCmd(ctx *Context) error {
@@ -1808,7 +1807,7 @@ func handleEnableCmd(ctx *Context) error {
 
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %senablecmd <command_name>\nExample:\n- %senablecmd weather", p, p))
+		return ctx.Replyf("Usage:\n- %senablecmd <command_name>\nExample:\n- %senablecmd weather", p, p)
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
@@ -1835,14 +1834,14 @@ func handleEnableCmd(ctx *Context) error {
 	}
 
 	if !found {
-		return ctx.Reply(fmt.Sprintf("Command %q is not currently disabled.", cmdName))
+		return ctx.Replyf("Command %q is not currently disabled.", cmdName)
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "disabled_commands", strings.Join(newDisabled, " ")); err != nil {
 		return ctx.Reply("Failed to enable command.")
 	}
 
-	return ctx.Reply(fmt.Sprintf("Command %q has been enabled.", cmdName))
+	return ctx.Replyf("Command %q has been enabled.", cmdName)
 }
 
 func handleAutoVV(ctx *Context) error {
@@ -1871,7 +1870,7 @@ func handleAutoVV(ctx *Context) error {
 			modeText = "Public (Same Chat)"
 		}
 
-		bodyText := fmt.Sprintf("╭━━━〔 AUTO-VIEWONCE SETTINGS 〕━━━\n│ Status : %s\n│ Mode   : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically intercepts incoming ViewOnce media and re-uploads fresh non-expiring media.\n\nModes:\n• Private (DM): Unwrapped media is saved & sent privately to your DM.\n• Public (Chat): Unwrapped media is posted in the chat where it was received.", strings.ToUpper(curr), modeText)
+		bodyText := Sprintf("╭━━━〔 AUTO-VIEWONCE SETTINGS 〕━━━\n│ Status : %s\n│ Mode   : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically intercepts incoming ViewOnce media and re-uploads fresh non-expiring media.\n\nModes:\n• Private (DM): Unwrapped media is saved & sent privately to your DM.\n• Public (Chat): Unwrapped media is posted in the chat where it was received.", strings.ToUpper(curr), modeText)
 		var actionButton struct{ ID, Text string }
 		if curr == "on" {
 			actionButton = struct{ ID, Text string }{ID: p + "autovv off", Text: "Deactivate"}
@@ -1889,7 +1888,7 @@ func handleAutoVV(ctx *Context) error {
 			modeButton,
 			{ID: p + "autovv customize", Text: "Guide"},
 		}
-		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AutoVV Settings", ctx.GetBotName()), buttons)
+		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AutoVV Settings", ctx.GetBotName()), buttons)
 	}
 
 	sub := strings.ToLower(args[0])
@@ -1916,9 +1915,9 @@ func handleAutoVV(ctx *Context) error {
 		return ctx.Reply("Auto ViewOnce forwarding ENABLED.")
 	case "customize", "custom", "help":
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("╭━━━〔 AUTOVV GUIDE 〕━━━\n\nCommands:\n• %sautovv on\n• %sautovv off\n• %sautovv dm (Private DM)\n• %sautovv public (Group/Chat)\n• %sautovv toggle\n\nAutomatically intercepts ViewOnce media sent in chats, downloads media bytes immediately to prevent CDN expiry, and forwards clean unwrapped media to your DM or the public chat.", p, p, p, p, p))
+		return ctx.Replyf("╭━━━〔 AUTOVV GUIDE 〕━━━\n\nCommands:\n• %sautovv on\n• %sautovv off\n• %sautovv dm (Private DM)\n• %sautovv public (Group/Chat)\n• %sautovv toggle\n\nAutomatically intercepts ViewOnce media sent in chats, downloads media bytes immediately to prevent CDN expiry, and forwards clean unwrapped media to your DM or the public chat.", p, p, p, p, p)
 	default:
-		return ctx.Reply(fmt.Sprintf("Usage: %sautovv [on|off|dm|public|toggle|customize]", ctx.GetPrefix()))
+		return ctx.Replyf("Usage: %sautovv [on|off|dm|public|toggle|customize]", ctx.GetPrefix())
 	}
 }
 
@@ -1939,7 +1938,7 @@ func handleAutoStatusSave(ctx *Context) error {
 			curr = "off"
 		}
 		p := ctx.GetPrefix()
-		bodyText := fmt.Sprintf("╭━━━〔 AUTO-STATUS SAVER 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically saves incoming WhatsApp status broadcasts to your DM.", strings.ToUpper(curr))
+		bodyText := Sprintf("╭━━━〔 AUTO-STATUS SAVER 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically saves incoming WhatsApp status broadcasts to your DM.", strings.ToUpper(curr))
 		var actionButton struct{ ID, Text string }
 		if curr == "on" {
 			actionButton = struct{ ID, Text string }{ID: p + "autostatus off", Text: "Deactivate"}
@@ -1950,7 +1949,7 @@ func handleAutoStatusSave(ctx *Context) error {
 			actionButton,
 			{ID: p + "autostatus customize", Text: "Customize"},
 		}
-		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AutoStatus", ctx.GetBotName()), buttons)
+		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AutoStatus", ctx.GetBotName()), buttons)
 	}
 
 	sub := strings.ToLower(args[0])
@@ -1971,8 +1970,8 @@ func handleAutoStatusSave(ctx *Context) error {
 		return ctx.Reply("Auto Status saving ENABLED.")
 	case "customize", "custom", "help":
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("╭━━━〔 AUTOSTATUS GUIDE 〕━━━\n\nCommands:\n• %sautostatus on\n• %sautostatus off\n• %sautostatus toggle\n\nAutomatically intercepts contacts' status broadcasts and forwards them to your DM.", p, p, p))
+		return ctx.Replyf("╭━━━〔 AUTOSTATUS GUIDE 〕━━━\n\nCommands:\n• %sautostatus on\n• %sautostatus off\n• %sautostatus toggle\n\nAutomatically intercepts contacts' status broadcasts and forwards them to your DM.", p, p, p)
 	default:
-		return ctx.Reply(fmt.Sprintf("Usage: %sautostatus [on|off|toggle|customize]", ctx.GetPrefix()))
+		return ctx.Replyf("Usage: %sautostatus [on|off|toggle|customize]", ctx.GetPrefix())
 	}
 }

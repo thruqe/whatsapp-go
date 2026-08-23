@@ -3,7 +3,7 @@ package plugins
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -110,7 +110,7 @@ func handleSaveContact(ctx *Context) error {
 	fullName := strings.Join(nameParts, " ")
 
 	if targetJID.IsEmpty() {
-		return ctx.Reply(fmt.Sprintf("Please specify a user to save. Usage:\n- %ssavecontact <Name> @user\n- Reply to a message with %ssavecontact <Name>", p, p))
+		return ctx.Replyf("Please specify a user to save. Usage:\n- %ssavecontact <Name> @user\n- Reply to a message with %ssavecontact <Name>", p, p)
 	}
 
 	if fullName == "" {
@@ -132,9 +132,9 @@ func handleSaveContact(ctx *Context) error {
 
 		if fullName == "" {
 			if isGroup {
-				return ctx.Reply(fmt.Sprintf("Could not auto-detect contact pushname. Please specify a name:\n- %ssavecontact <Name> @user", p))
+				return ctx.Replyf("Could not auto-detect contact pushname. Please specify a name:\n- %ssavecontact <Name> @user", p)
 			}
-			return ctx.Reply(fmt.Sprintf("Could not auto-detect contact pushname. Please specify a name:\n- %ssavecontact <Name>", p))
+			return ctx.Replyf("Could not auto-detect contact pushname. Please specify a name:\n- %ssavecontact <Name>", p)
 		}
 	}
 
@@ -223,7 +223,7 @@ func handleSaveContact(ctx *Context) error {
 		}
 	}
 
-	vcard := fmt.Sprintf("BEGIN:VCARD\nVERSION:3.0\nN:%s;%s;;;\nFN:%s\nTEL;type=CELL;waid=%s:+%s\nEND:VCARD", firstName, fullName, fullName, targetJID.User, targetJID.User)
+	vcard := Sprintf("BEGIN:VCARD\nVERSION:3.0\nN:%s;%s;;;\nFN:%s\nTEL;type=CELL;waid=%s:+%s\nEND:VCARD", firstName, fullName, fullName, targetJID.User, targetJID.User)
 	vcardMsg := &waE2E.Message{
 		ContactMessage: &waE2E.ContactMessage{
 			DisplayName: &fullName,
@@ -239,13 +239,13 @@ func handleSaveContact(ctx *Context) error {
 	}
 
 	resolvedJID, username := ctx.ResolveMention(targetJID)
-	return ctx.ReplyWithMentions(fmt.Sprintf("Saved @%s (%s) to your WhatsApp contact sync state.", username, fullName), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(Sprintf("Saved @%s (%s) to your WhatsApp contact sync state.", username, fullName), []types.JID{resolvedJID})
 }
 
 func handleFont(ctx *Context) error {
 	p := ctx.GetPrefix()
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(fmt.Sprintf("Current font style: %s\n\nUsage: %sfont <number or style_name>\nType %sfontlist to view all available font numbers.", cliutils.GetFontStyle(), p, p))
+		return ctx.Replyf("Current font style: %s\n\nUsage: %sfont <number or style_name>\nType %sfontlist to view all available font numbers.", cliutils.GetFontStyle(), p, p)
 	}
 
 	arg := strings.ToLower(ctx.Args[0])
@@ -266,7 +266,7 @@ func handleFont(ctx *Context) error {
 	}
 
 	if targetStyle == "" {
-		return ctx.Reply(fmt.Sprintf("Invalid font style! Use %sfontlist to view valid numbers (1-%d).", p, len(cliutils.IndexedFonts)))
+		return ctx.Replyf("Invalid font style! Use %sfontlist to view valid numbers (1-%d).", p, len(cliutils.IndexedFonts))
 	}
 
 	cliutils.SetFontStyle(targetStyle)
@@ -274,15 +274,14 @@ func handleFont(ctx *Context) error {
 		_ = s.PutSetting(ctx.Ctx, "font_style", targetStyle)
 	}
 
-	return ctx.Reply(fmt.Sprintf("Default font style updated to *%s*.", targetStyle))
+	return ctx.Replyf("Default font style updated to *%s*.", targetStyle)
 }
 
 func handleFontList(ctx *Context) error {
 	p := ctx.GetPrefix()
 	sampleText := "WhatsRook Bot"
 
-	var sb strings.Builder
-	sb.WriteString("AVAILABLE FONT NUMBERS & STYLES\n\n")
+	tb := ctx.Text().Header("AVAILABLE FONT NUMBERS & STYLES")
 
 	for _, f := range cliutils.IndexedFonts {
 		curr := cliutils.GetFontStyle()
@@ -290,11 +289,15 @@ func handleFontList(ctx *Context) error {
 		converted := cliutils.ConvertFontStyle(sampleText)
 		cliutils.SetFontStyle(curr)
 
-		fmt.Fprintf(&sb, "%d. %s → %s\n", f.Number, f.Name, converted)
+		tb.Numberedf(f.Number, "%s → %s", f.Name, converted)
 	}
 
-	fmt.Fprintf(&sb, "\nUsage Examples:\n• %sfancy 14 Hello World\n• %sfont 14", p, p)
-	return ctx.Reply(sb.String())
+	tb.Blank().
+		Section("Usage Examples:").
+		Bulletf("%sfancy 14 Hello World", p).
+		Bulletf("%sfont 14", p)
+
+	return tb.Reply()
 }
 
 func handleFancy(ctx *Context) error {
@@ -315,8 +318,7 @@ func handleFancy(ctx *Context) error {
 			if len([]rune(sample)) > 30 {
 				sample = string([]rune(sample)[:30]) + "..."
 			}
-			var sb strings.Builder
-			sb.WriteString("Select a font style below to convert your replied message:\n\n")
+			tb := ctx.Text().Header("Select a font style below to convert your replied message:")
 			for _, fn := range []int{14, 2, 8, 4, 18, 22} {
 				if fn <= len(cliutils.IndexedFonts) {
 					f := cliutils.IndexedFonts[fn-1]
@@ -324,43 +326,42 @@ func handleFancy(ctx *Context) error {
 					cliutils.SetFontStyle(f.Key)
 					preview := cliutils.ConvertFontStyle(sample)
 					cliutils.SetFontStyle(curr)
-					fmt.Fprintf(&sb, "#%d (%s): %s\n", fn, f.Name, preview)
+					tb.Linef("#%d (%s): %s", fn, f.Name, preview)
 				}
 			}
 			buttons := []struct{ ID, Text string }{
-				{ID: fmt.Sprintf("%sfancy 14 %s", p, quotedText), Text: "Small Caps (#14)"},
-				{ID: fmt.Sprintf("%sfancy 2 %s", p, quotedText), Text: "Bold (#2)"},
-				{ID: fmt.Sprintf("%sfancy 8 %s", p, quotedText), Text: "Fraktur (#8)"},
+				{ID: Sprintf("%sfancy 14 %s", p, quotedText), Text: "Small Caps (#14)"},
+				{ID: Sprintf("%sfancy 2 %s", p, quotedText), Text: "Bold (#2)"},
+				{ID: Sprintf("%sfancy 8 %s", p, quotedText), Text: "Fraktur (#8)"},
 			}
-			return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("%s Fancy Converter", ctx.GetBotName()), buttons)
+			return sendInteractiveButtons(ctx, tb.String(), Sprintf("%s Fancy Converter", ctx.GetBotName()), buttons)
 		}
 
-		var sb strings.Builder
-		sb.WriteString("Please provide a font number and text to convert, or reply to a message with *")
-		sb.WriteString(p)
-		sb.WriteString("fancy <font_number>*.\n\n")
-		sb.WriteString("Use *")
-		sb.WriteString(p)
-		sb.WriteString("fontlist* to view all available font numbers.\n\n")
-		sb.WriteString("Usage Examples:\n")
-		fmt.Fprintf(&sb, "• `%sfancy 14 Hello World`\n", p)
-		fmt.Fprintf(&sb, "• `%sfancy 14` (as reply to a message)\n", p)
-		fmt.Fprintf(&sb, "• `%sfancy 2 WhatsRook AI`\n\n", p)
-		sb.WriteString("Select an interactive font preset below to convert default sample text:")
+		tb := ctx.Text().
+			Linef("Please provide a font number and text to convert, or reply to a message with *%sfancy <font_number>*.", p).
+			Blank().
+			Linef("Use *%sfontlist* to view all available font numbers.", p).
+			Blank().
+			Section("Usage Examples:").
+			Bulletf("`%sfancy 14 Hello World`", p).
+			Bulletf("`%sfancy 14` (as reply to a message)", p).
+			Bulletf("`%sfancy 2 WhatsRook AI`", p).
+			Blank().
+			Line("Select an interactive font preset below to convert default sample text:")
 
 		buttons := []struct{ ID, Text string }{
-			{ID: fmt.Sprintf("%sfancy 14 Hello World", p), Text: "Small Caps (#14)"},
-			{ID: fmt.Sprintf("%sfancy 2 Hello World", p), Text: "Bold (#2)"},
-			{ID: fmt.Sprintf("%sfancy 8 Hello World", p), Text: "Fraktur (#8)"},
+			{ID: Sprintf("%sfancy 14 Hello World", p), Text: "Small Caps (#14)"},
+			{ID: Sprintf("%sfancy 2 Hello World", p), Text: "Bold (#2)"},
+			{ID: Sprintf("%sfancy 8 Hello World", p), Text: "Fraktur (#8)"},
 		}
 
-		return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("%s Fancy Converter", ctx.GetBotName()), buttons)
+		return sendInteractiveButtons(ctx, tb.String(), Sprintf("%s Fancy Converter", ctx.GetBotName()), buttons)
 	}
 
 	num, err := strconv.Atoi(ctx.Args[0])
 	if err == nil {
 		if num < 1 || num > len(cliutils.IndexedFonts) {
-			return ctx.Reply(fmt.Sprintf("Invalid font number %q. Please choose a number between 1 and %d.\nType %sfontlist to view all font numbers.", ctx.Args[0], len(cliutils.IndexedFonts), p))
+			return ctx.Replyf("Invalid font number %q. Please choose a number between 1 and %d.\nType %sfontlist to view all font numbers.", ctx.Args[0], len(cliutils.IndexedFonts), p)
 		}
 		fontNum = num
 
@@ -369,7 +370,7 @@ func handleFancy(ctx *Context) error {
 		} else if quotedText != "" {
 			textToConvert = quotedText
 		} else {
-			return ctx.Reply(fmt.Sprintf("Please provide text to convert or reply to a message with text.\nExample: `%sfancy %d Hello World` or reply to a message with `%sfancy %d`", p, fontNum, p, fontNum))
+			return ctx.Replyf("Please provide text to convert or reply to a message with text.\nExample: `%sfancy %d Hello World` or reply to a message with `%sfancy %d`", p, fontNum, p, fontNum)
 		}
 	} else {
 		fontNum = 14
@@ -380,7 +381,7 @@ func handleFancy(ctx *Context) error {
 		if quotedText != "" {
 			textToConvert = quotedText
 		} else {
-			return ctx.Reply(fmt.Sprintf("Please provide text to convert. Example: `%sfancy %d Hello World`", p, fontNum))
+			return ctx.Replyf("Please provide text to convert. Example: `%sfancy %d Hello World`", p, fontNum)
 		}
 	}
 
@@ -404,7 +405,7 @@ func handleScreenshot(ctx *Context) error {
 
 	if query == "" {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage: `%sss <URL>`\n\nExample:\n- `%sss https://google.com`\n- Reply to a message containing a URL with `%sss`", p, p, p))
+		return ctx.Replyf("Usage: `%sss <URL>`\n\nExample:\n- `%sss https://google.com`\n- Reply to a message containing a URL with `%sss`", p, p, p)
 	}
 
 	fields := strings.Fields(query)
@@ -434,7 +435,7 @@ func handleScreenshot(ctx *Context) error {
 	imgData, mimeType, err := fetchWebsiteScreenshot(ctx.Ctx, targetURL)
 	if err != nil {
 		slog.Error("handleScreenshot failed", "url", targetURL, "err", err)
-		return ctx.Reply(fmt.Sprintf("Failed to capture screenshot for `%s`.\nPlease verify the website URL and try again.", targetURL))
+		return ctx.Replyf("Failed to capture screenshot for `%s`.\nPlease verify the website URL and try again.", targetURL)
 	}
 
 	caption := ""
@@ -478,7 +479,7 @@ func fetchWebsiteScreenshot(ctx context.Context, targetURL string) ([]byte, stri
 		return dataAlt, mimeAlt, nil
 	}
 
-	return nil, "", fmt.Errorf("failed to capture screenshot from available services")
+	return nil, "", errors.New("failed to capture screenshot from available services")
 }
 
 func fetchImageBytes(ctx context.Context, imgURL string) ([]byte, string, error) {
@@ -495,7 +496,7 @@ func fetchImageBytes(ctx context.Context, imgURL string) ([]byte, string, error)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("HTTP status %d", resp.StatusCode)
+		return nil, "", errors.New(Sprintf("HTTP status %d", resp.StatusCode))
 	}
 
 	data, err := io.ReadAll(resp.Body)
@@ -505,7 +506,7 @@ func fetchImageBytes(ctx context.Context, imgURL string) ([]byte, string, error)
 
 	mimeType := http.DetectContentType(data)
 	if !strings.HasPrefix(mimeType, "image/") {
-		return nil, "", fmt.Errorf("invalid image content type: %s", mimeType)
+		return nil, "", errors.New("invalid image content type: " + mimeType)
 	}
 
 	return data, mimeType, nil
@@ -520,7 +521,7 @@ func handleTTS(ctx *Context) error {
 		}
 	}
 	if textToSpeak == "" {
-		return ctx.Reply(fmt.Sprintf("Usage: %stts <text> or %stts <lang_code> <text>\n\nExamples:\n• %stts Hello world!\n• %stts es Hola, ¿cómo estás?\n• %stts fr Bonjour tout le monde", p, p, p, p, p))
+		return ctx.Replyf("Usage: %stts <text> or %stts <lang_code> <text>\n\nExamples:\n• %stts Hello world!\n• %stts es Hola, ¿cómo estás?\n• %stts fr Bonjour tout le monde", p, p, p, p, p)
 	}
 
 	lang := "en"
@@ -543,7 +544,7 @@ func handleTTS(ctx *Context) error {
 	mp3Data, err := fetchGoogleTTS(ctx.Ctx, textToSpeak, lang)
 	if err != nil {
 		slog.Error("handleTTS: Google TTS fetch failed", "err", err, "lang", lang)
-		return ctx.Reply(fmt.Sprintf("Failed to generate speech audio: %v", err))
+		return ctx.Replyf("Failed to generate speech audio: %v", err)
 	}
 
 	opusData, errConv := convertMP3ToOpus(ctx.Ctx, mp3Data)
@@ -556,11 +557,11 @@ func handleTTS(ctx *Context) error {
 }
 
 func fetchGoogleTTS(ctx context.Context, text string, lang string) ([]byte, error) {
-	apiURL := fmt.Sprintf("https://translate.google.com/translate_tts?ie=UTF-8&q=%s&tl=%s&client=tw-ob", url.QueryEscape(text), url.QueryEscape(lang))
+	apiURL := Sprintf("https://translate.google.com/translate_tts?ie=UTF-8&q=%s&tl=%s&client=tw-ob", url.QueryEscape(text), url.QueryEscape(lang))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, errors.New("failed to create request: " + err.Error())
 	}
 
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -569,21 +570,21 @@ func fetchGoogleTTS(ctx context.Context, text string, lang string) ([]byte, erro
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
+		return nil, errors.New("HTTP request failed: " + err.Error())
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("google TTS returned HTTP status %d", resp.StatusCode)
+		return nil, errors.New(Sprintf("google TTS returned HTTP status %d", resp.StatusCode))
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read audio response: %w", err)
+		return nil, errors.New("failed to read audio response: " + err.Error())
 	}
 
 	if len(data) == 0 {
-		return nil, fmt.Errorf("received empty audio data")
+		return nil, errors.New("received empty audio data")
 	}
 
 	return data, nil
@@ -591,8 +592,8 @@ func fetchGoogleTTS(ctx context.Context, text string, lang string) ([]byte, erro
 
 func convertMP3ToOpus(ctx context.Context, mp3Bytes []byte) ([]byte, error) {
 	tempDir := os.TempDir()
-	tempMP3 := filepath.Join(tempDir, fmt.Sprintf("tts_%d.mp3", time.Now().UnixNano()))
-	tempOpus := filepath.Join(tempDir, fmt.Sprintf("tts_%d.opus", time.Now().UnixNano()))
+	tempMP3 := filepath.Join(tempDir, Sprintf("tts_%d.mp3", time.Now().UnixNano()))
+	tempOpus := filepath.Join(tempDir, Sprintf("tts_%d.opus", time.Now().UnixNano()))
 
 	if err := os.WriteFile(tempMP3, mp3Bytes, 0644); err != nil {
 		return nil, err
@@ -663,21 +664,24 @@ func handleUserInfo(ctx *Context) error {
 		}
 	}
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "╭━━━〔 USER INFO 〕━━━\n")
-	fmt.Fprintf(&sb, "│ Name  : %s\n", pushName)
+	phoneOrLid := targetJID.User
 	if targetJID.Server == types.DefaultUserServer {
-		fmt.Fprintf(&sb, "│ Phone : +%s\n", targetJID.User)
-	} else {
-		fmt.Fprintf(&sb, "│ LID   : %s\n", targetJID.User)
+		phoneOrLid = "+" + targetJID.User
 	}
-	if bioText != "" && bioText != "N/A" {
-		fmt.Fprintf(&sb, "│ Status: %s\n", bioText)
-	}
-	fmt.Fprintf(&sb, "╰━━━━━━━━━━━━━━━━━━━━\n\n")
-	fmt.Fprintf(&sb, "Tip: Use %suserinfo @user to check another contact.", p)
 
-	infoText := sb.String()
+	tb := ctx.Text().
+		Header("USER INFO").
+		Field("Name", pushName).
+		Field("Phone/ID", phoneOrLid)
+
+	if bioText != "" && bioText != "N/A" {
+		tb.Field("Status", bioText)
+	}
+
+	tb.Blank().
+		Linef("Tip: Use %suserinfo @user to check another contact.", p)
+
+	infoText := tb.String()
 
 	ppInfo, errPP := ctx.Client.GetProfilePictureInfo(ctx.Ctx, targetJID, &whatsmeow.GetProfilePictureParams{})
 	if (errPP != nil || ppInfo == nil || ppInfo.URL == "") && rawTarget != targetJID {

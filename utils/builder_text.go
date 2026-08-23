@@ -25,6 +25,18 @@ func NewText(initial ...string) *TextBuilder {
 	return b
 }
 
+// NewTextf initializes a new standalone TextBuilder with formatted text.
+func NewTextf(format string, args ...any) *TextBuilder {
+	b := &TextBuilder{}
+	b.Textf(format, args...)
+	return b
+}
+
+// Sprintf formats according to a format specifier using TextBuilder.
+func Sprintf(format string, args ...any) string {
+	return NewTextf(format, args...).String()
+}
+
 // NewTextWithContext initializes a TextBuilder bound to a PluginContext for direct reply/send dispatch.
 func NewTextWithContext(ctx *PluginContext, initial ...string) *TextBuilder {
 	b := &TextBuilder{ctx: ctx}
@@ -217,12 +229,26 @@ func (b *TextBuilder) Header(title string) *TextBuilder {
 	return b
 }
 
+// Headerf formats and appends a clean header followed by double newline.
+func (b *TextBuilder) Headerf(format string, args ...any) *TextBuilder {
+	b.sb.WriteString(fmt.Sprintf(format, args...))
+	b.sb.WriteString("\n\n")
+	return b
+}
+
 // Section appends a clean section title followed by a single newline (Section\n).
 func (b *TextBuilder) Section(title string) *TextBuilder {
 	if title != "" {
 		b.sb.WriteString(title)
 		b.sb.WriteByte('\n')
 	}
+	return b
+}
+
+// Sectionf formats and appends a clean section title followed by a single newline.
+func (b *TextBuilder) Sectionf(format string, args ...any) *TextBuilder {
+	b.sb.WriteString(fmt.Sprintf(format, args...))
+	b.sb.WriteByte('\n')
 	return b
 }
 
@@ -286,6 +312,15 @@ func (b *TextBuilder) KV(label, value string) *TextBuilder {
 	b.sb.WriteString(label)
 	b.sb.WriteString(": ")
 	b.sb.WriteString(value)
+	b.sb.WriteByte('\n')
+	return b
+}
+
+// KVf formats and appends a plain key-value line (Label: formatted\n).
+func (b *TextBuilder) KVf(label, format string, args ...any) *TextBuilder {
+	b.sb.WriteString(label)
+	b.sb.WriteString(": ")
+	b.sb.WriteString(fmt.Sprintf(format, args...))
 	b.sb.WriteByte('\n')
 	return b
 }
@@ -464,6 +499,21 @@ func (b *TextBuilder) Len() int {
 // IsEmpty returns true if no text has been written.
 func (b *TextBuilder) IsEmpty() bool {
 	return b.sb.Len() == 0
+}
+
+// Write appends bytes to the builder (io.Writer).
+func (b *TextBuilder) Write(p []byte) (int, error) {
+	return b.sb.Write(p)
+}
+
+// WriteString appends a string to the builder (io.StringWriter).
+func (b *TextBuilder) WriteString(s string) (int, error) {
+	return b.sb.WriteString(s)
+}
+
+// WriteByte appends a byte to the builder.
+func (b *TextBuilder) WriteByte(c byte) error {
+	return b.sb.WriteByte(c)
 }
 
 // Reset clears the builder state.

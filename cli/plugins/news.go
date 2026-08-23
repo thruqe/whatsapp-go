@@ -1,7 +1,6 @@
 package plugins
 
 import (
-	"fmt"
 	"log/slog"
 	"strings"
 
@@ -53,13 +52,14 @@ func handleMarkets(ctx *Context) error {
 
 func sendMarketsHelp(ctx *Context) error {
 	p := ctx.GetPrefix()
-	var sb strings.Builder
-	sb.WriteString("Forex Factory Market Rates\n\n")
-	sb.WriteString("Usage:\n")
-	fmt.Fprintf(&sb, "• %smarkets <pair> (e.g. %smarkets EUR/USD, %smarkets Gold/USD, %smarkets BTC/USD)\n", p, p, p, p)
-	fmt.Fprintf(&sb, "• %smarkets all (overview of major currency & commodity pairs)\n\n", p)
-	sb.WriteString("Type the currency pair, metal, or cryptocurrency you would like to view.")
-	return ctx.Reply(sb.String())
+	return ctx.Text().
+		Header("Forex Factory Market Rates").
+		Section("Usage:").
+		Bulletf("%smarkets <pair> (e.g. %smarkets EUR/USD, %smarkets Gold/USD, %smarkets BTC/USD)", p, p, p, p).
+		Bulletf("%smarkets all (overview of major currency & commodity pairs)", p).
+		Blank().
+		Line("Type the currency pair, metal, or cryptocurrency you would like to view.").
+		Reply()
 }
 
 func fetchAndSendSingleMarket(ctx *Context, pair string) error {
@@ -75,14 +75,13 @@ func fetchAndSendSingleMarket(ctx *Context, pair string) error {
 		latest := barsRes.Data[0]
 		slog.Debug("fetchAndSendSingleMarket: successfully retrieved bar metrics from fallback API", "pair", pair, "close", latest.Close)
 
-		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("Forex Factory Rates - %s\n\n", pair))
-		sb.WriteString(fmt.Sprintf("Price: %.2f\n", latest.Close))
-		sb.WriteString(fmt.Sprintf("Open: %.2f\n", latest.Open))
-		sb.WriteString(fmt.Sprintf("High: %.2f | Low: %.2f\n", latest.High, latest.Low))
-		sb.WriteString("Market Status: Active\n")
-
-		return ctx.Reply(sb.String())
+		return ctx.Text().
+			Headerf("Forex Factory Rates - %s", pair).
+			Fieldf("Price", "%.2f", latest.Close).
+			Fieldf("Open", "%.2f", latest.Open).
+			Fieldf("High / Low", "%.2f | %.2f", latest.High, latest.Low).
+			Field("Market Status", "Active").
+			Reply()
 	}
 
 	slog.Warn("fetchAndSendSingleMarket: both primary and bars APIs failed", "pair", pair)
@@ -130,31 +129,31 @@ func formatAndSendInstrumentResponse(ctx *Context, pair string, item cliutils.FF
 
 	slog.Debug("formatAndSendInstrumentResponse: parsed market data", "pair", displayName, "price", price, "bid", bid, "ask", ask, "high", high, "low", low, "spread", spread, "status", marketStatus)
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Forex Factory Rates - %s\n\n", displayName)
+	tb := ctx.Text().Headerf("Forex Factory Rates - %s", displayName)
 	if price > 0 {
-		fmt.Fprintf(&sb, "Price: %.*f\n", decimals, price)
+		tb.Fieldf("Price", "%.*f", decimals, price)
 	}
 	if bid > 0 && ask > 0 {
-		fmt.Fprintf(&sb, "Bid: %.*f | Ask: %.*f\n", decimals, bid, decimals, ask)
+		tb.Fieldf("Bid / Ask", "%.*f | %.*f", decimals, bid, decimals, ask)
 	}
 	if high > 0 && low > 0 {
-		fmt.Fprintf(&sb, "24h High: %.*f | 24h Low: %.*f\n", decimals, high, decimals, low)
+		tb.Fieldf("24h High / Low", "%.*f | %.*f", decimals, high, decimals, low)
 	}
 	if spread > 0 {
-		fmt.Fprintf(&sb, "Spread: %.1f pips\n", spread)
+		tb.Fieldf("Spread", "%.1f pips", spread)
 	}
-	fmt.Fprintf(&sb, "Market Status: %s\n", marketStatus)
+	tb.Field("Market Status", marketStatus)
 
-	return ctx.Reply(sb.String())
+	return tb.Reply()
 }
 
 func sendAvailableInstrumentsList(ctx *Context, requestedPair string) error {
 	p := ctx.GetPrefix()
 	apiItems, err := cliutils.FetchForexFactoryInstrumentList(ctx.Ctx)
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Instrument %q is not available on Forex Factory.\n\nAvailable Active Markets:\n", requestedPair)
+	tb := ctx.Text().
+		Headerf("Instrument %q is not available on Forex Factory.", requestedPair).
+		Section("Available Active Markets:")
 
 	if err == nil && len(apiItems) > 0 {
 		seen := make(map[string]bool)
@@ -168,18 +167,24 @@ func sendAvailableInstrumentsList(ctx *Context, requestedPair string) error {
 				continue
 			}
 			seen[name] = true
-			fmt.Fprintf(&sb, "• %smarkets %s\n", p, name)
+			tb.Bulletf("%smarkets %s", p, name)
 			count++
 			if count >= 12 {
 				break
 			}
 		}
 	} else {
-		fmt.Fprintf(&sb, "• %smarkets EUR/USD\n• %smarkets GBP/USD\n• %smarkets USD/JPY\n• %smarkets Gold/USD\n", p, p, p, p)
+		tb.Bulletf("%smarkets EUR/USD", p).
+			Bulletf("%smarkets GBP/USD", p).
+			Bulletf("%smarkets USD/JPY", p).
+			Bulletf("%smarkets Gold/USD", p)
 	}
 
-	fmt.Fprintf(&sb, "\nView all summary:\n• %smarkets all", p)
-	return ctx.Reply(sb.String())
+	tb.Blank().
+		Section("View all summary:").
+		Bulletf("%smarkets all", p)
+
+	return tb.Reply()
 }
 
 func fetchAndSendAllMarkets(ctx *Context) error {
@@ -187,7 +192,7 @@ func fetchAndSendAllMarkets(ctx *Context) error {
 	res, err := cliutils.FetchAllMarkets(ctx.Ctx, pairs)
 	if err != nil {
 		slog.Error("fetchAndSendAllMarkets: HTTP request failed", "err", err)
-		return ctx.Reply(fmt.Sprintf("Failed to fetch market rates: %v", err))
+		return ctx.Replyf("Failed to fetch market rates: %v", err)
 	}
 	if len(res.Data) == 0 {
 		slog.Warn("fetchAndSendAllMarkets: no data returned from API")
@@ -196,8 +201,7 @@ func fetchAndSendAllMarkets(ctx *Context) error {
 
 	slog.Debug("fetchAndSendAllMarkets: successfully parsed market overview", "item_count", len(res.Data))
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Forex Factory Market Overview\n\n")
+	tb := ctx.Text().Header("Forex Factory Market Overview")
 
 	for _, item := range res.Data {
 		displayName := item.Instrument.DisplayName
@@ -216,10 +220,10 @@ func fetchAndSendAllMarkets(ctx *Context) error {
 			decimals = 4
 		}
 
-		fmt.Fprintf(&sb, "• %s: %.*f\n", displayName, decimals, price)
+		tb.Bulletf("%s: %.*f", displayName, decimals, price)
 	}
 
-	return ctx.Reply(strings.TrimSpace(sb.String()))
+	return tb.Reply()
 }
 
 func handleNews(ctx *Context) error {
@@ -232,18 +236,17 @@ func handleNews(ctx *Context) error {
 	articles, err := cliutils.FetchAPNews(ctx.Ctx, country)
 	if err != nil {
 		if err.Error() == "not found" {
-			return ctx.Reply(fmt.Sprintf("No news topic hub found for %q. Usage:\n• %snews <country_name>", country, p))
+			return ctx.Replyf("No news topic hub found for %q. Usage:\n• %snews <country_name>", country, p)
 		}
-		return ctx.Reply(fmt.Sprintf("Failed to fetch news for %q: %v", country, err))
+		return ctx.Replyf("Failed to fetch news for %q: %v", country, err)
 	}
 
 	if len(articles) == 0 {
-		return ctx.Reply(fmt.Sprintf("No recent news articles found for %q.", country))
+		return ctx.Replyf("No recent news articles found for %q.", country)
 	}
 
 	var firstImageURL string
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "AP News - %s\n\n", titleCase(strings.ReplaceAll(country, "-", " ")))
+	tb := ctx.Text().Headerf("AP News - %s", titleCase(strings.ReplaceAll(country, "-", " ")))
 
 	count := 0
 	for _, art := range articles {
@@ -255,17 +258,17 @@ func handleNews(ctx *Context) error {
 			firstImageURL = art.ImageURL
 		}
 
-		fmt.Fprintf(&sb, "%d. %s\n", count, art.Title)
+		tb.Numberedf(count, "%s", art.Title)
 		if art.Description != "" {
-			fmt.Fprintf(&sb, "   %s\n", art.Description)
+			tb.Line("   " + art.Description)
 		}
 		if art.URL != "" {
-			fmt.Fprintf(&sb, "   %s\n", art.URL)
+			tb.Line("   " + art.URL)
 		}
-		sb.WriteString("\n")
+		tb.Blank()
 	}
 
-	responseText := strings.TrimSpace(sb.String())
+	responseText := tb.Trimmed()
 
 	if firstImageURL != "" {
 		if imgData, mimetype, errImg := cliutils.FetchNewsImage(ctx.Ctx, firstImageURL); errImg == nil && len(imgData) > 0 {
@@ -278,10 +281,11 @@ func handleNews(ctx *Context) error {
 
 func sendNewsHelp(ctx *Context) error {
 	p := ctx.GetPrefix()
-	var sb strings.Builder
-	sb.WriteString("AP News Country Headlines\n\n")
-	sb.WriteString("Usage:\n")
-	fmt.Fprintf(&sb, "• %snews <country> (e.g. %snews nigeria, %snews japan, %snews usa, %snews uk)\n\n", p, p, p, p, p)
-	sb.WriteString("Type a country name to fetch the latest top headlines.")
-	return ctx.Reply(sb.String())
+	return ctx.Text().
+		Header("AP News Country Headlines").
+		Section("Usage:").
+		Bulletf("%snews <country> (e.g. %snews nigeria, %snews japan, %snews usa, %snews uk)", p, p, p, p, p).
+		Blank().
+		Line("Type a country name to fetch the latest top headlines.").
+		Reply()
 }

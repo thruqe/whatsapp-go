@@ -3,7 +3,6 @@ package plugins
 import (
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -86,7 +85,7 @@ func handleSave(ctx *Context) error {
 
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Sender, quoted)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to forward message: %v", err))
+		return ctx.Replyf("Failed to forward message: %v", err)
 	}
 
 	return ctx.Reply("Message forwarded to your DM.")
@@ -99,31 +98,31 @@ func handleWeather(ctx *Context) error {
 
 	query := strings.Join(ctx.Args, " ")
 	escapedQuery := url.QueryEscape(query)
-	apiURL := fmt.Sprintf("https://wttr.in/%s?format=4", escapedQuery)
+	apiURL := Sprintf("https://wttr.in/%s?format=4", escapedQuery)
 
 	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", apiURL, nil)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Error creating request: %v", err))
+		return ctx.Replyf("Error creating request: %v", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Network error: %v", err))
+		return ctx.Replyf("Network error: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return ctx.Reply(fmt.Sprintf("Weather service returned status: %s", resp.Status))
+		return ctx.Replyf("Weather service returned status: %s", resp.Status)
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Error reading response: %v", err))
+		return ctx.Replyf("Error reading response: %v", err)
 	}
 
 	forecast := strings.TrimSpace(string(bodyBytes))
 	if forecast == "" || strings.Contains(forecast, "Unknown location") {
-		return ctx.Reply(fmt.Sprintf("Could not find weather info for %q.", query))
+		return ctx.Replyf("Could not find weather info for %q.", query)
 	}
 
 	return ctx.Reply(forecast)
@@ -135,16 +134,16 @@ func handleUrban(ctx *Context) error {
 	}
 
 	query := strings.Join(ctx.Args, " ")
-	apiURL := fmt.Sprintf("https://api.urbandictionary.com/v0/define?term=%s", url.QueryEscape(query))
+	apiURL := Sprintf("https://api.urbandictionary.com/v0/define?term=%s", url.QueryEscape(query))
 
 	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", apiURL, nil)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Error creating request: %v", err))
+		return ctx.Replyf("Error creating request: %v", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Network error: %v", err))
+		return ctx.Replyf("Network error: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -159,20 +158,26 @@ func handleUrban(ctx *Context) error {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil || len(result.List) == 0 {
-		return ctx.Reply(fmt.Sprintf("Could not find Urban Dictionary definition for %q.", query))
+		return ctx.Replyf("Could not find Urban Dictionary definition for %q.", query)
 	}
 
 	def := result.List[0]
 	cleanDef := strings.ReplaceAll(strings.ReplaceAll(def.Definition, "[", ""), "]", "")
 	cleanExample := strings.ReplaceAll(strings.ReplaceAll(def.Example, "[", ""), "]", "")
 
-	out := fmt.Sprintf("Urban Dictionary: %s\n\nDefinition:\n%s", def.Word, cleanDef)
+	tb := ctx.Text().
+		Header("Urban Dictionary: " + def.Word).
+		Section("Definition:").
+		Line(cleanDef)
+
 	if cleanExample != "" {
-		out += fmt.Sprintf("\n\nExample:\n%s", cleanExample)
+		tb.Blank().Section("Example:").Line(cleanExample)
 	}
 	if def.Author != "" {
-		out += fmt.Sprintf("\n\nAuthor: %s", def.Author)
+		tb.Blank().Line("Author: " + def.Author)
 	}
+
+	out := tb.String()
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text: new(out),
@@ -194,12 +199,12 @@ func handleQRCode(ctx *Context) error {
 	}
 	if query == "" {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage: %sqr [text or url] (or reply to a message)", p))
+		return ctx.Replyf("Usage: %sqr [text or url] (or reply to a message)", p)
 	}
 
 	pngBytes, err := qrcode.Encode(query, qrcode.Medium, 500)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Error generating QR code: %v", err))
+		return ctx.Replyf("Error generating QR code: %v", err)
 	}
 
 	return ctx.ReplyWithImage(pngBytes, "image/png", "QR Code Generated")
@@ -215,23 +220,23 @@ func handleShortURL(ctx *Context) error {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage: %sshorturl [url]", p))
+		return ctx.Replyf("Usage: %sshorturl [url]", p)
 	}
 
 	if !strings.HasPrefix(query, "http://") && !strings.HasPrefix(query, "https://") {
 		query = "https://" + query
 	}
 
-	apiURL := fmt.Sprintf("https://tinyurl.com/api-create.php?url=%s", url.QueryEscape(query))
+	apiURL := Sprintf("https://tinyurl.com/api-create.php?url=%s", url.QueryEscape(query))
 
 	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", apiURL, nil)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Error creating request: %v", err))
+		return ctx.Replyf("Error creating request: %v", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Network error: %v", err))
+		return ctx.Replyf("Network error: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -266,11 +271,11 @@ func handleStickerInfo(ctx *Context) error {
 	}
 
 	length := stk.GetFileLength()
-	sizeStr := fmt.Sprintf("%d bytes", length)
+	sizeStr := Sprintf("%d bytes", length)
 	if length > 1024*1024 {
-		sizeStr = fmt.Sprintf("%.2f MB", float64(length)/(1024*1024))
+		sizeStr = Sprintf("%.2f MB", float64(length)/(1024*1024))
 	} else if length > 1024 {
-		sizeStr = fmt.Sprintf("%.2f KB", float64(length)/1024)
+		sizeStr = Sprintf("%.2f KB", float64(length)/1024)
 	}
 
 	isAnimated := "No"
@@ -278,21 +283,26 @@ func handleStickerInfo(ctx *Context) error {
 		isAnimated = "Yes"
 	}
 
-	out := fmt.Sprintf("Sticker Metadata\n\nMIME Type: %s\nFile Size: %s\nAnimated: %s\nSHA256: %s", mime, sizeStr, isAnimated, shaHex)
-	return ctx.Reply(out)
+	return ctx.Text().
+		Header("Sticker Metadata").
+		Field("MIME Type", mime).
+		Field("File Size", sizeStr).
+		Field("Animated", isAnimated).
+		Field("SHA256", shaHex).
+		Reply()
 }
 
 func handleCalc(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage: %scalc [expression]", p))
+		return ctx.Replyf("Usage: %scalc [expression]", p)
 	}
 
 	exprStr := strings.Join(ctx.Args, "")
 	val, err := cliutils.EvalMathExpr(exprStr)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Math error: %v", err))
+		return ctx.Replyf("Math error: %v", err)
 	}
 
-	return ctx.Reply(fmt.Sprintf("Result: %g", val))
+	return ctx.Replyf("Result: %g", val)
 }

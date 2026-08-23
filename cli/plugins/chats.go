@@ -1,7 +1,7 @@
 package plugins
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"whatsrook/utils"
@@ -279,7 +279,7 @@ func handleBlock(ctx *Context) error {
 	}
 
 	resolvedJID, username := ctx.ResolveMention(target)
-	return ctx.ReplyWithMentions(fmt.Sprintf("Blocked @%s.", username), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(Sprintf("Blocked @%s.", username), []types.JID{resolvedJID})
 }
 
 func handleUnblock(ctx *Context) error {
@@ -323,7 +323,7 @@ func handleUnblock(ctx *Context) error {
 	}
 
 	resolvedJID, username := ctx.ResolveMention(target)
-	return ctx.ReplyWithMentions(fmt.Sprintf("Unblocked @%s.", username), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(Sprintf("Unblocked @%s.", username), []types.JID{resolvedJID})
 }
 
 func handleClear(ctx *Context) error {
@@ -391,7 +391,7 @@ func handleReport(ctx *Context) error {
 
 	p := ctx.GetPrefix()
 	if len(ctx.Args) == 0 && ctx.GetQuotedMessage() == nil {
-		return ctx.Reply(fmt.Sprintf("⚠️ *WARNING*: The %sreport command reports a target user or chat directly to WhatsApp for spam and terms violations.\n\nUsage:\n- Reply to a message with %sreport\n- %sreport @user\n- %sreport <count>x", p, p, p, p))
+		return ctx.Replyf("⚠️ *WARNING*: The %sreport command reports a target user or chat directly to WhatsApp for spam and terms violations.\n\nUsage:\n- Reply to a message with %sreport\n- %sreport @user\n- %sreport <count>x", p, p, p, p)
 	}
 
 	targetJID := ctx.Chat
@@ -416,7 +416,7 @@ func handleReport(ctx *Context) error {
 				Tag: "message",
 				Attrs: waBinary.Attrs{
 					"id": *ci.StanzaID,
-					"t":  fmt.Sprintf("%d", time.Now().Unix()),
+					"t":  strconv.FormatInt(time.Now().Unix(), 10),
 				},
 			},
 		}
@@ -431,14 +431,12 @@ func handleReport(ctx *Context) error {
 		trimmed := strings.ToLower(strings.TrimSpace(arg))
 		if before, ok := strings.CutSuffix(trimmed, "x"); ok {
 			numPart := before
-			var val int
-			if _, err := fmt.Sscan(numPart, &val); err == nil && val > 0 {
+			if val, err := strconv.Atoi(numPart); err == nil && val > 0 {
 				count = val
 				break
 			}
 		} else {
-			var val int
-			if _, err := fmt.Sscan(trimmed, &val); err == nil && val > 0 {
+			if val, err := strconv.Atoi(trimmed); err == nil && val > 0 {
 				count = val
 				break
 			}
@@ -485,7 +483,7 @@ func handleReport(ctx *Context) error {
 		//lint:ignore SA1019 intentional use of internal API for spam reporting
 		_, err := ctx.Client.DangerousInternals().SendNodeAndGetData(ctx.Ctx, iqNode)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("Failed to submit spam report on iteration %d: %s", i+1, err.Error()))
+			return ctx.Replyf("Failed to submit spam report on iteration %d: %s", i+1, err.Error())
 		}
 
 		if count > 1 && i < count-1 {
@@ -500,16 +498,16 @@ func handleReport(ctx *Context) error {
 			groupName = info.GroupName.Name
 		}
 		if count > 1 {
-			return ctx.Reply(fmt.Sprintf("Reported %s for spam to whatsapp %dx.", groupName, count))
+			return ctx.Replyf("Reported %s for spam to whatsapp %dx.", groupName, count)
 		}
-		return ctx.Reply(fmt.Sprintf("Reported %s for spam to whatsapp.", groupName))
+		return ctx.Replyf("Reported %s for spam to whatsapp.", groupName)
 	}
 
 	resolvedJID, username := ctx.ResolveMention(targetJID)
 	if count > 1 {
-		return ctx.ReplyWithMentions(fmt.Sprintf("Reported @%s for spam to whatsapp %dx.", username, count), []types.JID{resolvedJID})
+		return ctx.ReplyWithMentions(Sprintf("Reported @%s for spam to whatsapp %dx.", username, count), []types.JID{resolvedJID})
 	}
-	return ctx.ReplyWithMentions(fmt.Sprintf("Reported @%s for spam to whatsapp.", username), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(Sprintf("Reported @%s for spam to whatsapp.", username), []types.JID{resolvedJID})
 }
 
 func handleVV(ctx *Context) error {
@@ -525,9 +523,9 @@ func handleVV(ctx *Context) error {
 			if ok && len(args) > 1 {
 				val := strings.TrimSpace(args[1])
 				_ = s.PutSetting(ctx.Ctx, "vv_destination", val)
-				return ctx.Reply(fmt.Sprintf("ViewOnce media destination updated to: %s", val))
+				return ctx.Replyf("ViewOnce media destination updated to: %s", val)
 			}
-			return ctx.Reply(fmt.Sprintf("Usage: %svv dest chat | owner | <phone_number> | <group_jid>", ctx.GetPrefix()))
+			return ctx.Replyf("Usage: %svv dest chat | owner | <phone_number> | <group_jid>", ctx.GetPrefix())
 		}
 	}
 
@@ -595,14 +593,14 @@ func sendVVMenu(ctx *Context, s *StoreWrapper) error {
 	}
 
 	p := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("╭━━━〔 VIEWONCE UNWRAPPER 〕━━━\n│ Destination : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nReply to any ViewOnce image, video, or audio message with %svv to unwrap it.", dest, p)
+	bodyText := Sprintf("╭━━━〔 VIEWONCE UNWRAPPER 〕━━━\n│ Destination : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nReply to any ViewOnce image, video, or audio message with %svv to unwrap it.", dest, p)
 
 	buttons := []struct{ ID, Text string }{
 		{ID: p + "vv dest owner", Text: "Set Owner DM"},
 		{ID: p + "vv customize", Text: "Customize"},
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s VV Unwrapper", ctx.GetBotName()), buttons)
+	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s VV Unwrapper", ctx.GetBotName()), buttons)
 }
 
 func sendVVCustomizeGuide(ctx *Context, s *StoreWrapper) error {

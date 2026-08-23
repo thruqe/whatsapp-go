@@ -106,7 +106,7 @@ func handleSticker(ctx *Context) error {
 
 	stickerData, err := processSticker(data, isVideo, packName, author, "")
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to process sticker: %v", err))
+		return ctx.Replyf(" Failed to process sticker: %v", err)
 	}
 
 	return ctx.ReplyWithSticker(stickerData)
@@ -125,7 +125,7 @@ func handleCircle(ctx *Context) error {
 	circleFilter := "format=yuva420p,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0,geq=alpha_expr='if(lte(hypot(X-W/2,Y-H/2),W/2),255,0)'"
 	stickerData, err := processSticker(data, isVideo, packName, author, circleFilter)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to process circular sticker: %v", err))
+		return ctx.Replyf(" Failed to process circular sticker: %v", err)
 	}
 
 	return ctx.ReplyWithSticker(stickerData)
@@ -143,7 +143,7 @@ func handleCrop(ctx *Context) error {
 	cropFilter := "crop='min(iw,ih)':'min(iw,ih)',scale=512:512"
 	stickerData, err := processSticker(data, isVideo, packName, author, cropFilter)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to process cropped sticker: %v", err))
+		return ctx.Replyf(" Failed to process cropped sticker: %v", err)
 	}
 
 	return ctx.ReplyWithSticker(stickerData)
@@ -161,7 +161,7 @@ func handleMP4(ctx *Context) error {
 	mp4Data, err := processMP4(data, mime)
 	if err != nil {
 		slog.Error("handleMP4: processMP4 failed", "mime", mime, "size", len(data), "err", err)
-		return ctx.Reply(fmt.Sprintf("⚠️ Failed to convert to MP4: %v", err))
+		return ctx.Replyf("⚠️ Failed to convert to MP4: %v", err)
 	}
 
 	slog.Debug("handleMP4: conversion successful, sending video", "outputSize", len(mp4Data))
@@ -176,7 +176,7 @@ func handleMP3(ctx *Context) error {
 
 	mp3Data, err := processMP3(data)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to convert to MP3: %v", err))
+		return ctx.Replyf(" Failed to convert to MP3: %v", err)
 	}
 
 	return ctx.ReplyWithAudio(mp3Data, "audio/ogg; codecs=opus")
@@ -190,12 +190,12 @@ func handleMP4URL(ctx *Context) error {
 
 	videoBytes, err := downloadFromURL(ctx.Ctx, videoURL)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to download video: %v", err))
+		return ctx.Replyf(" Failed to download video: %v", err)
 	}
 
 	mp4Data, err := processMP4(videoBytes, "video/mp4")
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to process video into MP4: %v", err))
+		return ctx.Replyf(" Failed to process video into MP4: %v", err)
 	}
 
 	return ctx.ReplyWithVideo(mp4Data, "video/mp4", "")
@@ -209,7 +209,7 @@ func handleBlack(ctx *Context) error {
 
 	blackData, err := processBlackVideo(data)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to create black video: %v", err))
+		return ctx.Replyf(" Failed to create black video: %v", err)
 	}
 
 	return ctx.ReplyWithVideo(blackData, "video/mp4", "")
@@ -238,7 +238,7 @@ func handleSteal(ctx *Context) error {
 
 	data, mimetype, err := ctx.GetMedia()
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to get sticker media: %v", err))
+		return ctx.Replyf(" Failed to get sticker media: %v", err)
 	}
 
 	if !strings.Contains(mimetype, "webp") {
@@ -249,7 +249,7 @@ func handleSteal(ctx *Context) error {
 
 	updatedData, err := utils.AddStickerMetadata(data, packName, author)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to update sticker metadata: %v", err))
+		return ctx.Replyf(" Failed to update sticker metadata: %v", err)
 	}
 
 	return ctx.ReplyWithSticker(updatedData)
@@ -287,20 +287,20 @@ func processSticker(data []byte, isVideo bool, packName, author, filter string) 
 		for idx, att := range attempts {
 			_ = os.Remove(tempOut)
 
-			vf := fmt.Sprintf("fps=%d,format=yuva420p,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0", att.fps)
+			vf := Sprintf("fps=%d,format=yuva420p,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0", att.fps)
 			if filter != "" {
 				vf = filter
 				if strings.Contains(vf, "fps=") {
-					vf = strings.ReplaceAll(vf, "fps=15", fmt.Sprintf("fps=%d", att.fps))
+					vf = strings.ReplaceAll(vf, "fps=15", Sprintf("fps=%d", att.fps))
 				} else {
-					vf = fmt.Sprintf("fps=%d,", att.fps) + vf
+					vf = Sprintf("fps=%d,", att.fps) + vf
 				}
 				if !strings.Contains(vf, "format=yuva420p") {
 					vf = "format=yuva420p," + vf
 				}
 			}
 
-			cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-t", "8", "-vf", vf, "-vcodec", "libwebp", "-lossless", "0", "-q:v", fmt.Sprintf("%d", att.quality), "-compression_level", "6", "-loop", "0", "-preset", "default", "-an", "-vsync", "0", "-pix_fmt", "yuva420p", tempOut)
+			cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-t", "8", "-vf", vf, "-vcodec", "libwebp", "-lossless", "0", "-q:v", Sprintf("%d", att.quality), "-compression_level", "6", "-loop", "0", "-preset", "default", "-an", "-vsync", "0", "-pix_fmt", "yuva420p", tempOut)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				lastErr = fmt.Errorf("ffmpeg failed at attempt %d (fps=%d, q=%d): %w (output: %s)", idx, att.fps, att.quality, err, string(out))
 				continue
@@ -589,10 +589,10 @@ func handleTrim(ctx *Context) error {
 		end = ctx.Args[1]
 	}
 
-	_ = ctx.Reply(fmt.Sprintf(" Trimming video from %s to %s...", start, end))
+	_ = ctx.Replyf(" Trimming video from %s to %s...", start, end)
 	trimmedData, err := processTrim(data, start, end)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to trim video: %v", err))
+		return ctx.Replyf(" Failed to trim video: %v", err)
 	}
 
 	return ctx.ReplyWithVideo(trimmedData, "video/mp4", "")
