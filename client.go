@@ -17,6 +17,7 @@ import (
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"whatsrook/utils"
+	"whatsrook/utils/cache"
 
 	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
@@ -53,6 +54,7 @@ type Config struct {
 	ClientType      ClientType
 	Verbose         bool
 	SkipOldMessages bool
+	AsyncMessageAck bool // If true, SendMessage will return immediately after writing to the socket and process server ACKs in the background.
 }
 
 // Abstraction over the whatsmeow WhatsApp client and store container.
@@ -140,9 +142,11 @@ func (c *Client) InitSession(ctx context.Context) error {
 		_ = container.Close()
 		return fmt.Errorf("failed to get device: %w", err)
 	}
+	deviceStore.ExternalCache = cache.Default()
 
 	clientLog := utils.WhatsmeowStyle("Client", "INFO", true)
 	rawClient := whatsmeow.NewClient(deviceStore, clientLog)
+	rawClient.AsyncMessageAck = c.Config.AsyncMessageAck
 
 	switch c.Config.ClientType {
 	case ClientAndroid:

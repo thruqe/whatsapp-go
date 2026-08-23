@@ -123,6 +123,10 @@ type Client struct {
 
 	DisableLoginAutoReconnect bool
 
+	// AsyncMessageAck controls whether SendMessage defaults to returning immediately
+	// after writing to the socket instead of waiting synchronously for the server ACK response.
+	AsyncMessageAck bool
+
 	sendActiveReceipts atomic.Uint32
 
 	// EmitAppStateEventsOnFullSync can be set to true if you want to get app state events emitted

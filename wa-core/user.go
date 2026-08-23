@@ -632,6 +632,11 @@ func (cli *Client) GetUserDevicesContext(ctx context.Context, jids []types.JID) 
 	return cli.GetUserDevices(ctx, jids)
 }
 
+// WarmupUserDevices pre-fetches and caches companion devices for the given list of user JIDs in memory.
+func (cli *Client) WarmupUserDevices(ctx context.Context, jids []types.JID) ([]types.JID, error) {
+	return cli.GetUserDevices(ctx, jids)
+}
+
 // GetUserDevices gets the list of devices that the given user has. The input should be a list of
 // regular JIDs, and the output will be a list of AD JIDs. The local device will not be included in
 // the output even if the user's JID is included in the input. All other devices will be included.

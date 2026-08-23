@@ -219,6 +219,12 @@ type LIDBatchReverseStore interface {
 	GetManyPNsForLIDs(ctx context.Context, lids []types.JID) (map[types.JID]types.JID, error)
 }
 
+type ByteCache interface {
+	GetBytes(ctx context.Context, key string) ([]byte, bool, error)
+	Set(ctx context.Context, key string, value any, ttl time.Duration) error
+	Delete(ctx context.Context, key string) error
+}
+
 type AllSessionSpecificStores interface {
 	IdentityStore
 	SessionStore
@@ -281,6 +287,10 @@ type Device struct {
 	EventBuffer   EventBuffer
 	LIDs          LIDStore
 	Container     DeviceContainer
+	ExternalCache ByteCache
+
+	l1SessionCache     any
+	l1SessionCacheLock sync.Mutex
 
 	saveDeleteLockInit sync.Once
 	saveDeleteLock     chan struct{}

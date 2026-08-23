@@ -141,6 +141,7 @@ func main() {
 		Database:        args.Database,
 		WSPort:          args.Port,
 		SkipOldMessages: args.SkipOldMessages,
+		AsyncMessageAck: true,
 	})
 
 	if err := bot.Start(ctx); err != nil {
