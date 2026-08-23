@@ -494,6 +494,12 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	}
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("command handler panicked", "command", name, "panic", r)
+			}
+		}()
+
 		reqCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
