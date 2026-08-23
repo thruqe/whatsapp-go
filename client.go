@@ -13,6 +13,7 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
+	"go.mau.fi/whatsmeow/proto/waWa6"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
@@ -151,13 +152,22 @@ func (c *Client) InitSession(ctx context.Context) error {
 	switch c.Config.ClientType {
 	case ClientAndroid:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_ANDROID_PHONE.Enum()
-		store.DeviceProps.Os = new("Android")
+		store.DeviceProps.Os = new("16")
+		store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_ANDROID.Enum()
+		store.BaseClientPayload.UserAgent.OsVersion = new("16.0.0")
+		store.BaseClientPayload.UserAgent.OsBuildNumber = new("16.0.0")
+		store.BaseClientPayload.WebInfo = nil
 	case ClientIos:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_IOS_PHONE.Enum()
-		store.DeviceProps.Os = new("iOS")
+		store.DeviceProps.Os = new("18.0")
+		store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_IOS.Enum()
+		store.BaseClientPayload.UserAgent.OsVersion = new("18.0")
+		store.BaseClientPayload.UserAgent.OsBuildNumber = new("18.0")
+		store.BaseClientPayload.WebInfo = nil
 	default:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
 		store.DeviceProps.Os = new("Linux")
+		store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_WEB.Enum()
 	}
 
 	c.mu.Lock()
