@@ -722,6 +722,9 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 	if evt.Info.Chat.Server != "g.us" {
 		return false
 	}
+	if HandlePendingCaptchaReply(ctx, client, evt) {
+		return true
+	}
 	s, ok := getSQLStore(client)
 	if !ok {
 		return false

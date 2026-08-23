@@ -579,6 +579,9 @@ func (b *Bot) WAEventHandler(evt any) {
 		if commands.HandlePendingBotCustomizationReply(context.Background(), cli, v) {
 			return
 		}
+		if commands.HandlePendingCaptchaReply(context.Background(), cli, v) {
+			return
+		}
 
 		if commands.Dispatch(context.Background(), cli, v) {
 			return
@@ -620,6 +623,7 @@ func (b *Bot) WAEventHandler(evt any) {
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 		b.handleGroupGreetings(context.Background(), v)
 		b.handleGroupEventsNotification(context.Background(), v)
+		b.handleGroupCaptcha(context.Background(), v)
 
 	case *events.JoinedGroup:
 		slog.Info("joined group event received", "jid", v.JID.String())
