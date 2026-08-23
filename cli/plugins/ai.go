@@ -2,7 +2,6 @@ package plugins
 
 import (
 	"encoding/base64"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -115,12 +114,12 @@ func handleAutoAI(ctx *Context) error {
 		if current == "" {
 			current = "off"
 		}
-		return ctx.Reply(fmt.Sprintf("AutoAI is currently %s in this chat.", current))
+		return ctx.Replyf("AutoAI is currently %s in this chat.", current)
 	}
 
 	val := strings.ToLower(ctx.Args[0])
 	if val != "on" && val != "off" {
-		return ctx.Reply(fmt.Sprintf("Usage: %sautoai [on/off]", ctx.GetPrefix()))
+		return ctx.Replyf("Usage: %sautoai [on/off]", ctx.GetPrefix())
 	}
 
 	if err := s.PutSetting(ctx.Ctx, settingKey, val); err != nil {
@@ -128,7 +127,7 @@ func handleAutoAI(ctx *Context) error {
 		return ctx.Reply("Failed to update setting: " + err.Error())
 	}
 
-	return ctx.Reply(fmt.Sprintf("AutoAI has been set to %s for this chat.", val))
+	return ctx.Replyf("AutoAI has been set to %s for this chat.", val)
 }
 
 func handleCSAI(ctx *Context) error {
@@ -154,19 +153,19 @@ func handleCSAI(ctx *Context) error {
 			if err := s.PutSetting(ctx.Ctx, "csai_prompt", trait.Instruction); err != nil {
 				return ctx.Reply("Failed to save AI personality trait.")
 			}
-			return ctx.Reply(fmt.Sprintf("Saved AI personality trait to %s!\n\nInstruction: %s", trait.Name, trait.Instruction))
+			return ctx.Replyf("Saved AI personality trait to %s!\n\nInstruction: %s", trait.Name, trait.Instruction)
 		}
 	}
 
 	if len(ctx.Args) >= 2 && strings.ToLower(ctx.Args[0]) == "custom" {
 		customPrompt := strings.TrimSpace(strings.Join(ctx.Args[1:], " "))
 		if customPrompt == "" {
-			return ctx.Reply(fmt.Sprintf("Usage: `%scsai custom <your prompt / how to refer to you>`\n\nExample: `%scsai custom Always refer to me as Chief and be extremely respectful.`", p, p))
+			return ctx.Replyf("Usage: `%scsai custom <your prompt / how to refer to you>`\n\nExample: `%scsai custom Always refer to me as Chief and be extremely respectful.`", p, p)
 		}
 		if err := s.PutSetting(ctx.Ctx, "csai_prompt", customPrompt); err != nil {
 			return ctx.Reply("Failed to save custom AI prompt.")
 		}
-		return ctx.Reply(fmt.Sprintf("Saved custom AI personality prompt!\n\nCustom Prompt: %s", customPrompt))
+		return ctx.Replyf("Saved custom AI personality prompt!\n\nCustom Prompt: %s", customPrompt)
 	}
 
 	if len(ctx.Args) >= 1 && strings.ToLower(ctx.Args[0]) == "reset" {
@@ -184,17 +183,17 @@ func handleCSAI(ctx *Context) error {
 		if idxVal, err := strconv.Atoi(subCmd); err == nil && idxVal >= 1 && idxVal <= len(cliutils.DefaultCSAITraits) {
 			trait := cliutils.DefaultCSAITraits[idxVal-1]
 			_ = s.PutSetting(ctx.Ctx, "csai_prompt", trait.Instruction)
-			return ctx.Reply(fmt.Sprintf("Saved AI personality trait to %s!\n\nInstruction: %s", trait.Name, trait.Instruction))
+			return ctx.Replyf("Saved AI personality trait to %s!\n\nInstruction: %s", trait.Name, trait.Instruction)
 		}
 		if idxVal, err := strconv.Atoi(subCmd); err == nil && idxVal == 11 {
-			return ctx.Reply(fmt.Sprintf("To set a custom trait/prompt, please type:\n`%scsai custom <your custom prompt / how you want the AI to refer to you>`\n\nExample:\n`%scsai custom Always refer to me as Boss and be concise.`", p, p))
+			return ctx.Replyf("To set a custom trait/prompt, please type:\n`%scsai custom <your custom prompt / how you want the AI to refer to you>`\n\nExample:\n`%scsai custom Always refer to me as Boss and be concise.`", p, p)
 		}
 
 		customPrompt := strings.TrimSpace(ctx.RawArgs)
 		if err := s.PutSetting(ctx.Ctx, "csai_prompt", customPrompt); err != nil {
 			return ctx.Reply("Failed to save custom AI prompt.")
 		}
-		return ctx.Reply(fmt.Sprintf("Saved custom AI personality prompt!\n\nCustom Prompt: %s", customPrompt))
+		return ctx.Replyf("Saved custom AI personality prompt!\n\nCustom Prompt: %s", customPrompt)
 	}
 
 	return renderCSAIPage(ctx, s, 1)
@@ -222,7 +221,7 @@ func renderCSAIPage(ctx *Context, s *StoreWrapper, page int) error {
 	p := ctx.GetPrefix()
 
 	tb := ctx.Text().
-		Header(fmt.Sprintf("Custom AI Personality & Trait Configuration (Page %d of %d)", page, totalPages)).
+		Headerf("Custom AI Personality & Trait Configuration (Page %d of %d)", page, totalPages).
 		Field("Active AI Trait/Prompt", currentPrompt).
 		Blank().
 		Line("Select a personality trait for Meta AI below:").
@@ -230,19 +229,19 @@ func renderCSAIPage(ctx *Context, s *StoreWrapper, page int) error {
 
 	for idx, trait := range pageItems {
 		globalIdx := startIdx + idx + 1
-		tb.Numbered(globalIdx, fmt.Sprintf("%s: %s", Bold(trait.Name), trait.Instruction))
+		tb.Numberedf(globalIdx, "%s: %s", Bold(trait.Name), trait.Instruction)
 	}
 	tb.Numbered(11, "Custom Trait / How You Refer To Me: Enter your own custom prompt.")
 
 	var buttons []struct{ ID, Text string }
 	for idx, trait := range pageItems {
 		globalIdx := startIdx + idx + 1
-		btnText := fmt.Sprintf("%d. %s", globalIdx, trait.Name)
+		btnText := Sprintf("%d. %s", globalIdx, trait.Name)
 		if len(btnText) > 20 {
 			btnText = btnText[:20]
 		}
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%scsai set %d", p, globalIdx),
+			ID:   Sprintf("%scsai set %d", p, globalIdx),
 			Text: btnText,
 		})
 	}
@@ -250,12 +249,12 @@ func renderCSAIPage(ctx *Context, s *StoreWrapper, page int) error {
 	if page < totalPages {
 		nextPage := page + 1
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%scsai page %d", p, nextPage),
-			Text: fmt.Sprintf("Next (Page %d)", nextPage),
+			ID:   Sprintf("%scsai page %d", p, nextPage),
+			Text: Sprintf("Next (Page %d)", nextPage),
 		})
 	} else {
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%scsai custom", p),
+			ID:   Sprintf("%scsai custom", p),
 			Text: "11. Custom Trait",
 		})
 	}
@@ -266,7 +265,7 @@ func renderCSAIPage(ctx *Context, s *StoreWrapper, page int) error {
 		Bulletf("%scsai custom <prompt> (e.g. %scsai custom Refer to me as Sir)", p, p).
 		Bulletf("%scsai reset (to restore default AI behavior)", p)
 
-	return sendInteractiveButtons(ctx, tb.Trimmed(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+	return sendInteractiveButtons(ctx, tb.Trimmed(), Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }
 
 func isMediaGenerationPrompt(prompt string) bool {
@@ -287,7 +286,7 @@ func isMediaGenerationPrompt(prompt string) bool {
 func handleAI(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %sai <question>\n- %sask <question>\n\nExamples:\n- %sai What is the speed of light?\n- %sask Explain quantum computing in simple terms\n- Reply to an image or message with %sai Analyze this", p, p, p, p, p))
+		return ctx.Replyf("Usage:\n- %sai <question>\n- %sask <question>\n\nExamples:\n- %sai What is the speed of light?\n- %sask Explain quantum computing in simple terms\n- Reply to an image or message with %sai Analyze this", p, p, p, p, p)
 	}
 
 	botName := ctx.GetBotName()
@@ -356,7 +355,7 @@ func handleAI(ctx *Context) error {
 		query = instruction
 		if s, okStore := getStore(ctx); okStore {
 			if customPrompt, _ := s.GetSetting(ctx.Ctx, "csai_prompt"); customPrompt != "" {
-				query += fmt.Sprintf("\n\n[GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]\n%s\n\n", customPrompt)
+				query += Sprintf("\n\n[GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]\n%s\n\n", customPrompt)
 			}
 		}
 		if isGroup {
@@ -407,7 +406,7 @@ func handleAI(ctx *Context) error {
 			}
 
 			metaName := "Meta AI"
-			metaVcard := fmt.Sprintf("BEGIN:VCARD\nVERSION:3.0\nN:AI;Meta;;;\nFN:%s\nTEL;type=CELL;waid=%s:+%s\nEND:VCARD", metaName, cliutils.MetaAiBotJID.User, cliutils.MetaAiBotJID.User)
+			metaVcard := Sprintf("BEGIN:VCARD\nVERSION:3.0\nN:AI;Meta;;;\nFN:%s\nTEL;type=CELL;waid=%s:+%s\nEND:VCARD", metaName, cliutils.MetaAiBotJID.User, cliutils.MetaAiBotJID.User)
 			contactMsg := &waE2E.Message{
 				ContactMessage: &waE2E.ContactMessage{
 					DisplayName: &metaName,
@@ -482,7 +481,7 @@ func handleAI(ctx *Context) error {
 				output = "(no output)"
 			}
 
-			resText := fmt.Sprintf("Output:\n```\n%s\n```", output)
+			resText := Sprintf("Output:\n```\n%s\n```", output)
 			_, err = ctx.Edit(placeholderMsgID, resText)
 			return err
 		}
@@ -617,7 +616,7 @@ func extractContextFromQuotedMessage(ctx *Context, data *cliutils.Data) {
 		data.QuotedMessageType = "Video"
 		caption := vidMsg.GetCaption()
 		if caption != "" {
-			data.QuotedMessageOfQuestion = fmt.Sprintf("[Video message. Note: Video file reading is not supported yet. Caption: %s]", caption)
+			data.QuotedMessageOfQuestion = Sprintf("[Video message. Note: Video file reading is not supported yet. Caption: %s]", caption)
 		} else {
 			data.QuotedMessageOfQuestion = "[Video message. Note: Video file reading is not supported yet.]"
 		}
@@ -632,7 +631,7 @@ func extractContextFromQuotedMessage(ctx *Context, data *cliutils.Data) {
 		caption := docMsg.GetCaption()
 		filename := docMsg.GetFileName()
 		if filename != "" {
-			data.QuotedMessageOfQuestion = fmt.Sprintf("File: %s. Caption: %s", filename, caption)
+			data.QuotedMessageOfQuestion = Sprintf("File: %s. Caption: %s", filename, caption)
 		} else {
 			data.QuotedMessageOfQuestion = caption
 		}
@@ -680,17 +679,17 @@ func extractContextFromQuotedMessage(ctx *Context, data *cliutils.Data) {
 				options = append(options, opt.GetOptionName())
 			}
 		}
-		data.QuotedMessageOfQuestion = fmt.Sprintf("Poll Question: %s. Options: %s", pollName, strings.Join(options, ", "))
+		data.QuotedMessageOfQuestion = Sprintf("Poll Question: %s. Options: %s", pollName, strings.Join(options, ", "))
 
 	case quotedMsg.GetLocationMessage() != nil:
 		locMsg := quotedMsg.GetLocationMessage()
 		data.QuotedMessageType = "Location"
-		data.QuotedMessageOfQuestion = fmt.Sprintf("Location: %f, %f (%s)", locMsg.GetDegreesLatitude(), locMsg.GetDegreesLongitude(), locMsg.GetName())
+		data.QuotedMessageOfQuestion = Sprintf("Location: %f, %f (%s)", locMsg.GetDegreesLatitude(), locMsg.GetDegreesLongitude(), locMsg.GetName())
 
 	case quotedMsg.GetContactMessage() != nil:
 		contMsg := quotedMsg.GetContactMessage()
 		data.QuotedMessageType = "Contact"
-		data.QuotedMessageOfQuestion = fmt.Sprintf("Contact: %s", contMsg.GetDisplayName())
+		data.QuotedMessageOfQuestion = Sprintf("Contact: %s", contMsg.GetDisplayName())
 
 	default:
 		if txt := extractTextFromProto(quotedMsg); txt != "" {
@@ -801,7 +800,7 @@ func handleFFmpeg(ctx *Context) error {
 		cmd := exec.Command("ffmpeg", parts...)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("FFmpeg execution error: %v\nOutput: %s", err, string(out)))
+			return ctx.Replyf("FFmpeg execution error: %v\nOutput: %s", err, string(out))
 		}
 
 		if outBytes, err := os.ReadFile(outFile); err == nil && len(outBytes) > 0 {
@@ -830,7 +829,7 @@ func handleFFmpeg(ctx *Context) error {
 	cmd := exec.Command("ffmpeg", parts...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("FFmpeg execution error: %v\nOutput: %s", err, string(out)))
+		return ctx.Replyf("FFmpeg execution error: %v\nOutput: %s", err, string(out))
 	}
 	resStr := string(out)
 	if len(resStr) > 1500 {
@@ -872,7 +871,7 @@ func handleWhy(ctx *Context) error {
 
 	if rawQuery == "" {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %swhy <question>\n- Reply to a message with %swhy\n\nExample:\n- %swhy what makes aging impossible to reverse", p, p, p))
+		return ctx.Replyf("Usage:\n- %swhy <question>\n- Reply to a message with %swhy\n\nExample:\n- %swhy what makes aging impossible to reverse", p, p, p)
 	}
 
 	page := 1
@@ -894,7 +893,7 @@ func handleWhy(ctx *Context) error {
 	res, err := cliutils.QueryWhy(ctx.Ctx, query)
 	if err != nil {
 		slog.Error("handleWhy failed", "query", query, "err", err)
-		return ctx.Reply(fmt.Sprintf("Error querying why.com: %v", err))
+		return ctx.Replyf("Error querying why.com: %v", err)
 	}
 
 	if res == nil || res.Answer == "" {
@@ -922,14 +921,14 @@ func handleWhy(ctx *Context) error {
 	}
 
 	p := ctx.GetPrefix()
-	var sb strings.Builder
-	sb.WriteString(res.Answer)
+	tb := ctx.Text(res.Answer)
 
 	if totalPulls > 0 {
+		tb.Blank()
 		if totalPages > 1 {
-			fmt.Fprintf(&sb, "\n\nRelated Questions (Page %d of %d):", page, totalPages)
+			tb.Linef("Related Questions (Page %d of %d):", page, totalPages)
 		} else {
-			sb.WriteString("\n\nRelated Questions:")
+			tb.Line("Related Questions:")
 		}
 		for i, pull := range res.Pulls {
 			label := strings.TrimSpace(pull.Label)
@@ -937,7 +936,7 @@ func handleWhy(ctx *Context) error {
 				label = strings.TrimSpace(pull.Query)
 			}
 			if label != "" {
-				fmt.Fprintf(&sb, "\n%d. %s", i+1, label)
+				tb.Numbered(i+1, label)
 			}
 		}
 	}
@@ -950,30 +949,30 @@ func handleWhy(ctx *Context) error {
 			btnQuery = strings.TrimSpace(pull.Label)
 		}
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%swhy %s", p, btnQuery),
-			Text: fmt.Sprintf("Question %d", globalIdx),
+			ID:   Sprintf("%swhy %s", p, btnQuery),
+			Text: Sprintf("Question %d", globalIdx),
 		})
 	}
 
 	if page < totalPages {
 		nextPage := page + 1
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%swhy page %d %s", p, nextPage, query),
+			ID:   Sprintf("%swhy page %d %s", p, nextPage, query),
 			Text: "Next",
 		})
 	} else if totalPages > 1 && page == totalPages {
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%swhy page 1 %s", p, query),
+			ID:   Sprintf("%swhy page 1 %s", p, query),
 			Text: "First Page",
 		})
 	}
 
 	if len(buttons) > 0 {
-		footer := fmt.Sprintf("Powered by why.com • %s", ctx.GetBotName())
-		if err := sendInteractiveButtons(ctx, sb.String(), footer, buttons); err == nil {
+		footer := Sprintf("Powered by why.com • %s", ctx.GetBotName())
+		if err := sendInteractiveButtons(ctx, tb.String(), footer, buttons); err == nil {
 			return nil
 		}
 	}
 
-	return ctx.Reply(sb.String())
+	return ctx.Reply(tb.String())
 }

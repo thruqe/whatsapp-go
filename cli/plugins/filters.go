@@ -1,7 +1,6 @@
 package plugins
 
 import (
-	"fmt"
 	"strings"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -116,9 +115,9 @@ func handleFilter(ctx *Context) error {
 		}
 		rows, _ := res.RowsAffected()
 		if rows == 0 {
-			return ctx.Reply(fmt.Sprintf("Filter for word %q not found.", trigger))
+			return ctx.Replyf("Filter for word %q not found.", trigger)
 		}
-		return ctx.Reply(fmt.Sprintf("Filter for word %q removed.", trigger))
+		return ctx.Replyf("Filter for word %q removed.", trigger)
 
 	case "list":
 		rows, err := db.Query(ctx.Ctx, `SELECT trigger_word FROM bot_filters WHERE our_jid=$1`, ourJID)
@@ -138,7 +137,7 @@ func handleFilter(ctx *Context) error {
 		if len(triggers) == 0 {
 			return ctx.Reply("No filters configured.")
 		}
-		return ctx.Reply(fmt.Sprintf("Active Filters:\n- %s", strings.Join(triggers, "\n- ")))
+		return ctx.Replyf("Active Filters:\n- %s", strings.Join(triggers, "\n- "))
 
 	default:
 		trigger = strings.ToLower(ctx.Args[0])
@@ -159,7 +158,7 @@ func handleFilter(ctx *Context) error {
 	if responseProtoMsg != nil {
 		encoded, err := utils.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("Failed to encode filter message: %v", err))
+			return ctx.Replyf("Failed to encode filter message: %v", err)
 		}
 
 		_, err = db.Exec(ctx.Ctx, `
@@ -171,7 +170,7 @@ func handleFilter(ctx *Context) error {
 			return ctx.Reply("Failed to save filter.")
 		}
 
-		return ctx.Reply(fmt.Sprintf("Filter added for word %q.", trigger))
+		return ctx.Replyf("Filter added for word %q.", trigger)
 	}
 
 	return nil
@@ -225,9 +224,9 @@ func handleBGM(ctx *Context) error {
 		}
 		rows, _ := res.RowsAffected()
 		if rows == 0 {
-			return ctx.Reply(fmt.Sprintf("BGM for word %q not found.", trigger))
+			return ctx.Replyf("BGM for word %q not found.", trigger)
 		}
-		return ctx.Reply(fmt.Sprintf("BGM for word %q removed.", trigger))
+		return ctx.Replyf("BGM for word %q removed.", trigger)
 
 	case "list":
 		rows, err := db.Query(ctx.Ctx, `SELECT trigger_word FROM bot_bgm WHERE our_jid=$1`, ourJID)
@@ -247,7 +246,7 @@ func handleBGM(ctx *Context) error {
 		if len(triggers) == 0 {
 			return ctx.Reply("No BGMs configured.")
 		}
-		return ctx.Reply(fmt.Sprintf("Active BGMs:\n- %s", strings.Join(triggers, "\n- ")))
+		return ctx.Replyf("Active BGMs:\n- %s", strings.Join(triggers, "\n- "))
 
 	default:
 		trigger = strings.ToLower(ctx.Args[0])
@@ -264,7 +263,7 @@ func handleBGM(ctx *Context) error {
 	if responseProtoMsg != nil {
 		encoded, err := utils.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("Failed to encode BGM message: %v", err))
+			return ctx.Replyf("Failed to encode BGM message: %v", err)
 		}
 
 		_, err = db.Exec(ctx.Ctx, `
@@ -276,7 +275,7 @@ func handleBGM(ctx *Context) error {
 			return ctx.Reply("Failed to save BGM.")
 		}
 
-		return ctx.Reply(fmt.Sprintf("BGM added for word %q.", trigger))
+		return ctx.Replyf("BGM added for word %q.", trigger)
 	}
 
 	return nil
@@ -314,7 +313,7 @@ func handleMention(ctx *Context) error {
 
 		encoded, err := utils.EncodeProtoMessage(quoted)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("Failed to encode mention message: %v", err))
+			return ctx.Replyf("Failed to encode mention message: %v", err)
 		}
 
 		_, err = db.Exec(ctx.Ctx, `
@@ -350,7 +349,7 @@ func handleMention(ctx *Context) error {
 
 		encoded, err := utils.EncodeProtoMessage(quoted)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf(" Failed to encode mention message: %v", err))
+			return ctx.Replyf("Failed to encode mention message: %v", err)
 		}
 
 		_, err = db.Exec(ctx.Ctx, `
@@ -399,7 +398,7 @@ func handleAddFilter(ctx *Context) error {
 
 	encoded, err := utils.EncodeProtoMessage(responseProtoMsg)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to encode filter message: %v", err))
+		return ctx.Replyf("Failed to encode filter message: %v", err)
 	}
 
 	_, err = db.Exec(ctx.Ctx, `
@@ -411,7 +410,7 @@ func handleAddFilter(ctx *Context) error {
 		return ctx.Reply("Failed to save filter.")
 	}
 
-	return ctx.Reply(fmt.Sprintf("Filter added for word %q.", trigger))
+	return ctx.Replyf("Filter added for word %q.", trigger)
 }
 
 func handleGetFilter(ctx *Context) error {
@@ -435,12 +434,12 @@ func handleGetFilter(ctx *Context) error {
 	var filterProto string
 	err := db.QueryRow(ctx.Ctx, `SELECT message_proto FROM bot_filters WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&filterProto)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Filter for word %q not found.", trigger))
+		return ctx.Replyf("Filter for word %q not found.", trigger)
 	}
 
 	msg, err := utils.DecodeProtoMessage(filterProto)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to decode filter: %v", err))
+		return ctx.Replyf("Failed to decode filter: %v", err)
 	}
 
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
@@ -476,7 +475,7 @@ func handleListFilters(ctx *Context) error {
 	if len(triggers) == 0 {
 		return ctx.Reply("No filters configured.")
 	}
-	return ctx.Reply(fmt.Sprintf("Active Filters:\n- %s", strings.Join(triggers, "\n- ")))
+	return ctx.Replyf("Active Filters:\n- %s", strings.Join(triggers, "\n- "))
 }
 
 func handleDelFilter(ctx *Context) error {
@@ -503,7 +502,7 @@ func handleDelFilter(ctx *Context) error {
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		return ctx.Reply(fmt.Sprintf("Filter for word %q not found.", trigger))
+		return ctx.Replyf("Filter for word %q not found.", trigger)
 	}
-	return ctx.Reply(fmt.Sprintf("Filter for word %q removed.", trigger))
+	return ctx.Replyf("Filter for word %q removed.", trigger)
 }

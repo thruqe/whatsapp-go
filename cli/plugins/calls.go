@@ -62,7 +62,7 @@ func init() {
 		Description: "Toggle or check automated voicemail answering for incoming calls",
 		Category:    "calls",
 		IsPublic:    true,
-		Handler:     handleVoicemailCmd,
+		Handler:     handleVoicemail,
 	})
 }
 
@@ -235,13 +235,13 @@ func handleCall(ctx *Context) error {
 	p := ctx.GetPrefix()
 	targets := ctx.GetTargets()
 	if len(targets) < 1 {
-		body := fmt.Sprintf("Call Management\n\nSelect an action below:\n- %scallaudio [number] - Audio call & media\n- %scallvideo [number] - Video call & media\n- %svoicemail [on/off] - Automated voicemail", p, p, p)
+		body := Sprintf("Call Management\n\nSelect an action below:\n- %scallaudio [number] - Audio call & media\n- %scallvideo [number] - Video call & media\n- %svoicemail [on/off] - Automated voicemail", p, p, p)
 		buttons := []struct{ ID, Text string }{
 			{ID: p + "callaudio", Text: "Call Audio"},
 			{ID: p + "callvideo", Text: "Call Video"},
 			{ID: p + "voicemail", Text: "Voicemail"},
 		}
-		return sendInteractiveButtons(ctx, body, fmt.Sprintf("%s Calls", ctx.GetBotName()), buttons)
+		return sendInteractiveButtons(ctx, body, Sprintf("%s Calls", ctx.GetBotName()), buttons)
 	}
 
 	targetJID := targets[0]
@@ -258,12 +258,12 @@ func handleCall(ctx *Context) error {
 	}
 
 	// Show choice buttons for target
-	body := fmt.Sprintf("Place Call to %s\n\nSelect call type:", targetMention)
+	body := Sprintf("Place Call to %s\n\nSelect call type:", targetMention)
 	buttons := []struct{ ID, Text string }{
-		{ID: fmt.Sprintf("%scallaudio %s", p, targetJID.User), Text: "Audio Call"},
-		{ID: fmt.Sprintf("%scallvideo %s", p, targetJID.User), Text: "Video Call"},
+		{ID: Sprintf("%scallaudio %s", p, targetJID.User), Text: "Audio Call"},
+		{ID: Sprintf("%scallvideo %s", p, targetJID.User), Text: "Video Call"},
 	}
-	return sendInteractiveButtonsWithMentions(ctx, body, fmt.Sprintf("%s Calls", ctx.GetBotName()), buttons, []types.JID{targetJID})
+	return sendInteractiveButtonsWithMentions(ctx, body, Sprintf("%s Calls", ctx.GetBotName()), buttons, []types.JID{targetJID})
 }
 
 func handleCallAudio(ctx *Context) error {
@@ -283,9 +283,9 @@ func handleCallAudio(ctx *Context) error {
 		p := ctx.GetPrefix()
 		if path, ok := getSavedAudio(ctx, ctx.Sender); ok {
 			baseName := filepath.Base(path)
-			return ctx.Reply(fmt.Sprintf("🎙️ *Default Call Audio Set*: `%s`\n\nUsage:\n• `%scallaudio <number>` to place audio call\n• Reply to new audio with `%scallaudio` to update", baseName, p, p))
+			return ctx.Replyf("🎙️ *Default Call Audio Set*: `%s`\n\nUsage:\n• `%scallaudio <number>` to place audio call\n• Reply to new audio with `%scallaudio` to update", baseName, p, p)
 		}
-		return ctx.Reply(fmt.Sprintf("Usage: `%scallaudio <number>`\n\nTo set your default call audio, reply to any voice note or audio file with `%scallaudio`.", p, p))
+		return ctx.Replyf("Usage: `%scallaudio <number>`\n\nTo set your default call audio, reply to any voice note or audio file with `%scallaudio`.", p, p)
 	}
 
 	target := targets[0].String()
@@ -314,12 +314,12 @@ func handleSetCallAudio(ctx *Context) error {
 
 	data, err := ctx.Client.Download(ctx.Ctx, audioMsg)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to download audio: %v", err))
+		return ctx.Replyf("Failed to download audio: %v", err)
 	}
 
 	targetAudioDir := GetSessionMediaDir(ctx.Client, "call-audio")
 	if err := os.MkdirAll(targetAudioDir, 0755); err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to create media directory: %v", err))
+		return ctx.Replyf("Failed to create media directory: %v", err)
 	}
 
 	ext := utils.ExtensionFor(audioMsg.GetMimetype())
@@ -328,16 +328,16 @@ func handleSetCallAudio(ctx *Context) error {
 	}
 	path := filepath.Join(targetAudioDir, utils.SanitizeJID(ctx.Sender.String())+ext)
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to save audio: %v", err))
+		return ctx.Replyf("Failed to save audio: %v", err)
 	}
 
 	path, err = utils.TranscodeToMP3(path)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to transcode audio: %v", err))
+		return ctx.Replyf("Failed to transcode audio: %v", err)
 	}
 
 	if err := saveAudio(ctx, ctx.Sender, path); err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to save call audio: %v", err))
+		return ctx.Replyf("Failed to save call audio: %v", err)
 	}
 
 	return ctx.Reply("Default call audio set successfully.")
@@ -361,9 +361,9 @@ func handleCallVideo(ctx *Context) error {
 		p := ctx.GetPrefix()
 		if path, ok := getSavedVideo(ctx, ctx.Sender); ok {
 			baseName := filepath.Base(path)
-			return ctx.Reply(fmt.Sprintf("📹 *Default Call Video Set*: `%s`\n\nUsage:\n• `%scallvideo <number>` to place video call\n• Reply to new video with `%scallvideo` to update", baseName, p, p))
+			return ctx.Replyf("📹 *Default Call Video Set*: `%s`\n\nUsage:\n• `%scallvideo <number>` to place video call\n• Reply to new video with `%scallvideo` to update", baseName, p, p)
 		}
-		return ctx.Reply(fmt.Sprintf("Usage: `%scallvideo <number>`\n\nTo set your default call video, reply to any video with `%scallvideo`.", p, p))
+		return ctx.Replyf("Usage: `%scallvideo <number>`\n\nTo set your default call video, reply to any video with `%scallvideo`.", p, p)
 	}
 
 	target := targets[0].String()
@@ -408,19 +408,19 @@ func handleSetVideoCall(ctx *Context) error {
 	if videoMsg == nil {
 		if path, ok := getSavedVideo(ctx, ctx.Sender); ok {
 			baseName := filepath.Base(path)
-			return ctx.Reply(fmt.Sprintf("You currently have a default video call video set.\n\nFile: %s\n\nTo update it, reply to a new video message with `%ssetvideocall`.", baseName, ctx.GetPrefix()))
+			return ctx.Replyf("You currently have a default video call video set.\n\nFile: %s\n\nTo update it, reply to a new video message with `%ssetvideocall`.", baseName, ctx.GetPrefix())
 		}
-		return ctx.Reply(fmt.Sprintf("Reply to or attach a video file with `%ssetvideocall` to set your default video for video calls.", ctx.GetPrefix()))
+		return ctx.Replyf("Reply to or attach a video file with `%ssetvideocall` to set your default video for video calls.", ctx.GetPrefix())
 	}
 
 	data, err := ctx.Client.Download(ctx.Ctx, videoMsg)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to download video: %v", err))
+		return ctx.Replyf("Failed to download video: %v", err)
 	}
 
 	targetVideoDir := GetSessionMediaDir(ctx.Client, "call-video")
 	if err := os.MkdirAll(targetVideoDir, 0755); err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to create media directory: %v", err))
+		return ctx.Replyf("Failed to create media directory: %v", err)
 	}
 
 	ext := utils.ExtensionFor(videoMsg.GetMimetype())
@@ -429,13 +429,13 @@ func handleSetVideoCall(ctx *Context) error {
 	}
 	path := filepath.Join(targetVideoDir, utils.SanitizeJID(ctx.Sender.String())+ext)
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to save video: %v", err))
+		return ctx.Replyf("Failed to save video: %v", err)
 	}
 
 	_, _, _ = utils.PrepareCallVideo(path)
 
 	if err := saveVideo(ctx, ctx.Sender, path); err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to save video call config: %v", err))
+		return ctx.Replyf("Failed to save video call config: %v", err)
 	}
 
 	return ctx.Reply("Default video call video set successfully!")
@@ -497,7 +497,7 @@ func handleAntiCall(ctx *Context) error {
 			_ = s.PutSetting(ctx.Ctx, "anticall_contacts_only", "true")
 			return ctx.Reply("AntiCall set to allow calls from contacts only.")
 		}
-		return ctx.Reply(fmt.Sprintf("Usage: %santicall contacts [on|off|toggle]", p))
+		return ctx.Replyf("Usage: %santicall contacts [on|off|toggle]", p)
 
 	case "cc":
 		if len(args) < 2 {
@@ -511,7 +511,7 @@ func handleAntiCall(ctx *Context) error {
 		switch action {
 		case "add":
 			if len(args) < 3 {
-				return ctx.Reply(fmt.Sprintf("Usage: %santicall cc add <country_code>", p))
+				return ctx.Replyf("Usage: %santicall cc add <country_code>", p)
 			}
 			cc := strings.TrimPrefix(args[2], "+")
 			allowed, _ := s.GetSetting(ctx.Ctx, "anticall_allowed_cc")
@@ -524,7 +524,7 @@ func handleAntiCall(ctx *Context) error {
 
 		case "del", "remove":
 			if len(args) < 3 {
-				return ctx.Reply(fmt.Sprintf("Usage: %santicall cc del <country_code>", p))
+				return ctx.Replyf("Usage: %santicall cc del <country_code>", p)
 			}
 			cc := strings.TrimPrefix(args[2], "+")
 			allowed, _ := s.GetSetting(ctx.Ctx, "anticall_allowed_cc")
@@ -543,7 +543,7 @@ func handleAntiCall(ctx *Context) error {
 			return ctx.Reply("Cleared allowed country codes list.")
 
 		default:
-			return ctx.Reply(fmt.Sprintf("Usage: %santicall cc [add|del|clear]", p))
+			return ctx.Replyf("Usage: %santicall cc [add|del|clear]", p)
 		}
 
 	case "warn", "warnings":
@@ -562,7 +562,7 @@ func handleAntiCall(ctx *Context) error {
 		return ctx.Reply("Call warning threshold set to " + strconv.Itoa(num))
 
 	default:
-		return ctx.Reply(fmt.Sprintf("Usage: %santicall [on|off|toggle|customize|contacts|cc|warn]", p))
+		return ctx.Replyf("Usage: %santicall [on|off|toggle|customize|contacts|cc|warn]", p)
 	}
 }
 
@@ -573,7 +573,7 @@ func sendAntiCallMenu(ctx *Context, s *StoreWrapper) error {
 	}
 
 	p := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("╭━━━〔 ANTICALL CONFIGURATION 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", strings.ToUpper(status))
+	bodyText := Sprintf("╭━━━〔 ANTICALL CONFIGURATION 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", strings.ToUpper(status))
 
 	var actionButton struct{ ID, Text string }
 	if status == "on" {
@@ -587,7 +587,7 @@ func sendAntiCallMenu(ctx *Context, s *StoreWrapper) error {
 		{ID: p + "anticall customize", Text: "Customize"},
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AntiCall Rejection", ctx.GetBotName()), buttons)
+	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AntiCall Rejection", ctx.GetBotName()), buttons)
 }
 
 func sendAntiCallCustomizeGuide(ctx *Context) error {
@@ -621,42 +621,40 @@ func splitCSV(s string) []string {
 	return out
 }
 
-func handleVoicemailCmd(ctx *Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Only sudoers/bot owners can configure voicemail.")
+func handleVoicemail(ctx *Context) error {
+	s, ok := getStore(ctx)
+	if !ok {
+		return ctx.Reply("Database store is not available.")
 	}
 
-	s, err := mediaStore(ctx)
-	if err != nil {
-		return ctx.Reply("Storage unavailable.")
-	}
-
-	p := ctx.GetPrefix()
-	arg := ""
 	if len(ctx.Args) > 0 {
-		arg = strings.ToLower(ctx.Args[0])
-	}
-
-	switch arg {
-	case "on", "enable":
-		if err := s.PutSetting(ctx.Ctx, cliutils.AutoAcceptCallSettingKey, "on"); err != nil {
-			return ctx.Reply("Failed to enable voicemail.")
+		switch strings.ToLower(ctx.Args[0]) {
+		case "on", "enable", "activate":
+			_ = s.PutSetting(ctx.Ctx, "voicemail_status", "on")
+			return ctx.Reply("Automated voicemail activated. Incoming calls will be automatically answered with your default call audio/video media.")
+		case "off", "disable", "deactivate":
+			_ = s.PutSetting(ctx.Ctx, "voicemail_status", "off")
+			return ctx.Reply("Automated voicemail deactivated.")
+		case "toggle":
+			curr, _ := s.GetSetting(ctx.Ctx, "voicemail_status")
+			if curr == "on" {
+				_ = s.PutSetting(ctx.Ctx, "voicemail_status", "off")
+				return ctx.Reply("Automated voicemail deactivated.")
+			}
+			_ = s.PutSetting(ctx.Ctx, "voicemail_status", "on")
+			return ctx.Reply("Automated voicemail activated.")
+		default:
+			p := ctx.GetPrefix()
+			return ctx.Replyf("Usage:\n- %svoicemail on\n- %svoicemail off\n- %svoicemail toggle", p, p, p)
 		}
-		return ctx.Reply("Voicemail enabled! Incoming voice and video calls will be automatically answered using your configured call media.")
-
-	case "off", "disable":
-		if err := s.PutSetting(ctx.Ctx, cliutils.AutoAcceptCallSettingKey, "off"); err != nil {
-			return ctx.Reply("Failed to disable voicemail.")
-		}
-		return ctx.Reply("Voicemail disabled.")
-
-	default:
-		status, _ := s.GetSetting(ctx.Ctx, cliutils.AutoAcceptCallSettingKey)
+	} else {
+		status, _ := s.GetSetting(ctx.Ctx, "voicemail_status")
 		if status == "" {
 			status = "off"
 		}
-		audioPath := resolveSavedCallAudio(ctx.Client, ctx.Sender)
-		videoPath := resolveSavedCallVideo(ctx.Client, ctx.Sender)
+		p := ctx.GetPrefix()
+		audioPath, _ := getSavedAudio(ctx, ctx.Sender)
+		videoPath, _ := getSavedVideo(ctx, ctx.Sender)
 
 		audioStatus := "Set"
 		if audioPath == "" {
@@ -667,7 +665,7 @@ func handleVoicemailCmd(ctx *Context) error {
 			videoStatus = "Not Set"
 		}
 
-		bodyText := fmt.Sprintf("╭━━━〔 VOICEMAIL CONFIGURATION 〕━━━\n│ Status : %s\n│ Audio  : %s\n│ Video  : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically answer incoming calls with your saved call media.\n\nUsage:\n• `%svoicemail on`\n• `%svoicemail off`", strings.ToUpper(status), audioStatus, videoStatus, p, p)
+		bodyText := Sprintf("╭━━━〔 VOICEMAIL CONFIGURATION 〕━━━\n│ Status : %s\n│ Audio  : %s\n│ Video  : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically answer incoming calls with your saved call media.\n\nUsage:\n• `%svoicemail on`\n• `%svoicemail off`", strings.ToUpper(status), audioStatus, videoStatus, p, p)
 
 		var actionButton struct{ ID, Text string }
 		if status == "on" {
@@ -682,7 +680,7 @@ func handleVoicemailCmd(ctx *Context) error {
 			{ID: p + "callvideo", Text: "Call Video"},
 		}
 
-		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s Voicemail", ctx.GetBotName()), buttons)
+		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s Voicemail", ctx.GetBotName()), buttons)
 	}
 }
 
@@ -984,7 +982,7 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	data, err := client.Download(ctx, audioMsg)
 	if err != nil {
 		slog.Error("Download audio failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to download audio: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("failed to download audio: %v", err)); sendErr != nil {
 			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -993,7 +991,7 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	targetAudioDir := GetSessionMediaDir(client, "call-audio")
 	if err := os.MkdirAll(targetAudioDir, 0755); err != nil {
 		slog.Error("Failed creating audio directory", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to prepare storage: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("failed to prepare storage: %v", err)); sendErr != nil {
 			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1006,7 +1004,7 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	path := filepath.Join(targetAudioDir, utils.SanitizeJID(sender.String())+ext)
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		slog.Error("File save failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to save audio: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("failed to save audio: %v", err)); sendErr != nil {
 			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1015,7 +1013,7 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	path, err = utils.TranscodeToMP3(path)
 	if err != nil {
 		slog.Error("Transcode failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to process audio: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("failed to process audio: %v", err)); sendErr != nil {
 			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1040,7 +1038,7 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	data, err := client.Download(ctx, videoMsg)
 	if err != nil {
 		slog.Error("Download video failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to download video: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("failed to download video: %v", err)); sendErr != nil {
 			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1049,7 +1047,7 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	targetVideoDir := GetSessionMediaDir(client, "call-video")
 	if err := os.MkdirAll(targetVideoDir, 0755); err != nil {
 		slog.Error("Failed creating video directory", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to prepare storage: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("failed to prepare storage: %v", err)); sendErr != nil {
 			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1062,7 +1060,7 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	path := filepath.Join(targetVideoDir, utils.SanitizeJID(sender.String())+ext)
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		slog.Error("File save failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to save video: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("failed to save video: %v", err)); sendErr != nil {
 			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1119,7 +1117,7 @@ func placeCallWithAudio(ctx *Context, target, audioPath string) error {
 
 	call, err := client.Call(context.Background(), target)
 	if err != nil {
-		return ctx.ReplyWithMentions(fmt.Sprintf("Call to %s failed: %v", userTag, err), []types.JID{mentionJID})
+		return ctx.ReplyWithMentions(Sprintf("Call to %s failed: %v", userTag, err), []types.JID{mentionJID})
 	}
 
 	// Drain incoming audio frames
@@ -1164,12 +1162,12 @@ func placeCallWithAudio(ctx *Context, target, audioPath string) error {
 	})
 
 	call.OnEnd(func(reason string) {
-		if err := ctx.ReplyWithMentions(fmt.Sprintf("Call with %s ended: %s", userTag, reason), []types.JID{mentionJID}); err != nil {
+		if err := ctx.ReplyWithMentions(Sprintf("Call with %s ended: %s", userTag, reason), []types.JID{mentionJID}); err != nil {
 			logHandlerErr("call", err)
 		}
 	})
 
-	return ctx.ReplyWithMentions(fmt.Sprintf("Calling %s...", userTag), []types.JID{mentionJID})
+	return ctx.ReplyWithMentions(Sprintf("Calling %s...", userTag), []types.JID{mentionJID})
 }
 
 func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
@@ -1186,7 +1184,7 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 
 	call, err := client.CallWithOptions(context.Background(), target, whatsmeow.CallOptions{Video: true})
 	if err != nil {
-		return ctx.ReplyWithMentions(fmt.Sprintf("Video call to %s failed: %v", userTag, err), []types.JID{mentionJID})
+		return ctx.ReplyWithMentions(Sprintf("Video call to %s failed: %v", userTag, err), []types.JID{mentionJID})
 	}
 
 	call.Receive(whatsmeow.SinkFunc(func(pcm []float32) {}))
@@ -1337,12 +1335,12 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 	})
 
 	call.OnEnd(func(reason string) {
-		if err := ctx.ReplyWithMentions(fmt.Sprintf("Video call with %s ended: %s", userTag, reason), []types.JID{mentionJID}); err != nil {
+		if err := ctx.ReplyWithMentions(Sprintf("Video call with %s ended: %s", userTag, reason), []types.JID{mentionJID}); err != nil {
 			logHandlerErr("videocall", err)
 		}
 	})
 
-	return ctx.ReplyWithMentions(fmt.Sprintf("Video calling %s...", userTag), []types.JID{mentionJID})
+	return ctx.ReplyWithMentions(Sprintf("Video calling %s...", userTag), []types.JID{mentionJID})
 }
 
 func openAudioSource(path string) (whatsmeow.AudioSource, error) {

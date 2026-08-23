@@ -149,6 +149,13 @@ func (c *PluginContext) NewText(initial ...string) *TextBuilder {
 	return NewTextWithContext(c, initial...)
 }
 
+// NewTextf initializes a new TextBuilder with formatted text bound to this PluginContext.
+func (c *PluginContext) NewTextf(format string, args ...any) *TextBuilder {
+	b := NewTextWithContext(c)
+	b.Textf(format, args...)
+	return b
+}
+
 // Rook returns a WARook builder engine bound to this PluginContext.
 func (c *PluginContext) Rook() *WARook {
 	return From(c)

@@ -1,7 +1,6 @@
 package plugins
 
 import (
-	"fmt"
 	"log/slog"
 )
 
@@ -12,7 +11,7 @@ type PluginError struct {
 
 func (e *PluginError) Error() string {
 	if e.Cause != nil {
-		return fmt.Sprintf("%s: %v", e.UserMessage, e.Cause)
+		return Sprintf("%s: %v", e.UserMessage, e.Cause)
 	}
 	return e.UserMessage
 }
@@ -26,7 +25,7 @@ func Fail(msg string) error {
 }
 
 func Failf(format string, a ...any) error {
-	return &PluginError{UserMessage: fmt.Sprintf(format, a...)}
+	return &PluginError{UserMessage: Sprintf(format, a...)}
 }
 
 func WrapError(userMsg string, cause error) error {
@@ -75,5 +74,5 @@ func LogHandlerErrWithContext(cctx *Context, name string, err error) {
 		return
 	}
 
-	_ = cctx.Reply(fmt.Sprintf("Command execution failed: %v", err))
+	_ = cctx.Replyf("Command execution failed: %v", err)
 }

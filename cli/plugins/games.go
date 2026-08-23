@@ -3,7 +3,6 @@ package plugins
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"math"
 	"net/http"
@@ -143,14 +142,14 @@ func handleTicTacToe(ctx *Context) error {
 				newGame.Board[botMove] = "O"
 			}
 			newGame.Turn = rawSenderLID
-			botFirstMsg = fmt.Sprintf("\n\nAI decided to go first and placed move at position %d!", botMove+1)
+			botFirstMsg = Sprintf("\n\nAI decided to go first and placed move at position %d!", botMove+1)
 		}
 
 		slog.Debug("[TTT] Creating new game", "chat", chatKey, "rawSenderLID", rawSenderLID.String(), "mentionJID", userMentionJID.String(), "botStarts", botStarts, "firstTurn", firstTurn.String())
 
 		cliutils.TTTGames[chatKey] = newGame
 
-		msg := fmt.Sprintf("Tic-Tac-Toe Started!\n\nPlayer X: %s\nPlayer O: %s\n\nTurn: %s (X)%s\n\n%s\n\nMake a move by sending a number 1-9",
+		msg := Sprintf("Tic-Tac-Toe Started!\n\nPlayer X: %s\nPlayer O: %s\n\nTurn: %s (X)%s\n\n%s\n\nMake a move by sending a number 1-9",
 			userTag, oTag, firstTag, botFirstMsg, renderTTTGrid(&newGame.Board))
 
 		mentions := []types.JID{userMentionJID, playerOMention}
@@ -207,7 +206,7 @@ func handleTicTacToe(ctx *Context) error {
 		} else {
 			winnerMentionJID = game.PlayerXMention
 		}
-		msg := fmt.Sprintf("Game Over!\n\nWinner: %s (%s)\n+50 XP awarded!\n\n%s", winnerTag, winner, renderTTTGrid(&game.Board))
+		msg := Sprintf("Game Over!\n\nWinner: %s (%s)\n+50 XP awarded!\n\n%s", winnerTag, winner, renderTTTGrid(&game.Board))
 		return ctx.ReplyWithMentions(msg, []types.JID{winnerMentionJID})
 	}
 
@@ -217,7 +216,7 @@ func handleTicTacToe(ctx *Context) error {
 		if !game.IsBotGame {
 			awardTTTXP(ctx, game.PlayerOMention, 20, "draw")
 		}
-		msg := fmt.Sprintf("Game Over! It's a draw!\n+20 XP awarded to both players!\n\n%s", renderTTTGrid(&game.Board))
+		msg := Sprintf("Game Over! It's a draw!\n+20 XP awarded to both players!\n\n%s", renderTTTGrid(&game.Board))
 		return ctx.Reply(msg)
 	}
 
@@ -230,19 +229,19 @@ func handleTicTacToe(ctx *Context) error {
 		if winner := checkTTTWinner(&game.Board); winner != "" {
 			delete(cliutils.TTTGames, chatKey)
 			awardTTTXP(ctx, game.PlayerXMention, 10, "loss")
-			msg := fmt.Sprintf("Game Over!\n\nWinner: %s (O)\nBetter luck next time (+10 XP)!\n\n%s", game.PlayerOTag, renderTTTGrid(&game.Board))
+			msg := Sprintf("Game Over!\n\nWinner: %s (O)\nBetter luck next time (+10 XP)!\n\n%s", game.PlayerOTag, renderTTTGrid(&game.Board))
 			return ctx.ReplyWithMentions(msg, []types.JID{game.PlayerXMention, game.PlayerOMention})
 		}
 
 		if isTTTFull(&game.Board) {
 			delete(cliutils.TTTGames, chatKey)
 			awardTTTXP(ctx, game.PlayerX, 20, "draw")
-			msg := fmt.Sprintf("Game Over! It's a draw!\n+20 XP awarded!\n\n%s", renderTTTGrid(&game.Board))
+			msg := Sprintf("Game Over! It's a draw!\n+20 XP awarded!\n\n%s", renderTTTGrid(&game.Board))
 			return ctx.Reply(msg)
 		}
 
 		game.Turn = game.PlayerX // PlayerX is the raw LID — correct for turn tracking
-		msg := fmt.Sprintf("Move placed!\n\nAI played position %d.\nTurn: %s (X)\n\n%s\n\nSend 1-9 to make your next move",
+		msg := Sprintf("Move placed!\n\nAI played position %d.\nTurn: %s (X)\n\n%s\n\nSend 1-9 to make your next move",
 			botMove+1, game.PlayerXTag, renderTTTGrid(&game.Board))
 		return ctx.ReplyWithMentions(msg, []types.JID{game.PlayerXMention, game.PlayerOMention})
 	}
@@ -257,7 +256,7 @@ func handleTicTacToe(ctx *Context) error {
 	}
 	game.Turn = nextTurn
 
-	msg := fmt.Sprintf("Move placed!\n\nTurn: %s (%s)\n\n%s\n\nSend 1-9 to make your move",
+	msg := Sprintf("Move placed!\n\nTurn: %s (%s)\n\n%s\n\nSend 1-9 to make your move",
 		nextTag, getSymbol(game, nextTurn), renderTTTGrid(&game.Board))
 	return ctx.ReplyWithMentions(msg, []types.JID{nextMention})
 }
@@ -415,20 +414,19 @@ func handleLeaderboard(ctx *Context) error {
 	}
 
 	if len(entries) == 0 {
-		return ctx.Reply(fmt.Sprintf("%s Leaderboard is currently empty! Play games in this group to earn points and rank up.", groupName))
+		return ctx.Replyf("%s Leaderboard is currently empty! Play games in this group to earn points and rank up.", groupName)
 	}
 
 	var mentions []types.JID
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "%s Leaderboard\n\n", groupName)
+	tb := ctx.Text().Header(groupName + " Leaderboard")
 
 	for i, e := range entries {
-		fmt.Fprintf(&sb, "%d. %s — %s (%d CXP)\n   Rating: %d | TTT: %dW/%dL/%dD | WCG: %dW/%dG\n\n",
-			i+1, e.tag, e.title, e.xp, e.rating, e.tttWins, e.tttLosses, e.tttDraws, e.wcgWins, e.wcgGames)
+		tb.Numberedf(i+1, "%s — %s (%d CXP)\n   Rating: %d | TTT: %dW/%dL/%dD | WCG: %dW/%dG\n",
+			e.tag, e.title, e.xp, e.rating, e.tttWins, e.tttLosses, e.tttDraws, e.wcgWins, e.wcgGames)
 		mentions = append(mentions, e.jid)
 	}
 
-	return ctx.ReplyWithMentions(strings.TrimSpace(sb.String()), mentions)
+	return ctx.ReplyWithMentions(tb.Trimmed(), mentions)
 }
 
 func getSymbol(g *cliutils.TTTGame, p types.JID) string {
@@ -444,7 +442,7 @@ func renderTTTBoard(g *cliutils.TTTGame) string {
 	if g.Turn.User == g.PlayerO.User || g.Turn.User == cliutils.BotJID.User {
 		turnTag = g.PlayerOTag
 	}
-	return fmt.Sprintf("Tic-Tac-Toe Game\n\nPlayer X: %s\nPlayer O: %s\nTurn: %s\n\n%s",
+	return Sprintf("Tic-Tac-Toe Game\n\nPlayer X: %s\nPlayer O: %s\nTurn: %s\n\n%s",
 		g.PlayerXTag, g.PlayerOTag, turnTag, renderTTTGrid(&g.Board))
 }
 
@@ -457,7 +455,7 @@ func renderTTTGrid(board *[9]string) string {
 			display[i] = board[i]
 		}
 	}
-	return fmt.Sprintf(
+	return Sprintf(
 		" %s | %s | %s \n"+
 			"---+---+---\n"+
 			" %s | %s | %s \n"+
@@ -600,7 +598,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 
 	if correct {
 		_ = ctx.React("✅")
-		msg := fmt.Sprintf("Correct! %s guessed '%s' in %.1fs! (+%d pts)\n\nAdvancing to the next level!",
+		msg := Sprintf("Correct! %s guessed '%s' in %.1fs! (+%d pts)\n\nAdvancing to the next level!",
 			currentPlayer.Tag, game.CurrentWord, elapsed.Seconds(), game.WordLength*10)
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
@@ -614,7 +612,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 	}
 
 	_ = ctx.React("❌")
-	msg := fmt.Sprintf("Incorrect guess by %s!\nThe correct word was: '%s'.\n%s has been eliminated from this match!",
+	msg := Sprintf("Incorrect guess by %s!\nThe correct word was: '%s'.\n%s has been eliminated from this match!",
 		currentPlayer.Tag, game.CurrentWord, currentPlayer.Tag)
 	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
@@ -679,7 +677,7 @@ func handleUnscramble(ctx *Context) error {
 	err := sendUnscrambleInteractiveMenu(ctx, hostTag, hostMention)
 	if err != nil {
 		p := ctx.GetPrefix()
-		textMsg := fmt.Sprintf("UNSCRAMBLE GAME\n\nHosted by: %s\n\nLobby is open for 30 SECONDS!\nType '%sunscramble join' to join\nType '%sunscramble start' to begin now\nType '%sunscramble lb' for Leaderboard", hostTag, p, p, p)
+		textMsg := Sprintf("UNSCRAMBLE GAME\n\nHosted by: %s\n\nLobby is open for 30 SECONDS!\nType '%sunscramble join' to join\nType '%sunscramble start' to begin now\nType '%sunscramble lb' for Leaderboard", hostTag, p, p, p)
 		return ctx.ReplyWithMentions(textMsg, []types.JID{hostMention})
 	}
 
@@ -703,7 +701,7 @@ func startUnscrambleTurn(ctx *Context, game *cliutils.UnscrambleGame) {
 		return
 	}
 
-	hintMsg := fmt.Sprintf("Unscramble the word: *%s*\nHint: Turn for @%s (%ds time limit)", scrambled, currentPlayer.Tag, timeLimit)
+	hintMsg := Sprintf("Unscramble the word: *%s*\nHint: Turn for @%s (%ds time limit)", scrambled, currentPlayer.Tag, timeLimit)
 	_ = ctx.ReplyWithMentions(hintMsg, []types.JID{currentPlayer.MentionJID})
 
 	timer := time.AfterFunc(time.Duration(timeLimit)*time.Second, func() {
@@ -726,7 +724,7 @@ func startUnscrambleTurn(ctx *Context, game *cliutils.UnscrambleGame) {
 		if gameOver {
 			finishUnscrambleGame(cctx, game)
 		} else {
-			_ = cctx.Reply(fmt.Sprintf("Time's up for @%s! Eliminating player...", currentPlayer.Tag))
+			_ = cctx.Replyf("Time's up for @%s! Eliminating player...", currentPlayer.Tag)
 			startUnscrambleTurn(cctx, game)
 		}
 	})
@@ -738,25 +736,24 @@ func finishUnscrambleGame(ctx *Context, game *cliutils.UnscrambleGame) {
 	winner, standings := game.FinishGame()
 	saveUnscrambleStats(ctx, game, winner)
 
-	var sb strings.Builder
-	sb.WriteString("🎮 *Unscramble Game Finished!*\n\n")
+	tb := NewText().Header("🎮 *Unscramble Game Finished!*")
 
 	if winner != nil {
-		sb.WriteString(fmt.Sprintf("🏆 *Winner*: @%s (Score: %d)\n\n", winner.Tag, winner.Score))
+		tb.Linef("🏆 *Winner*: @%s (Score: %d)", winner.Tag, winner.Score).Blank()
 	} else {
-		sb.WriteString("No winner this round!\n\n")
+		tb.Line("No winner this round!").Blank()
 	}
 
-	sb.WriteString("📊 *Final Standings*:\n")
+	tb.Section("📊 *Final Standings*:")
 	var mentions []types.JID
 	for idx, p := range standings {
-		sb.WriteString(fmt.Sprintf("%d. @%s - %d pts (%d correct)\n", idx+1, p.Tag, p.Score, p.CorrectGuesses))
+		tb.Numberedf(idx+1, "@%s - %d pts (%d correct)", p.Tag, p.Score, p.CorrectGuesses)
 		if !p.MentionJID.IsEmpty() {
 			mentions = append(mentions, p.MentionJID)
 		}
 	}
 
-	_ = ctx.ReplyWithMentions(sb.String(), mentions)
+	_ = ctx.ReplyWithMentions(tb.Trimmed(), mentions)
 }
 
 func saveUnscrambleStats(ctx *Context, game *cliutils.UnscrambleGame, winner *cliutils.UnscramblePlayer) {
@@ -837,7 +834,7 @@ func handleUnscrambleLeaderboard(ctx *Context) error {
 
 	game := cliutils.GetUnscrambleGame(chatKey)
 	if game == nil {
-		return ctx.Reply(fmt.Sprintf("No active Unscramble game in this chat. Start one with %sunscramble", ctx.GetPrefix()))
+		return ctx.Replyf("No active Unscramble game in this chat. Start one with %sunscramble", ctx.GetPrefix())
 	}
 
 	sorted := game.GetSortedPlayers()
@@ -849,11 +846,11 @@ func handleUnscrambleLeaderboard(ctx *Context) error {
 	state := game.State
 	game.Mu.Unlock()
 
-	var sb strings.Builder
+	tb := ctx.Text()
 	if state == cliutils.UnscrambleStateLobby {
-		sb.WriteString("UNSCRAMBLE LOBBY STANDINGS\n\n")
+		tb.Header("UNSCRAMBLE LOBBY STANDINGS")
 	} else {
-		sb.WriteString("UNSCRAMBLE MATCH STANDINGS\n\n")
+		tb.Header("UNSCRAMBLE MATCH STANDINGS")
 	}
 
 	var mentions []types.JID
@@ -864,16 +861,16 @@ func handleUnscrambleLeaderboard(ctx *Context) error {
 		} else if state == cliutils.UnscrambleStateInProgress {
 			status = " (Active)"
 		}
-		fmt.Fprintf(&sb, "%d. %s — %d pts (%d correct)%s\n", i+1, p.Tag, p.Score, p.CorrectGuesses, status)
+		tb.Numberedf(i+1, "%s — %d pts (%d correct)%s", p.Tag, p.Score, p.CorrectGuesses, status)
 		mentions = append(mentions, p.MentionJID)
 	}
 
-	return ctx.ReplyWithMentions(strings.TrimSpace(sb.String()), mentions)
+	return ctx.ReplyWithMentions(tb.Trimmed(), mentions)
 }
 
 func sendUnscrambleInteractiveMenu(ctx *Context, hostTag string, hostMention types.JID) error {
 	p := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("UNSCRAMBLE GAME\n\nHosted by %s\n\n30s Join Window Open!\nType 'join' to play.\n\nRules:\n- Words progress from 3 to 16 letters\n- Turn time decreases as difficulty rises (30s -> 6s)\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag)
+	bodyText := Sprintf("UNSCRAMBLE GAME\n\nHosted by %s\n\n30s Join Window Open!\nType 'join' to play.\n\nRules:\n- Words progress from 3 to 16 letters\n- Turn time decreases as difficulty rises (30s -> 6s)\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag)
 
 	buttons := []struct{ ID, Text string }{
 		{ID: p + "unscramble start", Text: "Start Match"},
@@ -952,7 +949,7 @@ func HandleUnscrambleLobbyInput(ctx *Context, text string) bool {
 		return true
 	}
 
-	msg := fmt.Sprintf("%s joined the Unscramble match! (%d players in lobby)\nType 'join' to join or wait for the host to start.", tag, len(game.Players))
+	msg := Sprintf("%s joined the Unscramble match! (%d players in lobby)\nType 'join' to join or wait for the host to start.", tag, len(game.Players))
 	_ = ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
 	return true
 }
@@ -1003,7 +1000,7 @@ func ValidateWordParallel(word string) bool {
 			return resp.StatusCode == http.StatusOK
 		},
 		func(w string) bool {
-			reqURL := fmt.Sprintf("https://en.wiktionary.org/w/api.php?action=query&titles=%s&format=json", url.QueryEscape(w))
+			reqURL := Sprintf("https://en.wiktionary.org/w/api.php?action=query&titles=%s&format=json", url.QueryEscape(w))
 			resp, err := cliutils.GameHTTPClient.Get(reqURL)
 			if err != nil {
 				return false
@@ -1126,7 +1123,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 
 	if len(guess) < game.MinLength {
 		_ = ctx.React("❌")
-		failMsg := fmt.Sprintf("Word too short! Must be at least %d characters long (got %d).\n%s has been eliminated!", game.MinLength, len(guess), currentTurnPlayer.Tag)
+		failMsg := Sprintf("Word too short! Must be at least %d characters long (got %d).\n%s has been eliminated!", game.MinLength, len(guess), currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
 		return true
@@ -1134,7 +1131,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 
 	if len(guess) == 0 || unicode.ToUpper(rune(guess[0])) != unicode.ToUpper(game.RequiredChar) {
 		_ = ctx.React("❌")
-		failMsg := fmt.Sprintf("Invalid start letter! Word must start with '%c'.\n%s has been eliminated!", unicode.ToUpper(game.RequiredChar), currentTurnPlayer.Tag)
+		failMsg := Sprintf("Invalid start letter! Word must start with '%c'.\n%s has been eliminated!", unicode.ToUpper(game.RequiredChar), currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
 		return true
@@ -1142,7 +1139,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 
 	if game.IsWordUsed(guess) {
 		_ = ctx.React("❌")
-		failMsg := fmt.Sprintf("Word '%s' was already used in this match!\n%s has been eliminated!", guess, currentTurnPlayer.Tag)
+		failMsg := Sprintf("Word '%s' was already used in this match!\n%s has been eliminated!", guess, currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
 		return true
@@ -1150,7 +1147,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 
 	if !ValidateWordParallel(guess) {
 		_ = ctx.React("❌")
-		failMsg := fmt.Sprintf("'%s' is not recognized as a valid English word across dictionary sources!\n%s has been eliminated!", guess, currentTurnPlayer.Tag)
+		failMsg := Sprintf("'%s' is not recognized as a valid English word across dictionary sources!\n%s has been eliminated!", guess, currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
 		return true
@@ -1161,7 +1158,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 	if correct {
 		_ = ctx.React("✅")
 		nextChar := unicode.ToUpper(rune(guess[len(guess)-1]))
-		msg := fmt.Sprintf("Correct! %s submitted '%s' (%d letters) in %.1fs! (+%d pts)\n\nNext Required Letter: '%c' | Round %d Min Length: %d",
+		msg := Sprintf("Correct! %s submitted '%s' (%d letters) in %.1fs! (+%d pts)\n\nNext Required Letter: '%c' | Round %d Min Length: %d",
 			currentPlayer.Tag, guess, len(guess), elapsed.Seconds(), len(guess)*10, nextChar, game.RoundCount, game.MinLength)
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
@@ -1217,7 +1214,7 @@ func handleWCGChain(ctx *Context) error {
 
 	if arg0 == "join" {
 		if existingGame == nil {
-			return ctx.Reply(fmt.Sprintf("No active WCG lobby in this chat. Start one with %swcg", ctx.GetPrefix()))
+			return ctx.Replyf("No active WCG lobby in this chat. Start one with %swcg", ctx.GetPrefix())
 		}
 		existingGame.Mu.Lock()
 		if existingGame.State != cliutils.WCGStateLobby {
@@ -1237,7 +1234,7 @@ func handleWCGChain(ctx *Context) error {
 			return ctx.Reply("WCG match has already started!")
 		}
 
-		msg := fmt.Sprintf("%s joined the WCG match! (%d players in lobby)\nType 'join' to join or wait for the host to start.", tag, len(existingGame.Players))
+		msg := Sprintf("%s joined the WCG match! (%d players in lobby)\nType 'join' to join or wait for the host to start.", tag, len(existingGame.Players))
 		return ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
 	}
 
@@ -1274,7 +1271,7 @@ func handleWCGChain(ctx *Context) error {
 		existingGame.Mu.Lock()
 		defer existingGame.Mu.Unlock()
 		if existingGame.State == cliutils.WCGStateLobby {
-			return ctx.Reply(fmt.Sprintf("WCG Lobby Open! (%d players)\nType `join` to join or .wcg start to begin!", len(existingGame.Players)))
+			return ctx.Replyf("WCG Lobby Open! (%d players)\nType `join` to join or .wcg start to begin!", len(existingGame.Players))
 		}
 		return ctx.Reply("A WCG game is already in progress in this chat!")
 	}
@@ -1305,7 +1302,7 @@ func handleWCGChain(ctx *Context) error {
 
 	err := sendWCGChainInteractiveMenu(ctx, hostTag, hostMention)
 	if err != nil {
-		textMsg := fmt.Sprintf("WORD CHAIN GAME (WCG)\n\nHosted by: %s\n\nLobby is open for 30 SECONDS!\nType '`join`' to join\nType '.wcg start' to begin now\nType '.wcg lb' for Leaderboard", hostTag)
+		textMsg := Sprintf("WORD CHAIN GAME (WCG)\n\nHosted by: %s\n\nLobby is open for 30 SECONDS!\nType '`join`' to join\nType '.wcg start' to begin now\nType '.wcg lb' for Leaderboard", hostTag)
 		return ctx.ReplyWithMentions(textMsg, []types.JID{hostMention})
 	}
 
@@ -1336,7 +1333,7 @@ func startWCGChainGame(ctx *Context, game *cliutils.WCGGame) {
 	game.AnswersInRound = 0
 	game.Mu.Unlock()
 
-	msg := fmt.Sprintf("Word Chain Game (WCG) Started!\n\nPlayers (%d): %s\n\nStarting Letter: '%c' (Round 1 Min Length: 3)\nWords are validated in real-time across 5 dictionary APIs!",
+	msg := Sprintf("Word Chain Game (WCG) Started!\n\nPlayers (%d): %s\n\nStarting Letter: '%c' (Round 1 Min Length: 3)\nWords are validated in real-time across 5 dictionary APIs!",
 		len(active), strings.Join(playerTags, ", "), unicode.ToUpper(startRune))
 	_ = ctx.ReplyWithMentions(msg, mentions)
 
@@ -1351,7 +1348,7 @@ func startWCGChainTurn(ctx *Context, game *cliutils.WCGGame) {
 		return
 	}
 
-	msg := fmt.Sprintf("TURN: %s\n\nRound %d\nRequired Starting Letter: *%c*\nMinimum Word Length: *%d* characters\nTime Limit: %d seconds!\n\nType a valid English word matching the required letter!",
+	msg := Sprintf("TURN: %s\n\nRound %d\nRequired Starting Letter: *%c*\nMinimum Word Length: *%d* characters\nTime Limit: %d seconds!\n\nType a valid English word matching the required letter!",
 		currentPlayer.Tag, game.RoundCount, unicode.ToUpper(reqChar), minLen, timeSec)
 
 	p := ctx.GetPrefix()
@@ -1360,7 +1357,7 @@ func startWCGChainTurn(ctx *Context, game *cliutils.WCGGame) {
 		{ID: p + "wcg lb", Text: "Leaderboard"},
 	}
 
-	err := sendInteractiveButtonsWithMentions(ctx, msg, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons, []types.JID{currentPlayer.MentionJID})
+	err := sendInteractiveButtonsWithMentions(ctx, msg, Sprintf("Powered by %s", ctx.GetBotName()), buttons, []types.JID{currentPlayer.MentionJID})
 	if err != nil {
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 	}
@@ -1384,7 +1381,7 @@ func startWCGChainTurn(ctx *Context, game *cliutils.WCGGame) {
 			Sender: ctx.Sender,
 		}
 
-		timeoutMsg := fmt.Sprintf("Time's up for %s!\nFailed to submit a valid word starting with '%c'.\n%s has been eliminated!",
+		timeoutMsg := Sprintf("Time's up for %s!\nFailed to submit a valid word starting with '%c'.\n%s has been eliminated!",
 			currentPlayer.Tag, unicode.ToUpper(reqChar), currentPlayer.Tag)
 		_ = cctx.ReplyWithMentions(timeoutMsg, []types.JID{currentPlayer.MentionJID})
 
@@ -1413,8 +1410,7 @@ func finishWCGChainGame(ctx *Context, game *cliutils.WCGGame, winner *cliutils.W
 
 	saveWCGChainStats(ctx, game, winner)
 
-	var sb strings.Builder
-	sb.WriteString("WCG WORD CHAIN MATCH OVER!\n\n")
+	tb := NewText().Header("WCG WORD CHAIN MATCH OVER!")
 
 	var mentions []types.JID
 
@@ -1426,14 +1422,14 @@ func finishWCGChainGame(ctx *Context, game *cliutils.WCGGame, winner *cliutils.W
 	}
 
 	if winner != nil {
-		fmt.Fprintf(&sb, "Winner (Last Standing): %s (+100 Bonus XP!)\nTotal Score: %d pts | Correct Words: %d\n\n",
-			winner.Tag, winner.Score, winner.CorrectGuesses)
+		tb.Linef("Winner (Last Standing): %s (+100 Bonus XP!)\nTotal Score: %d pts | Correct Words: %d",
+			winner.Tag, winner.Score, winner.CorrectGuesses).Blank()
 		mentions = append(mentions, winner.MentionJID)
 	} else {
-		sb.WriteString("No winner — all players eliminated!\n\n")
+		tb.Line("No winner — all players eliminated!").Blank()
 	}
 
-	sb.WriteString("Final Standings:\n")
+	tb.Section("Final Standings:")
 	for i, p := range standings {
 		avgTimeSec := 0.0
 		if p.GuessesCount > 0 {
@@ -1443,17 +1439,17 @@ func finishWCGChainGame(ctx *Context, game *cliutils.WCGGame, winner *cliutils.W
 		if winner != nil && p.LID.User == winner.LID.User {
 			status = "Last Standing"
 		}
-		fmt.Fprintf(&sb, "%d. %s — %d pts (%d correct, avg %.1fs) [%s]\n", i+1, p.Tag, p.Score, p.CorrectGuesses, avgTimeSec, status)
+		tb.Numberedf(i+1, "%s — %d pts (%d correct, avg %.1fs) [%s]", p.Tag, p.Score, p.CorrectGuesses, avgTimeSec, status)
 		mentions = append(mentions, p.MentionJID)
 	}
 
-	_ = ctx.ReplyWithMentions(sb.String(), mentions)
+	_ = ctx.ReplyWithMentions(tb.Trimmed(), mentions)
 
 	if winner != nil && highestPlayer != nil && winner.LID.User != highestPlayer.LID.User {
 		winnerTag, winnerJID := ctx.FormatMention(winner.MentionJID)
 		highestTag, highestJID := ctx.FormatMention(highestPlayer.MentionJID)
 
-		promptMsg := fmt.Sprintf("Notice for %s:\nYou are the last player standing, but you do not have the highest score (Highest: %s with %d pts vs your %d pts).\nWould you like to continue playing solo to obtain higher points or end this game?",
+		promptMsg := Sprintf("Notice for %s:\nYou are the last player standing, but you do not have the highest score (Highest: %s with %d pts vs your %d pts).\nWould you like to continue playing solo to obtain higher points or end this game?",
 			winnerTag, highestTag, highestScore, winner.Score)
 
 		p := ctx.GetPrefix()
@@ -1544,7 +1540,7 @@ func handleWCGChainLeaderboard(ctx *Context) error {
 
 	game := cliutils.GetWCGGame(chatKey)
 	if game == nil {
-		return ctx.Reply(fmt.Sprintf("No active WCG game in this chat. Start one with %swcg", ctx.GetPrefix()))
+		return ctx.Replyf("No active WCG game in this chat. Start one with %swcg", ctx.GetPrefix())
 	}
 
 	sorted := game.GetSortedPlayers()
@@ -1556,11 +1552,11 @@ func handleWCGChainLeaderboard(ctx *Context) error {
 	state := game.State
 	game.Mu.Unlock()
 
-	var sb strings.Builder
+	tb := ctx.Text()
 	if state == cliutils.WCGStateLobby {
-		sb.WriteString("WCG LOBBY STANDINGS\n\n")
+		tb.Header("WCG LOBBY STANDINGS")
 	} else {
-		sb.WriteString("WCG MATCH STANDINGS\n\n")
+		tb.Header("WCG MATCH STANDINGS")
 	}
 
 	var mentions []types.JID
@@ -1571,23 +1567,23 @@ func handleWCGChainLeaderboard(ctx *Context) error {
 		} else if state == cliutils.WCGStateInProgress {
 			status = " (Active)"
 		}
-		fmt.Fprintf(&sb, "%d. %s — %d pts (%d correct)%s\n", i+1, p.Tag, p.Score, p.CorrectGuesses, status)
+		tb.Numberedf(i+1, "%s — %d pts (%d correct)%s", p.Tag, p.Score, p.CorrectGuesses, status)
 		mentions = append(mentions, p.MentionJID)
 	}
 
-	return ctx.ReplyWithMentions(strings.TrimSpace(sb.String()), mentions)
+	return ctx.ReplyWithMentions(tb.Trimmed(), mentions)
 }
 
 func sendWCGChainInteractiveMenu(ctx *Context, hostTag string, hostMention types.JID) error {
 	p := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("WORD CHAIN GAME (WCG)\n\nHosted by %s\n\n30s Join Window Open!\nType '%swcg join' to play.\n\nRules:\n- Starting letter is picked at random\n- Words must start with required letter and meet length limit\n- Validated in real-time across 5 parallel dictionary APIs\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag, p)
+	bodyText := Sprintf("WORD CHAIN GAME (WCG)\n\nHosted by %s\n\n30s Join Window Open!\nType '%swcg join' to play.\n\nRules:\n- Starting letter is picked at random\n- Words must start with required letter and meet length limit\n- Validated in real-time across 5 parallel dictionary APIs\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag, p)
 
 	buttons := []struct{ ID, Text string }{
 		{ID: p + "wcg start", Text: "Start Match"},
 		{ID: p + "wcg end", Text: "End Game"},
 	}
 
-	return sendInteractiveButtonsWithMentions(ctx, bodyText, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons, []types.JID{hostMention})
+	return sendInteractiveButtonsWithMentions(ctx, bodyText, Sprintf("Powered by %s", ctx.GetBotName()), buttons, []types.JID{hostMention})
 }
 
 func HandleWCGLobbyInput(ctx *Context, text string) bool {
@@ -1626,7 +1622,7 @@ func HandleWCGLobbyInput(ctx *Context, text string) bool {
 		game.Mu.Unlock()
 		mentionJID, username := ctx.ResolveMention(senderLID)
 		tag := "@" + username
-		_ = ctx.ReplyWithMentions(fmt.Sprintf("%s you have already joined the WCG match!", tag), []types.JID{mentionJID})
+		_ = ctx.ReplyWithMentions(Sprintf("%s you have already joined the WCG match!", tag), []types.JID{mentionJID})
 		return true
 	}
 	game.Mu.Unlock()
@@ -1637,7 +1633,7 @@ func HandleWCGLobbyInput(ctx *Context, text string) bool {
 		return true
 	}
 
-	msg := fmt.Sprintf("%s joined the WCG match! (%d players in lobby)\nType 'join' to join or wait for the host to start.", tag, len(game.Players))
+	msg := Sprintf("%s joined the WCG match! (%d players in lobby)\nType 'join' to join or wait for the host to start.", tag, len(game.Players))
 	_ = ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
 	return true
 }

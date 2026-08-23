@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -194,7 +193,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 					Chat:   evt.Info.Chat,
 					Sender: evt.Info.Sender,
 				}
-				_ = cctx.Reply(fmt.Sprintf("Bot name updated successfully to \"%s\"! 🎉\n\nYou can change it anytime later using the %sbotname command (e.g. `%sbotname <name>`).", newName, p, p))
+				_ = cctx.Replyf("Bot name updated successfully to \"%s\"! 🎉\n\nYou can change it anytime later using the %sbotname command (e.g. `%sbotname <name>`).", newName, p, p)
 				return true
 			}
 		}
@@ -471,7 +470,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 						{ID: p + "setbot setup_customize", Text: "Customize Bot"},
 						{ID: p + "setbot setup_continue", Text: "Continue"},
 					}
-					_ = sendInteractiveButtons(cctx, bodyText, fmt.Sprintf("Powered by %s", botName), buttons)
+					_ = sendInteractiveButtons(cctx, bodyText, Sprintf("Powered by %s", botName), buttons)
 					return true
 				}
 			}
@@ -530,7 +529,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 				}
 				if isDisabled {
 					slog.Warn("Disabled command check failed", "command", name)
-					_ = cctx.Reply(fmt.Sprintf(" Command %q is currently disabled.", name))
+					_ = cctx.Replyf(" Command %q is currently disabled.", name)
 					return
 				}
 			}
@@ -784,7 +783,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 						_, _ = client.UpdateGroupParticipants(ctx, evt.Info.Chat, []types.JID{evt.Info.Sender}, whatsmeow.ParticipantChangeRemove)
 					}
 					resolvedJID, username := utils.ResolveMentionRaw(ctx, client, evt.Info.Sender)
-					textMsg := fmt.Sprintf("AntiSpam: @%s message rate limit exceeded (action: %s).", username, action)
+					textMsg := Sprintf("AntiSpam: @%s message rate limit exceeded (action: %s).", username, action)
 					_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
 						ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 							Text: &textMsg,
@@ -841,7 +840,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 				d = strings.TrimSpace(strings.ToLower(d))
 				if d != "" && strings.Contains(lowerText, d) {
 					violation = true
-					reason = fmt.Sprintf("banned link (%s)", d)
+					reason = Sprintf("banned link (%s)", d)
 					violationType = "antilink"
 					break
 				}
@@ -860,7 +859,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 		for _, w := range bannedWords {
 			if strings.Contains(lowerText, w) {
 				violation = true
-				reason = fmt.Sprintf("banned word (%s)", w)
+				reason = Sprintf("banned word (%s)", w)
 				violationType = "antiword"
 				break
 			}
@@ -884,7 +883,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 			switch action {
 			case "kick":
 				_, _ = client.UpdateGroupParticipants(ctx, evt.Info.Chat, []types.JID{evt.Info.Sender}, whatsmeow.ParticipantChangeRemove)
-				textMsg := fmt.Sprintf("Message from @%s deleted and participant kicked: contains %s.", username, reason)
+				textMsg := Sprintf("Message from @%s deleted and participant kicked: contains %s.", username, reason)
 				_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
 					ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 						Text: &textMsg,
@@ -913,7 +912,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 				if currWarns >= maxWarn {
 					_, _ = client.UpdateGroupParticipants(ctx, evt.Info.Chat, []types.JID{evt.Info.Sender}, whatsmeow.ParticipantChangeRemove)
 					_ = s.PutSetting(ctx, warnsKey, "0")
-					textMsg := fmt.Sprintf("⚠️ @%s reached maximum warnings (%d/%d) for %s! Message deleted and participant kicked.", username, currWarns, maxWarn, reason)
+					textMsg := Sprintf("⚠️ @%s reached maximum warnings (%d/%d) for %s! Message deleted and participant kicked.", username, currWarns, maxWarn, reason)
 					_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
 						ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 							Text: &textMsg,
@@ -924,7 +923,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 					})
 				} else {
 					_ = s.PutSetting(ctx, warnsKey, strconv.Itoa(currWarns))
-					textMsg := fmt.Sprintf("⚠️ Warning for @%s (%d/%d): Message deleted for %s. Reaching %d warnings will result in a kick!", username, currWarns, maxWarn, reason, maxWarn)
+					textMsg := Sprintf("⚠️ Warning for @%s (%d/%d): Message deleted for %s. Reaching %d warnings will result in a kick!", username, currWarns, maxWarn, reason, maxWarn)
 					_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
 						ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 							Text: &textMsg,
@@ -936,7 +935,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 				}
 
 			default:
-				textMsg := fmt.Sprintf("Message from @%s deleted: contains %s.", username, reason)
+				textMsg := Sprintf("Message from @%s deleted: contains %s.", username, reason)
 				_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
 					ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 						Text: &textMsg,
@@ -1059,7 +1058,7 @@ func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, evt *ev
 		if raw != "" {
 			for disabled := range strings.FieldsSeq(raw) {
 				if strings.EqualFold(disabled, cmdName) {
-					_ = cctx.Reply(fmt.Sprintf(" Command %q is currently disabled.", cmdName))
+					_ = cctx.Replyf(" Command %q is currently disabled.", cmdName)
 					return
 				}
 			}

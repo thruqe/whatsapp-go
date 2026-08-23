@@ -2,11 +2,12 @@ package plugins
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -124,7 +125,7 @@ func handleAlive(ctx *Context) error {
 					_ = s.PutSetting(ctx.Ctx, cliutils.AliveTemplateKey, caption)
 				}
 
-				return ctx.Reply(fmt.Sprintf("Saved replied %s as your alive media message!\n\nImage/Video will include the caption, and Audio will include music card context info.\nUse `%salive` to test it.", mediaType, ctx.GetPrefix()))
+				return ctx.Replyf("Saved replied %s as your alive media message!\n\nImage/Video will include the caption, and Audio will include music card context info.\nUse `%salive` to test it.", mediaType, ctx.GetPrefix())
 			}
 		}
 	}
@@ -139,7 +140,7 @@ func handleAlive(ctx *Context) error {
 				return ctx.Reply("Only sudoers/owners can customize the alive message template.")
 			}
 			if len(args) < 2 {
-				curr := cliutils.DefaultAliveTpl
+				curr := cliutils.DefaultAliveTemplate
 				if okStore {
 					if val, err := s.GetSetting(ctx.Ctx, cliutils.AliveTemplateKey); err == nil && val != "" {
 						curr = val
@@ -154,7 +155,7 @@ func handleAlive(ctx *Context) error {
 					_ = s.PutSetting(ctx.Ctx, cliutils.AliveMediaTypeKey, "")
 					_ = s.PutSetting(ctx.Ctx, cliutils.AliveMediaFileKey, "")
 				}
-				return renderAliveResponse(ctx, cliutils.DefaultAliveTpl, "")
+				return renderAliveResponse(ctx, cliutils.DefaultAliveTemplate, "")
 			}
 			if okStore {
 				if err := s.PutSetting(ctx.Ctx, cliutils.AliveTemplateKey, newTpl); err != nil {
@@ -164,7 +165,7 @@ func handleAlive(ctx *Context) error {
 			return renderAliveResponse(ctx, newTpl, "")
 
 		case "get", "show", "view":
-			curr := cliutils.DefaultAliveTpl
+			curr := cliutils.DefaultAliveTemplate
 			if okStore {
 				if val, err := s.GetSetting(ctx.Ctx, cliutils.AliveTemplateKey); err == nil && val != "" {
 					curr = val
@@ -201,21 +202,39 @@ func handleAlive(ctx *Context) error {
 			}
 			return ctx.Reply("Alive media URL updated successfully!")
 
-		case "customize", "custom", "help":
-			return sendAliveCustomizeGuide(ctx)
+		case "help", "guide":
+			p := ctx.GetPrefix()
+			return ctx.Text().
+				Header("ALIVE CUSTOMIZATION GUIDE").
+				Section("Alive Template Formatting Variables:").
+				Bullet("&user / &mention : Tag the command caller").
+				Bullet("&pushname : Push name of the caller").
+				Bullet("&uptime : Current bot uptime").
+				Bullet("&ram : Allocated memory usage").
+				Bullet("&goroutines : Active Go routines").
+				Bullet("&latency : Response speed").
+				Bullet("&owner : Bot owner").
+				Blank().
+				Section("Media Customization:").
+				Bulletf("Reply to any Image, Video, or Audio with `%salive media` to set it as the alive background", p).
+				Bulletf("Use `%salive reset` to restore default text-only alive card", p).
+				Reply()
 
-		default:
-			if ctx.IsSudo() {
-				newTpl := strings.TrimSpace(ctx.RawArgs)
-				if okStore {
-					_ = s.PutSetting(ctx.Ctx, cliutils.AliveTemplateKey, newTpl)
-				}
-				return renderAliveResponse(ctx, newTpl, "")
+		case "reset", "clear":
+			if !ctx.IsSudo() {
+				return ctx.Reply("Only sudoers/owners can reset alive configuration.")
 			}
+			if okStore {
+				_ = s.PutSetting(ctx.Ctx, cliutils.AliveTemplateKey, "")
+				_ = s.PutSetting(ctx.Ctx, cliutils.AliveMediaTypeKey, "")
+				_ = s.PutSetting(ctx.Ctx, cliutils.AliveMediaMimeKey, "")
+				_ = s.PutSetting(ctx.Ctx, cliutils.AliveMediaFileKey, "")
+			}
+			return ctx.Reply("Alive template and custom media reset to default.")
 		}
 	}
 
-	tpl := cliutils.DefaultAliveTpl
+	tpl := cliutils.DefaultAliveTemplate
 	if okStore {
 		if val, err := s.GetSetting(ctx.Ctx, cliutils.AliveTemplateKey); err == nil && val != "" {
 			tpl = val
@@ -231,10 +250,10 @@ func renderAliveResponse(ctx *Context, tpl, fallbackMediaURL string) error {
 
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	ramUsage := fmt.Sprintf("%.2f MB", float64(memStats.Alloc)/1024/1024)
-	goroutines := fmt.Sprintf("%d", runtime.NumGoroutine())
+	ramUsage := Sprintf("%.2f MB", float64(memStats.Alloc)/1024/1024)
+	goroutines := strconv.Itoa(runtime.NumGoroutine())
 
-	latency := fmt.Sprintf("%d ms", time.Since(startMeasure).Milliseconds())
+	latency := Sprintf("%d ms", time.Since(startMeasure).Milliseconds())
 
 	ownerName := "Thruqe"
 	if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
@@ -371,12 +390,12 @@ func replyWithAliveAudioCard(ctx *Context, data []byte, bodyText, ownerName stri
 
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaAudio)
 	if err != nil {
-		return fmt.Errorf("audio upload failed: %w", err)
+		return errors.New("audio upload failed: " + err.Error())
 	}
 
 	botName := ctx.GetBotName()
-	title := fmt.Sprintf("%s IS ALIVE", strings.ToUpper(botName))
-	body := fmt.Sprintf("Owner: %s", ownerName)
+	title := Sprintf("%s IS ALIVE", strings.ToUpper(botName))
+	body := "Owner: " + ownerName
 	sourceURL := "https://github.com/Thruqe/whatsrook"
 
 	adInfo := &waE2E.ContextInfo_ExternalAdReplyInfo{
@@ -467,7 +486,7 @@ func handleCPU(ctx *Context) error {
 
 	usageStr := "Unknown"
 	if u, err := cliutils.GetCPUUsage(); err == nil {
-		usageStr = fmt.Sprintf("%.2f%%", u)
+		usageStr = Sprintf("%.2f%%", u)
 	}
 
 	return ctx.Text().
@@ -510,7 +529,7 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 		return false
 	}
 
-	key := fmt.Sprintf("%s:%s", evt.Info.Chat.ToNonAD().String(), evt.Info.Sender.ToNonAD().String())
+	key := evt.Info.Chat.ToNonAD().String() + ":" + evt.Info.Sender.ToNonAD().String()
 	cliutils.MenuThumbPromptsMu.RLock()
 	promptTime, active := cliutils.PendingMenuThumbPrompts[key]
 	cliutils.MenuThumbPromptsMu.RUnlock()
@@ -573,7 +592,7 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 	authDir := GetSessionAuthDir(client)
 	targetPath, errProc := ProcessAndSaveThumbnail(ctx, authDir, data, isVideo)
 	if errProc != nil {
-		_ = fakeCtx.Reply(fmt.Sprintf("Failed to process menu thumbnail: %v", errProc))
+		_ = fakeCtx.Replyf("Failed to process menu thumbnail: %v", errProc)
 		return true
 	}
 
@@ -581,7 +600,7 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 		_ = s.PutSetting(ctx, "menu_thumbnail_path", targetPath)
 	}
 
-	_ = fakeCtx.Reply(fmt.Sprintf("Bot menu thumbnail updated successfully! Type %smenu to view your custom thumbnail.", fakeCtx.GetPrefix()))
+	_ = fakeCtx.Replyf("Bot menu thumbnail updated successfully! Type %smenu to view your custom thumbnail.", fakeCtx.GetPrefix())
 	return true
 }
 
@@ -593,14 +612,14 @@ func handleMenu(ctx *Context) error {
 			return handleReconfigure(ctx)
 		}
 		if sub == "customize" || sub == "custom" {
-			key := fmt.Sprintf("%s:%s", ctx.Chat.ToNonAD().String(), ctx.Sender.ToNonAD().String())
+			key := ctx.Chat.ToNonAD().String() + ":" + ctx.Sender.ToNonAD().String()
 			cliutils.MenuThumbPromptsMu.Lock()
 			cliutils.PendingMenuThumbPrompts[key] = time.Now()
 			cliutils.MenuThumbPromptsMu.Unlock()
 			return ctx.Reply("Upload or reply with an image (.jpg/.png) or video (.mp4) to set it as the custom bot menu thumbnail.\n\nTo restore default: " + ctx.GetPrefix() + "menu reset")
 		}
 		if sub == "reset" {
-			key := fmt.Sprintf("%s:%s", ctx.Chat.ToNonAD().String(), ctx.Sender.ToNonAD().String())
+			key := ctx.Chat.ToNonAD().String() + ":" + ctx.Sender.ToNonAD().String()
 			cliutils.MenuThumbPromptsMu.Lock()
 			delete(cliutils.PendingMenuThumbPrompts, key)
 			cliutils.MenuThumbPromptsMu.Unlock()
@@ -665,7 +684,7 @@ func handleMenu(ctx *Context) error {
 		Field("User", toFancy(user)).
 		Field("OS", toFancy(platform)).
 		Field("Mem", toFancy(utils.FormatBytes(usedRAM))).
-		Field("Plugins", toFancy(fmt.Sprintf("%d", displayedCount))).
+		Field("Plugins", toFancy(strconv.Itoa(displayedCount))).
 		Field("Mode", toFancy(botMode)).
 		Field("Uptime", toFancy(uptime)).
 		Field("Version", toFancy(updater.GetAppVersion())).
@@ -727,7 +746,7 @@ func handlePing(ctx *Context) error {
 	}
 
 	elapsed := time.Since(start)
-	respText := fmt.Sprintf("%d ms", elapsed.Milliseconds())
+	respText := Sprintf("%d ms", elapsed.Milliseconds())
 
 	if _, editErr := ctx.Edit(msgID, respText); editErr != nil {
 		_ = ctx.Reply(respText)
@@ -737,7 +756,7 @@ func handlePing(ctx *Context) error {
 
 func handleRepo(ctx *Context) error {
 	repoURL := "https://github.com/Thruqe/whatsrook"
-	text := fmt.Sprintf("WhatsRook Repository\n\n%s\n\nPlease star the repository if you like the project, it helps support and motivate me.\n\nPowered by %s", repoURL, ctx.GetBotName())
+	text := Sprintf("WhatsRook Repository\n\n%s\n\nPlease star the repository if you like the project, it helps support and motivate me.\n\nPowered by %s", repoURL, ctx.GetBotName())
 
 	return ctx.Reply(text)
 }

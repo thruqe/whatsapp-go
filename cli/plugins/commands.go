@@ -13,7 +13,12 @@ func NewText(initial ...string) *TextBuilder {
 	return utils.NewText(initial...)
 }
 
+func NewTextf(format string, args ...any) *TextBuilder {
+	return utils.NewTextf(format, args...)
+}
+
 var (
+	Sprintf   = utils.Sprintf
 	Bold      = utils.Bold
 	Boldf     = utils.Boldf
 	Italic    = utils.Italic

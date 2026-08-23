@@ -3,7 +3,7 @@ package plugins
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -131,16 +131,16 @@ func handleBio(ctx *Context) error {
 
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage: %sbio <new WhatsApp status bio text>\n\nExample: %sbio Available | WhatsRook AI Bot", p, p))
+		return ctx.Replyf("Usage: %sbio <new WhatsApp status bio text>\n\nExample: %sbio Available | WhatsRook AI Bot", p, p)
 	}
 
 	newBio := ctx.RawArgs
 	err := ctx.Client.SetStatusMessage(ctx.Ctx, types.SetStatusInput{Text: &newBio})
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("Failed to update status bio: %v", err))
+		return ctx.Replyf("Failed to update status bio: %v", err)
 	}
 
-	return ctx.Reply(fmt.Sprintf("Bot status bio successfully updated to:\n\"%s\"", newBio))
+	return ctx.Replyf("Bot status bio successfully updated to:\n\"%s\"", newBio)
 }
 
 func handleBlocklist(ctx *Context) error {
@@ -150,27 +150,26 @@ func handleBlocklist(ctx *Context) error {
 
 	bl, err := ctx.Client.GetBlocklist(ctx.Ctx)
 	if err != nil || bl == nil {
-		return ctx.Reply(fmt.Sprintf("Failed to fetch blocklist: %v", err))
+		return ctx.Replyf("Failed to fetch blocklist: %v", err)
 	}
 
 	if len(bl.JIDs) == 0 {
 		return ctx.Reply("Your blocklist is currently empty.")
 	}
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "BLOCKED CONTACTS (%d total)\n\n", len(bl.JIDs))
+	tb := ctx.Text().Headerf("BLOCKED CONTACTS (%d total)", len(bl.JIDs))
 
 	var mentions []types.JID
 	for i, jid := range bl.JIDs {
 		bare := jid.ToNonAD()
 		mentions = append(mentions, bare)
-		fmt.Fprintf(&sb, "%d. +%s (@%s)\n", i+1, bare.User, bare.User)
+		tb.Numberedf(i+1, "+%s (@%s)", bare.User, bare.User)
 	}
 
 	p := ctx.GetPrefix()
-	fmt.Fprintf(&sb, "\nTo unblock a contact: %sunblock @user", p)
+	tb.Blank().Linef("To unblock a contact: %sunblock @user", p)
 
-	return ctx.ReplyWithMentions(sb.String(), mentions)
+	return ctx.ReplyWithMentions(tb.String(), mentions)
 }
 
 func handleSetBotPP(ctx *Context) error {
@@ -180,17 +179,17 @@ func handleSetBotPP(ctx *Context) error {
 
 	downloadable, _, _ := ExtractMediaFromEvent(ctx.Evt)
 	if downloadable == nil {
-		return ctx.Reply(fmt.Sprintf("Please upload or reply to an image to set as profile picture. Usage: %spp", ctx.GetPrefix()))
+		return ctx.Replyf("Please upload or reply to an image to set as profile picture. Usage: %spp", ctx.GetPrefix())
 	}
 
 	rawBytes, err := ctx.Client.Download(ctx.Ctx, downloadable)
 	if err != nil || len(rawBytes) == 0 {
-		return ctx.Reply(fmt.Sprintf("Failed to download image: %v", err))
+		return ctx.Replyf("Failed to download image: %v", err)
 	}
 
 	jpegData, errConv := utils.EnsureJPEG(ctx.Ctx, rawBytes)
 	if errConv != nil || len(jpegData) == 0 {
-		return ctx.Reply(fmt.Sprintf("Failed to process profile image format: %v", errConv))
+		return ctx.Replyf("Failed to process profile image format: %v", errConv)
 	}
 
 	ownJID := types.EmptyJID
@@ -202,10 +201,10 @@ func handleSetBotPP(ctx *Context) error {
 	picID, errSet := ctx.Client.SetGroupPhoto(ctx.Ctx, ownJID, jpegData)
 	if errSet != nil {
 		slog.Error("handleSetBotPP failed", "err", errSet)
-		return ctx.Reply(fmt.Sprintf("Failed to update profile picture: %v", errSet))
+		return ctx.Replyf("Failed to update profile picture: %v", errSet)
 	}
 
-	return ctx.Reply(fmt.Sprintf("Bot profile picture updated successfully! (Picture ID: %s)", picID))
+	return ctx.Replyf("Bot profile picture updated successfully! (Picture ID: %s)", picID)
 }
 
 func handleStopShell(ctx *Context) error {
@@ -287,11 +286,11 @@ func HandleShellInput(ctx *Context, text string) bool {
 	if session.Stdin != nil {
 		_, err := session.Stdin.Write([]byte(text + "\n"))
 		if err != nil {
-			_ = ctx.Reply(fmt.Sprintf("Failed to write to stdin: %v", err))
+			_ = ctx.Replyf("Failed to write to stdin: %v", err)
 			return true
 		}
 		_ = ctx.React("⌨️")
-		session.Buf.WriteString(fmt.Sprintf("\n[stdin] %s\n", text))
+		session.Buf.WriteString(Sprintf("\n[stdin] %s\n", text))
 		select {
 		case session.UpdateCh <- struct{}{}:
 		default:
@@ -310,7 +309,7 @@ func handleSh(ctx *Context) error {
 	commandStr := strings.TrimSpace(ctx.RawArgs)
 	if commandStr == "" {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage: %ssh <command line>\n\nExample:\n%ssh yt-dlp \"https://...\" -t mp4\n%ssh ls -la", p, p, p))
+		return ctx.Replyf("Usage: %ssh <command line>\n\nExample:\n%ssh yt-dlp \"https://...\" -t mp4\n%ssh ls -la", p, p, p)
 	}
 
 	chatKey := ctx.Chat.String()
@@ -354,26 +353,26 @@ func handleSh(ctx *Context) error {
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		cancel()
-		return ctx.Reply(fmt.Sprintf("Failed to open stdin pipe: %v", err))
+		return ctx.Replyf("Failed to open stdin pipe: %v", err)
 	}
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		cancel()
-		return ctx.Reply(fmt.Sprintf("Failed to open stdout pipe: %v", err))
+		return ctx.Replyf("Failed to open stdout pipe: %v", err)
 	}
 
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
 		cancel()
-		return ctx.Reply(fmt.Sprintf("Failed to open stderr pipe: %v", err))
+		return ctx.Replyf("Failed to open stderr pipe: %v", err)
 	}
 
-	initialMsg := fmt.Sprintf("🖥️ *Executing Shell Command...*\n`%s`\n\n```\n(starting process...)\n```\n💡 _Type in chat to send stdin input. Type `.stop` to kill._", commandStr)
+	initialMsg := Sprintf("🖥️ *Executing Shell Command...*\n`%s`\n\n```\n(starting process...)\n```\n💡 _Type in chat to send stdin input. Type `.stop` to kill._", commandStr)
 	msgID, err := ctx.ReplyWithID(initialMsg)
 	if err != nil {
 		cancel()
-		return fmt.Errorf("failed to send initial shell message: %w", err)
+		return errors.New("failed to send initial shell message: " + err.Error())
 	}
 
 	session := &cliutils.ShellSession{
@@ -399,7 +398,7 @@ func handleSh(ctx *Context) error {
 		delete(cliutils.ActiveShellSessions, chatKey)
 		cliutils.ActiveShellSessionsMu.Unlock()
 		cancel()
-		_, _ = ctx.Edit(msgID, fmt.Sprintf("🖥️ *Shell Error:*\n`%s`\n\n```\nFailed to start: %v\n```", commandStr, err))
+		_, _ = ctx.Edit(msgID, Sprintf("🖥️ *Shell Error:*\n`%s`\n\n```\nFailed to start: %v\n```", commandStr, err))
 		return nil
 	}
 
@@ -452,7 +451,7 @@ func handleSh(ctx *Context) error {
 			}
 
 			if cleaned != lastEditedText && time.Since(lastEditTime) >= 800*time.Millisecond {
-				updateText := fmt.Sprintf("🖥️ *Executing Shell Command...*\n`%s`\n\n```\n%s\n```\n💡 _Type in chat to send stdin input. Type `.stop` to kill._", session.CommandStr, cleaned)
+				updateText := Sprintf("🖥️ *Executing Shell Command...*\n`%s`\n\n```\n%s\n```\n💡 _Type in chat to send stdin input. Type `.stop` to kill._", session.CommandStr, cleaned)
 				_, _ = ctx.Edit(session.MsgID, updateText)
 				lastEditedText = cleaned
 				lastEditTime = time.Now()
@@ -494,20 +493,20 @@ func handleSh(ctx *Context) error {
 			cleaned = "(no output)"
 		}
 
-		statusStr := fmt.Sprintf("Success (exited in %s)", duration)
+		statusStr := Sprintf("Success (exited in %s)", duration)
 		if userKilled {
-			statusStr = fmt.Sprintf("Terminated by user (ran for %s)", duration)
+			statusStr = Sprintf("Terminated by user (ran for %s)", duration)
 		} else if execCtx.Err() == context.DeadlineExceeded {
-			statusStr = fmt.Sprintf("Timed out after %s", duration)
+			statusStr = Sprintf("Timed out after %s", duration)
 		} else if waitErr != nil {
-			statusStr = fmt.Sprintf("Failed: %v (ran for %s)", waitErr, duration)
+			statusStr = Sprintf("Failed: %v (ran for %s)", waitErr, duration)
 		}
 
 		if len(cleaned) > 3500 {
 			cleaned = "... (truncated)\n" + cleaned[len(cleaned)-3400:]
 		}
 
-		finalMsg := fmt.Sprintf("🖥️ *Shell Output*\nCommand: `%s`\nStatus: *%s*\n\n```\n%s\n```", session.CommandStr, statusStr, cleaned)
+		finalMsg := Sprintf("🖥️ *Shell Output*\nCommand: `%s`\nStatus: *%s*\n\n```\n%s\n```", session.CommandStr, statusStr, cleaned)
 		_, _ = ctx.Edit(session.MsgID, finalMsg)
 	}()
 
@@ -540,7 +539,7 @@ func handleStatus(ctx *Context) error {
 			uploaded, uErr := ctx.Client.Upload(ctx.Ctx, mediaBytes, whatsmeow.MediaImage)
 			if uErr != nil {
 				slog.Error("handleStatus: image upload failed", "err", uErr)
-				return ctx.Reply(fmt.Sprintf("Failed to upload status image: %v", uErr))
+				return ctx.Replyf("Failed to upload status image: %v", uErr)
 			}
 			msg := &waE2E.Message{
 				ImageMessage: &waE2E.ImageMessage{
@@ -561,7 +560,7 @@ func handleStatus(ctx *Context) error {
 			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, cliutils.StatusBroadcastJID, msg)
 			if sendErr != nil {
 				slog.Error("handleStatus: send image status failed", "err", sendErr)
-				return ctx.Reply(fmt.Sprintf("Failed to post image status: %v", sendErr))
+				return ctx.Replyf("Failed to post image status: %v", sendErr)
 			}
 			return ctx.Reply("Successfully posted image status update.")
 		}
@@ -573,7 +572,7 @@ func handleStatus(ctx *Context) error {
 			uploaded, uErr := ctx.Client.Upload(ctx.Ctx, mediaBytes, whatsmeow.MediaVideo)
 			if uErr != nil {
 				slog.Error("handleStatus: video upload failed", "err", uErr)
-				return ctx.Reply(fmt.Sprintf("Failed to upload status video: %v", uErr))
+				return ctx.Replyf("Failed to upload status video: %v", uErr)
 			}
 			msg := &waE2E.Message{
 				VideoMessage: &waE2E.VideoMessage{
@@ -594,7 +593,7 @@ func handleStatus(ctx *Context) error {
 			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, cliutils.StatusBroadcastJID, msg)
 			if sendErr != nil {
 				slog.Error("handleStatus: send video status failed", "err", sendErr)
-				return ctx.Reply(fmt.Sprintf("Failed to post video status: %v", sendErr))
+				return ctx.Replyf("Failed to post video status: %v", sendErr)
 			}
 			return ctx.Reply("Successfully posted video status update.")
 		}
@@ -602,7 +601,7 @@ func handleStatus(ctx *Context) error {
 
 	if text == "" {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %sstatus <text>\n- Reply to image/video with %sstatus [optional caption]", p, p))
+		return ctx.Replyf("Usage:\n- %sstatus <text>\n- Reply to image/video with %sstatus [optional caption]", p, p)
 	}
 
 	msg := &waE2E.Message{
@@ -614,7 +613,7 @@ func handleStatus(ctx *Context) error {
 	_, sendErr := ctx.Client.SendMessage(ctx.Ctx, cliutils.StatusBroadcastJID, msg)
 	if sendErr != nil {
 		slog.Error("handleStatus: send text status failed", "err", sendErr)
-		return ctx.Reply(fmt.Sprintf("Failed to post text status: %v", sendErr))
+		return ctx.Replyf("Failed to post text status: %v", sendErr)
 	}
 	return ctx.Reply("Successfully posted text status update.")
 }
@@ -627,7 +626,7 @@ func handleSetSudo(ctx *Context) error {
 	_, hasQuoted := ctx.GetQuotedSender()
 	if (len(ctx.Args) == 0 && !hasQuoted && len(ctx.GetMentionedJIDs()) == 0) || len(ctx.GetTargets()) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %ssetsudo @user\n- %ssetsudo 1234567890\n- Reply to a user's message with %ssetsudo", p, p, p))
+		return ctx.Replyf("Usage:\n- %ssetsudo @user\n- %ssetsudo 1234567890\n- Reply to a user's message with %ssetsudo", p, p, p)
 	}
 	targets := ctx.GetTargets()
 
@@ -662,10 +661,10 @@ func handleSetSudo(ctx *Context) error {
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(sudoers, " ")); err != nil {
 		slog.Error("handleSetSudo: PutSetting failed", "err", err, "sudoers", sudoers)
-		return ctx.Reply(fmt.Sprintf("Failed to update sudoers list: %v", err))
+		return ctx.Replyf("Failed to update sudoers list: %v", err)
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf("Added to sudo: %s", strings.Join(displayNames, ", ")), addedJIDs)
+	return ctx.ReplyWithMentions(Sprintf("Added to sudo: %s", strings.Join(displayNames, ", ")), addedJIDs)
 }
 
 func handleDelSudo(ctx *Context) error {
@@ -679,7 +678,7 @@ func handleDelSudo(ctx *Context) error {
 	_, hasQuoted := ctx.GetQuotedSender()
 	if (len(ctx.Args) == 0 && !hasQuoted && len(ctx.GetMentionedJIDs()) == 0) || len(ctx.GetTargets()) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %sdelsudo @user\n- %sdelsudo 1234567890\n- Reply to a user's message with %sdelsudo", p, p, p))
+		return ctx.Replyf("Usage:\n- %sdelsudo @user\n- %sdelsudo 1234567890\n- Reply to a user's message with %sdelsudo", p, p, p)
 	}
 	targets := ctx.GetTargets()
 	if slices.ContainsFunc(targets, ctx.IsTargetOwner) {
@@ -723,10 +722,10 @@ func handleDelSudo(ctx *Context) error {
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(newSudoers, " ")); err != nil {
 		slog.Error("handleDelSudo: PutSetting failed", "err", err, "newSudoers", newSudoers)
-		return ctx.Reply(fmt.Sprintf("Failed to update sudoers list: %v", err))
+		return ctx.Replyf("Failed to update sudoers list: %v", err)
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf("Removed from sudo: %s", strings.Join(displayNames, ", ")), removedJIDs)
+	return ctx.ReplyWithMentions(Sprintf("Removed from sudo: %s", strings.Join(displayNames, ", ")), removedJIDs)
 }
 
 func handleListSudo(ctx *Context) error {
@@ -746,13 +745,12 @@ func handleListSudo(ctx *Context) error {
 
 	sudoers := strings.Fields(raw)
 	var mentions []types.JID
-	var sb strings.Builder
-	sb.WriteString("Sudo List\n\n")
+	tb := ctx.Text().Header("Sudo List")
 
 	if ctx.Client.Store.ID != nil {
 		ownerJID := ctx.Client.Store.ID.ToNonAD()
 		resolvedJID, username := ctx.ResolveMention(ownerJID)
-		fmt.Fprintf(&sb, "- @%s (Owner)\n", username)
+		tb.Bulletf("@%s (Owner)", username)
 		mentions = append(mentions, resolvedJID)
 	}
 
@@ -764,12 +762,12 @@ func handleListSudo(ctx *Context) error {
 				continue
 			}
 			resolvedJID, username := ctx.ResolveMention(sudoerJID)
-			fmt.Fprintf(&sb, "- @%s\n", username)
+			tb.Bulletf("@%s", username)
 			mentions = append(mentions, resolvedJID)
 		}
 	}
 
-	return ctx.ReplyWithMentions(sb.String(), mentions)
+	return ctx.ReplyWithMentions(tb.String(), mentions)
 }
 
 func handleBan(ctx *Context) error {
@@ -780,7 +778,7 @@ func handleBan(ctx *Context) error {
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %sban @user\n- %sban 1234567890\n- Reply to a user's message with %sban", p, p, p))
+		return ctx.Replyf("Usage:\n- %sban @user\n- %sban 1234567890\n- Reply to a user's message with %sban", p, p, p)
 	}
 
 	s, ok := getStore(ctx)
@@ -839,7 +837,7 @@ func handleBan(ctx *Context) error {
 		return ctx.Reply("Failed to update banned users list.")
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf("Banned from commands: %s", strings.Join(displayNames, ", ")), bannedJIDs)
+	return ctx.ReplyWithMentions(Sprintf("Banned from commands: %s", strings.Join(displayNames, ", ")), bannedJIDs)
 }
 
 func handleUnban(ctx *Context) error {
@@ -850,7 +848,7 @@ func handleUnban(ctx *Context) error {
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %sunban @user\n- %sunban 1234567890\n- Reply to a user's message with %sunban", p, p, p))
+		return ctx.Replyf("Usage:\n- %sunban @user\n- %sunban 1234567890\n- Reply to a user's message with %sunban", p, p, p)
 	}
 
 	s, ok := getStore(ctx)
@@ -893,7 +891,7 @@ func handleUnban(ctx *Context) error {
 		return ctx.Reply("Failed to update banned users list.")
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf("Unbanned from commands: %s", strings.Join(displayNames, ", ")), unbannedJIDs)
+	return ctx.ReplyWithMentions(Sprintf("Unbanned from commands: %s", strings.Join(displayNames, ", ")), unbannedJIDs)
 }
 
 func handleMode(ctx *Context) error {
@@ -915,7 +913,7 @@ func handleMode(ctx *Context) error {
 		if current == "" {
 			current = "public"
 		}
-		return ctx.Reply(fmt.Sprintf("Current bot mode: %s\n\nUsage:\n- %smode public\n- %smode private", current, p, p))
+		return ctx.Replyf("Current bot mode: %s\n\nUsage:\n- %smode public\n- %smode private", current, p, p)
 	}
 
 	mode := strings.ToLower(ctx.Args[0])
@@ -928,7 +926,7 @@ func handleMode(ctx *Context) error {
 		return ctx.Reply("Failed to update bot mode.")
 	}
 
-	return ctx.Reply(fmt.Sprintf("Bot mode set to %s.", mode))
+	return ctx.Replyf("Bot mode set to %s.", mode)
 }
 
 func handleUpdateCommand(ctx *Context) error {
@@ -956,12 +954,12 @@ func handleUpdateCommand(ctx *Context) error {
 		if s != nil {
 			_ = updater.SetChannel(ctx.Ctx, s.SQLStore, "stable")
 		}
-		return ctx.Reply(fmt.Sprintf("Update channel set to stable. Run %supdate check to verify available releases.", p))
+		return ctx.Replyf("Update channel set to stable. Run %supdate check to verify available releases.", p)
 	case "beta":
 		if s != nil {
 			_ = updater.SetChannel(ctx.Ctx, s.SQLStore, "beta")
 		}
-		return ctx.Reply(fmt.Sprintf("Update channel set to beta. Run %supdate check to verify available releases.", p))
+		return ctx.Replyf("Update channel set to beta. Run %supdate check to verify available releases.", p)
 	case "channel":
 		if len(ctx.Args) > 1 {
 			ch := strings.ToLower(ctx.Args[1])
@@ -969,10 +967,10 @@ func handleUpdateCommand(ctx *Context) error {
 				if s != nil {
 					_ = updater.SetChannel(ctx.Ctx, s.SQLStore, ch)
 				}
-				return ctx.Reply(fmt.Sprintf("Update channel set to %s.", ch))
+				return ctx.Replyf("Update channel set to %s.", ch)
 			}
 		}
-		return ctx.Reply(fmt.Sprintf("Usage: %supdate channel stable | beta", p))
+		return ctx.Replyf("Usage: %supdate channel stable | beta", p)
 	case "now", "confirm", "apply":
 		return performUpgrade(ctx, channel == "beta")
 	default:
@@ -1003,7 +1001,7 @@ func showUpdateStatus(ctx *Context, channel string) error {
 	platform := updater.GetPlatform()
 	p := ctx.GetPrefix()
 
-	msg := fmt.Sprintf(
+	msg := Sprintf(
 		"WhatsRook Updater Status\nSystem: %s\nCurrent Version: %s\nChannel: %s\n\nSubcommands:\n- %supdate check: Check for new release\n- %supdate stable: Switch to stable channel\n- %supdate beta: Switch to beta channel\n- %supdate now: Apply update and restart",
 		platform, currentVer, channel, p, p, p, p,
 	)
@@ -1014,32 +1012,32 @@ func performCheck(ctx *Context) error {
 	check, err := updater.CheckUpdate()
 	if err != nil {
 		slog.Error("update check failed", "err", err)
-		return ctx.Reply(fmt.Sprintf("Update check failed: %v", err))
+		return ctx.Replyf("Update check failed: %v", err)
 	}
 
 	p := ctx.GetPrefix()
 	if !check.HasNewVersion {
-		return ctx.Reply(fmt.Sprintf("WhatsRook is up to date (Version %s, Platform %s).", check.CurrentVersion, check.Platform))
+		return ctx.Replyf("WhatsRook is up to date (Version %s, Platform %s).", check.CurrentVersion, check.Platform)
 	}
 
-	return ctx.Reply(fmt.Sprintf(
+	return ctx.Replyf(
 		"Update available!\nCurrent Version: %s\nLatest Version: %s\nPlatform: %s\n\nRun %supdate now or %supgrade to install the new binary release.",
 		check.CurrentVersion, check.LatestVersion, check.Platform, p, p,
-	))
+	)
 }
 
 func performUpgrade(ctx *Context, isBeta bool) error {
 	res, err := updater.PerformUpdate(isBeta)
 	if err != nil {
 		slog.Error("update execution failed", "err", err)
-		return ctx.Reply(fmt.Sprintf("Update failed: %v", err))
+		return ctx.Replyf("Update failed: %v", err)
 	}
 
-	_ = ctx.Reply(fmt.Sprintf("%s\nRestarting process now...", res.Message))
+	_ = ctx.Replyf("%s\nRestarting process now...", res.Message)
 
 	if err := updater.RestartProcess(); err != nil {
 		slog.Error("failed to restart process after update", "err", err)
-		return ctx.Reply(fmt.Sprintf("Updated binary successfully, but process restart failed: %v", err))
+		return ctx.Replyf("Updated binary successfully, but process restart failed: %v", err)
 	}
 
 	return nil
