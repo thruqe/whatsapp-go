@@ -577,7 +577,13 @@ func handleVV(ctx *Context) error {
 		pushName = ctx.Evt.Info.PushName
 	}
 
-	err := utils.UnwrapAndSendViewOnceMessage(ctx.Ctx, ctx.Client, quoted, senderJID, pushName, targetJID, ctx.Chat)
+	var quoteID string
+	if ci := ctx.GetContextInfo(); ci != nil && ci.StanzaID != nil && *ci.StanzaID != "" {
+		quoteID = *ci.StanzaID
+	} else if ctx.Evt != nil {
+		quoteID = ctx.Evt.Info.ID
+	}
+	err := utils.UnwrapAndSendViewOnceMessage(ctx.Ctx, ctx.Client, quoted, senderJID, pushName, targetJID, quoteID, ctx.Chat)
 	if err != nil {
 		return ctx.Reply("Failed to unwrap ViewOnce message: " + err.Error())
 	}
