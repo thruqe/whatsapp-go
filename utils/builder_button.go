@@ -47,48 +47,62 @@ func (b *ButtonBuilder) Mentions(jids ...types.JID) *ButtonBuilder {
 // Send sends the button message to the given JID and optionally registers a
 // persistent handler (fires on every click until manually deregistered).
 func (b *ButtonBuilder) Send(to types.JID, fn ...func(req ButtonRequest, res *Response)) error {
-	if err := b.sendMsg(to); err != nil {
-		return err
+	_, err := b.SendWithID(to, fn...)
+	return err
+}
+
+// SendWithID sends the button message to the given JID, returns its MessageID, and optionally registers a handler.
+func (b *ButtonBuilder) SendWithID(to types.JID, fn ...func(req ButtonRequest, res *Response)) (types.MessageID, error) {
+	msgID, err := b.sendMsgWithID(to)
+	if err != nil {
+		return "", err
 	}
 	if len(fn) > 0 && fn[0] != nil {
 		b.registerHandlers(false, fn[0])
 	}
-	return nil
+	return msgID, nil
 }
 
 // Reply sends the button message as a reply to the current event and
 // optionally registers a persistent handler.
 func (b *ButtonBuilder) Reply(fn ...func(req ButtonRequest, res *Response)) error {
-	if err := b.sendMsg(b.rook.ctx.Chat); err != nil {
-		return err
-	}
-	if len(fn) > 0 && fn[0] != nil {
-		b.registerHandlers(false, fn[0])
-	}
-	return nil
+	_, err := b.ReplyWithID(fn...)
+	return err
+}
+
+// ReplyWithID sends the button message as a reply, returns its MessageID, and optionally registers a handler.
+func (b *ButtonBuilder) ReplyWithID(fn ...func(req ButtonRequest, res *Response)) (types.MessageID, error) {
+	return b.SendWithID(b.rook.ctx.Chat, fn...)
 }
 
 // Once sends the button message to the given JID and registers a
 // one-shot handler (auto-deregisters after the first click).
 func (b *ButtonBuilder) Once(to types.JID, fn ...func(req ButtonRequest, res *Response)) error {
-	if err := b.sendMsg(to); err != nil {
-		return err
+	_, err := b.OnceWithID(to, fn...)
+	return err
+}
+
+// OnceWithID sends the button message to the given JID, returns its MessageID, and registers a one-shot handler.
+func (b *ButtonBuilder) OnceWithID(to types.JID, fn ...func(req ButtonRequest, res *Response)) (types.MessageID, error) {
+	msgID, err := b.sendMsgWithID(to)
+	if err != nil {
+		return "", err
 	}
 	if len(fn) > 0 && fn[0] != nil {
 		b.registerHandlers(true, fn[0])
 	}
-	return nil
+	return msgID, nil
 }
 
 // OnceReply sends the button message as a reply and registers a one-shot handler.
 func (b *ButtonBuilder) OnceReply(fn ...func(req ButtonRequest, res *Response)) error {
-	if err := b.sendMsg(b.rook.ctx.Chat); err != nil {
-		return err
-	}
-	if len(fn) > 0 && fn[0] != nil {
-		b.registerHandlers(true, fn[0])
-	}
-	return nil
+	_, err := b.OnceReplyWithID(fn...)
+	return err
+}
+
+// OnceReplyWithID sends the button message as a reply, returns its MessageID, and registers a one-shot handler.
+func (b *ButtonBuilder) OnceReplyWithID(fn ...func(req ButtonRequest, res *Response)) (types.MessageID, error) {
+	return b.OnceWithID(b.rook.ctx.Chat, fn...)
 }
 
 func (b *ButtonBuilder) registerHandlers(once bool, fn func(req ButtonRequest, res *Response)) {
@@ -101,6 +115,11 @@ func (b *ButtonBuilder) registerHandlers(once bool, fn func(req ButtonRequest, r
 }
 
 func (b *ButtonBuilder) sendMsg(to types.JID) error {
+	_, err := b.sendMsgWithID(to)
+	return err
+}
+
+func (b *ButtonBuilder) sendMsgWithID(to types.JID) (types.MessageID, error) {
 	ctx := b.rook.ctx
 	footer := b.footer
 	if footer == "" {
@@ -113,7 +132,7 @@ func (b *ButtonBuilder) sendMsg(to types.JID) error {
 // sendButtonMsg is the low-level button sender. It replicates the
 // DocumentWithCaptionMessage+waBinary native-flow pattern used throughout
 // WhatsRook so that buttons render correctly on all WhatsApp client versions.
-func sendButtonMsg(ctx *PluginContext, to types.JID, bodyText, footerText string, buttons []struct{ ID, Text string }, mentions []types.JID) error {
+func sendButtonMsg(ctx *PluginContext, to types.JID, bodyText, footerText string, buttons []struct{ ID, Text string }, mentions []types.JID) (types.MessageID, error) {
 	ctx.StopAutoLoader()
 	var btnList []*waE2E.ButtonsMessage_Button
 	for _, b := range buttons {
@@ -192,9 +211,10 @@ func sendButtonMsg(ctx *PluginContext, to types.JID, bodyText, footerText string
 	extra := whatsmeow.SendRequestExtra{
 		AdditionalNodes: &[]waBinary.Node{bizNode},
 	}
-	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), to, msg, extra)
+	resp, err := ctx.Client.SendMessage(ctx.GetSendContext(), to, msg, extra)
 	if err != nil {
 		Logger.Error("WARook: sendButtonMsg failed", "to", to.String(), "err", err)
+		return "", err
 	}
-	return err
+	return resp.ID, nil
 }
