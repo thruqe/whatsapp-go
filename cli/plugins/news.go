@@ -25,6 +25,15 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleNews,
 	})
+
+	Register(&Command{
+		Name:        "wabeta",
+		Alias:       "wbi",
+		Description: "Fetch the latest WhatsApp beta news and feature breakdown from WABetaInfo",
+		Category:    "news",
+		IsPublic:    true,
+		Handler:     handleWABeta,
+	})
 }
 
 func handleMarkets(ctx *Context) error {
@@ -288,4 +297,32 @@ func sendNewsHelp(ctx *Context) error {
 		Blank().
 		Line("Type a country name to fetch the latest top headlines.").
 		Reply()
+}
+
+func handleWABeta(ctx *Context) error {
+	slog.Debug("handleWABeta executing", "chat", ctx.Chat.String(), "sender", ctx.Sender.String())
+
+	article, err := cliutils.FetchWABetaLatest(ctx.Ctx)
+	if err != nil {
+		slog.Error("handleWABeta: failed to fetch WABetaInfo article", "err", err)
+		return ctx.Replyf("Failed to fetch latest WABetaInfo updates: %v", err)
+	}
+
+	tb := ctx.Text()
+	if article.Title != "" {
+		tb.Header(article.Title)
+	}
+	if article.Content != "" {
+		tb.Line(article.Content)
+	}
+
+	caption := tb.Trimmed()
+
+	if article.ImageURL != "" {
+		if imgData, mimetype, errImg := cliutils.FetchNewsImage(ctx.Ctx, article.ImageURL); errImg == nil && len(imgData) > 0 {
+			return ctx.ReplyWithImage(imgData, mimetype, caption)
+		}
+	}
+
+	return ctx.Reply(caption)
 }
