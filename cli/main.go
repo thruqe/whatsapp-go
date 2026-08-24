@@ -51,10 +51,9 @@ func main() {
 			}
 			if res.Updated {
 				fmt.Println("==> Restarting process with new binary...")
-				if err := updater.RestartProcess(); err != nil {
-					slog.Error("failed to restart process", "err", err)
-					os.Exit(1)
-				}
+				err := updater.RestartProcess()
+				slog.Error("failed to restart process", "err", err)
+				os.Exit(1)
 			}
 			return
 
@@ -101,11 +100,9 @@ func main() {
 		}
 		if res.Updated {
 			fmt.Println("==> Restarting process with new binary...")
-			if err := updater.RestartProcess(); err != nil {
-				slog.Error("failed to restart process", "err", err)
-				os.Exit(1)
-			}
-			return
+			err := updater.RestartProcess()
+			slog.Error("failed to restart process", "err", err)
+			os.Exit(1)
 		}
 
 		if args.Session == "" && os.Getenv("SESSION") == "" {
