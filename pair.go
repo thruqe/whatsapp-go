@@ -27,7 +27,22 @@ func (c *Client) PairPhone(ctx context.Context, phone string) (string, error) {
 		}
 	}
 
-	code, err := cli.PairPhone(ctx, phone, true, whatsmeow.PairClientChrome, cli.Store.Platform)
+	var pairType whatsmeow.PairClientType
+	var clientDisplay string
+
+	switch c.Config.ClientType {
+	case ClientAndroid:
+		pairType = whatsmeow.PairClientAndroid
+		clientDisplay = "Chrome (Android)"
+	case ClientIos:
+		pairType = whatsmeow.PairClientChrome
+		clientDisplay = "Chrome (iOS)"
+	default:
+		pairType = whatsmeow.PairClientChrome
+		clientDisplay = "Chrome (Linux)"
+	}
+
+	code, err := cli.PairPhone(ctx, phone, true, pairType, clientDisplay)
 	if err != nil {
 		return "", fmt.Errorf("pair code failed: %w", err)
 	}
