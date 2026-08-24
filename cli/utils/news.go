@@ -7,7 +7,9 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,6 +22,26 @@ var (
 	imageSrcsetRegex = regexp.MustCompile(`srcset="(https://dims\.apnews\.com/dims4/[^" ]+|https://assets\.apnews\.com/[^" ]+)"`)
 	imageSrcRegex    = regexp.MustCompile(`src="(https://dims\.apnews\.com/dims4/[^"]+|https://assets\.apnews\.com/[^"]+)"`)
 	stripTagsRegex   = regexp.MustCompile(`<[^>]*>`)
+
+	htmlCommentRegex    = regexp.MustCompile(`(?s)<!--.*?-->`)
+	apArticleTitleRegex = regexp.MustCompile(`(?s)<h1[^>]*class=["'][^"']*(?:Page-headline|headline)[^"']*["'][^>]*>(.*?)</h1>`)
+	apArticleH1Regex    = regexp.MustCompile(`(?s)<h1[^>]*>(.*?)</h1>`)
+	apArticleOgTitle    = regexp.MustCompile(`<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']`)
+	apArticleOgImage    = regexp.MustCompile(`<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']`)
+	apArticleTwImage    = regexp.MustCompile(`<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']`)
+	apRichTextBodyRegex = regexp.MustCompile(`(?i)<div[^>]*class=["'][^"']*RichTextStoryBody[^"']*["'][^>]*>`)
+	apStoryBodyFallback = regexp.MustCompile(`(?i)<div[^>]*class=["'][^"']*(?:StoryBody|RichTextBody)[^"']*["'][^>]*>`)
+	apAsideRegex        = regexp.MustCompile(`(?s)<aside[^>]*>.*?</aside>`)
+	apFigureRegex       = regexp.MustCompile(`(?s)<figure[^>]*>.*?</figure>`)
+	apNavRegex          = regexp.MustCompile(`(?s)<nav[^>]*>.*?</nav>`)
+	apEnhancementRegex  = regexp.MustCompile(`(?s)<div[^>]*class=["'][^"']*(?:Enhancement|PagePromo|InlinePromo|RelatedStory|RelatedStories|PageListPromo|Page-storyPromos|Page-related|Page-readMore|CardContent)[^"']*["'][^>]*>.*?</div>`)
+	apAdBlockRegex      = regexp.MustCompile(`(?s)<div[^>]*class=["'][^"']*(?:Advertisement|ad-slot|FreeStar|fs-feed-ad|optimizely|Page-ad)[^"']*["'][^>]*>.*?</div>`)
+	apNoiseDivRegex     = regexp.MustCompile(`(?s)<div[^>]*class=["'][^"']*(?:Byline|Page-byline|Page-authors|Page-dateModified|Page-published|GoogleFollow|SocialShare|Page-socialShare|ShareBar|ShareList|Page-breadcrumbs|Page-storyFeedback)[^"']*["'][^>]*>.*?</div>`)
+	apScriptRegex       = regexp.MustCompile(`(?s)<script[^>]*>.*?</script>`)
+	apStyleRegex        = regexp.MustCompile(`(?s)<style[^>]*>.*?</style>`)
+	apOptimizelyRegex   = regexp.MustCompile(`(?s)<div[^>]*id=["'][^"']*(?:optimizely|ad-|freestar)[^"']*["'][^>]*>.*?</div>`)
+	apParagraphRegex    = regexp.MustCompile(`(?s)<p[^>]*>(.*?)</p>`)
+	apArticleURLRegex   = regexp.MustCompile(`https?://apnews\.com/article/[a-zA-Z0-9_-]+`)
 )
 
 type NewsArticle struct {
@@ -27,6 +49,44 @@ type NewsArticle struct {
 	Description string
 	URL         string
 	ImageURL    string
+}
+
+type APNewsArticleDetail struct {
+	Title    string
+	ImageURL string
+	Content  string
+	URL      string
+}
+
+type NewsSession struct {
+	Country   string
+	Articles  []NewsArticle
+	UpdatedAt time.Time
+}
+
+var (
+	recentNewsSessionsMu sync.RWMutex
+	recentNewsSessions   = make(map[string]NewsSession)
+)
+
+func SetRecentNewsSession(chat string, country string, articles []NewsArticle) {
+	recentNewsSessionsMu.Lock()
+	defer recentNewsSessionsMu.Unlock()
+	recentNewsSessions[chat] = NewsSession{
+		Country:   country,
+		Articles:  articles,
+		UpdatedAt: time.Now(),
+	}
+}
+
+func GetRecentNewsSession(chat string) (NewsSession, bool) {
+	recentNewsSessionsMu.RLock()
+	defer recentNewsSessionsMu.RUnlock()
+	sess, ok := recentNewsSessions[chat]
+	if !ok || time.Since(sess.UpdatedAt) > 1*time.Hour {
+		return NewsSession{}, false
+	}
+	return sess, true
 }
 
 func CleanHTMLText(input string) string {
@@ -139,6 +199,247 @@ func FetchNewsImage(ctx context.Context, imageURL string) ([]byte, string, error
 
 	mimetype := http.DetectContentType(imgData)
 	return imgData, mimetype, nil
+}
+
+// ParseAPNewsArticle extracts title, lead image URL, and formatted body paragraphs from AP News article HTML.
+func ParseAPNewsArticle(articleHTML, articleURL string) (*APNewsArticleDetail, error) {
+	art := &APNewsArticleDetail{
+		URL: articleURL,
+	}
+
+	art.Title = extractAPArticleTitle(articleHTML)
+	art.ImageURL = extractAPArticleImage(articleHTML)
+	art.Content = extractAPArticleBody(articleHTML)
+
+	if art.Title == "" && art.Content == "" {
+		return nil, fmt.Errorf("failed to extract article content")
+	}
+
+	return art, nil
+}
+
+func extractAPArticleTitle(htmlContent string) string {
+	if m := apArticleTitleRegex.FindStringSubmatch(htmlContent); len(m) > 1 {
+		return CleanHTMLText(m[1])
+	}
+	if m := apArticleH1Regex.FindStringSubmatch(htmlContent); len(m) > 1 {
+		return CleanHTMLText(m[1])
+	}
+	if m := apArticleOgTitle.FindStringSubmatch(htmlContent); len(m) > 1 {
+		title := CleanHTMLText(m[1])
+		title = strings.TrimSuffix(title, " | AP News")
+		title = strings.TrimSuffix(title, " - AP News")
+		return title
+	}
+	return ""
+}
+
+func extractAPArticleImage(htmlContent string) string {
+	if m := apArticleOgImage.FindStringSubmatch(htmlContent); len(m) > 1 {
+		img := html.UnescapeString(m[1])
+		if isValidNewsImage(img) {
+			return img
+		}
+	}
+	if m := apArticleTwImage.FindStringSubmatch(htmlContent); len(m) > 1 {
+		img := html.UnescapeString(m[1])
+		if isValidNewsImage(img) {
+			return img
+		}
+	}
+	return ""
+}
+
+func isValidNewsImage(url string) bool {
+	if url == "" {
+		return false
+	}
+	lower := strings.ToLower(url)
+	if strings.Contains(lower, "ap_logo") || strings.Contains(lower, "placeholder") || strings.Contains(lower, "favicon") {
+		return false
+	}
+	return strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://")
+}
+
+func stripTagPattern(input string, re *regexp.Regexp) string {
+	for range 5 {
+		next := re.ReplaceAllString(input, "")
+		if next == input {
+			return next
+		}
+		input = next
+	}
+	return input
+}
+
+func extractAPArticleBody(htmlContent string) string {
+	cleaned := htmlCommentRegex.ReplaceAllString(htmlContent, "")
+	cleaned = apScriptRegex.ReplaceAllString(cleaned, "")
+	cleaned = apStyleRegex.ReplaceAllString(cleaned, "")
+	cleaned = apAsideRegex.ReplaceAllString(cleaned, "")
+	cleaned = apFigureRegex.ReplaceAllString(cleaned, "")
+	cleaned = apNavRegex.ReplaceAllString(cleaned, "")
+	cleaned = stripTagPattern(cleaned, apEnhancementRegex)
+	cleaned = stripTagPattern(cleaned, apAdBlockRegex)
+	cleaned = stripTagPattern(cleaned, apNoiseDivRegex)
+	cleaned = stripTagPattern(cleaned, apOptimizelyRegex)
+
+	bodyHTML := cleaned
+	if loc := apRichTextBodyRegex.FindStringIndex(cleaned); len(loc) >= 2 {
+		start := loc[0]
+		end := len(cleaned)
+		endMarkers := []string{"</article>", "<footer", "class=\"Page-footer", "class=\"Page-breadcrumbs", "class=\"Page-storyFeedback", "<section id=\"search"}
+		for _, marker := range endMarkers {
+			if idx := strings.Index(cleaned[start:], marker); idx != -1 {
+				if start+idx < end {
+					end = start + idx
+				}
+			}
+		}
+		bodyHTML = cleaned[start:end]
+	} else if loc := apStoryBodyFallback.FindStringIndex(cleaned); len(loc) >= 2 {
+		start := loc[0]
+		end := len(cleaned)
+		endMarkers := []string{"</article>", "<footer", "class=\"Page-footer", "class=\"Page-breadcrumbs", "class=\"Page-storyFeedback", "<section id=\"search"}
+		for _, marker := range endMarkers {
+			if idx := strings.Index(cleaned[start:], marker); idx != -1 {
+				if start+idx < end {
+					end = start + idx
+				}
+			}
+		}
+		bodyHTML = cleaned[start:end]
+	}
+
+	matches := apParagraphRegex.FindAllStringSubmatch(bodyHTML, -1)
+	var paras []string
+	for _, m := range matches {
+		if len(m) > 1 {
+			txt := CleanHTMLText(m[1])
+			txt = strings.ReplaceAll(txt, "\u00a0", " ")
+			txt = strings.TrimSpace(txt)
+			if isAPNoiseParagraph(txt) {
+				continue
+			}
+			paras = append(paras, txt)
+		}
+	}
+
+	joined := strings.TrimSpace(strings.Join(paras, "\n\n"))
+	joined = regexp.MustCompile(`\n{3,}`).ReplaceAllString(joined, "\n\n")
+	return strings.TrimSpace(joined)
+}
+
+func isAPNoiseParagraph(txt string) bool {
+	txt = strings.TrimSpace(txt)
+	if txt == "" {
+		return true
+	}
+	if txt == "____" || txt == "___" || txt == "--" || txt == "---" || txt == "–" || txt == "—" || txt == "-->" || txt == "<!--" {
+		return true
+	}
+	lower := strings.ToLower(txt)
+	if strings.EqualFold(txt, "ADVERTISEMENT") || strings.EqualFold(txt, "Share") {
+		return true
+	}
+	if strings.HasPrefix(txt, "By ") && len(txt) < 80 {
+		return true
+	}
+	if strings.HasPrefix(lower, "updated ") && (strings.Contains(lower, "gmt") || strings.Contains(lower, "est") || strings.Contains(lower, "edt") || strings.Contains(lower, "pst") || strings.Contains(lower, "pdt") || strings.Contains(lower, "timezone") || strings.Contains(lower, "am") || strings.Contains(lower, "pm") || strings.Contains(lower, "[hour]")) {
+		return true
+	}
+	if strings.Contains(lower, "add ap news on google") || strings.Contains(lower, "add ap news as your preferred source") {
+		return true
+	}
+	if strings.HasPrefix(lower, "ap decision notes:") || strings.HasPrefix(lower, "ap decision notes") {
+		return true
+	}
+	if strings.HasPrefix(lower, "related:") || strings.HasPrefix(lower, "read more:") || strings.HasPrefix(lower, "related stories:") || strings.HasPrefix(lower, "related story:") || strings.HasPrefix(lower, "related coverage:") || strings.HasPrefix(lower, "more on this topic:") || strings.HasPrefix(lower, "see more:") {
+		return true
+	}
+	if strings.HasPrefix(txt, "Follow AP’s ") || strings.HasPrefix(txt, "Follow AP's ") || strings.HasPrefix(txt, "For more AP ") {
+		return true
+	}
+	if (strings.HasPrefix(txt, "AP’s ") || strings.HasPrefix(txt, "AP's ")) && (strings.Contains(lower, "coverage at:") || strings.Contains(lower, "coverage of")) {
+		return true
+	}
+	return false
+}
+
+// FetchAPNewsArticle fetches and parses the full story for an AP News article URL.
+func FetchAPNewsArticle(ctx context.Context, articleURL string) (*APNewsArticleDetail, error) {
+	if articleURL == "" {
+		return nil, fmt.Errorf("empty article url")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, articleURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create article request: %w", err)
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+
+	client := &http.Client{Timeout: 20 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch article: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("article not found")
+	} else if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("http %d", resp.StatusCode)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read article response: %w", err)
+	}
+
+	return ParseAPNewsArticle(string(bodyBytes), articleURL)
+}
+
+// ExtractAPNewsArticleURLs extracts all unique AP News article URLs from a message text in the order they appear.
+func ExtractAPNewsArticleURLs(text string) []string {
+	if text == "" {
+		return nil
+	}
+	matches := apArticleURLRegex.FindAllString(text, -1)
+	var out []string
+	seen := make(map[string]bool)
+	for _, m := range matches {
+		if !seen[m] {
+			seen[m] = true
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// ParseNewsSelectionNumber parses article numbers from user input (e.g. "1", "#2", "article 3", ".news 1", etc.).
+func ParseNewsSelectionNumber(text string) (int, bool) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return 0, false
+	}
+
+	lower := strings.ToLower(trimmed)
+	for _, p := range []string{".news", "!news", "/news", "news", "article", "read", "show", "open", "no", "num", "#"} {
+		if strings.HasPrefix(lower, p) {
+			trimmed = strings.TrimSpace(trimmed[len(p):])
+			lower = strings.ToLower(trimmed)
+		}
+	}
+
+	trimmed = strings.TrimPrefix(trimmed, "#")
+	trimmed = strings.TrimSuffix(trimmed, ".")
+	trimmed = strings.TrimSpace(trimmed)
+
+	num, err := strconv.Atoi(trimmed)
+	if err != nil || num <= 0 || num > 50 {
+		return 0, false
+	}
+	return num, true
 }
 
 var (

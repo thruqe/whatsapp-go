@@ -1,13 +1,30 @@
 package plugins
 
 import (
+	"context"
+	"fmt"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
+
+	"go.mau.fi/whatsmeow/types"
 
 	cliutils "whatsrook/cli/utils"
 	"whatsrook/logger"
+	"whatsrook/utils"
 )
 
 func init() {
+	Register(&Command{
+		Name:        "btc",
+		Alias:       "bitcoin",
+		Description: "Live real-time Bitcoin price and halving countdown tracker",
+		Category:    "news",
+		IsPublic:    true,
+		Handler:     handleBTC,
+	})
+
 	Register(&Command{
 		Name:        "markets",
 		Alias:       "fx",
@@ -34,6 +51,137 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleWABeta,
 	})
+}
+
+type btcLiveSession struct {
+	chat      string
+	msgID     types.MessageID
+	cancel    context.CancelFunc
+	startedAt time.Time
+}
+
+var (
+	activeBTCSessionsMu sync.Mutex
+	activeBTCSessions   = make(map[string]*btcLiveSession)
+)
+
+func handleBTC(ctx *Context) error {
+	chatKey := ctx.Chat.String()
+	p := ctx.GetPrefix()
+	Logger.Debug("handleBTC executing", "chat", chatKey, "sender", ctx.Sender.String(), "args", ctx.Args)
+
+	if len(ctx.Args) > 0 {
+		arg := strings.ToLower(ctx.Args[0])
+		if arg == "cancel" || arg == "stop" || arg == "end" || arg == "off" {
+			activeBTCSessionsMu.Lock()
+			sess, exists := activeBTCSessions[chatKey]
+			if exists && sess != nil {
+				if sess.cancel != nil {
+					sess.cancel()
+				}
+				delete(activeBTCSessions, chatKey)
+				activeBTCSessionsMu.Unlock()
+				return ctx.Reply("🛑 Live bitcoin price tracking stopped.")
+			}
+			activeBTCSessionsMu.Unlock()
+			return ctx.Reply("No active Bitcoin tracking session running in this chat.")
+		}
+	}
+
+	// Cancel any active BTC session in this chat
+	activeBTCSessionsMu.Lock()
+	if prev, exists := activeBTCSessions[chatKey]; exists && prev != nil {
+		if prev.cancel != nil {
+			prev.cancel()
+		}
+		delete(activeBTCSessions, chatKey)
+	}
+	activeBTCSessionsMu.Unlock()
+
+	// Initial fetch
+	data, err := cliutils.FetchBTCPredictions(ctx.Ctx)
+	if err != nil {
+		Logger.Error("handleBTC: initial fetch failed", "err", err)
+		return ctx.Replyf("Failed to fetch Bitcoin data: %v", err)
+	}
+
+	statusLine := fmt.Sprintf("Use %sbitcoin stop to end live bitcoin price", p)
+	bodyText := cliutils.FormatBTCMessage(data, statusLine)
+
+	btcCtx, cancel := context.WithCancel(context.Background())
+
+	msgID, err := ctx.ReplyWithID(bodyText)
+	if err != nil {
+		cancel()
+		Logger.Error("handleBTC: failed to send initial message", "err", err)
+		return ctx.Replyf("Failed to start Bitcoin tracker: %v", err)
+	}
+
+	session := &btcLiveSession{
+		chat:      chatKey,
+		msgID:     msgID,
+		cancel:    cancel,
+		startedAt: time.Now(),
+	}
+
+	activeBTCSessionsMu.Lock()
+	activeBTCSessions[chatKey] = session
+	activeBTCSessionsMu.Unlock()
+
+	go runBTCLiveLoop(ctx, session, btcCtx, p)
+
+	return nil
+}
+
+func runBTCLiveLoop(ctx *Context, sess *btcLiveSession, btcCtx context.Context, p string) {
+	ticker := time.NewTicker(2800 * time.Millisecond)
+	defer ticker.Stop()
+	defer func() {
+		activeBTCSessionsMu.Lock()
+		if curr, ok := activeBTCSessions[sess.chat]; ok && curr == sess {
+			delete(activeBTCSessions, sess.chat)
+		}
+		activeBTCSessionsMu.Unlock()
+	}()
+
+	maxDuration := 5 * time.Minute
+	startTime := time.Now()
+
+	for {
+		select {
+		case <-btcCtx.Done():
+			Logger.Debug("runBTCLiveLoop: session canceled", "chat", sess.chat)
+			if latestData, err := cliutils.FetchBTCPredictions(context.Background()); err == nil {
+				finalMsg := cliutils.FormatBTCMessage(latestData, "🛑 Live bitcoin price tracking stopped.")
+				_, _ = ctx.Edit(sess.msgID, finalMsg)
+			}
+			return
+
+		case <-ticker.C:
+			if time.Since(startTime) > maxDuration {
+				Logger.Debug("runBTCLiveLoop: session reached max duration", "chat", sess.chat)
+				if latestData, err := cliutils.FetchBTCPredictions(context.Background()); err == nil {
+					finalMsg := cliutils.FormatBTCMessage(latestData, "⏱️ Live bitcoin price tracking ended (5m timeout).")
+					_, _ = ctx.Edit(sess.msgID, finalMsg)
+				}
+				return
+			}
+
+			latestData, err := cliutils.FetchBTCPredictions(btcCtx)
+			if err != nil {
+				Logger.Debug("runBTCLiveLoop: fetch tick failed", "err", err)
+				continue
+			}
+
+			statusLine := fmt.Sprintf("Use %sbitcoin stop to end live bitcoin price", p)
+			updatedText := cliutils.FormatBTCMessage(latestData, statusLine)
+
+			_, editErr := ctx.Edit(sess.msgID, updatedText)
+			if editErr != nil {
+				Logger.Debug("runBTCLiveLoop: edit failed", "err", editErr)
+			}
+		}
+	}
 }
 
 func handleMarkets(ctx *Context) error {
@@ -241,6 +389,33 @@ func handleNews(ctx *Context) error {
 		return sendNewsHelp(ctx)
 	}
 
+	firstArg := ctx.Args[0]
+	if num, isNum := cliutils.ParseNewsSelectionNumber(firstArg); isNum {
+		quotedMsg := ctx.GetQuotedMessage()
+		if quotedMsg == nil {
+			quotedMsg = getQuotedMessageFromEvent(ctx.Evt)
+		}
+		if quotedMsg != nil {
+			quotedText := utils.ExtractTextFromProto(quotedMsg)
+			urls := cliutils.ExtractAPNewsArticleURLs(quotedText)
+			if len(urls) > 0 {
+				if num >= 1 && num <= len(urls) {
+					return SendAPNewsArticleDetail(ctx, urls[num-1])
+				}
+				return ctx.Replyf("Article #%d is out of range. Please choose a number between 1 and %d.", num, len(urls))
+			}
+		}
+
+		if sess, okSess := cliutils.GetRecentNewsSession(ctx.Chat.String()); okSess && len(sess.Articles) > 0 {
+			if num >= 1 && num <= len(sess.Articles) {
+				return SendAPNewsArticleDetail(ctx, sess.Articles[num-1].URL)
+			}
+			return ctx.Replyf("Article #%d is out of range. Please choose a number between 1 and %d.", num, len(sess.Articles))
+		}
+
+		return ctx.Replyf("No recent news list found to select article #%d from. Usage:\n• %snews <country_name>", num, p)
+	}
+
 	country := strings.ToLower(strings.TrimSpace(strings.Join(ctx.Args, "-")))
 	articles, err := cliutils.FetchAPNews(ctx.Ctx, country)
 	if err != nil {
@@ -253,6 +428,9 @@ func handleNews(ctx *Context) error {
 	if len(articles) == 0 {
 		return ctx.Replyf("No recent news articles found for %q.", country)
 	}
+
+	// Cache recent news articles for this chat
+	cliutils.SetRecentNewsSession(ctx.Chat.String(), country, articles)
 
 	var firstImageURL string
 	tb := ctx.Text().Headerf("AP News - %s", titleCase(strings.ReplaceAll(country, "-", " ")))
@@ -277,6 +455,8 @@ func handleNews(ctx *Context) error {
 		tb.Blank()
 	}
 
+	tb.Line("💡 _Reply/quote this message with a number (1-" + strconv.Itoa(count) + ") to read the full article._")
+
 	responseText := tb.Trimmed()
 
 	if firstImageURL != "" {
@@ -286,6 +466,116 @@ func handleNews(ctx *Context) error {
 	}
 
 	return ctx.Reply(responseText)
+}
+
+// SendAPNewsArticleDetail fetches and sends the full story content for an AP News article.
+func SendAPNewsArticleDetail(ctx *Context, articleURL string) error {
+	Logger.Debug("SendAPNewsArticleDetail: fetching AP news article", "url", articleURL)
+
+	art, err := cliutils.FetchAPNewsArticle(ctx.Ctx, articleURL)
+	if err != nil {
+		Logger.Error("SendAPNewsArticleDetail: failed to fetch article", "url", articleURL, "err", err)
+		return ctx.Replyf("Failed to load news article: %v", err)
+	}
+
+	content := strings.TrimSpace(art.Content)
+	if content == "" {
+		return ctx.Reply("No article content found.")
+	}
+
+	return ctx.Reply(content)
+}
+
+// HandleNewsQuoteInput checks if an incoming message is quoting a news article list with a number selection.
+func HandleNewsQuoteInput(ctx *Context, text string) bool {
+	if text == "" || ctx == nil || ctx.Evt == nil {
+		return false
+	}
+
+	quotedMsg := ctx.GetQuotedMessage()
+	if quotedMsg == nil {
+		quotedMsg = getQuotedMessageFromEvent(ctx.Evt)
+	}
+	if quotedMsg == nil {
+		return false
+	}
+
+	quotedText := utils.ExtractTextFromProto(quotedMsg)
+	if quotedText == "" {
+		return false
+	}
+
+	isNewsQuote := strings.Contains(quotedText, "apnews.com/article/") ||
+		strings.Contains(quotedText, "AP News - ") ||
+		strings.Contains(quotedText, "AP News")
+
+	if !isNewsQuote {
+		return false
+	}
+
+	num, ok := cliutils.ParseNewsSelectionNumber(text)
+	if !ok {
+		return false
+	}
+
+	urls := cliutils.ExtractAPNewsArticleURLs(quotedText)
+	if len(urls) > 0 {
+		if num >= 1 && num <= len(urls) {
+			targetURL := urls[num-1]
+			go func() {
+				reqCtx, cancel := context.WithCancel(ctx.Ctx)
+				defer cancel()
+
+				cctx := &Context{
+					Ctx:        reqCtx,
+					CancelFunc: cancel,
+					Client:     ctx.Client,
+					Evt:        ctx.Evt,
+					Chat:       ctx.Chat,
+					Sender:     ctx.Sender,
+				}
+				cctx.StartAutoLoader()
+				defer cctx.StopAutoLoader()
+
+				if err := SendAPNewsArticleDetail(cctx, targetURL); err != nil {
+					Logger.Error("HandleNewsQuoteInput: failed to send article detail", "url", targetURL, "err", err)
+				}
+			}()
+			return true
+		}
+		_ = ctx.Replyf("Article #%d is out of range. Please choose a number between 1 and %d.", num, len(urls))
+		return true
+	}
+
+	if sess, okSess := cliutils.GetRecentNewsSession(ctx.Chat.String()); okSess && len(sess.Articles) > 0 {
+		if num >= 1 && num <= len(sess.Articles) {
+			targetURL := sess.Articles[num-1].URL
+			go func() {
+				reqCtx, cancel := context.WithCancel(ctx.Ctx)
+				defer cancel()
+
+				cctx := &Context{
+					Ctx:        reqCtx,
+					CancelFunc: cancel,
+					Client:     ctx.Client,
+					Evt:        ctx.Evt,
+					Chat:       ctx.Chat,
+					Sender:     ctx.Sender,
+				}
+				cctx.StartAutoLoader()
+				defer cctx.StopAutoLoader()
+
+				if err := SendAPNewsArticleDetail(cctx, targetURL); err != nil {
+					Logger.Error("HandleNewsQuoteInput: failed to send article detail from session", "url", targetURL, "err", err)
+				}
+			}()
+			return true
+		}
+		_ = ctx.Replyf("Article #%d is out of range. Please choose a number between 1 and %d.", num, len(sess.Articles))
+		return true
+	}
+
+	return false
 }
 
 func sendNewsHelp(ctx *Context) error {
