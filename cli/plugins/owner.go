@@ -1035,10 +1035,7 @@ func performUpgrade(ctx *Context, isBeta bool) error {
 
 	_ = ctx.Replyf("%s\nRestarting process now...", res.Message)
 
-	if err := updater.RestartProcess(); err != nil {
-		slog.Error("failed to restart process after update", "err", err)
-		return ctx.Replyf("Updated binary successfully, but process restart failed: %v", err)
-	}
-
-	return nil
+	err = updater.RestartProcess()
+	slog.Error("failed to restart process after update", "err", err)
+	return ctx.Replyf("Updated binary successfully, but process restart failed: %v", err)
 }
