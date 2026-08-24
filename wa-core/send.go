@@ -1514,7 +1514,8 @@ func (cli *Client) encryptMessageForDevices(
 					continue
 				}
 				plaintext := msgPlaintext
-				if (jid.User == ownJID.User || jid.User == ownLID.User) && dsmPlaintext != nil {
+				isDSM := (jid.User == ownJID.User || jid.User == ownLID.User) && dsmPlaintext != nil
+				if isDSM {
 					plaintext = dsmPlaintext
 				}
 				encrypted, isPreKey, err := cli.encryptMessageForDeviceAndWrap(
@@ -1527,8 +1528,9 @@ func (cli *Client) encryptMessageForDevices(
 	wg.Wait()
 
 	for _, res := range results {
+		d := allDevices[res.index]
 		if res.err != nil {
-			cli.Log.Warnf("Failed to encrypt %s for %s: %v", id, allDevices[res.index], res.err)
+			cli.Log.Warnf("Failed to encrypt %s for %s: %v", id, d, res.err)
 			if ctx.Err() != nil {
 				return nil, false, res.err
 			}

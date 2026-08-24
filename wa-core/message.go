@@ -370,10 +370,8 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 			cli.Log.Errorf("Failed to resolve LID for %s: %v", info.Sender, err)
 			if cli.SynchronousAck {
 				cli.sendRetryReceipt(ctx, node, info, false)
-				cli.sendAck(ctx, node, 0)
 			} else {
 				go cli.sendRetryReceipt(context.WithoutCancel(ctx), node, info, false)
-				go cli.sendAck(ctx, node, 0)
 			}
 			cli.dispatchEvent(&events.UndecryptableMessage{Info: *info})
 			return
@@ -445,17 +443,19 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 				return
 			}
 			isUnavailable := encType == "skmsg" && !containsDirectMsg && errors.Is(err, signalerror.ErrNoSenderKeyForUser)
+			includeKeys := isUnavailable || errors.Is(err, signalerror.ErrNoValidSessions) || errors.Is(err, signalerror.ErrUntrustedIdentity) || errors.Is(err, signalerror.ErrInvalidSignature) || encType == "pkmsg" || encType == "msg"
+			if senderEncryptionJID.User != "" && (encType == "msg" || encType == "pkmsg") {
+				_ = cli.Store.DeleteSession(ctx, senderEncryptionJID.SignalAddress())
+				cli.Store.InvalidateL1Session(senderEncryptionJID.SignalAddress().String())
+			}
 			if encType == "msmsg" {
 				cli.backgroundIfAsyncAck(func() {
 					cli.sendAck(ctx, node, NackMissingMessageSecret)
 				})
 			} else if cli.SynchronousAck {
-				cli.sendRetryReceipt(ctx, node, info, isUnavailable)
-				// TODO this probably isn't supposed to ack
-				cli.sendAck(ctx, node, 0)
+				cli.sendRetryReceipt(ctx, node, info, includeKeys)
 			} else {
-				go cli.sendRetryReceipt(context.WithoutCancel(ctx), node, info, isUnavailable)
-				go cli.sendAck(ctx, node, 0)
+				go cli.sendRetryReceipt(context.WithoutCancel(ctx), node, info, includeKeys)
 			}
 			cli.dispatchEvent(&events.UndecryptableMessage{
 				Info:            *info,
