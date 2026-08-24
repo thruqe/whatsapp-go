@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
+
+	"whatsrook/logger"
 
 	"whatsrook/cli/store"
 	"whatsrook/utils"
@@ -51,26 +52,26 @@ func (gm *GroupManager) LoadFromDB(ctx context.Context, cli *whatsmeow.Client) e
 
 	groups, err := store.LoadAllCachedGroups(ctx, db, ourJID)
 	if err != nil {
-		slog.Warn("GroupManager: failed to load cached groups from DB", "err", err)
+		Logger.Warn("GroupManager: failed to load cached groups from DB", "err", err)
 	} else {
 		gm.mu.Lock()
 		for _, g := range groups {
 			gm.groups[g.JID] = g
 		}
 		gm.mu.Unlock()
-		slog.Debug("GroupManager: loaded cached groups from DB", "count", len(groups))
+		Logger.Debug("GroupManager: loaded cached groups from DB", "count", len(groups))
 	}
 
 	newsletters, errN := store.LoadAllCachedNewsletters(ctx, db, ourJID)
 	if errN != nil {
-		slog.Warn("GroupManager: failed to load cached newsletters from DB", "err", errN)
+		Logger.Warn("GroupManager: failed to load cached newsletters from DB", "err", errN)
 	} else {
 		gm.mu.Lock()
 		for _, n := range newsletters {
 			gm.newsletters[n.JID] = n
 		}
 		gm.mu.Unlock()
-		slog.Debug("GroupManager: loaded cached newsletters from DB", "count", len(newsletters))
+		Logger.Debug("GroupManager: loaded cached newsletters from DB", "count", len(newsletters))
 	}
 
 	return nil
@@ -85,7 +86,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 	gm.syncing.Lock()
 	defer gm.syncing.Unlock()
 
-	slog.Info("GroupManager: starting full sync of groups, communities, and newsletters...")
+	Logger.Info("GroupManager: starting full sync of groups, communities, and newsletters...")
 
 	ourJID := ""
 	var s *sqlstore.SQLStore
@@ -100,7 +101,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 	var syncedGroups []*store.GroupMetadata
 	joinedGroups, err := cli.GetJoinedGroups(ctx)
 	if err != nil {
-		slog.Error("GroupManager: failed to fetch joined groups", "err", err)
+		Logger.Error("GroupManager: failed to fetch joined groups", "err", err)
 	} else {
 		for _, g := range joinedGroups {
 			meta := gm.convertGroupInfo(ctx, cli, g)
@@ -122,7 +123,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 	var syncedNewsletters []*store.NewsletterMetadata
 	newsletters, errN := cli.GetSubscribedNewsletters(ctx)
 	if errN != nil {
-		slog.Error("GroupManager: failed to fetch subscribed newsletters", "err", errN)
+		Logger.Error("GroupManager: failed to fetch subscribed newsletters", "err", errN)
 	} else {
 		for _, n := range newsletters {
 			meta := gm.convertNewsletterMetadata(n)
@@ -148,7 +149,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 		}
 	}
 
-	slog.Info("GroupManager: sync complete",
+	Logger.Info("GroupManager: sync complete",
 		"total_groups", len(syncedGroups),
 		"communities", communityCount,
 		"newsletters", len(syncedNewsletters),
@@ -193,7 +194,7 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 		return
 	}
 
-	slog.Info("GroupManager: warming up participant device cache...", "unique_participants", len(uniqueJIDs))
+	Logger.Info("GroupManager: warming up participant device cache...", "unique_participants", len(uniqueJIDs))
 	start := time.Now()
 
 	// Chunk queries into batches of 150 to keep USync requests optimal
@@ -205,7 +206,7 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 		batch := uniqueJIDs[i:end]
 		devices, err := cli.GetUserDevices(ctx, batch)
 		if err != nil {
-			slog.Debug("GroupManager: device warmup batch error", "batch_start", i, "err", err)
+			Logger.Debug("GroupManager: device warmup batch error", "batch_start", i, "err", err)
 		} else {
 			totalCached += len(devices)
 			allDeviceJIDs = append(allDeviceJIDs, devices...)
@@ -221,7 +222,7 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 		_, _, _ = cli.Store.WithCachedSessions(ctx, addrs)
 	}
 
-	slog.Info("GroupManager: device and session cache warm up complete",
+	Logger.Info("GroupManager: device and session cache warm up complete",
 		"total_participants", len(uniqueJIDs),
 		"companion_devices", totalCached,
 		"duration", time.Since(start),

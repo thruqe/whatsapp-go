@@ -2,9 +2,10 @@ package utils
 
 import (
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
+
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -73,12 +74,12 @@ func (l *Loader) activate() {
 	frame := loaderFrames[0]
 	displayText := fmt.Sprintf("%s %s", l.initialText, frame)
 
-	slog.Debug("StartLoader: sending loader message synchronously", "id", l.id, "text", l.initialText)
+	Logger.Debug("StartLoader: sending loader message synchronously", "id", l.id, "text", l.initialText)
 	resp, err := l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, &waE2E.Message{
 		Conversation: new(displayText),
 	})
 	if err != nil {
-		slog.Error("StartLoader: failed to send loader message", "err", err)
+		Logger.Error("StartLoader: failed to send loader message", "err", err)
 		return
 	}
 
@@ -136,7 +137,7 @@ func (l *Loader) editFrame(text string) {
 	editMsg := l.ctx.Client.BuildEdit(l.ctx.Chat, msgID, msg)
 	_, err := l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, editMsg)
 	if err != nil {
-		slog.Debug("Loader animation edit failed", "msgID", msgID, "err", err)
+		Logger.Debug("Loader animation edit failed", "msgID", msgID, "err", err)
 	}
 }
 
@@ -219,11 +220,11 @@ func (l *Loader) Delete() {
 	l.mu.Unlock()
 
 	if msgID != "" && l.ctx != nil && l.ctx.Client != nil {
-		slog.Debug("Loader: deleting loader message", "msgID", msgID)
+		Logger.Debug("Loader: deleting loader message", "msgID", msgID)
 		revokeMsg := l.ctx.Client.BuildRevoke(l.ctx.Chat, types.EmptyJID, msgID)
 		_, err := l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, revokeMsg)
 		if err != nil {
-			slog.Debug("Loader: failed to delete loader message", "msgID", msgID, "err", err)
+			Logger.Debug("Loader: failed to delete loader message", "msgID", msgID, "err", err)
 		}
 	}
 }

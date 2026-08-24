@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"log/slog"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -149,10 +149,10 @@ func (l *ListBuilder) sendMsg(to types.JID) error {
 		},
 	}
 
-	slog.Debug("WARook: sending list", "to", to.String(), "sections", len(sections))
+	Logger.Debug("WARook: sending list", "to", to.String(), "sections", len(sections))
 	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), to, msg)
 	if err != nil {
-		slog.Error("WARook: sendListMsg failed", "to", to.String(), "err", err)
+		Logger.Error("WARook: sendListMsg failed", "to", to.String(), "err", err)
 	}
 	return err
 }

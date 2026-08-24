@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strconv"
 	"strings"
+
 	clistore "whatsrook/cli/store"
 	cliutils "whatsrook/cli/utils"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -27,7 +28,7 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 
 	autoAcceptStatus, _ := clistore.GetSetting(ctx, s, cliutils.AutoAcceptCallSettingKey)
 	if autoAcceptStatus == "on" {
-		slog.Debug("anticall: skipping reject because autoacceptcall is enabled", "call_id", v.CallID)
+		Logger.Debug("anticall: skipping reject because autoacceptcall is enabled", "call_id", v.CallID)
 		return
 	}
 
@@ -71,7 +72,7 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 	}
 
 	if reject {
-		slog.Warn("anticall: rejecting call offer", "from", callerJID.String(), "call_id", v.CallID)
+		Logger.Warn("anticall: rejecting call offer", "from", callerJID.String(), "call_id", v.CallID)
 		_ = cli.RejectCall(ctx, callerJID, v.CallID)
 
 		warnKey := "anticall_warn:" + callerJID.String()
@@ -88,7 +89,7 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 
 		if warnCount >= maxWarn {
 			_, _ = cli.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock)
-			slog.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
+			Logger.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
 			warnText := fmt.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
 			formatted := cliutils.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})

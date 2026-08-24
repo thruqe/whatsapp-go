@@ -2,6 +2,8 @@ module go.mau.fi/whatsmeow
 
 go 1.27.0
 
+replace whatsrook => ../
+
 retract (
 	v0.1.1 // Retraction carrier only; use @main.
 	v0.1.0 // Published accidentally; use @main.
@@ -25,6 +27,7 @@ require (
 	golang.org/x/net v0.57.0
 	golang.org/x/sync v0.22.0
 	google.golang.org/protobuf v1.36.11
+	whatsrook v0.0.0-00010101000000-000000000000
 )
 
 require (
@@ -36,6 +39,8 @@ require (
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/transport/v4 v4.0.2 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.27 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
+	go.uber.org/zap v1.28.0 // indirect
 	golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect

@@ -4,15 +4,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log/slog"
 	"math/rand"
 	"strconv"
 	"strings"
 	"time"
+
 	"whatsrook/cli/captcha"
 	commands "whatsrook/cli/plugins"
 	clistore "whatsrook/cli/store"
 	cliutils "whatsrook/cli/utils"
+	"whatsrook/logger"
 	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow"
@@ -413,13 +414,13 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 
 	// This plugin should only work if this bot is an admin
 	if cli.Store.ID == nil || !utils.IsAdminRaw(ctx, cli, info, *cli.Store.ID) {
-		slog.Warn("handleGroupCaptcha: bot is not an admin in group, skipping captcha verification", "group", chatKey)
+		Logger.Warn("handleGroupCaptcha: bot is not an admin in group, skipping captcha verification", "group", chatKey)
 		return
 	}
 
 	// If group only allows admins to send messages, no need for verification
 	if info.IsAnnounce {
-		slog.Debug("handleGroupCaptcha: group is announce-only, skipping captcha verification", "group", chatKey)
+		Logger.Debug("handleGroupCaptcha: group is announce-only, skipping captcha verification", "group", chatKey)
 		return
 	}
 
@@ -475,13 +476,13 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 					return
 				}
 				if !utils.IsAdminRaw(context.Background(), cli, currentInfo, *cli.Store.ID) {
-					slog.Warn("handleGroupCaptcha: bot is no longer admin to kick unverified participant", "group", g.JID.String(), "user", partCopy.String())
+					Logger.Warn("handleGroupCaptcha: bot is no longer admin to kick unverified participant", "group", g.JID.String(), "user", partCopy.String())
 					return
 				}
 
 				_, kErr := cli.UpdateGroupParticipants(context.Background(), g.JID, []types.JID{partCopy}, whatsmeow.ParticipantChangeRemove)
 				if kErr != nil {
-					slog.Error("handleGroupCaptcha: failed to kick unverified participant", "user", partCopy.String(), "err", kErr)
+					Logger.Error("handleGroupCaptcha: failed to kick unverified participant", "user", partCopy.String(), "err", kErr)
 					return
 				}
 
@@ -503,10 +504,10 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 			if errUp == nil {
 				mediaUploaded = &uploaded
 			} else {
-				slog.Error("handleGroupCaptcha: video upload failed", "err", errUp)
+				Logger.Error("handleGroupCaptcha: video upload failed", "err", errUp)
 			}
 		} else {
-			slog.Error("handleGroupCaptcha: captcha video generation failed", "err", errGen)
+			Logger.Error("handleGroupCaptcha: captcha video generation failed", "err", errGen)
 		}
 
 		tbVid := utils.NewText()

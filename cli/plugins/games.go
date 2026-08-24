@@ -3,15 +3,16 @@ package plugins
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"math"
 	"net/http"
 	"net/url"
+
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/types"
 
@@ -145,7 +146,7 @@ func handleTicTacToe(ctx *Context) error {
 			botFirstMsg = Sprintf("\n\nAI decided to go first and placed move at position %d!", botMove+1)
 		}
 
-		slog.Debug("[TTT] Creating new game", "chat", chatKey, "rawSenderLID", rawSenderLID.String(), "mentionJID", userMentionJID.String(), "botStarts", botStarts, "firstTurn", firstTurn.String())
+		Logger.Debug("[TTT] Creating new game", "chat", chatKey, "rawSenderLID", rawSenderLID.String(), "mentionJID", userMentionJID.String(), "botStarts", botStarts, "firstTurn", firstTurn.String())
 
 		cliutils.TTTGames[chatKey] = newGame
 
@@ -168,10 +169,10 @@ func handleTicTacToe(ctx *Context) error {
 
 	// Incoming sender is always LID format; game.PlayerX/Turn are also stored as LID.
 	senderLID := ctx.Sender.ToNonAD()
-	slog.Debug("[TTT] Processing move", "chat", chatKey, "senderLID", senderLID.String(), "senderUser", senderLID.User, "gameTurnUser", game.Turn.User, "gameTurnJID", game.Turn.String(), "playerXUser", game.PlayerX.User, "isBotGame", game.IsBotGame)
+	Logger.Debug("[TTT] Processing move", "chat", chatKey, "senderLID", senderLID.String(), "senderUser", senderLID.User, "gameTurnUser", game.Turn.User, "gameTurnJID", game.Turn.String(), "playerXUser", game.PlayerX.User, "isBotGame", game.IsBotGame)
 
 	if senderLID.User != game.Turn.User {
-		slog.Warn("[TTT] Move rejected: not sender's turn", "senderLID", senderLID.String(), "senderUser", senderLID.User, "expectedTurnUser", game.Turn.User)
+		Logger.Warn("[TTT] Move rejected: not sender's turn", "senderLID", senderLID.String(), "senderUser", senderLID.User, "expectedTurnUser", game.Turn.User)
 		return ctx.Reply("It is not your turn.")
 	}
 
@@ -567,14 +568,14 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 	senderLID := ctx.Sender.ToNonAD()
 
 	if isPureEmoji(text) || strings.TrimSpace(text) == "" {
-		slog.Debug("[Unscramble] Ignored emoji/empty input", "chat", chatKey, "sender", senderLID.String())
+		Logger.Debug("[Unscramble] Ignored emoji/empty input", "chat", chatKey, "sender", senderLID.String())
 		game.Mu.Unlock()
 		return true
 	}
 
 	pIdx := game.FindPlayerIndex(senderLID)
 	if pIdx == -1 {
-		slog.Debug("[Unscramble] Ignored input from non-player", "chat", chatKey, "sender", senderLID.String())
+		Logger.Debug("[Unscramble] Ignored input from non-player", "chat", chatKey, "sender", senderLID.String())
 		game.Mu.Unlock()
 		return false
 	}
@@ -587,7 +588,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 
 	currentTurnPlayer := game.Players[game.CurrentTurnIdx]
 	if currentTurnPlayer.LID.User != senderLID.User {
-		slog.Debug("[Unscramble] Ignored input from player whose turn it is not", "chat", chatKey, "sender", senderLID.String())
+		Logger.Debug("[Unscramble] Ignored input from player whose turn it is not", "chat", chatKey, "sender", senderLID.String())
 		game.Mu.Unlock()
 		return false
 	}
@@ -697,7 +698,7 @@ func startUnscrambleGame(ctx *Context, game *cliutils.UnscrambleGame) {
 func startUnscrambleTurn(ctx *Context, game *cliutils.UnscrambleGame) {
 	scrambled, timeLimit, currentPlayer := game.StartTurn()
 	if currentPlayer == nil {
-		slog.Error("startUnscrambleTurn: No current player available")
+		Logger.Error("startUnscrambleTurn: No current player available")
 		return
 	}
 
@@ -713,7 +714,7 @@ func startUnscrambleTurn(ctx *Context, game *cliutils.UnscrambleGame) {
 			return
 		}
 
-		slog.Info("Unscramble turn timed out for player", "chat", game.ChatKey, "player", currentPlayer.Tag)
+		Logger.Info("Unscramble turn timed out for player", "chat", game.ChatKey, "player", currentPlayer.Tag)
 		cctx := &Context{
 			Ctx:    ctx.Ctx,
 			Client: ctx.Client,
@@ -1316,7 +1317,7 @@ func startWCGChainGame(ctx *Context, game *cliutils.WCGGame) {
 	}
 
 	active := game.GetActivePlayers()
-	slog.Debug("[WCG] Starting Word Chain Game", "chat", game.ChatKey, "playersCount", len(active))
+	Logger.Debug("[WCG] Starting Word Chain Game", "chat", game.ChatKey, "playersCount", len(active))
 
 	var playerTags []string
 	var mentions []types.JID
@@ -1372,7 +1373,7 @@ func startWCGChainTurn(ctx *Context, game *cliutils.WCGGame) {
 			return
 		}
 
-		slog.Debug("[WCG] Turn timed out", "player", currentPlayer.Tag)
+		Logger.Debug("[WCG] Turn timed out", "player", currentPlayer.Tag)
 
 		cctx := &Context{
 			Ctx:    ctx.Ctx,

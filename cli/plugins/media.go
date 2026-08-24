@@ -5,13 +5,14 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
+
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/types/events"
 
@@ -150,21 +151,21 @@ func handleCrop(ctx *Context) error {
 }
 
 func handleMP4(ctx *Context) error {
-	slog.Debug("handleMP4: fetching media for conversion", "chat", ctx.Chat.String(), "sender", ctx.Sender.String())
+	Logger.Debug("handleMP4: fetching media for conversion", "chat", ctx.Chat.String(), "sender", ctx.Sender.String())
 	data, mime, err := ctx.GetMedia()
 	if err != nil {
-		slog.Warn("handleMP4: no media found", "chat", ctx.Chat.String(), "err", err)
+		Logger.Warn("handleMP4: no media found", "chat", ctx.Chat.String(), "err", err)
 		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
-	slog.Debug("handleMP4: starting conversion", "mime", mime, "size", len(data))
+	Logger.Debug("handleMP4: starting conversion", "mime", mime, "size", len(data))
 	mp4Data, err := processMP4(data, mime)
 	if err != nil {
-		slog.Error("handleMP4: processMP4 failed", "mime", mime, "size", len(data), "err", err)
+		Logger.Error("handleMP4: processMP4 failed", "mime", mime, "size", len(data), "err", err)
 		return ctx.Replyf("⚠️ Failed to convert to MP4: %v", err)
 	}
 
-	slog.Debug("handleMP4: conversion successful, sending video", "outputSize", len(mp4Data))
+	Logger.Debug("handleMP4: conversion successful, sending video", "outputSize", len(mp4Data))
 	return ctx.ReplyWithVideo(mp4Data, "video/mp4", "")
 }
 
@@ -398,7 +399,7 @@ func stripWebPMetadataChunks(data []byte) []byte {
 }
 
 func processMP4(data []byte, mime string) ([]byte, error) {
-	slog.Debug("processMP4: starting conversion", "inputBytes", len(data), "mime", mime)
+	Logger.Debug("processMP4: starting conversion", "inputBytes", len(data), "mime", mime)
 	tmpDir, err := os.MkdirTemp("", "whatsrook_mp4_*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %w", err)
@@ -429,14 +430,14 @@ func processMP4(data []byte, mime string) ([]byte, error) {
 		if errMux := cmdMux.Run(); errMux == nil {
 			if cleanBytes, errRead := os.ReadFile(cleanPath); errRead == nil && len(cleanBytes) > 0 {
 				tempClean = cleanPath
-				slog.Debug("processMP4: webpmux -strip successful", "cleanBytes", len(cleanBytes))
+				Logger.Debug("processMP4: webpmux -strip successful", "cleanBytes", len(cleanBytes))
 			}
 		} else {
 			// 2. Pure Go RIFF WebP metadata stripper fallback
 			if stripped := stripWebPMetadataChunks(data); len(stripped) > 0 {
 				_ = os.WriteFile(cleanPath, stripped, 0644)
 				tempClean = cleanPath
-				slog.Debug("processMP4: Go RIFF WebP metadata stripper applied", "cleanBytes", len(stripped))
+				Logger.Debug("processMP4: Go RIFF WebP metadata stripper applied", "cleanBytes", len(stripped))
 			}
 		}
 	}
@@ -457,12 +458,12 @@ func processMP4(data []byte, mime string) ([]byte, error) {
 	if err == nil {
 		res, errRead := os.ReadFile(tempOut)
 		if errRead == nil && len(res) > 0 {
-			slog.Debug("processMP4: ultrafast ffmpeg conversion successful", "outputBytes", len(res))
+			Logger.Debug("processMP4: ultrafast ffmpeg conversion successful", "outputBytes", len(res))
 			return res, nil
 		}
 	}
 
-	slog.Debug("processMP4: single-pass failed, attempting dwebp PNG extraction fallback", "err", err, "out", string(out))
+	Logger.Debug("processMP4: single-pass failed, attempting dwebp PNG extraction fallback", "err", err, "out", string(out))
 
 	// Try dwebp (Google official WebP decoder) to extract clean PNG frame for static stickers
 	if ext == ".webp" {
@@ -476,7 +477,7 @@ func processMP4(data []byte, mime string) ([]byte, error) {
 			if errPng := cmdPngLoop.Run(); errPng == nil {
 				res, errRead := os.ReadFile(tempOut)
 				if errRead == nil && len(res) > 0 {
-					slog.Debug("processMP4: dwebp -> png -> ffmpeg mp4 conversion successful", "outputBytes", len(res))
+					Logger.Debug("processMP4: dwebp -> png -> ffmpeg mp4 conversion successful", "outputBytes", len(res))
 					return res, nil
 				}
 			}
@@ -496,12 +497,12 @@ func processMP4(data []byte, mime string) ([]byte, error) {
 	if errLoop == nil {
 		res, errRead := os.ReadFile(tempOut)
 		if errRead == nil && len(res) > 0 {
-			slog.Debug("processMP4: static loop conversion successful", "outputBytes", len(res))
+			Logger.Debug("processMP4: static loop conversion successful", "outputBytes", len(res))
 			return res, nil
 		}
 	}
 
-	slog.Error("processMP4: all ffmpeg conversion levels failed", "err", errLoop, "ffmpegOutput", string(outLoop))
+	Logger.Error("processMP4: all ffmpeg conversion levels failed", "err", errLoop, "ffmpegOutput", string(outLoop))
 	return nil, fmt.Errorf("ffmpeg mp4 conversion failed: %w (output: %s)", errLoop, string(outLoop))
 }
 

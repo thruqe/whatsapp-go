@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"whatsrook/logger"
 )
 
 var (
@@ -65,14 +66,14 @@ func Init(redisURL string) Store {
 	if redisURL != "" && strings.TrimSpace(redisURL) != "none" {
 		rStore, err := NewRedisStore(redisURL)
 		if err == nil {
-			slog.Info("universal cache initialized with Redis", "url", sanitizeRedisURL(redisURL))
+			Logger.Info("universal cache initialized with Redis", "url", sanitizeRedisURL(redisURL))
 			defaultStore = rStore
 			return defaultStore
 		}
-		slog.Warn("failed to connect to Redis cache, falling back to in-memory cache", "err", err)
+		Logger.Warn("failed to connect to Redis cache, falling back to in-memory cache", "err", err)
 	}
 
-	slog.Info("universal cache initialized with in-memory store")
+	Logger.Info("universal cache initialized with in-memory store")
 	defaultStore = NewMemoryStore()
 	return defaultStore
 }

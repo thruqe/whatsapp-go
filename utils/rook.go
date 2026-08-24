@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"log/slog"
 	"sync"
+
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -198,7 +199,7 @@ func DispatchButtonClick(ctx *PluginContext, buttonID, displayText string) bool 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("WARook: button handler panicked", "buttonID", buttonID, "panic", r)
+				Logger.Error("WARook: button handler panicked", "buttonID", buttonID, "panic", r)
 			}
 		}()
 		route.fn(req, res)
@@ -229,7 +230,7 @@ func DispatchPollVoteEvent(ctx *PluginContext, evt *events.Message) bool {
 
 	decrypted, err := ctx.Client.DecryptPollVote(context.Background(), evt)
 	if err != nil {
-		slog.Error("WARook: poll vote decryption failed", "pollMsgID", pollMsgID, "err", err)
+		Logger.Error("WARook: poll vote decryption failed", "pollMsgID", pollMsgID, "err", err)
 		return false
 	}
 
@@ -249,7 +250,7 @@ func DispatchPollVoteEvent(ctx *PluginContext, evt *events.Message) bool {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("WARook: poll handler panicked", "pollMsgID", pollMsgID, "panic", r)
+				Logger.Error("WARook: poll handler panicked", "pollMsgID", pollMsgID, "panic", r)
 			}
 		}()
 		route.fn(req, res)
@@ -279,7 +280,7 @@ func DispatchListSelection(ctx *PluginContext, rowID, title string) bool {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("WARook: list handler panicked", "rowID", rowID, "panic", r)
+				Logger.Error("WARook: list handler panicked", "rowID", rowID, "panic", r)
 			}
 		}()
 		route.fn(req, res)

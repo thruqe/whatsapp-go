@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"log/slog"
 	"net/url"
+
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -690,11 +691,11 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 		if errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || ctx.Err() != nil {
 			return "", nil
 		}
-		slog.Error("[AutoBio] Failed to update WhatsApp status message", "err", err)
+		Logger.Error("[AutoBio] Failed to update WhatsApp status message", "err", err)
 		return "", err
 	}
 
-	slog.Debug("[AutoBio] Updated WhatsApp status bio", "bio", bioText, "timezone", tzStr)
+	Logger.Debug("[AutoBio] Updated WhatsApp status bio", "bio", bioText, "timezone", tzStr)
 	return bioText, nil
 }
 
@@ -892,7 +893,7 @@ func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, i
 			targetPath)
 
 		if err := cmd.Run(); err != nil {
-			slog.Warn("ffmpeg video processing failed, checking raw video fallback", "err", err)
+			Logger.Warn("ffmpeg video processing failed, checking raw video fallback", "err", err)
 			if len(data) <= 10*1024*1024 {
 				if errWrite := os.WriteFile(targetPath, data, 0644); errWrite != nil {
 					return "", errors.New("failed to write raw video fallback: " + errWrite.Error())
@@ -1046,7 +1047,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		return false
 	}
 
-	slog.Info("Wizard handling step", "chat", key, "step", session.Step, "text", text)
+	Logger.Info("Wizard handling step", "chat", key, "step", session.Step, "text", text)
 
 	switch session.Step {
 	case "name":
@@ -1071,33 +1072,33 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 	case "thumb":
 		downloadable, isVideo, mime := ExtractMediaFromEvent(evt)
-		slog.Info("Wizard Step 2/4 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
+		Logger.Info("Wizard Step 2/4 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
 
 		if downloadable == nil {
-			slog.Warn("Wizard Step 2/4 (thumb): No image/video/document media found in message", "chat", key)
+			Logger.Warn("Wizard Step 2/4 (thumb): No image/video/document media found in message", "chat", key)
 			_ = fakeCtx.Reply("Please upload or reply with an image (.jpg/.png) or video (.mp4) for the bot thumbnail.")
 			return true
 		}
 
-		slog.Info("Wizard Step 2/4 (thumb): Starting media download", "chat", key, "mime", mime)
+		Logger.Info("Wizard Step 2/4 (thumb): Starting media download", "chat", key, "mime", mime)
 		data, err := client.Download(ctx, downloadable)
 
 		if err != nil || len(data) == 0 {
-			slog.Error("Wizard Step 2/4 (thumb): Media download failed", "chat", key, "err", err, "dataLen", len(data))
+			Logger.Error("Wizard Step 2/4 (thumb): Media download failed", "chat", key, "err", err, "dataLen", len(data))
 			_ = fakeCtx.Replyf("Failed to download media for thumbnail (error: %v). Please try sending another file.", err)
 			return true
 		}
 
-		slog.Info("Wizard Step 2/4 (thumb): Media downloaded successfully", "chat", key, "bytesLen", len(data), "isVideo", isVideo)
+		Logger.Info("Wizard Step 2/4 (thumb): Media downloaded successfully", "chat", key, "bytesLen", len(data), "isVideo", isVideo)
 		authDir := GetSessionAuthDir(client)
 		targetPath, errProc := ProcessAndSaveThumbnail(ctx, authDir, data, isVideo)
 		if errProc != nil {
-			slog.Error("Wizard Step 2/4 (thumb): Thumbnail processing failed", "chat", key, "err", errProc)
+			Logger.Error("Wizard Step 2/4 (thumb): Thumbnail processing failed", "chat", key, "err", errProc)
 			_ = fakeCtx.Replyf("Failed to process thumbnail: %v", errProc)
 			return true
 		}
 
-		slog.Info("Wizard Step 2/4 (thumb): Thumbnail saved successfully", "chat", key, "targetPath", targetPath)
+		Logger.Info("Wizard Step 2/4 (thumb): Thumbnail saved successfully", "chat", key, "targetPath", targetPath)
 
 		if okStore {
 			_ = s.PutSetting(ctx, "menu_thumbnail_path", targetPath)
