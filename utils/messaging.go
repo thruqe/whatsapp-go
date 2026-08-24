@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"log"
-	"log/slog"
 	"strings"
+
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
 
@@ -28,15 +28,15 @@ func (ctx *PluginContext) formatTextResponse(text string) string {
 func (ctx *PluginContext) SendText(text string) error {
 	ctx.StopAutoLoader()
 	formatted := ctx.formatTextResponse(text)
-	slog.Debug("Building SendText", "text", text, "formatted", formatted)
-	slog.Debug("Sending SendText", "chat", ctx.Chat.String())
+	Logger.Debug("Building SendText", "text", text, "formatted", formatted)
+	Logger.Debug("Sending SendText", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		Conversation: &formatted,
 	})
 	if err != nil {
-		slog.Error("SendText failed", "err", err)
+		Logger.Error("SendText failed", "err", err)
 	} else {
-		slog.Debug("SendText sent successfully")
+		Logger.Debug("SendText sent successfully")
 	}
 	return err
 }
@@ -135,8 +135,8 @@ func (ctx *PluginContext) ReplyWithID(text string) (types.MessageID, error) {
 	ctx.StopAutoLoader()
 	formatted := ctx.formatTextResponse(text)
 	cinfo := ctx.replyContextInfo()
-	slog.Debug("Building Reply", "text", text, "formatted", formatted, "context_info", cinfo)
-	slog.Debug("Sending Reply", "chat", ctx.Chat.String())
+	Logger.Debug("Building Reply", "text", text, "formatted", formatted, "context_info", cinfo)
+	Logger.Debug("Sending Reply", "chat", ctx.Chat.String())
 	resp, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
@@ -144,10 +144,10 @@ func (ctx *PluginContext) ReplyWithID(text string) (types.MessageID, error) {
 		},
 	})
 	if err != nil {
-		slog.Error("Reply failed", "err", err)
+		Logger.Error("Reply failed", "err", err)
 		return "", err
 	}
-	slog.Debug("Reply sent successfully", "msgID", resp.ID)
+	Logger.Debug("Reply sent successfully", "msgID", resp.ID)
 	return resp.ID, nil
 }
 
@@ -168,13 +168,13 @@ func (ctx *PluginContext) replyContextInfo() *waE2E.ContextInfo {
 func (ctx *PluginContext) SendImage(data []byte, mimetype, caption string) error {
 	ctx.StopAutoLoader()
 	if mimetype == "" {
-		slog.Warn("SendImage: mimetype is empty, defaulting to image/jpeg")
+		Logger.Warn("SendImage: mimetype is empty, defaulting to image/jpeg")
 		mimetype = "image/jpeg"
 	}
-	slog.Debug("Building SendImage", "data_len", len(data), "mimetype", mimetype, "caption", caption)
+	Logger.Debug("Building SendImage", "data_len", len(data), "mimetype", mimetype, "caption", caption)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaImage)
 	if err != nil {
-		slog.Error("SendImage: upload failed", "err", err)
+		Logger.Error("SendImage: upload failed", "err", err)
 		return fmt.Errorf("image upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -190,12 +190,12 @@ func (ctx *PluginContext) SendImage(data []byte, mimetype, caption string) error
 		},
 	}
 	*msg.ImageMessage.FileLength = uint64(len(data))
-	slog.Debug("Sending SendImage", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("Sending SendImage", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("SendImage failed", "err", err)
+		Logger.Error("SendImage failed", "err", err)
 	} else {
-		slog.Debug("SendImage sent successfully")
+		Logger.Debug("SendImage sent successfully")
 	}
 	return err
 }
@@ -204,7 +204,7 @@ func (ctx *PluginContext) SendImage(data []byte, mimetype, caption string) error
 func (ctx *PluginContext) SendImageWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error {
 	ctx.StopAutoLoader()
 	if mimetype == "" {
-		slog.Warn("SendImageWithMentions: mimetype is empty, defaulting to image/jpeg")
+		Logger.Warn("SendImageWithMentions: mimetype is empty, defaulting to image/jpeg")
 		mimetype = "image/jpeg"
 	}
 	var cinfo *waE2E.ContextInfo
@@ -216,10 +216,10 @@ func (ctx *PluginContext) SendImageWithMentions(data []byte, mimetype, caption s
 			}
 		}
 	}
-	slog.Debug("Building SendImageWithMentions", "data_len", len(data), "mimetype", mimetype, "caption", caption)
+	Logger.Debug("Building SendImageWithMentions", "data_len", len(data), "mimetype", mimetype, "caption", caption)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaImage)
 	if err != nil {
-		slog.Error("SendImageWithMentions: upload failed", "err", err)
+		Logger.Error("SendImageWithMentions: upload failed", "err", err)
 		return fmt.Errorf("image upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -236,12 +236,12 @@ func (ctx *PluginContext) SendImageWithMentions(data []byte, mimetype, caption s
 		},
 	}
 	*msg.ImageMessage.FileLength = uint64(len(data))
-	slog.Debug("Sending SendImageWithMentions", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("Sending SendImageWithMentions", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("SendImageWithMentions failed", "err", err)
+		Logger.Error("SendImageWithMentions failed", "err", err)
 	} else {
-		slog.Debug("SendImageWithMentions sent successfully")
+		Logger.Debug("SendImageWithMentions sent successfully")
 	}
 	return err
 }
@@ -255,7 +255,7 @@ func (ctx *PluginContext) ReplyWithImage(data []byte, mimetype, caption string) 
 func (ctx *PluginContext) ReplyWithImageWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error {
 	ctx.StopAutoLoader()
 	if mimetype == "" {
-		slog.Warn("ReplyWithImageWithMentions: mimetype is empty, defaulting to image/jpeg")
+		Logger.Warn("ReplyWithImageWithMentions: mimetype is empty, defaulting to image/jpeg")
 		mimetype = "image/jpeg"
 	}
 	cinfo := ctx.replyContextInfo()
@@ -269,10 +269,10 @@ func (ctx *PluginContext) ReplyWithImageWithMentions(data []byte, mimetype, capt
 			}
 		}
 	}
-	slog.Debug("Building ReplyWithImageWithMentions", "data_len", len(data), "mimetype", mimetype, "caption", caption, "context_info", cinfo)
+	Logger.Debug("Building ReplyWithImageWithMentions", "data_len", len(data), "mimetype", mimetype, "caption", caption, "context_info", cinfo)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaImage)
 	if err != nil {
-		slog.Error("ReplyWithImageWithMentions: upload failed", "err", err)
+		Logger.Error("ReplyWithImageWithMentions: upload failed", "err", err)
 		return fmt.Errorf("image upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -289,12 +289,12 @@ func (ctx *PluginContext) ReplyWithImageWithMentions(data []byte, mimetype, capt
 		},
 	}
 	*msg.ImageMessage.FileLength = uint64(len(data))
-	slog.Debug("Sending ReplyWithImageWithMentions", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("Sending ReplyWithImageWithMentions", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("ReplyWithImageWithMentions failed", "err", err)
+		Logger.Error("ReplyWithImageWithMentions failed", "err", err)
 	} else {
-		slog.Debug("ReplyWithImageWithMentions sent successfully")
+		Logger.Debug("ReplyWithImageWithMentions sent successfully")
 	}
 	return err
 }
@@ -340,7 +340,7 @@ func (ctx *PluginContext) ReplyWithAlbum(items []AlbumMediaItem, mentions []type
 		}
 		uploaded, err := ctx.Client.Upload(ctx.Ctx, item.Data, whatsmeow.MediaImage)
 		if err != nil {
-			slog.Error("ReplyWithAlbum: upload failed", "index", i, "err", err)
+			Logger.Error("ReplyWithAlbum: upload failed", "index", i, "err", err)
 			continue
 		}
 		imgMsg := &waE2E.ImageMessage{
@@ -364,7 +364,7 @@ func (ctx *PluginContext) ReplyWithAlbum(items []AlbumMediaItem, mentions []type
 		}
 		_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 		if err != nil {
-			slog.Error("ReplyWithAlbum: send item failed", "index", i, "err", err)
+			Logger.Error("ReplyWithAlbum: send item failed", "index", i, "err", err)
 		}
 	}
 	return nil
@@ -385,10 +385,10 @@ func (ctx *PluginContext) sendVideoInternal(data []byte, mimetype, caption strin
 	if mimetype == "" || gifPlayback {
 		mimetype = "video/mp4"
 	}
-	slog.Debug("Building SendVideo", "data_len", len(data), "mimetype", mimetype, "caption", caption, "gif_playback", gifPlayback)
+	Logger.Debug("Building SendVideo", "data_len", len(data), "mimetype", mimetype, "caption", caption, "gif_playback", gifPlayback)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaVideo)
 	if err != nil {
-		slog.Error("SendVideo: upload failed", "err", err)
+		Logger.Error("SendVideo: upload failed", "err", err)
 		return fmt.Errorf("video upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -406,12 +406,12 @@ func (ctx *PluginContext) sendVideoInternal(data []byte, mimetype, caption strin
 	if gifPlayback {
 		msg.VideoMessage.GifPlayback = new(true)
 	}
-	slog.Debug("Sending SendVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("Sending SendVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("SendVideo failed", "err", err)
+		Logger.Error("SendVideo failed", "err", err)
 	} else {
-		slog.Debug("SendVideo sent successfully")
+		Logger.Debug("SendVideo sent successfully")
 	}
 	return err
 }
@@ -432,10 +432,10 @@ func (ctx *PluginContext) replyVideoInternal(data []byte, mimetype, caption stri
 		mimetype = "video/mp4"
 	}
 	cinfo := ctx.replyContextInfo()
-	slog.Debug("Building replyVideoInternal", "data_len", len(data), "mimetype", mimetype, "caption", caption, "gif_playback", gifPlayback)
+	Logger.Debug("Building replyVideoInternal", "data_len", len(data), "mimetype", mimetype, "caption", caption, "gif_playback", gifPlayback)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaVideo)
 	if err != nil {
-		slog.Error("replyVideoInternal: upload failed", "err", err)
+		Logger.Error("replyVideoInternal: upload failed", "err", err)
 		return fmt.Errorf("video upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -454,12 +454,12 @@ func (ctx *PluginContext) replyVideoInternal(data []byte, mimetype, caption stri
 	if gifPlayback {
 		msg.VideoMessage.GifPlayback = new(true)
 	}
-	slog.Debug("Sending replyVideoInternal", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("Sending replyVideoInternal", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("replyVideoInternal failed", "err", err)
+		Logger.Error("replyVideoInternal failed", "err", err)
 	} else {
-		slog.Debug("replyVideoInternal sent successfully")
+		Logger.Debug("replyVideoInternal sent successfully")
 	}
 	return err
 }
@@ -468,13 +468,13 @@ func (ctx *PluginContext) replyVideoInternal(data []byte, mimetype, caption stri
 func (ctx *PluginContext) SendDocument(data []byte, mimetype, filename, caption string) error {
 	ctx.StopAutoLoader()
 	if mimetype == "" {
-		slog.Warn("SendDocument: mimetype is empty, defaulting to application/octet-stream")
+		Logger.Warn("SendDocument: mimetype is empty, defaulting to application/octet-stream")
 		mimetype = "application/octet-stream"
 	}
-	slog.Debug("Building SendDocument", "data_len", len(data), "mimetype", mimetype, "filename", filename, "caption", caption)
+	Logger.Debug("Building SendDocument", "data_len", len(data), "mimetype", mimetype, "filename", filename, "caption", caption)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaDocument)
 	if err != nil {
-		slog.Error("SendDocument: upload failed", "err", err)
+		Logger.Error("SendDocument: upload failed", "err", err)
 		return fmt.Errorf("document upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -491,12 +491,12 @@ func (ctx *PluginContext) SendDocument(data []byte, mimetype, filename, caption 
 		},
 	}
 	*msg.DocumentMessage.FileLength = uint64(len(data))
-	slog.Debug("Sending SendDocument", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("Sending SendDocument", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("SendDocument failed", "err", err)
+		Logger.Error("SendDocument failed", "err", err)
 	} else {
-		slog.Debug("SendDocument sent successfully")
+		Logger.Debug("SendDocument sent successfully")
 	}
 	return err
 }
@@ -505,14 +505,14 @@ func (ctx *PluginContext) SendDocument(data []byte, mimetype, filename, caption 
 func (ctx *PluginContext) ReplyWithDocument(data []byte, mimetype, filename, caption string) error {
 	ctx.StopAutoLoader()
 	if mimetype == "" {
-		slog.Warn("ReplyWithDocument: mimetype is empty, defaulting to application/octet-stream")
+		Logger.Warn("ReplyWithDocument: mimetype is empty, defaulting to application/octet-stream")
 		mimetype = "application/octet-stream"
 	}
 	cinfo := ctx.replyContextInfo()
-	slog.Debug("Building ReplyWithDocument", "data_len", len(data), "mimetype", mimetype, "filename", filename, "caption", caption, "context_info", cinfo)
+	Logger.Debug("Building ReplyWithDocument", "data_len", len(data), "mimetype", mimetype, "filename", filename, "caption", caption, "context_info", cinfo)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaDocument)
 	if err != nil {
-		slog.Error("ReplyWithDocument: upload failed", "err", err)
+		Logger.Error("ReplyWithDocument: upload failed", "err", err)
 		return fmt.Errorf("document upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -530,12 +530,12 @@ func (ctx *PluginContext) ReplyWithDocument(data []byte, mimetype, filename, cap
 		},
 	}
 	*msg.DocumentMessage.FileLength = uint64(len(data))
-	slog.Debug("Sending ReplyWithDocument", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("Sending ReplyWithDocument", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("ReplyWithDocument failed", "err", err)
+		Logger.Error("ReplyWithDocument failed", "err", err)
 	} else {
-		slog.Debug("ReplyWithDocument sent successfully")
+		Logger.Debug("ReplyWithDocument sent successfully")
 	}
 	return err
 }
@@ -544,10 +544,10 @@ func (ctx *PluginContext) ReplyWithDocument(data []byte, mimetype, filename, cap
 func (ctx *PluginContext) SendSticker(data []byte) error {
 	ctx.StopAutoLoader()
 	mimetype := "image/webp"
-	slog.Debug("Building SendSticker", "data_len", len(data))
+	Logger.Debug("Building SendSticker", "data_len", len(data))
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaImage)
 	if err != nil {
-		slog.Error("SendSticker: upload failed", "err", err)
+		Logger.Error("SendSticker: upload failed", "err", err)
 		return fmt.Errorf("sticker upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -562,12 +562,12 @@ func (ctx *PluginContext) SendSticker(data []byte) error {
 		},
 	}
 	*msg.StickerMessage.FileLength = uint64(len(data))
-	slog.Debug("Sending SendSticker", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("Sending SendSticker", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("SendSticker failed", "err", err)
+		Logger.Error("SendSticker failed", "err", err)
 	} else {
-		slog.Debug("SendSticker sent successfully")
+		Logger.Debug("SendSticker sent successfully")
 	}
 	return err
 }
@@ -577,10 +577,10 @@ func (ctx *PluginContext) ReplyWithSticker(data []byte) error {
 	ctx.StopAutoLoader()
 	mimetype := "image/webp"
 	cinfo := ctx.replyContextInfo()
-	slog.Debug("Building ReplyWithSticker", "data_len", len(data), "context_info", cinfo)
+	Logger.Debug("Building ReplyWithSticker", "data_len", len(data), "context_info", cinfo)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaImage)
 	if err != nil {
-		slog.Error("ReplyWithSticker: upload failed", "err", err)
+		Logger.Error("ReplyWithSticker: upload failed", "err", err)
 		return fmt.Errorf("sticker upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -596,12 +596,12 @@ func (ctx *PluginContext) ReplyWithSticker(data []byte) error {
 		},
 	}
 	*msg.StickerMessage.FileLength = uint64(len(data))
-	slog.Debug("Sending ReplyWithSticker", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("Sending ReplyWithSticker", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("ReplyWithSticker failed", "err", err)
+		Logger.Error("ReplyWithSticker failed", "err", err)
 	} else {
-		slog.Debug("ReplyWithSticker sent successfully")
+		Logger.Debug("ReplyWithSticker sent successfully")
 	}
 	return err
 }
@@ -778,11 +778,11 @@ func (ctx *PluginContext) GetArgsJIDs() []types.JID {
 
 // IsSameUserRaw compares two JIDs, resolving and matching any LID mappings.
 func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID) bool {
-	slog.Debug("IsSameUserRaw checking", "a", a.String(), "b", b.String())
+	Logger.Debug("IsSameUserRaw checking", "a", a.String(), "b", b.String())
 	a = a.ToNonAD()
 	b = b.ToNonAD()
 	if a == b {
-		slog.Debug("IsSameUserRaw result: true (direct match)", "a", a.String(), "b", b.String())
+		Logger.Debug("IsSameUserRaw result: true (direct match)", "a", a.String(), "b", b.String())
 		return true
 	}
 
@@ -801,7 +801,7 @@ func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID
 	}
 
 	if aPN == bPN {
-		slog.Debug("IsSameUserRaw result: true (PN match)", "a", a.String(), "b", b.String())
+		Logger.Debug("IsSameUserRaw result: true (PN match)", "a", a.String(), "b", b.String())
 		return true
 	}
 
@@ -819,14 +819,14 @@ func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID
 	}
 
 	res := aLID == bLID
-	slog.Debug("IsSameUserRaw result", "a", a.String(), "b", b.String(), "result", res)
+	Logger.Debug("IsSameUserRaw result", "a", a.String(), "b", b.String(), "result", res)
 	return res
 }
 
 // IsSameUser compares two JIDs, resolving and matching any LID mappings.
 func (ctx *PluginContext) IsSameUser(a, b types.JID) bool {
 	res := IsSameUserRaw(ctx.Ctx, ctx.Client, a, b)
-	slog.Debug("IsSameUser helper check", "a", a.String(), "b", b.String(), "result", res)
+	Logger.Debug("IsSameUser helper check", "a", a.String(), "b", b.String(), "result", res)
 	return res
 }
 
@@ -892,20 +892,20 @@ func (ctx *PluginContext) IsOwner() bool {
 
 // IsSudo checks if the message sender is a registered sudo user or the bot owner.
 func (ctx *PluginContext) IsSudo() bool {
-	slog.Debug("IsSudo checking", "sender", ctx.Sender.String())
+	Logger.Debug("IsSudo checking", "sender", ctx.Sender.String())
 	if ctx.IsOwner() {
-		slog.Debug("IsSudo result: true (bot owner)", "sender", ctx.Sender.String())
+		Logger.Debug("IsSudo result: true (bot owner)", "sender", ctx.Sender.String())
 		return true
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		slog.Debug("IsSudo result: false (settings store unavailable)", "sender", ctx.Sender.String())
+		Logger.Debug("IsSudo result: false (settings store unavailable)", "sender", ctx.Sender.String())
 		return false
 	}
 	raw, err := getSetting(ctx.Ctx, s, "sudoers")
 	if err != nil || raw == "" {
-		slog.Debug("IsSudo result: false (no sudoers configured)", "sender", ctx.Sender.String())
+		Logger.Debug("IsSudo result: false (no sudoers configured)", "sender", ctx.Sender.String())
 		return false
 	}
 
@@ -913,12 +913,12 @@ func (ctx *PluginContext) IsSudo() bool {
 		sudoerJID, err := types.ParseJID(sudoerStr)
 		if err == nil {
 			if ctx.IsSameUser(ctx.Sender, sudoerJID) {
-				slog.Debug("IsSudo result: true (sudoer list match)", "sender", ctx.Sender.String())
+				Logger.Debug("IsSudo result: true (sudoer list match)", "sender", ctx.Sender.String())
 				return true
 			}
 		}
 	}
-	slog.Debug("IsSudo result: false", "sender", ctx.Sender.String())
+	Logger.Debug("IsSudo result: false", "sender", ctx.Sender.String())
 	return false
 }
 
@@ -1063,10 +1063,10 @@ func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 		}
 	}
 
-	slog.Debug("Building SendAudio", "data_len", len(data), "mimetype", mimetype, "isPTT", isPTT)
+	Logger.Debug("Building SendAudio", "data_len", len(data), "mimetype", mimetype, "isPTT", isPTT)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaAudio)
 	if err != nil {
-		slog.Error("SendAudio: upload failed", "err", err)
+		Logger.Error("SendAudio: upload failed", "err", err)
 		return fmt.Errorf("audio upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -1089,12 +1089,12 @@ func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 			msg.AudioMessage.Waveform = meta.Waveform
 		}
 	}
-	slog.Debug("Sending SendAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("Sending SendAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("SendAudio failed", "err", err)
+		Logger.Error("SendAudio failed", "err", err)
 	} else {
-		slog.Debug("SendAudio sent successfully")
+		Logger.Debug("SendAudio sent successfully")
 	}
 	return err
 }
@@ -1115,10 +1115,10 @@ func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 	}
 
 	cinfo := ctx.replyContextInfo()
-	slog.Debug("Building ReplyWithAudio", "data_len", len(data), "mimetype", mimetype, "isPTT", isPTT, "context_info", cinfo)
+	Logger.Debug("Building ReplyWithAudio", "data_len", len(data), "mimetype", mimetype, "isPTT", isPTT, "context_info", cinfo)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaAudio)
 	if err != nil {
-		slog.Error("ReplyWithAudio: upload failed", "err", err)
+		Logger.Error("ReplyWithAudio: upload failed", "err", err)
 		return fmt.Errorf("audio upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -1142,12 +1142,12 @@ func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 			msg.AudioMessage.Waveform = meta.Waveform
 		}
 	}
-	slog.Debug("Sending ReplyWithAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("Sending ReplyWithAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("ReplyWithAudio failed", "err", err)
+		Logger.Error("ReplyWithAudio failed", "err", err)
 	} else {
-		slog.Debug("ReplyWithAudio sent successfully")
+		Logger.Debug("ReplyWithAudio sent successfully")
 	}
 	return err
 }
@@ -1162,8 +1162,8 @@ func (ctx *PluginContext) SendTextWithMentions(text string, jids []types.JID) er
 			mentioned = append(mentioned, j.String())
 		}
 	}
-	slog.Debug("Building SendTextWithMentions", "text", text, "formatted", formatted, "mentioned_jids", mentioned)
-	slog.Debug("Sending SendTextWithMentions", "chat", ctx.Chat.String())
+	Logger.Debug("Building SendTextWithMentions", "text", text, "formatted", formatted, "mentioned_jids", mentioned)
+	Logger.Debug("Sending SendTextWithMentions", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text: &formatted,
@@ -1173,9 +1173,9 @@ func (ctx *PluginContext) SendTextWithMentions(text string, jids []types.JID) er
 		},
 	})
 	if err != nil {
-		slog.Error("SendTextWithMentions failed", "err", err)
+		Logger.Error("SendTextWithMentions failed", "err", err)
 	} else {
-		slog.Debug("SendTextWithMentions sent successfully")
+		Logger.Debug("SendTextWithMentions sent successfully")
 	}
 	return err
 }
@@ -1198,8 +1198,8 @@ func (ctx *PluginContext) ReplyWithMentions(text string, jids []types.JID) error
 			MentionedJID: mentioned,
 		}
 	}
-	slog.Debug("Building ReplyWithMentions", "text", text, "formatted", formatted, "mentioned_jids", mentioned, "context_info", cInfo)
-	slog.Debug("Sending ReplyWithMentions", "chat", ctx.Chat.String())
+	Logger.Debug("Building ReplyWithMentions", "text", text, "formatted", formatted, "mentioned_jids", mentioned, "context_info", cInfo)
+	Logger.Debug("Sending ReplyWithMentions", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
@@ -1207,9 +1207,9 @@ func (ctx *PluginContext) ReplyWithMentions(text string, jids []types.JID) error
 		},
 	})
 	if err != nil {
-		slog.Error("ReplyWithMentions failed", "err", err)
+		Logger.Error("ReplyWithMentions failed", "err", err)
 	} else {
-		slog.Debug("ReplyWithMentions sent successfully")
+		Logger.Debug("ReplyWithMentions sent successfully")
 	}
 	return err
 }
@@ -1236,7 +1236,7 @@ func (ctx *PluginContext) SendTextWithGroupMention(text string) error {
 		NonJIDMentions: &nonJID,
 	}
 
-	slog.Debug("Sending SendTextWithGroupMention", "chat", ctx.Chat.String())
+	Logger.Debug("Sending SendTextWithGroupMention", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
@@ -1244,7 +1244,7 @@ func (ctx *PluginContext) SendTextWithGroupMention(text string) error {
 		},
 	})
 	if err != nil {
-		slog.Error("SendTextWithGroupMention failed", "err", err)
+		Logger.Error("SendTextWithGroupMention failed", "err", err)
 	}
 	return err
 }
@@ -1261,7 +1261,7 @@ func (ctx *PluginContext) ReplyWithGroupMention(text string) error {
 	}
 	cInfo.NonJIDMentions = &nonJID
 
-	slog.Debug("Sending ReplyWithGroupMention", "chat", ctx.Chat.String())
+	Logger.Debug("Sending ReplyWithGroupMention", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
@@ -1269,7 +1269,7 @@ func (ctx *PluginContext) ReplyWithGroupMention(text string) error {
 		},
 	})
 	if err != nil {
-		slog.Error("ReplyWithGroupMention failed", "err", err)
+		Logger.Error("ReplyWithGroupMention failed", "err", err)
 	}
 	return err
 }
@@ -1283,9 +1283,9 @@ func (ctx *PluginContext) React(emoji string) error {
 	msg := ctx.Client.BuildReaction(ctx.Chat, ctx.Evt.Info.Sender, ctx.Evt.Info.ID, emoji)
 	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		slog.Error("React failed", "emoji", emoji, "err", err)
+		Logger.Error("React failed", "emoji", emoji, "err", err)
 	} else {
-		slog.Debug("React sent successfully", "emoji", emoji)
+		Logger.Debug("React sent successfully", "emoji", emoji)
 	}
 	return err
 }
@@ -1399,7 +1399,7 @@ func ExtractViewOnceMessage(msg *waE2E.Message) *waE2E.Message {
 // quoteID is the stanza ID of the original ViewOnce message; when non-empty the forwarded message quotes it so the recipient can see whose VV was intercepted.
 func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client, msg *waE2E.Message, senderJID types.JID, pushName string, targetJID types.JID, quoteID string, sourceChat ...types.JID) error {
 	if msg == nil || client == nil {
-		slog.Error("[AutoVV] UnwrapAndSendViewOnceMessage: invalid nil arguments", "msg_nil", msg == nil, "client_nil", client == nil)
+		Logger.Error("[AutoVV] UnwrapAndSendViewOnceMessage: invalid nil arguments", "msg_nil", msg == nil, "client_nil", client == nil)
 		return fmt.Errorf("invalid arguments")
 	}
 
@@ -1408,7 +1408,7 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		srcChat = sourceChat[0]
 	}
 
-	slog.Info("[AutoVV] UnwrapAndSendViewOnceMessage started",
+	Logger.Info("[AutoVV] UnwrapAndSendViewOnceMessage started",
 		"sender_jid", senderJID.String(),
 		"sender_non_ad", senderJID.ToNonAD().String(),
 		"push_name", pushName,
@@ -1420,29 +1420,29 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 
 	unwrapped := ExtractViewOnceMessage(msg)
 	if unwrapped == nil {
-		slog.Error("[AutoVV] Failed to extract inner ViewOnce message")
+		Logger.Error("[AutoVV] Failed to extract inner ViewOnce message")
 		return fmt.Errorf("failed to extract inner ViewOnce message")
 	}
 
 	var mediaType string
 	if img := unwrapped.GetImageMessage(); img != nil {
 		mediaType = "image"
-		slog.Debug("[AutoVV] Downloading ViewOnce image", "mimetype", img.GetMimetype(), "file_length", img.GetFileLength())
+		Logger.Debug("[AutoVV] Downloading ViewOnce image", "mimetype", img.GetMimetype(), "file_length", img.GetFileLength())
 		data, err := client.Download(ctx, img)
 		if err != nil {
-			slog.Error("[AutoVV] Failed to download viewonce image", "err", err)
+			Logger.Error("[AutoVV] Failed to download viewonce image", "err", err)
 			return fmt.Errorf("failed to download viewonce image: %w", err)
 		}
 		if len(data) == 0 {
-			slog.Error("[AutoVV] Downloaded viewonce image data is empty")
+			Logger.Error("[AutoVV] Downloaded viewonce image data is empty")
 			return fmt.Errorf("downloaded viewonce image data is empty")
 		}
 		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaImage)
 		if errUp != nil {
-			slog.Error("[AutoVV] Failed to upload unwrapped viewonce image", "err", errUp)
+			Logger.Error("[AutoVV] Failed to upload unwrapped viewonce image", "err", errUp)
 			return fmt.Errorf("failed to upload unwrapped viewonce image: %w", errUp)
 		}
-		slog.Debug("[AutoVV] Image uploaded successfully", "data_len", len(data), "url", uploaded.URL)
+		Logger.Debug("[AutoVV] Image uploaded successfully", "data_len", len(data), "url", uploaded.URL)
 		img.URL = &uploaded.URL
 		img.DirectPath = &uploaded.DirectPath
 		img.MediaKey = uploaded.MediaKey
@@ -1452,22 +1452,22 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		img.ViewOnce = new(false)
 	} else if vid := unwrapped.GetVideoMessage(); vid != nil {
 		mediaType = "video"
-		slog.Debug("[AutoVV] Downloading ViewOnce video", "mimetype", vid.GetMimetype(), "file_length", vid.GetFileLength())
+		Logger.Debug("[AutoVV] Downloading ViewOnce video", "mimetype", vid.GetMimetype(), "file_length", vid.GetFileLength())
 		data, err := client.Download(ctx, vid)
 		if err != nil {
-			slog.Error("[AutoVV] Failed to download viewonce video", "err", err)
+			Logger.Error("[AutoVV] Failed to download viewonce video", "err", err)
 			return fmt.Errorf("failed to download viewonce video: %w", err)
 		}
 		if len(data) == 0 {
-			slog.Error("[AutoVV] Downloaded viewonce video data is empty")
+			Logger.Error("[AutoVV] Downloaded viewonce video data is empty")
 			return fmt.Errorf("downloaded viewonce video data is empty")
 		}
 		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaVideo)
 		if errUp != nil {
-			slog.Error("[AutoVV] Failed to upload unwrapped viewonce video", "err", errUp)
+			Logger.Error("[AutoVV] Failed to upload unwrapped viewonce video", "err", errUp)
 			return fmt.Errorf("failed to upload unwrapped viewonce video: %w", errUp)
 		}
-		slog.Debug("[AutoVV] Video uploaded successfully", "data_len", len(data), "url", uploaded.URL)
+		Logger.Debug("[AutoVV] Video uploaded successfully", "data_len", len(data), "url", uploaded.URL)
 		vid.URL = &uploaded.URL
 		vid.DirectPath = &uploaded.DirectPath
 		vid.MediaKey = uploaded.MediaKey
@@ -1477,14 +1477,14 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		vid.ViewOnce = new(false)
 	} else if aud := unwrapped.GetAudioMessage(); aud != nil {
 		mediaType = "audio"
-		slog.Debug("[AutoVV] Downloading ViewOnce audio", "mimetype", aud.GetMimetype(), "file_length", aud.GetFileLength())
+		Logger.Debug("[AutoVV] Downloading ViewOnce audio", "mimetype", aud.GetMimetype(), "file_length", aud.GetFileLength())
 		data, err := client.Download(ctx, aud)
 		if err != nil {
-			slog.Error("[AutoVV] Failed to download viewonce audio", "err", err)
+			Logger.Error("[AutoVV] Failed to download viewonce audio", "err", err)
 			return fmt.Errorf("failed to download viewonce audio: %w", err)
 		}
 		if len(data) == 0 {
-			slog.Error("[AutoVV] Downloaded viewonce audio data is empty")
+			Logger.Error("[AutoVV] Downloaded viewonce audio data is empty")
 			return fmt.Errorf("downloaded viewonce audio data is empty")
 		}
 		meta, cErr := EnsureOpusPTT(ctx, data)
@@ -1499,10 +1499,10 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		}
 		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaAudio)
 		if errUp != nil {
-			slog.Error("[AutoVV] Failed to upload unwrapped viewonce audio", "err", errUp)
+			Logger.Error("[AutoVV] Failed to upload unwrapped viewonce audio", "err", errUp)
 			return fmt.Errorf("failed to upload unwrapped viewonce audio: %w", errUp)
 		}
-		slog.Debug("[AutoVV] Audio uploaded successfully", "data_len", len(data), "url", uploaded.URL)
+		Logger.Debug("[AutoVV] Audio uploaded successfully", "data_len", len(data), "url", uploaded.URL)
 		aud.URL = &uploaded.URL
 		aud.DirectPath = &uploaded.DirectPath
 		aud.MediaKey = uploaded.MediaKey
@@ -1545,7 +1545,7 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 			remoteJIDStr = *ci.RemoteJID
 		}
 
-		slog.Info("[AutoVV] Quoted ContextInfo prepared",
+		Logger.Info("[AutoVV] Quoted ContextInfo prepared",
 			"stanza_id", quoteID,
 			"participant", participant,
 			"remote_jid", remoteJIDStr,
@@ -1561,61 +1561,61 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 			aud.ContextInfo = ci
 		}
 	} else {
-		slog.Warn("[AutoVV] quoteID is empty; forwarding without quote")
+		Logger.Warn("[AutoVV] quoteID is empty; forwarding without quote")
 	}
 
 	resp, err := client.SendMessage(ctx, targetJID, unwrapped)
 	if err != nil {
-		slog.Error("[AutoVV] SendMessage failed", "target_jid", targetJID.String(), "err", err)
+		Logger.Error("[AutoVV] SendMessage failed", "target_jid", targetJID.String(), "err", err)
 		return err
 	}
-	slog.Info("[AutoVV] Forwarded message sent successfully", "target_jid", targetJID.String(), "resp_id", resp.ID, "timestamp", resp.Timestamp)
+	Logger.Info("[AutoVV] Forwarded message sent successfully", "target_jid", targetJID.String(), "resp_id", resp.ID, "timestamp", resp.Timestamp)
 	return nil
 }
 
 // IsAdminRaw checks if a specific JID is a group admin.
 func IsAdminRaw(ctx context.Context, client *whatsmeow.Client, info *types.GroupInfo, jid types.JID) bool {
-	slog.Debug("IsAdminRaw checking", "jid", jid.String(), "group", info.JID.String())
+	Logger.Debug("IsAdminRaw checking", "jid", jid.String(), "group", info.JID.String())
 	target := jid.ToNonAD()
 	for _, p := range info.Participants {
 		if IsSameUserRaw(ctx, client, p.JID, target) {
 			res := p.IsAdmin || p.IsSuperAdmin
-			slog.Debug("IsAdminRaw result", "jid", jid.String(), "isAdmin", res, "isSuperAdmin", p.IsSuperAdmin)
+			Logger.Debug("IsAdminRaw result", "jid", jid.String(), "isAdmin", res, "isSuperAdmin", p.IsSuperAdmin)
 			return res
 		}
 	}
-	slog.Debug("IsAdminRaw result: false (not a participant)", "jid", jid.String())
+	Logger.Debug("IsAdminRaw result: false (not a participant)", "jid", jid.String())
 	return false
 }
 
 // IsAdmin checks if a specific JID is a group admin.
 func (ctx *PluginContext) IsAdmin(info *types.GroupInfo, jid types.JID) bool {
 	res := IsAdminRaw(ctx.Ctx, ctx.Client, info, jid)
-	slog.Debug("IsAdmin helper check", "jid", jid.String(), "result", res)
+	Logger.Debug("IsAdmin helper check", "jid", jid.String(), "result", res)
 	return res
 }
 
 // AmIAdmin checks if the bot itself is an admin in the group.
 func (ctx *PluginContext) AmIAdmin(info *types.GroupInfo) bool {
-	slog.Debug("AmIAdmin checking")
+	Logger.Debug("AmIAdmin checking")
 	if ctx.Client.Store.ID == nil {
-		slog.Debug("AmIAdmin result: false (bot JID nil)")
+		Logger.Debug("AmIAdmin result: false (bot JID nil)")
 		return false
 	}
 	res := ctx.IsAdmin(info, *ctx.Client.Store.ID)
-	slog.Debug("AmIAdmin result", "result", res)
+	Logger.Debug("AmIAdmin result", "result", res)
 	return res
 }
 
 // IsSenderAdmin checks if the command sender is a group admin or bot sudoer.
 func (ctx *PluginContext) IsSenderAdmin(info *types.GroupInfo) bool {
-	slog.Debug("IsSenderAdmin checking", "sender", ctx.Sender.String())
+	Logger.Debug("IsSenderAdmin checking", "sender", ctx.Sender.String())
 	if ctx.IsSudo() {
-		slog.Debug("IsSenderAdmin result: true (is sudo)")
+		Logger.Debug("IsSenderAdmin result: true (is sudo)")
 		return true
 	}
 	res := ctx.IsAdmin(info, ctx.Sender)
-	slog.Debug("IsSenderAdmin result", "sender", ctx.Sender.String(), "result", res)
+	Logger.Debug("IsSenderAdmin result", "sender", ctx.Sender.String(), "result", res)
 	return res
 }
 
@@ -1656,7 +1656,7 @@ func GetDirectMessageText(msg *waE2E.Message) string {
 // SanitizeJID replaces special characters in a JID string for safe file/key representation.
 func SanitizeJID(s string) string {
 	res := strings.NewReplacer("@", "_at_", ":", "_", ".", "_").Replace(s)
-	log.Printf("[DEBUG] Sanitized JID from %s to %s", s, res)
+	Logger.Debugf("Sanitized JID from %s to %s", s, res)
 	return res
 }
 

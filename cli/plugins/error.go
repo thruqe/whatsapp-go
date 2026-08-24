@@ -1,7 +1,7 @@
 package plugins
 
 import (
-	"log/slog"
+	"whatsrook/logger"
 )
 
 type PluginError struct {
@@ -55,7 +55,7 @@ func logHandlerErr(name string, err error) {
 	if err == nil {
 		return
 	}
-	slog.Error("command handler failed", "command", name, "err", err)
+	Logger.Error("command handler failed", "command", name, "err", err)
 }
 
 func LogHandlerErrWithContext(cctx *Context, name string, err error) {
@@ -63,7 +63,7 @@ func LogHandlerErrWithContext(cctx *Context, name string, err error) {
 		return
 	}
 
-	slog.Error("command handler failed", "command", name, "err", err)
+	Logger.Error("command handler failed", "command", name, "err", err)
 
 	if cctx == nil {
 		return

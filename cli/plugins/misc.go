@@ -4,11 +4,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
+
 	"strings"
 	cliutils "whatsrook/cli/utils"
+	"whatsrook/logger"
 
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -185,7 +186,7 @@ func handleUrban(ctx *Context) error {
 	})
 
 	if err != nil {
-		slog.Debug("urban dictionary error", slog.String("error", err.Error()))
+		Logger.Debug("urban dictionary error", "error", err.Error())
 	}
 	return nil
 }

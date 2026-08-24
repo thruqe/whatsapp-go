@@ -4,7 +4,8 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
+
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -23,7 +24,7 @@ func (b *Bot) Controller(ctx context.Context, ctrl ControlMessage) EventMessage 
 	case ControlGetStats:
 		return b.CGetStats(ctx, ctrl)
 	default:
-		slog.Warn("unknown control type", "kind", ctrl.Kind)
+		Logger.Warn("unknown control type", "kind", ctrl.Kind)
 		return ackEvent(ctrl.ID, false, "unknown control type")
 	}
 }
@@ -35,12 +36,12 @@ func (b *Bot) CSendMessage(ctx context.Context, ctrl ControlMessage) EventMessag
 	}
 	var p SendMessagePayload
 	if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
-		slog.Warn("bad send_message payload", "err", err)
+		Logger.Warn("bad send_message payload", "err", err)
 		return ackEvent(ctrl.ID, false, "invalid payload")
 	}
 	jid, err := types.ParseJID(p.To)
 	if err != nil {
-		slog.Warn("invalid JID", "to", p.To, "err", err)
+		Logger.Warn("invalid JID", "to", p.To, "err", err)
 		return ackEvent(ctrl.ID, false, "invalid JID: "+err.Error())
 	}
 	var msg waE2E.Message
@@ -59,10 +60,10 @@ func (b *Bot) CSendMessage(ctx context.Context, ctrl ControlMessage) EventMessag
 	}
 	resp, err := cli.SendMessage(ctx, jid, &msg)
 	if err != nil {
-		slog.Error("send failed", "err", err)
+		Logger.Error("send failed", "err", err)
 		return ackEvent(ctrl.ID, false, err.Error())
 	}
-	slog.Info("sent", "id", resp.ID)
+	Logger.Info("sent", "id", resp.ID)
 	return ackEvent(ctrl.ID, true, "")
 }
 
@@ -73,25 +74,25 @@ func (b *Bot) CSendReaction(ctx context.Context, ctrl ControlMessage) EventMessa
 	}
 	var p SendReactionPayload
 	if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
-		slog.Warn("bad send_reaction payload", "err", err)
+		Logger.Warn("bad send_reaction payload", "err", err)
 		return ackEvent(ctrl.ID, false, "invalid payload")
 	}
 	jid, err := types.ParseJID(p.To)
 	if err != nil {
-		slog.Warn("invalid JID", "err", err)
+		Logger.Warn("invalid JID", "err", err)
 		return ackEvent(ctrl.ID, false, "invalid JID: "+err.Error())
 	}
 	senderJID := types.EmptyJID
 	if p.Sender != nil {
 		senderJID, err = types.ParseJID(*p.Sender)
 		if err != nil {
-			slog.Warn("invalid sender JID", "err", err)
+			Logger.Warn("invalid sender JID", "err", err)
 			return ackEvent(ctrl.ID, false, "invalid sender JID: "+err.Error())
 		}
 	}
 	_, err = cli.SendMessage(ctx, jid, cli.BuildReaction(jid, senderJID, types.MessageID(p.MessageID), p.Emoji))
 	if err != nil {
-		slog.Error("reaction failed", "err", err)
+		Logger.Error("reaction failed", "err", err)
 		return ackEvent(ctrl.ID, false, err.Error())
 	}
 	return ackEvent(ctrl.ID, true, "")
@@ -104,19 +105,19 @@ func (b *Bot) CEditMessage(ctx context.Context, ctrl ControlMessage) EventMessag
 	}
 	var p EditMessagePayload
 	if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
-		slog.Warn("bad edit_message payload", "err", err)
+		Logger.Warn("bad edit_message payload", "err", err)
 		return ackEvent(ctrl.ID, false, "invalid payload")
 	}
 	jid, err := types.ParseJID(p.To)
 	if err != nil {
-		slog.Warn("invalid JID", "err", err)
+		Logger.Warn("invalid JID", "err", err)
 		return ackEvent(ctrl.ID, false, "invalid JID: "+err.Error())
 	}
 	_, err = cli.SendMessage(ctx, jid, cli.BuildEdit(jid, p.MessageID, &waE2E.Message{
 		Conversation: new(string),
 	}))
 	if err != nil {
-		slog.Error("edit failed", "err", err)
+		Logger.Error("edit failed", "err", err)
 		return ackEvent(ctrl.ID, false, err.Error())
 	}
 	return ackEvent(ctrl.ID, true, "")
@@ -129,12 +130,12 @@ func (b *Bot) CRevokeMessage(ctx context.Context, ctrl ControlMessage) EventMess
 	}
 	var p RevokeMessagePayload
 	if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
-		slog.Warn("bad revoke_message payload", "err", err)
+		Logger.Warn("bad revoke_message payload", "err", err)
 		return ackEvent(ctrl.ID, false, "invalid payload")
 	}
 	jid, err := types.ParseJID(p.To)
 	if err != nil {
-		slog.Warn("invalid JID", "err", err)
+		Logger.Warn("invalid JID", "err", err)
 		return ackEvent(ctrl.ID, false, "invalid JID: "+err.Error())
 	}
 	var revokeMsg *waE2E.Message
@@ -145,7 +146,7 @@ func (b *Bot) CRevokeMessage(ctx context.Context, ctrl ControlMessage) EventMess
 	}
 	_, err = cli.SendMessage(ctx, jid, revokeMsg)
 	if err != nil {
-		slog.Error("revoke failed", "err", err)
+		Logger.Error("revoke failed", "err", err)
 		return ackEvent(ctrl.ID, false, err.Error())
 	}
 	return ackEvent(ctrl.ID, true, "")

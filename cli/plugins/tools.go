@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"net/http"
+
 	"net/url"
 	"os"
 	"os/exec"
@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
@@ -145,7 +146,7 @@ func handleSaveContact(ctx *Context) error {
 		firstName = fields[0]
 	}
 
-	slog.Debug("handleSaveContact: processing contact save", "target", targetJID.String(), "fullName", fullName, "firstName", firstName)
+	Logger.Debug("handleSaveContact: processing contact save", "target", targetJID.String(), "fullName", fullName, "firstName", firstName)
 
 	var pnStr string
 	var lidStr string
@@ -203,20 +204,20 @@ func handleSaveContact(ctx *Context) error {
 		},
 	}
 
-	slog.Debug("handleSaveContact: sending AppState patch", "type", patch.Type, "indexJID", indexJID, "target", targetJID.String())
+	Logger.Debug("handleSaveContact: sending AppState patch", "type", patch.Type, "indexJID", indexJID, "target", targetJID.String())
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		slog.Error("handleSaveContact: failed to send AppState patch", "err", err, "target", targetJID.String())
+		Logger.Error("handleSaveContact: failed to send AppState patch", "err", err, "target", targetJID.String())
 	} else {
-		slog.Debug("handleSaveContact: AppState patch sent successfully", "target", targetJID.String())
+		Logger.Debug("handleSaveContact: AppState patch sent successfully", "target", targetJID.String())
 	}
 
 	// Update local device contact store cache (correct argument order: firstName, fullName)
 	if ctx.Client.Store != nil && ctx.Client.Store.Contacts != nil {
 		if err := ctx.Client.Store.Contacts.PutContactName(ctx.Ctx, targetJID.ToNonAD(), firstName, fullName); err != nil {
-			slog.Error("handleSaveContact: failed to update local contact store", "err", err, "target", targetJID.String())
+			Logger.Error("handleSaveContact: failed to update local contact store", "err", err, "target", targetJID.String())
 		} else {
-			slog.Debug("handleSaveContact: updated local contact store cache", "target", targetJID.String())
+			Logger.Debug("handleSaveContact: updated local contact store cache", "target", targetJID.String())
 		}
 		if !pnJID.IsEmpty() {
 			_ = ctx.Client.Store.Contacts.PutContactName(ctx.Ctx, pnJID.ToNonAD(), firstName, fullName)
@@ -233,9 +234,9 @@ func handleSaveContact(ctx *Context) error {
 
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, vcardMsg)
 	if err != nil {
-		slog.Error("handleSaveContact: failed to send vCard message", "err", err, "chat", ctx.Chat.String())
+		Logger.Error("handleSaveContact: failed to send vCard message", "err", err, "chat", ctx.Chat.String())
 	} else {
-		slog.Debug("handleSaveContact: sent native vCard contact message", "chat", ctx.Chat.String())
+		Logger.Debug("handleSaveContact: sent native vCard contact message", "chat", ctx.Chat.String())
 	}
 
 	resolvedJID, username := ctx.ResolveMention(targetJID)
@@ -434,7 +435,7 @@ func handleScreenshot(ctx *Context) error {
 
 	imgData, mimeType, err := fetchWebsiteScreenshot(ctx.Ctx, targetURL)
 	if err != nil {
-		slog.Error("handleScreenshot failed", "url", targetURL, "err", err)
+		Logger.Error("handleScreenshot failed", "url", targetURL, "err", err)
 		return ctx.Replyf("Failed to capture screenshot for `%s`.\nPlease verify the website URL and try again.", targetURL)
 	}
 
@@ -543,7 +544,7 @@ func handleTTS(ctx *Context) error {
 
 	mp3Data, err := fetchGoogleTTS(ctx.Ctx, textToSpeak, lang)
 	if err != nil {
-		slog.Error("handleTTS: Google TTS fetch failed", "err", err, "lang", lang)
+		Logger.Error("handleTTS: Google TTS fetch failed", "err", err, "lang", lang)
 		return ctx.Replyf("Failed to generate speech audio: %v", err)
 	}
 
@@ -552,7 +553,7 @@ func handleTTS(ctx *Context) error {
 		return ctx.ReplyWithAudio(opusData, "audio/ogg; codecs=opus")
 	}
 
-	slog.Warn("handleTTS: ffmpeg OPUS conversion failed, falling back to automatic conversion", "err", errConv)
+	Logger.Warn("handleTTS: ffmpeg OPUS conversion failed, falling back to automatic conversion", "err", errConv)
 	return ctx.ReplyWithAudio(mp3Data, "audio/ogg; codecs=opus")
 }
 
@@ -689,7 +690,7 @@ func handleUserInfo(ctx *Context) error {
 	}
 
 	if errPP == nil && ppInfo != nil && ppInfo.URL != "" {
-		slog.Info("handleUserInfo: Downloading profile photo", "url", ppInfo.URL)
+		Logger.Info("handleUserInfo: Downloading profile photo", "url", ppInfo.URL)
 		imgData, errDownload := utils.FetchURLBytes(ctx.Ctx, ppInfo.URL)
 		if errDownload == nil && len(imgData) > 0 {
 			return ctx.ReplyWithImage(imgData, "image/jpeg", infoText)

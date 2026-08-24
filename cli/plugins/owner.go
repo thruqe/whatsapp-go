@@ -5,13 +5,14 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"os"
+
 	"os/exec"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -197,10 +198,10 @@ func handleSetBotPP(ctx *Context) error {
 		ownJID = ctx.Client.Store.ID.ToNonAD()
 	}
 
-	slog.Info("handleSetBotPP: Setting bot profile picture", "rawBytes", len(rawBytes), "jpegBytes", len(jpegData), "targetJID", ownJID.String())
+	Logger.Info("handleSetBotPP: Setting bot profile picture", "rawBytes", len(rawBytes), "jpegBytes", len(jpegData), "targetJID", ownJID.String())
 	picID, errSet := ctx.Client.SetGroupPhoto(ctx.Ctx, ownJID, jpegData)
 	if errSet != nil {
-		slog.Error("handleSetBotPP failed", "err", errSet)
+		Logger.Error("handleSetBotPP failed", "err", errSet)
 		return ctx.Replyf("Failed to update profile picture: %v", errSet)
 	}
 
@@ -538,7 +539,7 @@ func handleStatus(ctx *Context) error {
 			}
 			uploaded, uErr := ctx.Client.Upload(ctx.Ctx, mediaBytes, whatsmeow.MediaImage)
 			if uErr != nil {
-				slog.Error("handleStatus: image upload failed", "err", uErr)
+				Logger.Error("handleStatus: image upload failed", "err", uErr)
 				return ctx.Replyf("Failed to upload status image: %v", uErr)
 			}
 			msg := &waE2E.Message{
@@ -559,7 +560,7 @@ func handleStatus(ctx *Context) error {
 
 			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, cliutils.StatusBroadcastJID, msg)
 			if sendErr != nil {
-				slog.Error("handleStatus: send image status failed", "err", sendErr)
+				Logger.Error("handleStatus: send image status failed", "err", sendErr)
 				return ctx.Replyf("Failed to post image status: %v", sendErr)
 			}
 			return ctx.Reply("Successfully posted image status update.")
@@ -571,7 +572,7 @@ func handleStatus(ctx *Context) error {
 			}
 			uploaded, uErr := ctx.Client.Upload(ctx.Ctx, mediaBytes, whatsmeow.MediaVideo)
 			if uErr != nil {
-				slog.Error("handleStatus: video upload failed", "err", uErr)
+				Logger.Error("handleStatus: video upload failed", "err", uErr)
 				return ctx.Replyf("Failed to upload status video: %v", uErr)
 			}
 			msg := &waE2E.Message{
@@ -592,7 +593,7 @@ func handleStatus(ctx *Context) error {
 
 			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, cliutils.StatusBroadcastJID, msg)
 			if sendErr != nil {
-				slog.Error("handleStatus: send video status failed", "err", sendErr)
+				Logger.Error("handleStatus: send video status failed", "err", sendErr)
 				return ctx.Replyf("Failed to post video status: %v", sendErr)
 			}
 			return ctx.Reply("Successfully posted video status update.")
@@ -612,7 +613,7 @@ func handleStatus(ctx *Context) error {
 
 	_, sendErr := ctx.Client.SendMessage(ctx.Ctx, cliutils.StatusBroadcastJID, msg)
 	if sendErr != nil {
-		slog.Error("handleStatus: send text status failed", "err", sendErr)
+		Logger.Error("handleStatus: send text status failed", "err", sendErr)
 		return ctx.Replyf("Failed to post text status: %v", sendErr)
 	}
 	return ctx.Reply("Successfully posted text status update.")
@@ -660,7 +661,7 @@ func handleSetSudo(ctx *Context) error {
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(sudoers, " ")); err != nil {
-		slog.Error("handleSetSudo: PutSetting failed", "err", err, "sudoers", sudoers)
+		Logger.Error("handleSetSudo: PutSetting failed", "err", err, "sudoers", sudoers)
 		return ctx.Replyf("Failed to update sudoers list: %v", err)
 	}
 
@@ -721,7 +722,7 @@ func handleDelSudo(ctx *Context) error {
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(newSudoers, " ")); err != nil {
-		slog.Error("handleDelSudo: PutSetting failed", "err", err, "newSudoers", newSudoers)
+		Logger.Error("handleDelSudo: PutSetting failed", "err", err, "newSudoers", newSudoers)
 		return ctx.Replyf("Failed to update sudoers list: %v", err)
 	}
 
@@ -1011,7 +1012,7 @@ func showUpdateStatus(ctx *Context, channel string) error {
 func performCheck(ctx *Context) error {
 	check, err := updater.CheckUpdate()
 	if err != nil {
-		slog.Error("update check failed", "err", err)
+		Logger.Error("update check failed", "err", err)
 		return ctx.Replyf("Update check failed: %v", err)
 	}
 
@@ -1029,13 +1030,13 @@ func performCheck(ctx *Context) error {
 func performUpgrade(ctx *Context, isBeta bool) error {
 	res, err := updater.PerformUpdate(isBeta)
 	if err != nil {
-		slog.Error("update execution failed", "err", err)
+		Logger.Error("update execution failed", "err", err)
 		return ctx.Replyf("Update failed: %v", err)
 	}
 
 	_ = ctx.Replyf("%s\nRestarting process now...", res.Message)
 
 	err = updater.RestartProcess()
-	slog.Error("failed to restart process after update", "err", err)
+	Logger.Error("failed to restart process after update", "err", err)
 	return ctx.Replyf("Updated binary successfully, but process restart failed: %v", err)
 }

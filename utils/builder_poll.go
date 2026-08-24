@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"log/slog"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -75,10 +75,10 @@ func (p *PollBuilder) sendMsg(to types.JID) (types.MessageID, error) {
 		},
 	}
 
-	slog.Debug("WARook: sending poll", "to", to.String(), "question", p.question, "options", len(p.options), "single", p.single)
+	Logger.Debug("WARook: sending poll", "to", to.String(), "question", p.question, "options", len(p.options), "single", p.single)
 	resp, err := ctx.Client.SendMessage(ctx.GetSendContext(), to, msg)
 	if err != nil {
-		slog.Error("WARook: sendPollMsg failed", "to", to.String(), "err", err)
+		Logger.Error("WARook: sendPollMsg failed", "to", to.String(), "err", err)
 		return "", err
 	}
 	return resp.ID, nil

@@ -5,10 +5,11 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"sync"
 	"time"
+
+	"whatsrook/logger"
 
 	"github.com/coder/websocket"
 )
@@ -69,7 +70,7 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 			InsecureSkipVerify: dev,
 		})
 		if err != nil {
-			slog.Error("ws accept failed", "err", err)
+			Logger.Error("ws accept failed", "err", err)
 			return
 		}
 
@@ -120,7 +121,7 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 
 					data, err := json.Marshal(msg)
 					if err != nil {
-						slog.Error("failed to marshal JSON event", "err", err)
+						Logger.Error("failed to marshal JSON event", "err", err)
 						continue
 					}
 
@@ -140,20 +141,20 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 			}
 
 			if msgType != websocket.MessageText {
-				slog.Warn("rejected non-text frame: JSON text frames required")
+				Logger.Warn("rejected non-text frame: JSON text frames required")
 				continue
 			}
 
 			var ctrl ControlMessage
 			if err := json.Unmarshal(data, &ctrl); err != nil {
-				slog.Warn("bad JSON control frame", "err", err)
+				Logger.Warn("bad JSON control frame", "err", err)
 				continue
 			}
 
 			select {
 			case h.Control <- ctrl:
 			default:
-				slog.Warn("control channel full, dropping message", "id", ctrl.ID)
+				Logger.Warn("control channel full, dropping message", "id", ctrl.ID)
 				select {
 				case c.send <- ackEvent(ctrl.ID, false, "server busy"):
 				default:
@@ -161,6 +162,6 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 			}
 		}
 
-		slog.Info("websocket client disconnected")
+		Logger.Info("websocket client disconnected")
 	}
 }

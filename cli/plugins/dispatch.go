@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"log/slog"
 	"strconv"
 	"strings"
 	"time"
+
 	"unicode"
 	"unicode/utf8"
+	"whatsrook/logger"
 
 	clistore "whatsrook/cli/store"
 	cliutils "whatsrook/cli/utils"
@@ -52,15 +53,15 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			ID string `json:"id"`
 		}
 		if err := json.Unmarshal([]byte(text), &respJSON); err == nil && respJSON.ID != "" {
-			slog.Debug("Parsed JSON interactive response ID", "original", text, "extracted_id", respJSON.ID)
+			Logger.Debug("Parsed JSON interactive response ID", "original", text, "extracted_id", respJSON.ID)
 			text = respJSON.ID
 		}
 	}
-	slog.Debug("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
+	Logger.Debug("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
 
 	if after, ok := strings.CutPrefix(text, "cancel_loader_"); ok {
 		loaderID := after
-		slog.Info("Cancel interactive loader button pressed", "loaderID", loaderID)
+		Logger.Info("Cancel interactive loader button pressed", "loaderID", loaderID)
 		if utils.CancelLoader(loaderID) {
 			return true
 		}
@@ -107,7 +108,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 
 	if evt.Info.Chat.Server == "g.us" && okStore {
-		slog.Debug("Processing group message", "chat", chatStr, "sender", senderStr)
+		Logger.Debug("Processing group message", "chat", chatStr, "sender", senderStr)
 		clistore.LogGroupMessage(ctx, s.SQLStore, evt.Info.Chat, evt.Info.Sender)
 	}
 
@@ -128,7 +129,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	if (evt.IsViewOnce || evt.IsViewOnceV2 || utils.IsViewOnceMessage(evt.Message)) && okStore {
 		raw, _ := s.GetSetting(ctx, "autovv")
 		mode, _ := s.GetSetting(ctx, "autovv_mode")
-		slog.Info("[AutoVV] Intercepted ViewOnce message",
+		Logger.Info("[AutoVV] Intercepted ViewOnce message",
 			"msg_id", evt.Info.ID,
 			"chat", evt.Info.Chat.String(),
 			"sender", evt.Info.Sender.String(),
@@ -145,13 +146,13 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 				targetJID = client.Store.ID.ToNonAD()
 			}
 
-			slog.Info("[AutoVV] Target JID resolved", "target_jid", targetJID.String(), "mode", mode)
+			Logger.Info("[AutoVV] Target JID resolved", "target_jid", targetJID.String(), "mode", mode)
 
 			if !targetJID.IsEmpty() {
 				go func() {
 					err := utils.UnwrapAndSendViewOnceMessage(context.Background(), client, evt.Message, evt.Info.Sender, evt.Info.PushName, targetJID, evt.Info.ID, evt.Info.Chat)
 					if err != nil {
-						slog.Error("[AutoVV] AutoVV forwarding failed", "chat", evt.Info.Chat.String(), "err", err)
+						Logger.Error("[AutoVV] AutoVV forwarding failed", "chat", evt.Info.Chat.String(), "err", err)
 					}
 				}()
 			}
@@ -181,7 +182,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 
 	prefixes := activePrefixes(ctx, client)
-	slog.Debug("Checking active prefixes", "prefixes", prefixes, "text", text)
+	Logger.Debug("Checking active prefixes", "prefixes", prefixes, "text", text)
 
 	if okStore {
 		senderUser := evt.Info.Sender.ToNonAD().User
@@ -219,7 +220,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 		if matchesPrefix(text, p) {
 			body := strings.TrimLeft(strings.TrimSpace(text[len(p):]), ",:;! \t")
-			slog.Debug("Prefix matched, executing command", "prefix", p, "body", body)
+			Logger.Debug("Prefix matched, executing command", "prefix", p, "body", body)
 			if runCommand(ctx, client, evt, body) {
 				return true
 			}
@@ -228,7 +229,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	trimmedText := strings.TrimSpace(text)
 	if IsTTTGameActive(chatStr) && len(trimmedText) == 1 && trimmedText >= "1" && trimmedText <= "9" {
-		slog.Debug("Direct move matched active Tic-Tac-Toe game", "chat", chatStr, "move", trimmedText)
+		Logger.Debug("Direct move matched active Tic-Tac-Toe game", "chat", chatStr, "move", trimmedText)
 		return runCommand(ctx, client, evt, "ttt "+trimmedText)
 	}
 
@@ -268,7 +269,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		if len(fields) > 0 {
 			first := fields[0]
 			if _, exists := Get(strings.ToLower(first)); exists {
-				slog.Debug("Direct command matched (empty prefix)", "command", first, "body", body)
+				Logger.Debug("Direct command matched (empty prefix)", "command", first, "body", body)
 				return runCommand(ctx, client, evt, body)
 			}
 			for _, p := range activePrefixes(ctx, client) {
@@ -276,7 +277,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 					strippedName := first[len(p):]
 					if _, exists := Get(strings.ToLower(strippedName)); exists {
 						strippedBody := strings.TrimSpace(body[len(p):])
-						slog.Debug("Configured prefix matched", "prefix", p, "command", strippedName, "body", strippedBody)
+						Logger.Debug("Configured prefix matched", "prefix", p, "command", strippedName, "body", strippedBody)
 						return runCommand(ctx, client, evt, strippedBody)
 					}
 				}
@@ -284,7 +285,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 	}
 
-	slog.Debug("No command prefix matched", "text", text)
+	Logger.Debug("No command prefix matched", "text", text)
 
 	if okStore {
 		autoAIVal, _ := s.GetSetting(ctx, "autoai:"+chatStr)
@@ -292,7 +293,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			autoAIVal, _ = s.GetSetting(ctx, "autoai")
 		}
 		if autoAIVal == "on" && isBotTaggedOrReplied(client, evt, text) {
-			slog.Debug("AutoAI triggered by tag/reply/prefix", "chat", chatStr, "sender", senderStr)
+			Logger.Debug("AutoAI triggered by tag/reply/prefix", "chat", chatStr, "sender", senderStr)
 
 			prompt := text
 			for _, p := range prefixes {
@@ -341,7 +342,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 				if cmd, ok := Get("ai"); ok {
 					if err := cmd.Handler(cctx); err != nil {
-						slog.Error("AutoAI command handler failed", "err", err)
+						Logger.Error("AutoAI command handler failed", "err", err)
 					}
 				}
 			}()
@@ -404,11 +405,11 @@ func matchesPrefix(text, p string) bool {
 
 func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, body string) bool {
 	if body == "" {
-		slog.Debug("Empty command body, skipping execution", "chat", evt.Info.Chat.String())
+		Logger.Debug("Empty command body, skipping execution", "chat", evt.Info.Chat.String())
 		return false
 	}
 	if isSenderBanned(ctx, client, evt.Info.Sender) {
-		slog.Warn("Sender is banned, ignoring command", "sender", evt.Info.Sender.String(), "chat", evt.Info.Chat.String())
+		Logger.Warn("Sender is banned, ignoring command", "sender", evt.Info.Sender.String(), "chat", evt.Info.Chat.String())
 		return false
 	}
 
@@ -432,7 +433,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		}
 	}
 	if !ok {
-		slog.Debug("Command not found", "name", name, "chat", evt.Info.Chat.String())
+		Logger.Debug("Command not found", "name", name, "chat", evt.Info.Chat.String())
 		return false
 	}
 
@@ -496,7 +497,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("command handler panicked", "command", name, "panic", r)
+				Logger.Error("command handler panicked", "command", name, "panic", r)
 			}
 		}()
 
@@ -515,7 +516,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			Sender:     evt.Info.Sender,
 		}
 		if cmd.GroupOnly && cctx.Chat.Server != "g.us" {
-			slog.Warn("Group-only command executed in non-group chat JID", "command", name, "chat", cctx.Chat.String())
+			Logger.Warn("Group-only command executed in non-group chat JID", "command", name, "chat", cctx.Chat.String())
 			_ = cctx.Reply("This command can only be used in a group chat.")
 			return
 		}
@@ -523,13 +524,13 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		if okSetting {
 			botMode, _ := s.GetSetting(ctx, "mode")
 			if botMode == "private" && !cctx.IsSudo() {
-				slog.Warn("Private mode check failed - silently ignoring non-sudoer", "command", name, "sender", cctx.Sender.String())
+				Logger.Warn("Private mode check failed - silently ignoring non-sudoer", "command", name, "sender", cctx.Sender.String())
 				return
 			}
 		}
 
 		if !cmd.IsPublic && !cctx.IsSudo() {
-			slog.Warn("Sudoer command check failed", "command", name, "sender", cctx.Sender.String())
+			Logger.Warn("Sudoer command check failed", "command", name, "sender", cctx.Sender.String())
 			_ = cctx.Reply("This command is restricted to sudoers/owners only.")
 			return
 		}
@@ -545,21 +546,21 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 					}
 				}
 				if isDisabled {
-					slog.Warn("Disabled command check failed", "command", name)
+					Logger.Warn("Disabled command check failed", "command", name)
 					_ = cctx.Replyf(" Command %q is currently disabled.", name)
 					return
 				}
 			}
 		}
 
-		slog.Debug("Executing command", "command", name, "chat", cctx.Chat.String(), "sender", cctx.Sender.String(), "args", cctx.Args)
+		Logger.Debug("Executing command", "command", name, "chat", cctx.Chat.String(), "sender", cctx.Sender.String(), "args", cctx.Args)
 		cctx.StartAutoLoader()
 		defer cctx.StopAutoLoader()
 
 		if err := cmd.Handler(cctx); err != nil {
 			LogHandlerErrWithContext(cctx, name, err)
 		} else {
-			slog.Debug("Command completed successfully", "command", name)
+			Logger.Debug("Command completed successfully", "command", name)
 		}
 	}()
 
@@ -766,7 +767,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 						continue
 					}
 					if utils.IsSameUserRaw(ctx, client, uJID, evt.Info.Sender) {
-						slog.Debug("antimsg: deleting message from targeted participant", "chat", chatStr, "sender", senderStr)
+						Logger.Debug("antimsg: deleting message from targeted participant", "chat", chatStr, "sender", senderStr)
 						_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
 						return true
 					}
@@ -789,7 +790,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 				if action == "" {
 					action = "delete"
 				}
-				slog.Debug("antispam: message rate limit exceeded", "chat", chatStr, "sender", sender.String(), "action", action)
+				Logger.Debug("antispam: message rate limit exceeded", "chat", chatStr, "sender", sender.String(), "action", action)
 				botIsAdmin := false
 				if client.Store.ID != nil {
 					botIsAdmin = utils.IsAdminRaw(ctx, client, info, *client.Store.ID)

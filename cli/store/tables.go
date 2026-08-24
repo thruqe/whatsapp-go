@@ -3,9 +3,10 @@ package store
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 	"sync"
+
+	"whatsrook/logger"
 
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -154,7 +155,7 @@ func MigrateSQLiteTableRemovingFK(ctx context.Context, db *dbutil.Database, tabl
 		return nil
 	}
 
-	slog.Info("Migrating SQLite table to decouple from foreign key constraint...", "table", tableName)
+	Logger.Info("Migrating SQLite table to decouple from foreign key constraint...", "table", tableName)
 	tempTable := tableName + "_fk_migrated"
 	var newSchema string
 	if strings.Contains(createSchema, "CREATE TABLE IF NOT EXISTS "+tableName) {
@@ -207,7 +208,7 @@ func MigrateSQLiteTableToCompositePK(ctx context.Context, db *dbutil.Database, t
 		return nil
 	}
 
-	slog.Info("Migrating SQLite table to composite primary key...", "table", tableName)
+	Logger.Info("Migrating SQLite table to composite primary key...", "table", tableName)
 	tempTable := tableName + "_pk_migrated"
 	var newSchema string
 	if strings.Contains(createSchema, "CREATE TABLE IF NOT EXISTS "+tableName) {
@@ -222,7 +223,7 @@ func MigrateSQLiteTableToCompositePK(ctx context.Context, db *dbutil.Database, t
 	}()
 
 	if _, err := db.Exec(ctx, newSchema); err != nil {
-		slog.Error("MigrateSQLiteTableToCompositePK: failed to create temp table", "table", tempTable, "err", err, "schema", newSchema)
+		Logger.Error("MigrateSQLiteTableToCompositePK: failed to create temp table", "table", tempTable, "err", err, "schema", newSchema)
 		return fmt.Errorf("failed to create temp table %s: %w", tempTable, err)
 	}
 
@@ -235,18 +236,18 @@ func MigrateSQLiteTableToCompositePK(ctx context.Context, db *dbutil.Database, t
 
 	insertCmd := fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) SELECT %s FROM %s", tempTable, targetCols, selectCols, tableName)
 	if _, err := db.Exec(ctx, insertCmd); err != nil {
-		slog.Error("MigrateSQLiteTableToCompositePK: failed to copy rows", "table", tempTable, "err", err, "cmd", insertCmd)
+		Logger.Error("MigrateSQLiteTableToCompositePK: failed to copy rows", "table", tempTable, "err", err, "cmd", insertCmd)
 		_, _ = db.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", tempTable))
 		return fmt.Errorf("failed to copy rows to %s: %w", tempTable, err)
 	}
 
 	if _, err := db.Exec(ctx, fmt.Sprintf("DROP TABLE %s", tableName)); err != nil {
-		slog.Error("MigrateSQLiteTableToCompositePK: failed to drop table", "table", tableName, "err", err)
+		Logger.Error("MigrateSQLiteTableToCompositePK: failed to drop table", "table", tableName, "err", err)
 		return fmt.Errorf("failed to drop table %s: %w", tableName, err)
 	}
 
 	if _, err := db.Exec(ctx, fmt.Sprintf("ALTER TABLE %s RENAME TO %s", tempTable, tableName)); err != nil {
-		slog.Error("MigrateSQLiteTableToCompositePK: failed to rename table", "table", tempTable, "err", err)
+		Logger.Error("MigrateSQLiteTableToCompositePK: failed to rename table", "table", tempTable, "err", err)
 		return fmt.Errorf("failed to rename %s to %s: %w", tempTable, tableName, err)
 	}
 
@@ -265,7 +266,7 @@ func InitTables(ctx context.Context, s *sqlstore.SQLStore) {
 		}
 
 		if err := RunMigrations(ctx, db); err != nil {
-			slog.Error("InitTables: failed to execute schema migrations", "err", err, "dialect", db.Dialect.String())
+			Logger.Error("InitTables: failed to execute schema migrations", "err", err, "dialect", db.Dialect.String())
 		}
 	})
 }

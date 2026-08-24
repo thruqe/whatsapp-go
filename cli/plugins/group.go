@@ -4,13 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
+
 	"sync"
 	"time"
 	"unicode"
+	"whatsrook/logger"
 
 	cliutils "whatsrook/cli/utils"
 	"whatsrook/utils"
@@ -1099,7 +1100,7 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 	cliutils.PresenceMu.RUnlock()
 
 	if exists && (info.IsOnline || time.Since(info.LastSeen) < 15*time.Minute) {
-		slog.Debug("IsUserOnline check: direct match online", "jid", targetKey, "lastSeen", info.LastSeen)
+		Logger.Debug("IsUserOnline check: direct match online", "jid", targetKey, "lastSeen", info.LastSeen)
 		return true
 	}
 
@@ -1113,7 +1114,7 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 				pnInfo, pnExists := cliutils.PresenceMap[pnKey]
 				cliutils.PresenceMu.RUnlock()
 				if pnExists && (pnInfo.IsOnline || time.Since(pnInfo.LastSeen) < 15*time.Minute) {
-					slog.Debug("IsUserOnline check: PN match online for LID", "lid", targetKey, "pn", pnKey)
+					Logger.Debug("IsUserOnline check: PN match online for LID", "lid", targetKey, "pn", pnKey)
 					return true
 				}
 			}
@@ -1125,32 +1126,32 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 				lidInfo, lidExists := cliutils.PresenceMap[lidKey]
 				cliutils.PresenceMu.RUnlock()
 				if lidExists && (lidInfo.IsOnline || time.Since(lidInfo.LastSeen) < 15*time.Minute) {
-					slog.Debug("IsUserOnline check: LID match online for PN", "pn", targetKey, "lid", lidKey)
+					Logger.Debug("IsUserOnline check: LID match online for PN", "pn", targetKey, "lid", lidKey)
 					return true
 				}
 			}
 		}
 	}
 
-	slog.Debug("IsUserOnline check: offline or unknown", "jid", targetKey)
+	Logger.Debug("IsUserOnline check: offline or unknown", "jid", targetKey)
 	return false
 }
 
 func handleListOnline(ctx *Context) error {
 	if ctx.Chat.Server != "g.us" {
-		slog.Debug("handleListOnline: not a group chat", "chat", ctx.Chat.String())
+		Logger.Debug("handleListOnline: not a group chat", "chat", ctx.Chat.String())
 		return ctx.Reply("This command can only be used in a group.")
 	}
 
-	slog.Debug("handleListOnline executing", "group", ctx.Chat.String())
+	Logger.Debug("handleListOnline executing", "group", ctx.Chat.String())
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
-		slog.Error("handleListOnline: failed to get group info", "group", ctx.Chat.String(), "err", err)
+		Logger.Error("handleListOnline: failed to get group info", "group", ctx.Chat.String(), "err", err)
 		return ctx.Replyf("Failed to get group info: %v", err)
 	}
 
 	total := len(info.Participants)
-	slog.Debug("handleListOnline retrieved group info", "group", ctx.Chat.String(), "participant_count", total)
+	Logger.Debug("handleListOnline retrieved group info", "group", ctx.Chat.String(), "participant_count", total)
 
 	if total == 0 {
 		return ctx.Reply("No participants found in this group.")
@@ -1201,7 +1202,7 @@ func handleListOnline(ctx *Context) error {
 			fromKey := pEvt.From.ToNonAD().String()
 			mu.Lock()
 			if targetJID, isExpected := expectedJIDs[fromKey]; isExpected {
-				slog.Debug("handleListOnline: received presence stanza from WhatsApp", "from", fromKey, "unavailable", pEvt.Unavailable)
+				Logger.Debug("handleListOnline: received presence stanza from WhatsApp", "from", fromKey, "unavailable", pEvt.Unavailable)
 				TrackPresence(targetJID, !pEvt.Unavailable)
 				delete(expectedJIDs, fromKey)
 				receivedCount++
@@ -1220,7 +1221,7 @@ func handleListOnline(ctx *Context) error {
 			if !pEvt.Sender.IsEmpty() {
 				mu.Lock()
 				if targetJID, isExpected := expectedJIDs[senderKey]; isExpected {
-					slog.Debug("handleListOnline: received delivery receipt from WhatsApp", "sender", senderKey)
+					Logger.Debug("handleListOnline: received delivery receipt from WhatsApp", "sender", senderKey)
 					TrackPresence(targetJID, true)
 					delete(expectedJIDs, senderKey)
 					receivedCount++
@@ -1254,9 +1255,9 @@ func handleListOnline(ctx *Context) error {
 	if cachedOnlineCount < 2 {
 		select {
 		case <-doneChan:
-			slog.Debug("handleListOnline: presence/receipt stanzas collected", "count", receivedCount)
+			Logger.Debug("handleListOnline: presence/receipt stanzas collected", "count", receivedCount)
 		case <-time.After(2000 * time.Millisecond):
-			slog.Debug("handleListOnline: presence wait window ended", "received", receivedCount, "total", total)
+			Logger.Debug("handleListOnline: presence wait window ended", "received", receivedCount, "total", total)
 		}
 	}
 
@@ -1268,13 +1269,13 @@ func handleListOnline(ctx *Context) error {
 			resolvedJID, username := ctx.ResolveMention(p.JID)
 			onlineJIDs = append(onlineJIDs, resolvedJID)
 			displayNames = append(displayNames, "@"+username)
-			slog.Debug("handleListOnline: participant online", "participant", p.JID.String(), "username", username)
+			Logger.Debug("handleListOnline: participant online", "participant", p.JID.String(), "username", username)
 		} else {
-			slog.Debug("handleListOnline: participant offline", "participant", p.JID.String())
+			Logger.Debug("handleListOnline: participant offline", "participant", p.JID.String())
 		}
 	}
 
-	slog.Debug("handleListOnline complete", "group", ctx.Chat.String(), "total_participants", total, "online_count", len(onlineJIDs))
+	Logger.Debug("handleListOnline complete", "group", ctx.Chat.String(), "total_participants", total, "online_count", len(onlineJIDs))
 
 	if len(onlineJIDs) == 0 {
 		return ctx.Reply("No online participants detected in this group.")
@@ -1341,7 +1342,7 @@ func handleKickAll(ctx *Context) error {
 	_ = ctx.Replyf("Kicking %d participants...", len(toKick))
 	_, err = ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, toKick, whatsmeow.ParticipantChangeRemove)
 	if err != nil {
-		slog.Error("Kickall failed", "err", err)
+		Logger.Error("Kickall failed", "err", err)
 		return ctx.Replyf("Failed to kick participants: %v", err)
 	}
 
@@ -1445,7 +1446,7 @@ func handleLeave(ctx *Context) error {
 		_ = ctx.Reply("Leaving group... Goodbye!")
 		err := ctx.Client.LeaveGroup(ctx.Ctx, ctx.Chat)
 		if err != nil {
-			slog.Error("Failed to leave group", "err", err)
+			Logger.Error("Failed to leave group", "err", err)
 			return ctx.Replyf("Failed to leave group: %v", err)
 		}
 		return nil
@@ -2103,7 +2104,7 @@ func StartAutoMuteScheduler(ctx context.Context, client *whatsmeow.Client) {
 				func() {
 					defer func() {
 						if r := recover(); r != nil {
-							slog.Error("automute: PANIC in scheduler tick", "recover", r)
+							Logger.Error("automute: PANIC in scheduler tick", "recover", r)
 						}
 					}()
 					checkAndExecuteMuteSchedules(schedCtx, client)
@@ -2317,7 +2318,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 	tzName := getUserTimezone(ctx, s)
 	loc, err := time.LoadLocation(tzName)
 	if err != nil {
-		slog.Warn("automute: failed to load timezone, falling back to UTC", "tz", tzName, "err", err)
+		Logger.Warn("automute: failed to load timezone, falling back to UTC", "tz", tzName, "err", err)
 		loc = time.UTC
 	}
 
@@ -2334,7 +2335,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 		if errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || ctx.Err() != nil {
 			return
 		}
-		slog.Error("automute: query failed", "err", err)
+		Logger.Error("automute: query failed", "err", err)
 		return
 	}
 	defer rows.Close()
@@ -2344,7 +2345,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 		rowCount++
 		var key, targetTime string
 		if err := rows.Scan(&key, &targetTime); err != nil {
-			slog.Error("automute: row scan failed", "err", err)
+			Logger.Error("automute: row scan failed", "err", err)
 			continue
 		}
 
@@ -2364,7 +2365,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 			lastExec, sErr := s.GetSetting(sCtx, execKey)
 			sCancel()
 			if sErr != nil {
-				slog.Error("automute: GetSetting execKey failed or timed out", "group", groupJIDStr, "err", sErr)
+				Logger.Error("automute: GetSetting execKey failed or timed out", "group", groupJIDStr, "err", sErr)
 				continue
 			}
 			dateMinuteKey := Sprintf("%s_%s", now.Format("2006-01-02"), currentTimeStr)
@@ -2374,11 +2375,11 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 
 			info, gErr := client.GetGroupInfo(ctx, groupJID)
 			if gErr != nil {
-				slog.Error("automute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
+				Logger.Error("automute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
 				continue
 			}
 			if info == nil {
-				slog.Warn("automute: GetGroupInfo returned nil info", "group", groupJIDStr)
+				Logger.Warn("automute: GetGroupInfo returned nil info", "group", groupJIDStr)
 				continue
 			}
 
@@ -2394,21 +2395,21 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 					break
 				}
 			}
-			slog.Debug("automute: admin check", "group", groupJIDStr, "bot_jid", botJID.String(), "is_admin", isAdmin)
+			Logger.Debug("automute: admin check", "group", groupJIDStr, "bot_jid", botJID.String(), "is_admin", isAdmin)
 
 			if !isAdmin {
-				slog.Warn("automute: bot is not admin in group, cannot mute", "group", groupJIDStr)
+				Logger.Warn("automute: bot is not admin in group, cannot mute", "group", groupJIDStr)
 				continue
 			}
 
 			if err := client.SetGroupAnnounce(ctx, groupJID, true); err != nil {
-				slog.Error("automute: SetGroupAnnounce(true) failed", "group", groupJIDStr, "err", err)
+				Logger.Error("automute: SetGroupAnnounce(true) failed", "group", groupJIDStr, "err", err)
 				continue
 			}
 			if err := s.PutSetting(ctx, execKey, dateMinuteKey); err != nil {
-				slog.Error("automute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
+				Logger.Error("automute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
 			}
-			slog.Info("automute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
+			Logger.Info("automute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
 
 			unmuteTime, _ := s.GetSetting(ctx, "autounmute:"+groupJIDStr)
 			groupName := info.GroupName.Name
@@ -2419,14 +2420,14 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 				noticeText = Sprintf("%s has been closed.", groupName)
 			}
 			if _, sendErr := client.SendMessage(ctx, groupJID, &waE2E.Message{Conversation: &noticeText}); sendErr != nil {
-				slog.Error("automute: failed to send close notice", "group", groupJIDStr, "err", sendErr)
+				Logger.Error("automute: failed to send close notice", "group", groupJIDStr, "err", sendErr)
 			}
 
 		} else if after, ok0 := strings.CutPrefix(key, "autounmute:"); ok0 {
 			groupJIDStr := after
 			groupJID, err := types.ParseJID(groupJIDStr)
 			if err != nil || groupJID.Server != types.GroupServer {
-				slog.Warn("autounmute: bad group JID, skipping", "raw", groupJIDStr, "err", err)
+				Logger.Warn("autounmute: bad group JID, skipping", "raw", groupJIDStr, "err", err)
 				continue
 			}
 
@@ -2439,11 +2440,11 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 
 			info, gErr := client.GetGroupInfo(ctx, groupJID)
 			if gErr != nil {
-				slog.Error("autounmute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
+				Logger.Error("autounmute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
 				continue
 			}
 			if info == nil {
-				slog.Warn("autounmute: GetGroupInfo returned nil info", "group", groupJIDStr)
+				Logger.Warn("autounmute: GetGroupInfo returned nil info", "group", groupJIDStr)
 				continue
 			}
 
@@ -2459,26 +2460,26 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 					break
 				}
 			}
-			slog.Debug("autounmute: admin check", "group", groupJIDStr, "bot_jid", botJID.String(), "is_admin", isAdmin)
+			Logger.Debug("autounmute: admin check", "group", groupJIDStr, "bot_jid", botJID.String(), "is_admin", isAdmin)
 
 			if !isAdmin {
-				slog.Warn("autounmute: bot is not admin in group, cannot unmute", "group", groupJIDStr)
+				Logger.Warn("autounmute: bot is not admin in group, cannot unmute", "group", groupJIDStr)
 				continue
 			}
 
 			if err := client.SetGroupAnnounce(ctx, groupJID, false); err != nil {
-				slog.Error("autounmute: SetGroupAnnounce(false) failed", "group", groupJIDStr, "err", err)
+				Logger.Error("autounmute: SetGroupAnnounce(false) failed", "group", groupJIDStr, "err", err)
 				continue
 			}
 			if err := s.PutSetting(ctx, execKey, dateMinuteKey); err != nil {
-				slog.Error("autounmute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
+				Logger.Error("autounmute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
 			}
 
-			slog.Info("autounmute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
+			Logger.Info("autounmute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
 			groupName := info.GroupName.Name
 			noticeText := Sprintf("%s has been opened.", groupName)
 			if _, sendErr := client.SendMessage(ctx, groupJID, &waE2E.Message{Conversation: &noticeText}); sendErr != nil {
-				slog.Error("autounmute: failed to send open notice", "group", groupJIDStr, "err", sendErr)
+				Logger.Error("autounmute: failed to send open notice", "group", groupJIDStr, "err", sendErr)
 			}
 		}
 	}
@@ -2599,10 +2600,10 @@ func handleSetGroupPP(ctx *Context) error {
 		return ctx.Replyf("Failed to process group photo format: %v", errConv)
 	}
 
-	slog.Info("handleSetGroupPP: Setting group profile picture", "group", ctx.Chat.String(), "mime", mime, "rawBytes", len(rawBytes), "jpegBytes", len(jpegData))
+	Logger.Info("handleSetGroupPP: Setting group profile picture", "group", ctx.Chat.String(), "mime", mime, "rawBytes", len(rawBytes), "jpegBytes", len(jpegData))
 	picID, errSet := ctx.Client.SetGroupPhoto(ctx.Ctx, ctx.Chat, jpegData)
 	if errSet != nil {
-		slog.Error("handleSetGroupPP failed", "err", errSet)
+		Logger.Error("handleSetGroupPP failed", "err", errSet)
 		return ctx.Replyf("Failed to update group photo: %v", errSet)
 	}
 

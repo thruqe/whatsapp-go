@@ -1,10 +1,10 @@
 package plugins
 
 import (
-	"log/slog"
 	"strings"
 
 	cliutils "whatsrook/cli/utils"
+	"whatsrook/logger"
 )
 
 func init() {
@@ -37,7 +37,7 @@ func init() {
 }
 
 func handleMarkets(ctx *Context) error {
-	slog.Debug("handleMarkets executing", "chat", ctx.Chat.String(), "sender", ctx.Sender.String(), "args", ctx.Args)
+	Logger.Debug("handleMarkets executing", "chat", ctx.Chat.String(), "sender", ctx.Sender.String(), "args", ctx.Args)
 
 	if len(ctx.Args) == 0 {
 		return sendMarketsHelp(ctx)
@@ -46,16 +46,16 @@ func handleMarkets(ctx *Context) error {
 	queryArg := strings.ToUpper(strings.TrimSpace(strings.Join(ctx.Args, "")))
 	queryArg = strings.ReplaceAll(queryArg, "-", "/")
 	queryArg = strings.ReplaceAll(queryArg, " ", "")
-	slog.Debug("handleMarkets: parsed query argument", "raw_args", ctx.Args, "parsed_query", queryArg)
+	Logger.Debug("handleMarkets: parsed query argument", "raw_args", ctx.Args, "parsed_query", queryArg)
 
 	if queryArg == "MENU" || queryArg == "LIST" || queryArg == "ALL" {
-		slog.Debug("handleMarkets: requested market summary overview", "query", queryArg)
+		Logger.Debug("handleMarkets: requested market summary overview", "query", queryArg)
 		return fetchAndSendAllMarkets(ctx)
 	}
 
 	queryArg = cliutils.NormalizeMarketPair(queryArg)
 
-	slog.Debug("handleMarkets: querying single instrument", "pair", queryArg)
+	Logger.Debug("handleMarkets: querying single instrument", "pair", queryArg)
 	return fetchAndSendSingleMarket(ctx, queryArg)
 }
 
@@ -72,17 +72,17 @@ func sendMarketsHelp(ctx *Context) error {
 }
 
 func fetchAndSendSingleMarket(ctx *Context, pair string) error {
-	slog.Debug("fetchAndSendSingleMarket: requesting market metrics from primary API", "pair", pair)
+	Logger.Debug("fetchAndSendSingleMarket: requesting market metrics from primary API", "pair", pair)
 
 	if item, err := cliutils.FetchSingleMarket(ctx.Ctx, pair); err == nil && item != nil {
 		return formatAndSendInstrumentResponse(ctx, pair, *item)
 	}
 
-	slog.Debug("fetchAndSendSingleMarket: primary API empty or unavailable, querying bars fallback API", "pair", pair)
+	Logger.Debug("fetchAndSendSingleMarket: primary API empty or unavailable, querying bars fallback API", "pair", pair)
 	barsRes, err := cliutils.FetchMarketBars(ctx.Ctx, pair)
 	if err == nil && len(barsRes.Data) > 0 {
 		latest := barsRes.Data[0]
-		slog.Debug("fetchAndSendSingleMarket: successfully retrieved bar metrics from fallback API", "pair", pair, "close", latest.Close)
+		Logger.Debug("fetchAndSendSingleMarket: successfully retrieved bar metrics from fallback API", "pair", pair, "close", latest.Close)
 
 		return ctx.Text().
 			Headerf("Forex Factory Rates - %s", pair).
@@ -93,7 +93,7 @@ func fetchAndSendSingleMarket(ctx *Context, pair string) error {
 			Reply()
 	}
 
-	slog.Warn("fetchAndSendSingleMarket: both primary and bars APIs failed", "pair", pair)
+	Logger.Warn("fetchAndSendSingleMarket: both primary and bars APIs failed", "pair", pair)
 	return sendAvailableInstrumentsList(ctx, pair)
 }
 
@@ -136,7 +136,7 @@ func formatAndSendInstrumentResponse(ctx *Context, pair string, item cliutils.FF
 		marketStatus = "Holiday / Closed"
 	}
 
-	slog.Debug("formatAndSendInstrumentResponse: parsed market data", "pair", displayName, "price", price, "bid", bid, "ask", ask, "high", high, "low", low, "spread", spread, "status", marketStatus)
+	Logger.Debug("formatAndSendInstrumentResponse: parsed market data", "pair", displayName, "price", price, "bid", bid, "ask", ask, "high", high, "low", low, "spread", spread, "status", marketStatus)
 
 	tb := ctx.Text().Headerf("Forex Factory Rates - %s", displayName)
 	if price > 0 {
@@ -200,15 +200,15 @@ func fetchAndSendAllMarkets(ctx *Context) error {
 	pairs := []string{"EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "USD/CAD", "AUD/USD", "NZD/USD", "Gold/USD"}
 	res, err := cliutils.FetchAllMarkets(ctx.Ctx, pairs)
 	if err != nil {
-		slog.Error("fetchAndSendAllMarkets: HTTP request failed", "err", err)
+		Logger.Error("fetchAndSendAllMarkets: HTTP request failed", "err", err)
 		return ctx.Replyf("Failed to fetch market rates: %v", err)
 	}
 	if len(res.Data) == 0 {
-		slog.Warn("fetchAndSendAllMarkets: no data returned from API")
+		Logger.Warn("fetchAndSendAllMarkets: no data returned from API")
 		return ctx.Reply("No market rates available at this time.")
 	}
 
-	slog.Debug("fetchAndSendAllMarkets: successfully parsed market overview", "item_count", len(res.Data))
+	Logger.Debug("fetchAndSendAllMarkets: successfully parsed market overview", "item_count", len(res.Data))
 
 	tb := ctx.Text().Header("Forex Factory Market Overview")
 
@@ -300,11 +300,11 @@ func sendNewsHelp(ctx *Context) error {
 }
 
 func handleWABeta(ctx *Context) error {
-	slog.Debug("handleWABeta executing", "chat", ctx.Chat.String(), "sender", ctx.Sender.String())
+	Logger.Debug("handleWABeta executing", "chat", ctx.Chat.String(), "sender", ctx.Sender.String())
 
 	article, err := cliutils.FetchWABetaLatest(ctx.Ctx)
 	if err != nil {
-		slog.Error("handleWABeta: failed to fetch WABetaInfo article", "err", err)
+		Logger.Error("handleWABeta: failed to fetch WABetaInfo article", "err", err)
 		return ctx.Replyf("Failed to fetch latest WABetaInfo updates: %v", err)
 	}
 

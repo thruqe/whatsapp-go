@@ -3,13 +3,14 @@ package plugins
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
+
 	"strconv"
 	"strings"
 	"time"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -565,11 +566,11 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 	delete(cliutils.PendingMenuThumbPrompts, key)
 	cliutils.MenuThumbPromptsMu.Unlock()
 
-	slog.Info("HandlePendingMenuMediaReply: Downloading custom menu media", "chat", key, "mime", mime, "isVideo", isVideo)
+	Logger.Info("HandlePendingMenuMediaReply: Downloading custom menu media", "chat", key, "mime", mime, "isVideo", isVideo)
 	data, err := client.Download(ctx, downloadable)
 
 	if err != nil || len(data) == 0 {
-		slog.Error("HandlePendingMenuMediaReply: Download failed", "chat", key, "err", err)
+		Logger.Error("HandlePendingMenuMediaReply: Download failed", "chat", key, "err", err)
 		_ = fakeCtx.Reply("Failed to download media for menu thumbnail.")
 		return true
 	}

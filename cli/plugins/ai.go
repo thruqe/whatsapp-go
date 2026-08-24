@@ -2,11 +2,12 @@ package plugins
 
 import (
 	"encoding/base64"
-	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -86,7 +87,7 @@ func init() {
 }
 
 func handleAutoAI(ctx *Context) error {
-	slog.Debug("handleAutoAI started", "args", ctx.Args)
+	Logger.Debug("handleAutoAI started", "args", ctx.Args)
 
 	isAuthorized := ctx.IsSudo()
 	if !isAuthorized && ctx.Chat.Server == "g.us" {
@@ -123,7 +124,7 @@ func handleAutoAI(ctx *Context) error {
 	}
 
 	if err := s.PutSetting(ctx.Ctx, settingKey, val); err != nil {
-		slog.Error("failed to update autoai setting", "err", err)
+		Logger.Error("failed to update autoai setting", "err", err)
 		return ctx.Reply("Failed to update setting: " + err.Error())
 	}
 
@@ -366,7 +367,7 @@ func handleAI(ctx *Context) error {
 		query += data.Question
 	}
 
-	slog.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String(), "is_media_req", isMediaReq)
+	Logger.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String(), "is_media_req", isMediaReq)
 
 	var placeholderMsgID types.MessageID
 	onUpdate := func(text string) error {
@@ -389,14 +390,14 @@ func handleAI(ctx *Context) error {
 		}
 		_, err := ctx.Edit(placeholderMsgID, text)
 		if err != nil {
-			slog.Error("handleAI: failed to send edit", "chat", ctx.Chat.String(), "err", err)
+			Logger.Error("handleAI: failed to send edit", "chat", ctx.Chat.String(), "err", err)
 		}
 		return err
 	}
 
 	res, err := cliutils.QueryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
 	if err != nil {
-		slog.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
+		Logger.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
 		if strings.Contains(err.Error(), "488") {
 			errMsg := "Meta AI session initialization required.\n\nPlease make sure you have manually started a direct 1-on-1 chat/conversation with Meta AI on WhatsApp first before WhatsRook can interact with it."
 			if placeholderMsgID != "" {
@@ -453,10 +454,10 @@ func handleAI(ctx *Context) error {
 		}
 
 		if strings.HasPrefix(mType, "video/") {
-			slog.Debug("handleAI: sending generated video message to chat", "chat", ctx.Chat.String(), "video_len", len(mediaBytes), "mime", mType)
+			Logger.Debug("handleAI: sending generated video message to chat", "chat", ctx.Chat.String(), "video_len", len(mediaBytes), "mime", mType)
 			_ = ctx.ReplyWithVideo(mediaBytes, mType, caption)
 		} else {
-			slog.Debug("handleAI: sending generated image message to chat", "chat", ctx.Chat.String(), "img_len", len(mediaBytes), "mime", mType)
+			Logger.Debug("handleAI: sending generated image message to chat", "chat", ctx.Chat.String(), "img_len", len(mediaBytes), "mime", mType)
 			_ = ctx.ReplyWithImage(mediaBytes, mType, caption)
 		}
 	} else if placeholderMsgID == "" && reply != "" {
@@ -468,7 +469,7 @@ func handleAI(ctx *Context) error {
 	if cmdName, rawArgs, ok := cliutils.ParseRunCommand(reply); ok {
 		if cmdName == "sh" || cmdName == "exec" || cmdName == "run" || cmdName == "shell" {
 			if !ctx.IsSudo() {
-				slog.Warn("handleAI: blocked unauthorized shell execution request", "sender", ctx.Sender.String())
+				Logger.Warn("handleAI: blocked unauthorized shell execution request", "sender", ctx.Sender.String())
 				_, _ = ctx.Edit(placeholderMsgID, "You are not authorized to run shell commands.")
 				return nil
 			}
@@ -487,20 +488,20 @@ func handleAI(ctx *Context) error {
 		}
 
 		if cmdName == "ai" || cmdName == "autoai" || cmdName == "gpt" || cmdName == "ask" {
-			slog.Warn("handleAI: blocked recursive AI command execution", "command", cmdName)
+			Logger.Warn("handleAI: blocked recursive AI command execution", "command", cmdName)
 			_, err := ctx.Edit(placeholderMsgID, "Recursive AI command execution is not allowed.")
 			return err
 		}
 
 		targetCmd, exists := Get(cmdName)
 		if !exists {
-			slog.Warn("handleAI: RUN_COMMAND referenced unknown command", "command", cmdName)
+			Logger.Warn("handleAI: RUN_COMMAND referenced unknown command", "command", cmdName)
 			_, _ = ctx.Edit(placeholderMsgID, "Sorry, I don't have a command called \""+cmdName+"\".")
 			return nil
 		}
 
 		if !targetCmd.IsPublic && !ctx.IsSudo() {
-			slog.Warn("handleAI: blocked unauthorized RUN_COMMAND", "sender", ctx.Sender.String(), "command", cmdName)
+			Logger.Warn("handleAI: blocked unauthorized RUN_COMMAND", "sender", ctx.Sender.String(), "command", cmdName)
 			_, _ = ctx.Edit(placeholderMsgID, "You are not authorized to run this command.")
 			return nil
 		}
@@ -520,11 +521,11 @@ func handleAI(ctx *Context) error {
 			Chat:    ctx.Chat,
 			Sender:  ctx.Sender,
 		}
-		slog.Debug("handleAI: executing command on behalf of AI", "command", cmdName, "args", ctx.Args)
+		Logger.Debug("handleAI: executing command on behalf of AI", "command", cmdName, "args", ctx.Args)
 		return targetCmd.Handler(cctx)
 	}
 
-	slog.Debug("handleAI: completed successfully", "chat", ctx.Chat.String())
+	Logger.Debug("handleAI: completed successfully", "chat", ctx.Chat.String())
 	return nil
 }
 
@@ -606,9 +607,9 @@ func extractContextFromQuotedMessage(ctx *Context, data *cliutils.Data) {
 		imgData, err := ctx.Client.Download(ctx.Ctx, imgMsg)
 		if err == nil && len(imgData) > 0 {
 			data.QuotedImageBase64 = base64.StdEncoding.EncodeToString(imgData)
-			slog.Debug("extractContextFromQuotedMessage: extracted image base64", "len", len(data.QuotedImageBase64))
+			Logger.Debug("extractContextFromQuotedMessage: extracted image base64", "len", len(data.QuotedImageBase64))
 		} else {
-			slog.Warn("extractContextFromQuotedMessage: failed to download quoted image", "err", err)
+			Logger.Warn("extractContextFromQuotedMessage: failed to download quoted image", "err", err)
 		}
 
 	case quotedMsg.GetVideoMessage() != nil:
@@ -653,9 +654,9 @@ func extractContextFromQuotedMessage(ctx *Context, data *cliutils.Data) {
 			stkData, err := ctx.Client.Download(ctx.Ctx, stkMsg)
 			if err == nil && len(stkData) > 0 {
 				data.QuotedImageBase64 = base64.StdEncoding.EncodeToString(stkData)
-				slog.Debug("extractContextFromQuotedMessage: extracted sticker image base64", "len", len(data.QuotedImageBase64))
+				Logger.Debug("extractContextFromQuotedMessage: extracted sticker image base64", "len", len(data.QuotedImageBase64))
 			} else {
-				slog.Warn("extractContextFromQuotedMessage: failed to download quoted sticker image", "err", err)
+				Logger.Warn("extractContextFromQuotedMessage: failed to download quoted sticker image", "err", err)
 			}
 		}
 
@@ -892,7 +893,7 @@ func handleWhy(ctx *Context) error {
 
 	res, err := cliutils.QueryWhy(ctx.Ctx, query)
 	if err != nil {
-		slog.Error("handleWhy failed", "query", query, "err", err)
+		Logger.Error("handleWhy failed", "query", query, "err", err)
 		return ctx.Replyf("Error querying why.com: %v", err)
 	}
 

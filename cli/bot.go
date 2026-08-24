@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
+
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"whatsrook/logger"
 
 	"whatsrook"
 	commands "whatsrook/cli/plugins"
@@ -120,7 +121,7 @@ func (b *Bot) Start(ctx context.Context) error {
 			break
 		}
 		if p == startPort {
-			slog.Warn("port in use, attempting to bind alternative port", "attempted_port", p, "err", err)
+			Logger.Warn("port in use, attempting to bind alternative port", "attempted_port", p, "err", err)
 		}
 	}
 
@@ -129,7 +130,7 @@ func (b *Bot) Start(ctx context.Context) error {
 	}
 
 	if actualPort != startPort {
-		slog.Warn("port in use — switched to alternative port", "original_port", startPort, "new_port", actualPort)
+		Logger.Warn("port in use — switched to alternative port", "original_port", startPort, "new_port", actualPort)
 	}
 
 	b.listener = listener
@@ -137,9 +138,9 @@ func (b *Bot) Start(ctx context.Context) error {
 	b.httpServer = server
 
 	go func() {
-		slog.Info("listening", "port", actualPort, "session", b.cfg.Session)
+		Logger.Info("listening", "port", actualPort, "session", b.cfg.Session)
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("http server error", "err", err)
+			Logger.Error("http server error", "err", err)
 		}
 	}()
 	defer func() {
@@ -163,15 +164,15 @@ func (b *Bot) Start(ctx context.Context) error {
 		// Session logged out (401 or unpaired)
 		// Clear device record from shared DB and exit so caller can enter idle mode.
 		if errors.Is(err, whatsrook.ErrLoggedOut) || strings.Contains(err.Error(), "logged out") || b.loggedOut.Load() {
-			slog.Warn("Logged out session detected — device record cleared from shared database.")
+			Logger.Warn("Logged out session detected — device record cleared from shared database.")
 			b.loggedOut.Store(false)
 			return whatsrook.ErrLoggedOut
 		}
 
 		// Pairing stalled (malformed WA notification). Wipe the device record and retry.
 		if errors.Is(err, whatsrook.ErrPairTimeout) {
-			slog.Error("session error", "err", "Pairing timed out — WhatsApp sent a bad response.")
-			slog.Warn("session action", "warn", "The device record will be cleared and a new code generated.")
+			Logger.Error("session error", "err", "Pairing timed out — WhatsApp sent a bad response.")
+			Logger.Warn("session action", "warn", "The device record will be cleared and a new code generated.")
 
 			b.mu.Lock()
 			cli := b.client
@@ -246,10 +247,10 @@ func (b *Bot) runSession(ctx context.Context) error {
 
 	// ── Logout
 	if b.cfg.Logout {
-		slog.Info("logging out session", "session", b.cfg.Session)
+		Logger.Info("logging out session", "session", b.cfg.Session)
 
 		if cli.Store.ID == nil {
-			slog.Info("session was never paired, skipping server logout")
+			Logger.Info("session was never paired, skipping server logout")
 		} else {
 			connected := make(chan struct{}, 1)
 			cli.AddEventHandler(func(evt any) {
@@ -262,26 +263,26 @@ func (b *Bot) runSession(ctx context.Context) error {
 			})
 
 			if err := cli.Connect(); err != nil {
-				slog.Warn("connect failed before logout, clearing device record only", "err", err)
+				Logger.Warn("connect failed before logout, clearing device record only", "err", err)
 			} else {
 				logoutCtx, logoutCancel := context.WithTimeout(sessionCtx, 10*time.Second)
 				select {
 				case <-connected:
-					slog.Info("connected — sending logout to WhatsApp servers")
+					Logger.Info("connected — sending logout to WhatsApp servers")
 				case <-logoutCtx.Done():
-					slog.Warn("timed out waiting for connection, sending logout anyway")
+					Logger.Warn("timed out waiting for connection, sending logout anyway")
 				}
 				logoutCancel()
 
 				if err := cli.Logout(sessionCtx); err != nil {
-					slog.Warn("server logout returned error", "err", err)
+					Logger.Warn("server logout returned error", "err", err)
 				}
 				cli.Disconnect()
 			}
 		}
 
 		b.client.ClearSessionDB(sessionCtx, "")
-		slog.Info("session device record cleared successfully", "session", b.cfg.Session)
+		Logger.Info("session device record cleared successfully", "session", b.cfg.Session)
 		return nil
 	}
 
@@ -300,14 +301,14 @@ func (b *Bot) runSession(ctx context.Context) error {
 		} else {
 			go func() {
 				if err := b.runQR(sessionCtx); err != nil {
-					slog.Error("runQR failed", "err", err)
+					Logger.Error("runQR failed", "err", err)
 				}
 			}()
 		}
 	} else {
 		if err := cli.Connect(); err != nil {
 			if b.loggedOut.Load() || strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "logged out") {
-				slog.Warn("Connect failed due to logged-out status — clearing device record from shared database...", "err", err)
+				Logger.Warn("Connect failed due to logged-out status — clearing device record from shared database...", "err", err)
 				b.client.ClearSessionDB(sessionCtx, "")
 				return whatsrook.ErrLoggedOut
 			}
@@ -316,7 +317,7 @@ func (b *Bot) runSession(ctx context.Context) error {
 	}
 
 	if b.loggedOut.Load() {
-		slog.Warn("Session logged out — clearing device record from shared database...")
+		Logger.Warn("Session logged out — clearing device record from shared database...")
 		b.client.ClearSessionDB(sessionCtx, "")
 		return whatsrook.ErrLoggedOut
 	}
@@ -331,7 +332,7 @@ func (b *Bot) runSession(ctx context.Context) error {
 		select {
 		case <-sessionCtx.Done():
 			if b.loggedOut.Load() {
-				slog.Warn("Session logged out during runtime — clearing device record from shared database...")
+				Logger.Warn("Session logged out during runtime — clearing device record from shared database...")
 				b.client.ClearSessionDB(ctx, "")
 				return whatsrook.ErrLoggedOut
 			}
@@ -341,7 +342,7 @@ func (b *Bot) runSession(ctx context.Context) error {
 			b.hub.Broadcast(ack)
 		}
 		if b.loggedOut.Load() {
-			slog.Warn("Session logged out during runtime — clearing device record from shared database...")
+			Logger.Warn("Session logged out during runtime — clearing device record from shared database...")
 			b.client.ClearSessionDB(ctx, "")
 			return whatsrook.ErrLoggedOut
 		}
@@ -455,8 +456,8 @@ func (b *Bot) runPairCode(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	slog.Debug("pair code issued", "code", code)
-	slog.Info(fmt.Sprintf("PAIR CODE: %s", code))
+	Logger.Debug("pair code issued", "code", code)
+	Logger.Info(fmt.Sprintf("PAIR CODE: %s", code))
 	b.hub.Broadcast(EventMessage{
 		Kind:    EventPairCode,
 		Payload: PairCodePayload{Code: code},
@@ -472,13 +473,13 @@ func (b *Bot) runQR(ctx context.Context) error {
 
 	qrServer, err := qr.StartServer()
 	if err != nil {
-		slog.Warn("failed to start temporary qr server", "err", err)
+		Logger.Warn("failed to start temporary qr server", "err", err)
 	} else {
 		defer func() {
 			_ = qrServer.Close()
-			slog.Debug("temporary qr server closed and port released", "port", qrServer.Port())
+			Logger.Debug("temporary qr server closed and port released", "port", qrServer.Port())
 		}()
-		slog.Info("temporary QR server started", "url", qrServer.URL())
+		Logger.Info("temporary QR server started", "url", qrServer.URL())
 		if b.cfg.QRCode {
 			fmt.Printf("\n==> Open this URL in your browser to scan the QR code: %s\n\n", qrServer.URL())
 		}
@@ -498,10 +499,10 @@ func (b *Bot) runQR(ctx context.Context) error {
 				qrServer.SetPaired()
 				time.Sleep(1 * time.Second)
 			}
-			slog.Info("QR code pairing successful, shutting down temporary QR server")
+			Logger.Info("QR code pairing successful, shutting down temporary QR server")
 			return nil
 		} else {
-			slog.Debug("qr channel event", "event", evt.Event)
+			Logger.Debug("qr channel event", "event", evt.Event)
 		}
 	}
 	return nil
@@ -524,17 +525,17 @@ func (b *Bot) WAEventHandler(evt any) {
 		_ = v // handled via qrChan in runQR
 
 	case *events.PairSuccess:
-		slog.Info("paired successfully")
+		Logger.Info("paired successfully")
 		broadcast(simpleEvent(EventPairSuccess))
 
 	case *events.PairError:
-		slog.Warn("pairing failed", "err", v.Error)
+		Logger.Warn("pairing failed", "err", v.Error)
 		broadcast(EventMessage{
 			Kind:    EventPairError,
 			Payload: PairErrorPayload{Reason: v.Error.Error()},
 		})
 	case *events.LoggedOut:
-		slog.Warn("logged out", "reason", v.Reason)
+		Logger.Warn("logged out", "reason", v.Reason)
 		b.loggedOut.Store(true)
 		broadcast(simpleEvent(EventLoggedOut))
 		b.mu.Lock()
@@ -545,16 +546,16 @@ func (b *Bot) WAEventHandler(evt any) {
 		}
 
 	case *events.Disconnected:
-		slog.Info("disconnected")
+		Logger.Info("disconnected")
 		broadcast(simpleEvent(EventDisconnected))
 
 	case *events.Connected:
-		slog.Info("connected", "session", b.cfg.Session)
+		Logger.Info("connected", "session", b.cfg.Session)
 		broadcast(simpleEvent(EventConnected))
 		if cli != nil {
 			go func() {
 				if err := b.groupManager.SyncAll(context.Background(), cli); err != nil {
-					slog.Warn("groupManager.SyncAll returned error", "err", err)
+					Logger.Warn("groupManager.SyncAll returned error", "err", err)
 				}
 			}()
 		}
@@ -594,11 +595,11 @@ func (b *Bot) WAEventHandler(evt any) {
 		})
 
 	case *events.Presence:
-		slog.Debug("events: received Presence event", "from", v.From.String(), "unavailable", v.Unavailable, "lastSeen", v.LastSeen)
+		Logger.Debug("events: received Presence event", "from", v.From.String(), "unavailable", v.Unavailable, "lastSeen", v.LastSeen)
 		commands.TrackPresence(v.From, !v.Unavailable)
 
 	case *events.ChatPresence:
-		slog.Debug("events: received ChatPresence event", "sender", v.Sender.String(), "state", v.State, "media", v.Media)
+		Logger.Debug("events: received ChatPresence event", "sender", v.Sender.String(), "state", v.State, "media", v.Media)
 		commands.TrackPresence(v.Sender, true)
 
 	case *events.Receipt:
@@ -607,7 +608,7 @@ func (b *Bot) WAEventHandler(evt any) {
 		}
 
 	case *events.CallOffer:
-		slog.Info("call offer received", "from", v.CallCreator.String())
+		Logger.Info("call offer received", "from", v.CallCreator.String())
 		b.handleAntiCall(context.Background(), v)
 		b.hub.Broadcast(EventMessage{
 			Kind: EventIncomingCall,
@@ -619,25 +620,25 @@ func (b *Bot) WAEventHandler(evt any) {
 		})
 
 	case *events.GroupInfo:
-		slog.Info("group info update received", "jid", v.JID.String())
+		Logger.Info("group info update received", "jid", v.JID.String())
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 		b.handleGroupGreetings(context.Background(), v)
 		b.handleGroupEventsNotification(context.Background(), v)
 		b.handleGroupCaptcha(context.Background(), v)
 
 	case *events.JoinedGroup:
-		slog.Info("joined group event received", "jid", v.JID.String())
+		Logger.Info("joined group event received", "jid", v.JID.String())
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.Picture:
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.NewsletterJoin:
-		slog.Info("newsletter joined", "jid", v.ID.String())
+		Logger.Info("newsletter joined", "jid", v.ID.String())
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.NewsletterLeave:
-		slog.Info("newsletter left", "jid", v.ID.String())
+		Logger.Info("newsletter left", "jid", v.ID.String())
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.NewsletterMuteChange:
@@ -650,6 +651,6 @@ func (b *Bot) WAEventHandler(evt any) {
 		// Ignore low-level history sync, call signaling, and receipt events to avoid log clutter
 
 	default:
-		slog.Debug("unhandled event", "type", fmt.Sprintf("%T", evt))
+		Logger.Debug("unhandled event", "type", fmt.Sprintf("%T", evt))
 	}
 }

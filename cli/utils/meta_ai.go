@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -265,13 +266,13 @@ func ExtractMetaAiGeneratedMedia(msg *waE2E.Message) (mediaURL string, mimeType 
 func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat types.JID, request string, onUpdate func(text string) error) (MetaAiResult, error) {
 	chatKey := chat.String()
 
-	slog.Debug("executeMetaAiQuery: sending request", "chat", chatKey, "request", request)
+	Logger.Debug("executeMetaAiQuery: sending request", "chat", chatKey, "request", request)
 
 	sendResp, err := client.SendMessage(ctx, MetaAiBotJID, &waE2E.Message{
 		Conversation: new(request),
 	})
 	if err != nil {
-		slog.Error("executeMetaAiQuery: failed to send request", "chat", chatKey, "err", err)
+		Logger.Error("executeMetaAiQuery: failed to send request", "chat", chatKey, "err", err)
 		return MetaAiResult{}, fmt.Errorf("failed to send request to meta ai: %w", err)
 	}
 	sentMsgID := sendResp.ID
@@ -321,19 +322,19 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 		if !seen && pm == nil {
 			metaMsgID = msgEvt.Info.ID
 			seen = true
-			slog.Debug("executeMetaAiQuery: captured meta ai reply message id", "chat", chatKey, "meta_msg_id", metaMsgID)
+			Logger.Debug("executeMetaAiQuery: captured meta ai reply message id", "chat", chatKey, "meta_msg_id", metaMsgID)
 		}
 
 		// 1. Direct image message
 		if imgMsg := msgEvt.Message.GetImageMessage(); imgMsg != nil {
-			slog.Debug("executeMetaAiQuery: captured direct imageMessage from Meta AI", "chat", chatKey)
+			Logger.Debug("executeMetaAiQuery: captured direct imageMessage from Meta AI", "chat", chatKey)
 			imgBytes, err := client.Download(ctx, imgMsg)
 			if err == nil && len(imgBytes) > 0 {
 				genMediaData = imgBytes
 				genMediaMime = detectMediaMime(imgBytes, imgMsg.GetMimetype(), "")
 				genMediaCap = imgMsg.GetCaption()
 				mu.Unlock()
-				slog.Debug("executeMetaAiQuery: successfully downloaded direct imageMessage", "len", len(imgBytes))
+				Logger.Debug("executeMetaAiQuery: successfully downloaded direct imageMessage", "len", len(imgBytes))
 				closeOnce.Do(func() { close(done) })
 				return
 			}
@@ -341,14 +342,14 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 
 		// 2. Direct video message
 		if vidMsg := msgEvt.Message.GetVideoMessage(); vidMsg != nil {
-			slog.Debug("executeMetaAiQuery: captured direct videoMessage from Meta AI", "chat", chatKey)
+			Logger.Debug("executeMetaAiQuery: captured direct videoMessage from Meta AI", "chat", chatKey)
 			vidBytes, err := client.Download(ctx, vidMsg)
 			if err == nil && len(vidBytes) > 0 {
 				genMediaData = vidBytes
 				genMediaMime = detectMediaMime(vidBytes, vidMsg.GetMimetype(), "")
 				genMediaCap = vidMsg.GetCaption()
 				mu.Unlock()
-				slog.Debug("executeMetaAiQuery: successfully downloaded direct videoMessage", "len", len(vidBytes))
+				Logger.Debug("executeMetaAiQuery: successfully downloaded direct videoMessage", "len", len(vidBytes))
 				closeOnce.Do(func() { close(done) })
 				return
 			}
@@ -364,7 +365,7 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 					genMediaMime = detectMediaMime(docBytes, docMime, "")
 					genMediaCap = docMsg.GetCaption()
 					mu.Unlock()
-					slog.Debug("executeMetaAiQuery: successfully downloaded direct document media", "len", len(docBytes))
+					Logger.Debug("executeMetaAiQuery: successfully downloaded direct document media", "len", len(docBytes))
 					closeOnce.Do(func() { close(done) })
 					return
 				}
@@ -423,7 +424,7 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 						if genMediaCap == "" {
 							genMediaCap = imgCap
 						}
-						slog.Debug("executeMetaAiQuery: downloaded generated media", "len", len(mediaBytes), "mime", detectedMime)
+						Logger.Debug("executeMetaAiQuery: downloaded generated media", "len", len(mediaBytes), "mime", detectedMime)
 						mu.Unlock()
 						closeOnce.Do(func() { close(done) })
 						return
@@ -441,11 +442,11 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 
 		editType := string(msgEvt.Info.MsgBotInfo.EditType)
 		if text != "" {
-			slog.Debug("executeMetaAiQuery: update", "chat", chatKey, "edit_type", editType, "text", text)
+			Logger.Debug("executeMetaAiQuery: update", "chat", chatKey, "edit_type", editType, "text", text)
 			if _, _, isRunCmd := ParseRunCommand(text); isRunCmd {
 				final = text
 				if editType == "last" || editType == "inner" {
-					slog.Debug("executeMetaAiQuery: RUN_COMMAND captured", "chat", chatKey, "cmd_text", text, "edit_type", editType)
+					Logger.Debug("executeMetaAiQuery: RUN_COMMAND captured", "chat", chatKey, "cmd_text", text, "edit_type", editType)
 					if editType == "last" {
 						mu.Unlock()
 						closeOnce.Do(func() { close(done) })
@@ -454,7 +455,7 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 				}
 			} else if onUpdate != nil {
 				if err := onUpdate(text); err != nil {
-					slog.Error("executeMetaAiQuery: onUpdate callback failed", "chat", chatKey, "err", err)
+					Logger.Error("executeMetaAiQuery: onUpdate callback failed", "chat", chatKey, "err", err)
 				}
 			}
 		}
@@ -479,7 +480,7 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 		}
 
 		if mediaStatus == "FAILED" || mediaStatus == "ERROR" {
-			slog.Warn("executeMetaAiQuery: media generation failed on server", "chat", chatKey, "status", mediaStatus)
+			Logger.Warn("executeMetaAiQuery: media generation failed on server", "chat", chatKey, "status", mediaStatus)
 			mu.Unlock()
 			closeOnce.Do(func() { close(done) })
 			return
@@ -497,12 +498,12 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 
 	select {
 	case <-ctx.Done():
-		slog.Warn("executeMetaAiQuery: context cancelled/timed out before completion", "chat", chatKey, "err", ctx.Err())
+		Logger.Warn("executeMetaAiQuery: context cancelled/timed out before completion", "chat", chatKey, "err", ctx.Err())
 		return MetaAiResult{}, ctx.Err()
 	case <-time.After(50 * time.Second):
 		mu.Lock()
 		defer mu.Unlock()
-		slog.Debug("executeMetaAiQuery: max timeout reached, returning gathered result", "chat", chatKey, "final_text_len", len(final), "media_len", len(genMediaData))
+		Logger.Debug("executeMetaAiQuery: max timeout reached, returning gathered result", "chat", chatKey, "final_text_len", len(final), "media_len", len(genMediaData))
 		return MetaAiResult{
 			Text:           final,
 			GeneratedMedia: genMediaData,
@@ -515,7 +516,7 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 	case <-done:
 		mu.Lock()
 		defer mu.Unlock()
-		slog.Debug("executeMetaAiQuery: completed", "chat", chatKey, "final_text_len", len(final), "media_len", len(genMediaData), "media_mime", genMediaMime)
+		Logger.Debug("executeMetaAiQuery: completed", "chat", chatKey, "final_text_len", len(final), "media_len", len(genMediaData), "media_mime", genMediaMime)
 		return MetaAiResult{
 			Text:           final,
 			GeneratedMedia: genMediaData,

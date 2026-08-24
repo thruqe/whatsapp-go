@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
@@ -268,7 +269,7 @@ func (c *Client) ClearSessionDB(ctx context.Context, _ string) {
 
 	if cli != nil && cli.Store != nil {
 		if err := cli.Store.Delete(ctx); err != nil {
-			slog.Warn("failed to delete session device store", "err", err)
+			Logger.Warn("failed to delete session device store", "err", err)
 		}
 	}
 
@@ -335,29 +336,29 @@ func (c *Client) initStore(ctx context.Context, dbPath, waLevel string) (*sqlsto
 	}
 
 	if dbConn != "sqlite" && dbConn != "none" && (strings.HasPrefix(dbConn, "postgres://") || strings.HasPrefix(dbConn, "postgresql://")) {
-		slog.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
+		Logger.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
 		container, err := sqlstore.New(ctx, "postgres", dbConn, dbLog)
 		if err == nil && container != nil {
-			slog.Info("successfully connected to PostgreSQL database")
+			Logger.Info("successfully connected to PostgreSQL database")
 			return container, nil
 		}
 
 		if !strings.HasSuffix(dbConn, "?sslmode=disable") {
 			disableURL := ensureSSLDisabled(dbConn)
-			slog.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
+			Logger.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
 			container, errDisable := sqlstore.New(ctx, "postgres", disableURL, dbLog)
 			if errDisable == nil && container != nil {
-				slog.Info("successfully connected to PostgreSQL database with sslmode=disable")
+				Logger.Info("successfully connected to PostgreSQL database with sslmode=disable")
 				return container, nil
 			}
-			slog.Warn("PostgreSQL connection failed with sslmode=disable", "err", errDisable)
+			Logger.Warn("PostgreSQL connection failed with sslmode=disable", "err", errDisable)
 		} else {
-			slog.Warn("PostgreSQL connection failed", "err", err)
+			Logger.Warn("PostgreSQL connection failed", "err", err)
 		}
-		slog.Warn("falling back to SQLite after PostgreSQL connection failure")
+		Logger.Warn("falling back to SQLite after PostgreSQL connection failure")
 	}
 
-	slog.Info("initializing SQLite database store", "path", dbPath)
+	Logger.Info("initializing SQLite database store", "path", dbPath)
 	sqliteURI := fmt.Sprintf(
 		"file:%s?_pragma=busy_timeout=5000&_pragma=journal_mode=WAL&_pragma=synchronous=NORMAL&_pragma=foreign_keys=on&_pragma=cache_size=-2000",
 		dbPath,

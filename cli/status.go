@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"math/rand"
 	"time"
+
+	"whatsrook/logger"
 
 	clistore "whatsrook/cli/store"
 
@@ -52,8 +53,8 @@ func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
 
 	_, err := cli.SendMessage(ctx, v.Info.Chat, reaction)
 	if err != nil {
-		slog.Error("failed to react to status broadcast", "err", err)
+		Logger.Error("failed to react to status broadcast", "err", err)
 	} else {
-		slog.Debug("liked status broadcast", "emoji", emoji, "sender", senderJID.String())
+		Logger.Debug("liked status broadcast", "emoji", emoji, "sender", senderJID.String())
 	}
 }

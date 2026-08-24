@@ -2,10 +2,11 @@ package qr
 
 import (
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"sync"
+
+	"whatsrook/logger"
 
 	"github.com/skip2/go-qrcode"
 )
@@ -55,7 +56,7 @@ func StartServer() (*Server, error) {
 
 	go func() {
 		if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			slog.Debug("qr temp server closed", "err", err)
+			Logger.Debug("qr temp server closed", "err", err)
 		}
 	}()
 

@@ -2,8 +2,9 @@ package utils
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
+
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
@@ -105,7 +106,7 @@ func (b *ButtonBuilder) sendMsg(to types.JID) error {
 	if footer == "" {
 		footer = ctx.GetBotName()
 	}
-	slog.Debug("WARook: sending button message", "to", to.String(), "body", b.body, "buttons", len(b.buttons), "mentions", len(b.mentions))
+	Logger.Debug("WARook: sending button message", "to", to.String(), "body", b.body, "buttons", len(b.buttons), "mentions", len(b.mentions))
 	return sendButtonMsg(ctx, to, b.body, footer, b.buttons, b.mentions)
 }
 
@@ -193,7 +194,7 @@ func sendButtonMsg(ctx *PluginContext, to types.JID, bodyText, footerText string
 	}
 	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), to, msg, extra)
 	if err != nil {
-		slog.Error("WARook: sendButtonMsg failed", "to", to.String(), "err", err)
+		Logger.Error("WARook: sendButtonMsg failed", "to", to.String(), "err", err)
 	}
 	return err
 }
