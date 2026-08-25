@@ -2,35 +2,35 @@
 
 ## 1. Credentials and Secrets
 
-Never commit or hardcode credentials — API keys, session tokens, auth data, or anything sensitive. Don't log them in plaintext either.
+Never commit or hardcode credentials, such as API keys, session tokens, or authentication data. This kind of information must not be logged in plaintext either.
 
-- Use environment variables or a proper secret manager for config.
-- Store persisted auth data (sessions, tokens) encrypted at rest.
+- Environment variables or a proper secret manager should be used for configuration.
+- Persisted authentication data, such as sessions and tokens, must be stored encrypted at rest.
 
 ## 2. Memory Safety and Stability
 
-WhatsRook runs as a long-lived messaging client, so contributions need to be memory-safe:
+whatsrook runs as a long-lived messaging client, so contributions need to be memory-safe. This means:
 
-- No memory leaks or unbounded resource growth
-- No unchecked pointer dereferences
-- Proper cleanup of connections, goroutines, and object lifecycles
+- No memory leaks or unbounded resource growth.
+- No unchecked pointer dereferences.
+- Proper cleanup of connections, goroutines, and object lifecycles.
 
-Code that could degrade performance or stability over long uptimes won't be merged as-is.
+Code that could degrade performance or stability over long uptimes will not be merged as it is.
 
 ## 3. No Social Engineering
 
-WhatsRook exists to enable legitimate automation, not deception. Contributions or usage that build phishing flows, pretexting, or any logic designed to trick people into giving up private information are not allowed and will be rejected.
+whatsrook exists to enable legitimate automation, not deception. Contributions or usage that build phishing flows, pretexting, or any logic designed to trick people into giving up private information are not allowed and will be rejected.
 
 ## 4. Acceptable Use
 
-WhatsRook talks directly to real people over WhatsApp — treat that responsibly.
+whatsrook communicates directly with real people over WhatsApp, so this capability must be treated responsibly.
 
-Do not use it to:
+It must not be used to:
 
-- Stalk or covertly monitor someone
-- Harass, threaten, or send abusive content
-- Send unsolicited spam or malicious payloads
+- Stalk or covertly monitor someone.
+- Harass, threaten, or send abusive content.
+- Send unsolicited spam or malicious payloads.
 
 ## Reporting a Vulnerability
 
-If you find a security issue, please open an issue or contact the maintainers directly rather than disclosing it publicly.
+If a security issue is found, please contact this [email](mailto:thruqe@outlook.com) rather than disclosing it publicly.
