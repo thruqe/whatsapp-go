@@ -114,11 +114,6 @@ func (b *ButtonBuilder) registerHandlers(once bool, fn func(req ButtonRequest, r
 	}
 }
 
-func (b *ButtonBuilder) sendMsg(to types.JID) error {
-	_, err := b.sendMsgWithID(to)
-	return err
-}
-
 func (b *ButtonBuilder) sendMsgWithID(to types.JID) (types.MessageID, error) {
 	ctx := b.rook.ctx
 	footer := b.footer
