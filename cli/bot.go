@@ -606,17 +606,71 @@ func (b *Bot) WAEventHandler(evt any) {
 	case *events.NewsletterLiveUpdate:
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
-	case *events.HistorySync, *events.UndecryptableMessage, *events.UndecryptedMessage,
-		*events.StreamError, *events.Blocklist, *events.NotifyAccountReachoutTimelock,
-		*events.UserAbout, *events.IdentityChange, *events.PrivacySettings,
-		*events.KeepAliveTimeout, *events.KeepAliveRestored, *events.MediaRetry,
-		*events.QRScannedWithoutMultidevice, *events.ManualLoginReconnect,
-		*events.PushName, *events.AppState, *events.AppStateSyncComplete,
-		*events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted,
-		*events.CallOfferNotice, *events.CallAccept, *events.CallPreAccept,
-		*events.CallRelayLatency, *events.CallTransport, *events.CallTerminate,
-		*events.CallReject, *events.UnknownCallEvent:
-		// Ignored to avoid log noise
+	// Stream, Session & Connection Diagnostics
+	case *events.StreamError:
+		Logger.Error("stream error received", v)
+	case *events.KeepAliveTimeout:
+		Logger.Warn("keepalive ping timed out", v)
+	case *events.KeepAliveRestored:
+		Logger.Info("keepalive connection restored")
+	case *events.ManualLoginReconnect:
+		Logger.Info("manual login reconnect triggered")
+	case *events.QRScannedWithoutMultidevice:
+		Logger.Warn("qr scanned on legacy non-multidevice client")
+
+	// Cryptography & Decryption Failures
+	case *events.UndecryptableMessage:
+		Logger.Warn("undecryptable message received", v)
+	case *events.UndecryptedMessage:
+		Logger.Warn("undecrypted message received", v)
+	case *events.MediaRetry:
+		Logger.Debug("media download retry signal", v)
+
+	// History & App State Synchronizations
+	case *events.HistorySync:
+		Logger.Info("history synchronization chunk received", "type", v.Data.GetSyncType().String(), "chunk_order", v.Data.GetChunkOrder(), "conversations_count", len(v.Data.GetConversations()))
+	case *events.OfflineSyncPreview:
+		Logger.Info("offline message sync preview", v)
+	case *events.OfflineSyncCompleted:
+		Logger.Info("offline message sync completed", "total_messages", v.Count)
+	case *events.AppState:
+		Logger.Debug("app state sync mutation received", v)
+	case *events.AppStateSyncComplete:
+		Logger.Info("app state sync complete", v)
+
+	// User, Contacts & Privacy Metadata
+	case *events.PushName:
+		Logger.Info("push name update received", v)
+	case *events.UserAbout:
+		Logger.Info("user about/status text updated", v)
+	case *events.Contact:
+		Logger.Debug("contact record updated", v)
+	case *events.IdentityChange:
+		Logger.Warn("e2ee identity key changed", "jid", v.JID.String(), "timestamp", v.Timestamp)
+	case *events.PrivacySettings:
+		Logger.Info("account privacy settings updated", "settings", fmt.Sprintf("%+v", v))
+	case *events.Blocklist:
+		Logger.Info("blocklist synchronized", "action", v.Action, "changes_count", len(v.Changes))
+	case *events.NotifyAccountReachoutTimelock:
+		Logger.Warn("account reachout timelock notification", "timelock", v)
+
+	// Call Signaling Transitions
+	case *events.CallOfferNotice:
+		Logger.Info("call offer notice received", "call_id", v.CallID, "from", v.CallCreator.String(), "media", v.Media)
+	case *events.CallAccept:
+		Logger.Info("call accepted", "call_id", v.CallID, "from", v.CallCreator.String(), "timestamp", v.Timestamp)
+	case *events.CallPreAccept:
+		Logger.Debug("call pre-accept signal", "call_id", v.CallID, "from", v.CallCreator.String())
+	case *events.CallRelayLatency:
+		Logger.Debug("call relay latency update", "call_id", v.CallID, "latency", v)
+	case *events.CallTransport:
+		Logger.Debug("call transport parameters negotiated", "call_id", v.CallID)
+	case *events.CallTerminate:
+		Logger.Info("call terminated", "call_id", v.CallID, "from", v.CallCreator.String(), "reason", v.Reason)
+	case *events.CallReject:
+		Logger.Info("call rejected", "call_id", v.CallID, "from", v.CallCreator.String())
+	case *events.UnknownCallEvent:
+		Logger.Debug("unknown call event frame", "node", v.Node.Tag)
 
 	default:
 		Logger.Debug("unhandled event received", "type", fmt.Sprintf("%T", evt))
