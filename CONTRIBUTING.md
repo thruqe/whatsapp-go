@@ -1,6 +1,6 @@
 # Contributing Guidelines
 
-Welcome to WhatsRook. Review the following guidelines before submitting issues or pull requests.
+Welcome to whatsrook. These guidelines should be reviewed before submitting issues or pull requests.
 
 ## 1. Development Management
 
@@ -20,10 +20,10 @@ All development workflows are managed through the [Taskfile](./Taskfile.yml):
 
 ## 2. Architecture & Guidelines
 
-- **Architecture Guidelines**: Refer to [AGENTS.md](./AGENTS.md) for package layering and boundaries between `whatsrook`, `wa-core`, `utils`, and `cli`.
-- **Code Quality**: Always run `task fmt` before opening a pull request.
-- **Testing**: Ensure existing tests pass and add unit tests for new logic with `task test`.
-- **Commits**: Follow conventional commit conventions (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`).
+- Architecture Guidelines: [AGENTS.md](./AGENTS.md) describes package layering and the boundaries between `whatsrook`, `wa-core`, `utils`, and `cli`.
+- Code Quality: `task fmt` must be run before opening a pull request.
+- Testing: Existing tests must pass, and unit tests should be added for new logic using `task test`.
+- Commits: Conventional commit conventions must be followed (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`).
 
 ## 3. Pull Request Workflow
 
@@ -34,6 +34,6 @@ All development workflows are managed through the [Taskfile](./Taskfile.yml):
 
 ## 4. Governance & Policies
 
-- **Code of Conduct**: Review [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) before participating in discussions or submitting PRs.
-- **Security Policy**: For reporting vulnerabilities, consult [SECURITY.md](./SECURITY.md).
-- **Disclaimer**: Review liability and educational use terms in [DISCLAIMER.md](./DISCLAIMER.md).
+- Code of Conduct: [CODE_OF_CONDUCT](./CODE_OF_CONDUCT.md) should be reviewed before participating in discussions or submitting pull requests.
+- Security Policy: For reporting vulnerabilities, consult [SECURITY](./SECURITY.md).
+- Disclaimer: Liability and educational use terms are described in [DISCLAIMER](./DISCLAIMER.md).

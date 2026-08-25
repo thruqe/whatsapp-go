@@ -1,0 +1,25 @@
+<svg width="520" height="72" viewBox="0 0 520 72" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .base { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; font-size: 40px; }
+    .dim  { fill: #8a8a8a; }
+    .bold { fill: #1a1a1a; font-weight: 700; opacity: 0; }
+    @media (prefers-color-scheme: dark) {
+      .bold { fill: #ffffff; }
+    }
+    @keyframes cycle {
+      0% { opacity: 0; }
+      4%, 21% { opacity: 1; }
+      25%, 100% { opacity: 0; }
+    }
+    .w1 { animation: cycle 4.4s infinite 0s; }
+    .w2 { animation: cycle 4.4s infinite -3.3s; }
+    .w3 { animation: cycle 4.4s infinite -2.2s; }
+    .w4 { animation: cycle 4.4s infinite -1.1s; }
+  </style>
+  <text x="0" y="50" class="base dim">whatsrook</text>
+  <text x="230" y="50" class="base bold w1">client</text>
+  <text x="230" y="50" class="base bold w2">automation</text>
+  <text x="230" y="50" class="base bold w3">bot</text>
+  <text x="230" y="50" class="base bold w4">cli</text>
+</svg>
+
