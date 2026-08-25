@@ -1,4 +1,4 @@
-![whatsrook](./docs/logo.svg)
+![whatsrook](./assets/logo.svg)
 
 whatsrook is a command-line, third-party, hybrid-automation whatsapp client.
 
@@ -10,7 +10,7 @@ For questions about whatsrook use cases (like how to do stuff or seek more help)
 
 ## Usage
 
-The configuration [doc](./docs/CONFIGURATION.md) contains info about all the environment variables needed to run whatsrook.
+The configuration [doc](./CONFIGURATION.md) contains info about all the environment variables needed to run whatsrook.
 
 You can run a simple whatsrook instance on this [free host](https://wha-console.onrender.com/), this service not guaranteed to be alive at this moment, you can deploy own [wha-console](https://github.com/ThruqeLabs/wha-console) to run and manage whatsrook instance.
 
