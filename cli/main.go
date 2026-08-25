@@ -8,115 +8,35 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-	"whatsrook/logger"
 
 	"whatsrook"
 	"whatsrook/cli/updater"
+	Logger "whatsrook/logger"
 	"whatsrook/utils/cache"
 )
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "update" {
-		ctx := context.Background()
-		current := updater.GetStoredChannel()
-		isBeta := current == "beta"
-		up := updater.New(updater.Options{
-			Out:     os.Stdout,
-			Channel: current,
-		})
+	args := parseCLIArgs()
 
-		subcmd := "check"
-		if len(os.Args) > 2 {
-			subcmd = os.Args[2]
-		}
-
-		switch subcmd {
-		case "check":
-			_, err := up.Check(ctx)
-			if err != nil {
-				Logger.Error("update check failed", "err", err)
-				os.Exit(1)
-			}
-			return
-
-		case "upgrade", "apply", "now":
-			res, err := up.Upgrade(ctx, isBeta)
-			if err != nil {
-				Logger.Error("upgrade failed", "err", err)
-				os.Exit(1)
-			}
-			if res.Updated {
-				fmt.Println("==> Restarting process with new binary...")
-				err := updater.RestartProcess()
-				Logger.Error("failed to restart process", "err", err)
-				os.Exit(1)
-			}
-			return
-
-		default:
-			fmt.Fprintf(os.Stderr, "Unknown update subcommand %q. Usage: whatsrook update [check|upgrade]\n", subcmd)
-			os.Exit(1)
-		}
+	if args.Update {
+		handleUpdate(args.UpdateOp)
+		return
 	}
 
-	args := parseCLIArgs()
 	cache.Init(10000)
 	defer func() {
 		_ = cache.Close()
 	}()
 
-	if args.Update {
-		ctx := context.Background()
-		current := updater.GetStoredChannel()
-		requested := args.UpdateChannel // "stable", "beta", or ""
-
-		if requested != "" {
-			if requested == current {
-				fmt.Printf("==> Already on the %s channel.\n", current)
-			} else {
-				fmt.Printf("==> Switching from %s to %s channel...\n", current, requested)
-				if err := updater.SetStoredChannel(requested); err != nil {
-					Logger.Error("failed to set channel", "err", err)
-					os.Exit(1)
-				}
-				current = requested
-			}
-		}
-
-		up := updater.New(updater.Options{
-			Out:     os.Stdout,
-			Channel: current,
-		})
-
-		isBeta := current == "beta"
-		res, err := up.Upgrade(ctx, isBeta)
-		if err != nil {
-			Logger.Error("update failed", "err", err)
-			os.Exit(1)
-		}
-		if res.Updated {
-			fmt.Println("==> Restarting process with new binary...")
-			err := updater.RestartProcess()
-			Logger.Error("failed to restart process", "err", err)
-			os.Exit(1)
-		}
-
-		if args.Session == "" && os.Getenv("SESSION") == "" {
-			fmt.Println("==> No active session requested. Exiting.")
-			return
-		}
-	}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	if args.Session == "" {
-		if err := runIdleMode(ctx, args.Port); err != nil {
+		if err := runIdleMode(ctx); err != nil {
 			Logger.Error("idle server error", "err", err)
 			os.Exit(1)
 		}
@@ -125,20 +45,17 @@ func main() {
 
 	clientType, ok := whatsrook.ParseClientType(args.Client)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "Error: unknown --client %q. Valid options: chrome, android, ios\n", args.Client)
-		os.Exit(1)
+		clientType = whatsrook.ClientChrome
 	}
 
 	bot := NewBot(BotConfig{
 		Session:         args.Session,
-		Pair:            args.Pair,
-		QRCode:          args.QRCode,
+		Pair:            args.Auth == "pair",
+		QRCode:          args.Auth == "qr",
 		Logout:          args.Logout,
-		Verbose:         args.Verbose,
 		ClientType:      clientType,
 		Database:        args.Database,
-		WSPort:          args.Port,
-		SkipOldMessages: args.SkipOldMessages,
+		WSPort:          0, // 0 instructs OS to bind to a random available port
 		AsyncMessageAck: true,
 	})
 
@@ -147,23 +64,68 @@ func main() {
 			if ctx.Err() != nil {
 				return
 			}
-			Logger.Info("Session was logged out and removed. Switching to idle standby mode...")
-			if err := runIdleMode(ctx, args.Port); err != nil {
+			Logger.Info("session was logged out and removed; switching to standby mode")
+			if err := runIdleMode(ctx); err != nil {
 				Logger.Error("idle server error", "err", err)
 				os.Exit(1)
 			}
 			return
 		}
-		Logger.Error("bot error", "err", err)
+		Logger.Error("bot execution failure", "err", err)
 		os.Exit(1)
 	}
 }
 
-func runIdleMode(ctx context.Context, port int) error {
-	if port <= 0 {
-		port = 3000
+func handleUpdate(op string) {
+	ctx := context.Background()
+	current := updater.GetStoredChannel()
+
+	if op == "check" {
+		up := updater.New(updater.Options{
+			Out:     os.Stdout,
+			Channel: current,
+		})
+		if _, err := up.Check(ctx); err != nil {
+			Logger.Error("update check failed", "err", err)
+			os.Exit(1)
+		}
+		return
 	}
 
+	if op == "stable" || op == "beta" {
+		if op != current {
+			fmt.Printf("==> Switching release channel: %s -> %s\n", current, op)
+			if err := updater.SetStoredChannel(op); err != nil {
+				Logger.Error("failed to set release channel", "err", err)
+				os.Exit(1)
+			}
+			current = op
+		} else {
+			fmt.Printf("==> Already tracking channel: %s\n", current)
+		}
+	}
+
+	up := updater.New(updater.Options{
+		Out:     os.Stdout,
+		Channel: current,
+	})
+
+	res, err := up.Upgrade(ctx, current == "beta")
+	if err != nil {
+		Logger.Error("upgrade procedure failed", "err", err)
+		os.Exit(1)
+	}
+
+	if res.Updated {
+		fmt.Println("==> Restarting process with upgraded binary...")
+		if err := updater.RestartProcess(); err != nil {
+			Logger.Error("failed to restart binary process", "err", err)
+			os.Exit(1)
+		}
+	}
+}
+
+func runIdleMode(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -174,43 +136,30 @@ func runIdleMode(ctx context.Context, port int) error {
 		_, _ = fmt.Fprintln(w, "OK")
 	})
 
-	var listener net.Listener
-	var actualPort int
-	for p := port; p < port+100; p++ {
-		l, err := net.Listen("tcp", fmt.Sprintf(":%d", p))
-		if err == nil {
-			listener = l
-			actualPort = p
-			break
-		}
-		if p == port {
-			Logger.Warn("port in use, attempting to bind alternative port", "attempted_port", p, "err", err)
-		}
-	}
-	if listener == nil {
-		return errors.New("failed to find an available port to bind HTTP server")
+	// Bind to port :0 for random assignment
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return fmt.Errorf("failed to bind standby server: %w", err)
 	}
 
-	if actualPort != port {
-		Logger.Warn("port in use — switched to alternative port", "original_port", port, "new_port", actualPort)
-	}
+	boundPort := listener.Addr().(*net.TCPAddr).Port
+	Logger.Info("standby HTTP server online", "port", boundPort, "addr", listener.Addr().String())
 
 	server := &http.Server{Handler: mux}
 	go func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			Logger.Error("http server error", "err", err)
+			Logger.Error("standby HTTP server encountered error", "err", err)
 		}
 	}()
+
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
-		if listener != nil {
-			_ = listener.Close()
-		}
+		_ = listener.Close()
 	}()
 
-	fmt.Printf("\rWhatsRook standby • waiting for session • %s", time.Now().Format("15:04:05"))
+	fmt.Printf("\rWhatsRook standby (port :%d) • waiting for session • %s", boundPort, time.Now().Format("15:04:05"))
 
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -218,7 +167,7 @@ func runIdleMode(ctx context.Context, port int) error {
 	for {
 		select {
 		case <-ticker.C:
-			fmt.Printf("\rWhatsRook standby • waiting for session • %s", time.Now().Format("15:04:05"))
+			fmt.Printf("\rWhatsRook standby (port :%d) • waiting for session • %s", boundPort, time.Now().Format("15:04:05"))
 		case <-ctx.Done():
 			fmt.Println()
 			return nil

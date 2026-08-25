@@ -5,121 +5,103 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 )
 
-// CLIArgs holds parsed command-line flags.
+// CLIArgs holds parsed runtime arguments.
 type CLIArgs struct {
-	Session         string
-	Pair            bool
-	QRCode          bool
-	Logout          bool
-	Update          bool
-	UpdateChannel   string // "stable", "beta", or "" (use stored preference)
-	Verbose         bool
-	Client          string
-	Database        string
-	RedisURL        string
-	SkipOldMessages bool
-	Port            int
+	Session  string // Phone number identifying the session
+	Auth     string // "pair" or "qr" (default: "qr")
+	Client   string // "default", "android", or "ios"
+	Database string // "default" (sqlite) or PostgreSQL connection URL
+	Logout   bool   // Flush credentials/session data and exit
+	Update   bool   // True if an update action was requested
+	UpdateOp string // "check", "stable", "beta", or "" (direct update)
 }
 
+// parseCLIArgs resolves environment configuration and parses CLI flags.
 func parseCLIArgs() CLIArgs {
 	loadDotEnv(".env", "../.env")
 	return parseCLIArgsFrom(os.Args[1:])
 }
 
+// parseCLIArgsFrom parses arguments from an explicit string slice.
 func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 	fs := flag.NewFlagSet("whatsrook", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
-	defaultPort := getEnvInt("PORT", getEnvInt("WS_PORT", 3000))
 	var (
-		session  = fs.String("s", "", "")
-		pair     = fs.Bool("p", false, "")
-		client   = fs.String("c", "", "")
-		database = fs.String("db", "", "")
-		redisURL = fs.String("redis", "", "")
-		port     = fs.Int("P", defaultPort, "")
-		qr       = fs.Bool("q", false, "")
-		logout   = fs.Bool("l", false, "")
-		update   = fs.Bool("u", false, "")
-		verbose  = fs.Bool("v", false, "")
-		noSkip   = fs.Bool("no-skip-old", false, "")
+		session   = fs.String("session", "", "Session phone number")
+		auth      = fs.String("auth", "", "Authentication method: pair | qr")
+		client    = fs.String("client", "", "Client platform profile: default | android | ios")
+		dbURL     = fs.String("db-url", "", "Database URL: default | postgres connection string")
+		logout    = fs.Bool("logout", false, "Remove session credentials and terminate")
+		updateVal = fs.String("update", "__unset__", "Update operation: check | stable | beta | (empty for direct)")
 	)
 
-	fs.StringVar(session, "session", "", "")
-	fs.BoolVar(pair, "pair", false, "")
-	fs.StringVar(client, "client", "", "")
-	fs.StringVar(database, "database", "", "")
-	fs.StringVar(redisURL, "redis-url", "", "")
-	fs.IntVar(port, "port", defaultPort, "")
-	fs.BoolVar(qr, "qrcode", false, "")
-	fs.BoolVar(logout, "logout", false, "")
-	fs.BoolVar(update, "update", false, "")
-	fs.BoolVar(verbose, "verbose", false, "")
+	// Short flag aliases
+	fs.StringVar(session, "s", "", "Session phone number (alias)")
+	fs.StringVar(auth, "a", "", "Authentication method (alias)")
+	fs.StringVar(client, "c", "", "Client platform profile (alias)")
+	fs.StringVar(dbURL, "db", "", "Database URL (alias)")
+	fs.BoolVar(logout, "l", false, "Remove session credentials (alias)")
+	fs.StringVar(updateVal, "u", "__unset__", "Update operation (alias)")
 
 	fs.Usage = func() {
-		fmt.Print(`Usage: whatsrook [-session <phone_number>] [OPTIONS]
-       whatsrook update [check | upgrade]
-       whatsrook --update [stable | beta]
+		fmt.Print(`Usage: whatsrook [OPTIONS]
+       whatsrook update [check | stable | beta]
 
 Options:
-  -s, --session <phone>  Phone number used to identify the session (runs in idle mode if omitted)
-  -p, --pair             Request a pair code using the --session phone number
-  -P, --port <port>      WebSocket/HTTP server port (default: 3000 or $PORT)
-  -c, --client <type>    Client type: chrome (default), android, ios
-  -db, --database <url>  Database connection: sqlite (default) or postgres URL. Per-session override: DATABASE_URL_<phone>
-  -redis <url>           Redis cache connection URL (e.g. redis://localhost:6379/0). Defaults to in-memory cache if omitted
-  -q, --qrcode           Print the QR code to stdout for scanning
-  -l, --logout           Remove the session auth files and exit
-  -u, --update [channel] Check and perform update; optionally pass "stable" or "beta" to
-                         switch channels (prints a notice if already on the requested channel)
-  -v, --verbose          Enable verbose logging
-  --no-skip-old          Process messages sent while the bot was offline (default: skip them)
-  -h, --help             Show this help message
+  -s, --session <phone>         Phone number used to identify the session
+  -a, --auth <pair | qr>        Authentication method (default: qr)
+  -c, --client <type>           Client profile: default (chrome), android, ios (default: default)
+  --db-url, -db <url>           Database: default (sqlite) or PostgreSQL connection URL
+  -l, --logout                  Remove session credentials and exit
+  -u, --update [action]         Check or apply update (actions: check, stable, beta, or empty for direct)
+  -h, --help                    Show this help message
 `)
 	}
 
 	_ = fs.Parse(cmdArgs)
 
-	// Record which flags were explicitly set via command-line arguments
 	explicitFlags := make(map[string]bool)
 	fs.Visit(func(f *flag.Flag) {
 		explicitFlags[f.Name] = true
 	})
 
-	// 1. Session resolution (CLI flag > Positional arg > SESSION env var)
-	sessionVal := ""
-	if explicitFlags["s"] || explicitFlags["session"] {
-		sessionVal = *session
+	// 1. Positional subcommand parsing (e.g., `whatsrook update check`)
+	isUpdate := false
+	updateOp := ""
+
+	if fs.NArg() > 0 && strings.ToLower(fs.Arg(0)) == "update" {
+		isUpdate = true
+		if fs.NArg() > 1 {
+			op := strings.ToLower(strings.TrimSpace(fs.Arg(1)))
+			if op == "check" || op == "stable" || op == "beta" {
+				updateOp = op
+			}
+		}
 	}
 
-	var updateChannel string
-	if fs.NArg() > 0 {
+	// 2. Flag-based update parsing (-update, -u, --update=beta, etc.)
+	if explicitFlags["update"] || explicitFlags["u"] {
+		isUpdate = true
+		val := strings.ToLower(strings.TrimSpace(*updateVal))
+		if val != "__unset__" && (val == "check" || val == "stable" || val == "beta") {
+			updateOp = val
+		}
+	}
+
+	// 3. Session resolution (Flag > Positional phone number > SESSION env)
+	sessionVal := ""
+	if explicitFlags["session"] || explicitFlags["s"] {
+		sessionVal = strings.TrimSpace(*session)
+	} else if fs.NArg() > 0 && !isUpdate {
 		for _, arg := range fs.Args() {
-			lower := strings.ToLower(strings.TrimSpace(arg))
-			// Capture an explicit channel switch alongside -u/--update.
-			if (explicitFlags["u"] || explicitFlags["update"]) && (lower == "stable" || lower == "beta") {
-				updateChannel = lower
-				continue
-			}
-			// Positional phone number detection
-			if sessionVal == "" {
-				cleanArg := strings.TrimPrefix(arg, "+")
-				if len(cleanArg) >= 7 && len(cleanArg) <= 15 {
-					allDigits := true
-					for _, r := range cleanArg {
-						if r < '0' || r > '9' {
-							allDigits = false
-							break
-						}
-					}
-					if allDigits {
-						sessionVal = arg
-					}
-				}
+			cleanArg := strings.TrimPrefix(strings.TrimSpace(arg), "+")
+			if len(cleanArg) >= 7 && len(cleanArg) <= 15 && isNumeric(cleanArg) {
+				sessionVal = arg
+				break
 			}
 		}
 	}
@@ -127,41 +109,29 @@ Options:
 		sessionVal = os.Getenv("SESSION")
 	}
 
-	// 2. Pair vs QRCode resolution (CLI flags strictly override env vars)
-	isQRFlag := explicitFlags["q"] || explicitFlags["qrcode"]
-	isPairFlag := explicitFlags["p"] || explicitFlags["pair"]
-
-	var pairVal bool
-	var qrVal bool
-
-	if isQRFlag {
-		qrVal = *qr
-		pairVal = false // Explicit -q forces QR mode and cancels any PAIR in env
-	} else if isPairFlag {
-		pairVal = *pair
-		qrVal = false // Explicit -p forces Pair mode and cancels any QRCODE in env
-	} else {
-		// Fallback to environment variables if neither flag was specified
-		qrVal = getEnvBool("QRCODE")
-		pairVal = getEnvBool("PAIR")
-		if qrVal && pairVal {
-			pairVal = false // Default to QR if both were set in env
-		}
+	// 4. Auth resolution (Flag > AUTH env > default "qr")
+	authVal := strings.ToLower(strings.TrimSpace(*auth))
+	if authVal == "" {
+		authVal = strings.ToLower(strings.TrimSpace(os.Getenv("AUTH")))
+	}
+	if authVal != "pair" && authVal != "qr" {
+		authVal = "qr"
 	}
 
-	// 3. Client identity resolution (CLI flag > CLIENT env var > default "chrome")
-	clientVal := "chrome"
-	if explicitFlags["c"] || explicitFlags["client"] {
-		clientVal = *client
-	} else if envClient := os.Getenv("CLIENT"); envClient != "" {
-		clientVal = envClient
+	// 5. Client platform resolution (Flag > CLIENT env > default "default")
+	clientVal := strings.ToLower(strings.TrimSpace(*client))
+	if clientVal == "" {
+		clientVal = strings.ToLower(strings.TrimSpace(os.Getenv("CLIENT")))
+	}
+	switch clientVal {
+	case "android", "ios":
+	default:
+		clientVal = "default"
 	}
 
-	// 4. Database URL resolution (CLI flag > DATABASE_URL_<phone> > DATABASE_URL/POSTGRES_URL/DB_URL > "sqlite")
-	var dbVal string
-	if explicitFlags["db"] || explicitFlags["database"] {
-		dbVal = *database
-	} else {
+	// 6. Database resolution (Flag > DATABASE_URL_<phone> > DATABASE_URL > DB_URL > "default")
+	dbVal := strings.TrimSpace(*dbURL)
+	if dbVal == "" {
 		phone := strings.TrimPrefix(sessionVal, "+")
 		if phone != "" && os.Getenv("DATABASE_URL_"+phone) != "" {
 			dbVal = os.Getenv("DATABASE_URL_" + phone)
@@ -172,77 +142,35 @@ Options:
 		} else if envDBURL := os.Getenv("DB_URL"); envDBURL != "" {
 			dbVal = envDBURL
 		} else {
-			dbVal = "sqlite"
+			dbVal = "default"
 		}
 	}
 
-	// 5. Redis URL resolution (CLI flag > REDIS_URL env var > "")
-	redisVal := ""
-	if explicitFlags["redis"] || explicitFlags["redis-url"] {
-		redisVal = *redisURL
-	} else if envRedis := os.Getenv("REDIS_URL"); envRedis != "" {
-		redisVal = envRedis
-	}
-
-	// 6. Port resolution (CLI flag > PORT / WS_PORT env var > 3000)
-	portVal := defaultPort
-	if explicitFlags["P"] || explicitFlags["port"] {
-		portVal = *port
-	}
-
-	// 7. Other boolean flags (CLI flag > env var)
+	// 7. Logout resolution (Flag > LOGOUT env)
 	logoutVal := *logout
-	if !explicitFlags["l"] && !explicitFlags["logout"] {
-		logoutVal = getEnvBool("LOGOUT")
-	}
-
-	updateVal := *update
-	if !explicitFlags["u"] && !explicitFlags["update"] {
-		updateVal = getEnvBool("UPDATE")
-	}
-
-	verboseVal := *verbose
-	if !explicitFlags["v"] && !explicitFlags["verbose"] {
-		verboseVal = getEnvBool("VERBOSE")
-	}
-
-	skipOldVal := true
-	if explicitFlags["no-skip-old"] {
-		skipOldVal = !*noSkip
-	} else if envSkip := os.Getenv("SKIP_OLD_MESSAGES"); envSkip != "" {
-		skipOldVal = getEnvBool("SKIP_OLD_MESSAGES")
+	if !explicitFlags["logout"] && !explicitFlags["l"] {
+		envLogout := strings.ToLower(os.Getenv("LOGOUT"))
+		logoutVal = envLogout == "true" || envLogout == "1"
 	}
 
 	return CLIArgs{
-		Session:         sessionVal,
-		Pair:            pairVal,
-		QRCode:          qrVal,
-		Logout:          logoutVal,
-		Update:          updateVal,
-		UpdateChannel:   updateChannel,
-		Verbose:         verboseVal,
-		Client:          clientVal,
-		Database:        dbVal,
-		RedisURL:        redisVal,
-		SkipOldMessages: skipOldVal,
-		Port:            portVal,
+		Session:  sessionVal,
+		Auth:     authVal,
+		Client:   clientVal,
+		Database: dbVal,
+		Logout:   logoutVal,
+		Update:   isUpdate,
+		UpdateOp: updateOp,
 	}
 }
 
-func getEnvInt(key string, defaultVal int) int {
-	v := os.Getenv(key)
-	if v == "" {
-		return defaultVal
+func isNumeric(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
 	}
-	if p, err := strconv.Atoi(v); err == nil && p > 0 {
-		return p
-	}
-	return defaultVal
-}
-
-func getEnvBool(key string) bool {
-	v := strings.ToLower(os.Getenv(key))
-	return v == "true" || v == "1"
+	return true
 }
 
 func loadDotEnv(filenames ...string) {
@@ -251,8 +179,7 @@ func loadDotEnv(filenames ...string) {
 		if err != nil {
 			continue
 		}
-		lines := strings.SplitSeq(string(data), "\n")
-		for line := range lines {
+		for line := range strings.SplitSeq(string(data), "\n") {
 			line = strings.TrimSpace(line)
 			if line == "" || strings.HasPrefix(line, "#") {
 				continue
