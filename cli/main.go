@@ -65,7 +65,7 @@ func main() {
 	}
 
 	args := parseCLIArgs()
-	cache.Init(args.RedisURL)
+	cache.Init(10000)
 	defer func() {
 		_ = cache.Close()
 	}()
