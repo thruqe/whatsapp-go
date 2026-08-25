@@ -489,18 +489,18 @@ func (b *Bot) WAEventHandler(evt any) {
 		_ = v // QR frames handled directly via runQR channel loop
 
 	case *events.PairSuccess:
-		Logger.Info("pairing completed successfully")
+		Logger.Info("pairing completed successfully", "event", v)
 		broadcast(simpleEvent(EventPairSuccess))
 
 	case *events.PairError:
-		Logger.Warn("pairing procedure failed", "err", v.Error)
+		Logger.Warn("pairing procedure failed", "err", v.Error, "event", v)
 		broadcast(EventMessage{
 			Kind:    EventPairError,
 			Payload: PairErrorPayload{Reason: v.Error.Error()},
 		})
 
 	case *events.LoggedOut:
-		Logger.Warn("device logged out by remote session", "reason", v.Reason)
+		Logger.Warn("device logged out by remote session", "reason", v.Reason, "event", v)
 		b.loggedOut.Store(true)
 		broadcast(simpleEvent(EventLoggedOut))
 		b.mu.Lock()
@@ -511,11 +511,11 @@ func (b *Bot) WAEventHandler(evt any) {
 		}
 
 	case *events.Disconnected:
-		Logger.Info("socket connection disconnected")
+		Logger.Info("socket connection disconnected", "event", v)
 		broadcast(simpleEvent(EventDisconnected))
 
 	case *events.Connected:
-		Logger.Info("socket connection established", "session", b.cfg.Session)
+		Logger.Info("socket connection established", "session", b.cfg.Session, "event", v)
 		broadcast(simpleEvent(EventConnected))
 		if cli != nil {
 			go func() {
@@ -554,11 +554,11 @@ func (b *Bot) WAEventHandler(evt any) {
 		})
 
 	case *events.Presence:
-		Logger.Debug("presence update received", "from", v.From.String(), "unavailable", v.Unavailable, "lastSeen", v.LastSeen)
+		Logger.Debug("presence update received", "event", v)
 		commands.TrackPresence(v.From, !v.Unavailable)
 
 	case *events.ChatPresence:
-		Logger.Debug("chat presence update received", "sender", v.Sender.String(), "state", v.State, "media", v.Media)
+		Logger.Debug("chat presence update received", "event", v)
 		commands.TrackPresence(v.Sender, true)
 
 	case *events.Receipt:
@@ -567,7 +567,7 @@ func (b *Bot) WAEventHandler(evt any) {
 		}
 
 	case *events.CallOffer:
-		Logger.Info("incoming call offer received", "from", v.CallCreator.String())
+		Logger.Info("incoming call offer received", "event", v)
 		b.handleAntiCall(context.Background(), v)
 		b.hub.Broadcast(EventMessage{
 			Kind: EventIncomingCall,
@@ -579,25 +579,25 @@ func (b *Bot) WAEventHandler(evt any) {
 		})
 
 	case *events.GroupInfo:
-		Logger.Info("group metadata update received", "jid", v.JID.String())
+		Logger.Info("group metadata update received", "event", v)
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 		b.handleGroupGreetings(context.Background(), v)
 		b.handleGroupEventsNotification(context.Background(), v)
 		b.handleGroupCaptcha(context.Background(), v)
 
 	case *events.JoinedGroup:
-		Logger.Info("joined group event received", "jid", v.JID.String())
+		Logger.Info("joined group event received", "event", v)
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.Picture:
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.NewsletterJoin:
-		Logger.Info("newsletter subscribed", "jid", v.ID.String())
+		Logger.Info("newsletter subscribed", "event", v)
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.NewsletterLeave:
-		Logger.Info("newsletter unlinked", "jid", v.ID.String())
+		Logger.Info("newsletter unlinked", "event", v)
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.NewsletterMuteChange:
@@ -608,71 +608,71 @@ func (b *Bot) WAEventHandler(evt any) {
 
 	// Stream, Session & Connection Diagnostics
 	case *events.StreamError:
-		Logger.Error("stream error received", v)
+		Logger.Error("stream error received", "event", v)
 	case *events.KeepAliveTimeout:
-		Logger.Warn("keepalive ping timed out", v)
+		Logger.Warn("keepalive ping timed out", "event", v)
 	case *events.KeepAliveRestored:
-		Logger.Info("keepalive connection restored")
+		Logger.Info("keepalive connection restored", "event", v)
 	case *events.ManualLoginReconnect:
-		Logger.Info("manual login reconnect triggered")
+		Logger.Info("manual login reconnect triggered", "event", v)
 	case *events.QRScannedWithoutMultidevice:
-		Logger.Warn("qr scanned on legacy non-multidevice client")
+		Logger.Warn("qr scanned on legacy non-multidevice client", "event", v)
 
 	// Cryptography & Decryption Failures
 	case *events.UndecryptableMessage:
-		Logger.Warn("undecryptable message received", v)
+		Logger.Warn("undecryptable message received", "event", v)
 	case *events.UndecryptedMessage:
-		Logger.Warn("undecrypted message received", v)
+		Logger.Warn("undecrypted message received", "event", v)
 	case *events.MediaRetry:
-		Logger.Debug("media download retry signal", v)
+		Logger.Debug("media download retry signal", "event", v)
 
 	// History & App State Synchronizations
 	case *events.HistorySync:
-		Logger.Info("history synchronization chunk received", "type", v.Data.GetSyncType().String(), "chunk_order", v.Data.GetChunkOrder(), "conversations_count", len(v.Data.GetConversations()))
+		Logger.Info("history synchronization chunk received", "event", v)
 	case *events.OfflineSyncPreview:
-		Logger.Info("offline message sync preview", v)
+		Logger.Info("offline message sync preview", "event", v)
 	case *events.OfflineSyncCompleted:
-		Logger.Info("offline message sync completed", "total_messages", v.Count)
+		Logger.Info("offline message sync completed", "event", v)
 	case *events.AppState:
-		Logger.Debug("app state sync mutation received", v)
+		Logger.Debug("app state sync mutation received", "event", v)
 	case *events.AppStateSyncComplete:
-		Logger.Info("app state sync complete", v)
+		Logger.Info("app state sync complete", "event", v)
 
 	// User, Contacts & Privacy Metadata
 	case *events.PushName:
-		Logger.Info("push name update received", v)
+		Logger.Info("push name update received", "event", v)
 	case *events.UserAbout:
-		Logger.Info("user about/status text updated", v)
+		Logger.Info("user about/status text updated", "event", v)
 	case *events.Contact:
-		Logger.Debug("contact record updated", v)
+		Logger.Debug("contact record updated", "event", v)
 	case *events.IdentityChange:
-		Logger.Warn("e2ee identity key changed", "jid", v.JID.String(), "timestamp", v.Timestamp)
+		Logger.Warn("e2ee identity key changed", "event", v)
 	case *events.PrivacySettings:
-		Logger.Info("account privacy settings updated", "settings", fmt.Sprintf("%+v", v))
+		Logger.Info("account privacy settings updated", "event", v)
 	case *events.Blocklist:
-		Logger.Info("blocklist synchronized", "action", v.Action, "changes_count", len(v.Changes))
+		Logger.Info("blocklist synchronized", "event", v)
 	case *events.NotifyAccountReachoutTimelock:
-		Logger.Warn("account reachout timelock notification", "timelock", v)
+		Logger.Warn("account reachout timelock notification", "event", v)
 
 	// Call Signaling Transitions
 	case *events.CallOfferNotice:
-		Logger.Info("call offer notice received", "call_id", v.CallID, "from", v.CallCreator.String(), "media", v.Media)
+		Logger.Info("call offer notice received", "event", v)
 	case *events.CallAccept:
-		Logger.Info("call accepted", "call_id", v.CallID, "from", v.CallCreator.String(), "timestamp", v.Timestamp)
+		Logger.Info("call accepted", "event", v)
 	case *events.CallPreAccept:
-		Logger.Debug("call pre-accept signal", "call_id", v.CallID, "from", v.CallCreator.String())
+		Logger.Debug("call pre-accept signal", "event", v)
 	case *events.CallRelayLatency:
-		Logger.Debug("call relay latency update", "call_id", v.CallID, "latency", v)
+		Logger.Debug("call relay latency update", "event", v)
 	case *events.CallTransport:
-		Logger.Debug("call transport parameters negotiated", "call_id", v.CallID)
+		Logger.Debug("call transport parameters negotiated", "event", v)
 	case *events.CallTerminate:
-		Logger.Info("call terminated", "call_id", v.CallID, "from", v.CallCreator.String(), "reason", v.Reason)
+		Logger.Info("call terminated", "event", v)
 	case *events.CallReject:
-		Logger.Info("call rejected", "call_id", v.CallID, "from", v.CallCreator.String())
+		Logger.Info("call rejected", "event", v)
 	case *events.UnknownCallEvent:
-		Logger.Debug("unknown call event frame", "node", v.Node.Tag)
+		Logger.Debug("unknown call event frame", "event", v)
 
 	default:
-		Logger.Debug("unhandled event received", "type", fmt.Sprintf("%T", evt))
+		Logger.Debug("unhandled event received", "type", fmt.Sprintf("%T", evt), "event", evt)
 	}
 }
