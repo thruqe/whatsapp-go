@@ -10,18 +10,149 @@ import (
 	"time"
 
 	"whatsrook/cli/captcha"
-	commands "whatsrook/cli/plugins"
+	"whatsrook/cli/plugins"
 	clistore "whatsrook/cli/store"
 	cliutils "whatsrook/cli/utils"
 	"whatsrook/logger"
 	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
+
+func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
+	cli := b.client.WAClient()
+	if cli == nil || v == nil {
+		return
+	}
+
+	s, ok := cli.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return
+	}
+
+	autoAcceptStatus, _ := clistore.GetSetting(ctx, s, cliutils.AutoAcceptCallSettingKey)
+	if autoAcceptStatus == "on" {
+		Logger.Debug("anticall: skipping reject because autoacceptcall is enabled", "call_id", v.CallID)
+		return
+	}
+
+	status, _ := clistore.GetSetting(ctx, s, "anticall_status")
+	if status != "on" {
+		return
+	}
+
+	callerJID := v.CallCreator
+	callerNum := callerJID.User
+
+	contactsOnly, _ := clistore.GetSetting(ctx, s, "anticall_contacts_only")
+	allowedCC, _ := clistore.GetSetting(ctx, s, "anticall_allowed_cc")
+
+	reject := false
+
+	if contactsOnly == "true" {
+		contact, err := cli.Store.Contacts.GetContact(ctx, callerJID)
+		if err != nil || (!contact.Found || (contact.FirstName == "" && contact.FullName == "")) {
+			reject = true
+		}
+	}
+
+	if !reject && allowedCC != "" {
+		codes := strings.Split(allowedCC, ",")
+		matched := false
+		for _, cc := range codes {
+			cc = strings.TrimSpace(strings.TrimPrefix(cc, "+"))
+			if cc != "" && strings.HasPrefix(callerNum, cc) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			reject = true
+		}
+	}
+
+	if !reject && contactsOnly != "true" && allowedCC == "" {
+		reject = true
+	}
+
+	if reject {
+		Logger.Warn("anticall: rejecting call offer", "from", callerJID.String(), "call_id", v.CallID)
+		_ = cli.RejectCall(ctx, callerJID, v.CallID)
+
+		warnKey := "anticall_warn:" + callerJID.String()
+		rawWarn, _ := clistore.GetSetting(ctx, s, warnKey)
+		warnCount, _ := strconv.Atoi(rawWarn)
+		warnCount++
+		_ = clistore.PutSetting(ctx, s, warnKey, strconv.Itoa(warnCount))
+
+		rawMax, _ := clistore.GetSetting(ctx, s, "anticall_max_warn")
+		maxWarn, _ := strconv.Atoi(rawMax)
+		if maxWarn <= 0 {
+			maxWarn = 3
+		}
+
+		if warnCount >= maxWarn {
+			_, _ = cli.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock)
+			Logger.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
+			warnText := fmt.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
+			formatted := cliutils.FormatTextResponseRaw(warnText)
+			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
+		} else {
+			warnText := fmt.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
+			formatted := cliutils.FormatTextResponseRaw(warnText)
+			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
+		}
+	}
+}
+
+func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
+	cli := b.client.WAClient()
+	if cli == nil || v == nil {
+		return
+	}
+	s, ok := cli.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return
+	}
+
+	status, _ := clistore.GetSetting(ctx, s, "likestatus_status")
+	if status != "on" {
+		return
+	}
+
+	loveEmojis := []string{"❤️", "💕", "💖", "💗", "💓", "💞", "💘", "💌", "🥰", "😍"}
+	emoji := loveEmojis[rand.Intn(len(loveEmojis))]
+
+	senderJID := v.Info.Sender
+	if senderJID.IsEmpty() {
+		senderJID = v.Info.Chat
+	}
+
+	reaction := &waE2E.Message{
+		ReactionMessage: &waE2E.ReactionMessage{
+			Key: &waCommon.MessageKey{
+				RemoteJID:   new(v.Info.Chat.String()),
+				FromMe:      new(v.Info.IsFromMe),
+				ID:          new(v.Info.ID),
+				Participant: new(senderJID.String()),
+			},
+			Text:              new(emoji),
+			SenderTimestampMS: new(time.Now().UnixMilli()),
+		},
+	}
+
+	_, err := cli.SendMessage(ctx, v.Info.Chat, reaction)
+	if err != nil {
+		Logger.Error("failed to react to status broadcast", "err", err)
+	} else {
+		Logger.Debug("liked status broadcast", "emoji", emoji, "sender", senderJID.String())
+	}
+}
 
 func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 	cli := b.client.WAClient()
@@ -369,14 +500,14 @@ func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
 	// Cancel pending captcha if participant left or was removed
 	if len(g.Leave) > 0 {
 		for _, participant := range g.Leave {
-			commands.RemovePendingCaptcha(g.JID, participant)
+			plugins.RemovePendingCaptcha(g.JID, participant)
 		}
 	}
 	// Cancel pending captcha and delete verification message if participant was promoted to admin
 	if len(g.Promote) > 0 {
 		cli := b.client.WAClient()
 		for _, participant := range g.Promote {
-			if pending, ok := commands.RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
+			if pending, ok := plugins.RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
 				if cli != nil && pending.MsgID != "" {
 					_, _ = cli.SendMessage(ctx, g.JID, cli.BuildRevoke(g.JID, types.EmptyJID, pending.MsgID))
 				}
@@ -462,7 +593,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 		partCopy := participant
 		resolvedCopy := resolvedJID
 		userCopy := username
-		commands.RegisterPendingCaptcha(
+		plugins.RegisterPendingCaptcha(
 			g.JID,
 			partCopy,
 			resolvedCopy,
@@ -536,7 +667,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 			}
 			*vidMsg.VideoMessage.GifPlayback = true
 			if resp, errSend := cli.SendMessage(ctx, g.JID, vidMsg); errSend == nil && resp.ID != "" {
-				commands.SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
+				plugins.SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
 			}
 		}
 	}
