@@ -122,6 +122,7 @@ func handleUpdate(op string) {
 			Logger.Error("failed to restart binary process", "err", err)
 			os.Exit(1)
 		}
+		os.Exit(0) // exit after handing off on Windows
 	}
 }
 

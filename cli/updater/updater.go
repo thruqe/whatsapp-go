@@ -908,7 +908,6 @@ func RestartProcess(customArgs ...string) error {
 		if err := cmd.Start(); err != nil {
 			return err
 		}
-		os.Exit(0)
 		return nil
 	}
 

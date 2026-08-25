@@ -99,14 +99,6 @@ func sendInteractiveButtons(ctx *Context, bodyText, footerText string, buttons [
 	return sendInteractiveButtonsWithMentions(ctx, bodyText, footerText, buttons, nil)
 }
 
-func sendInteractiveButtonsWithID(ctx *Context, bodyText, footerText string, buttons []struct{ ID, Text string }) (types.MessageID, error) {
-	builder := ctx.Rook().NewButton(bodyText).Footer(footerText)
-	for _, b := range buttons {
-		builder.Add(b.ID, b.Text)
-	}
-	return builder.SendWithID(ctx.Chat)
-}
-
 func isWordPrefix(s string) bool {
 	for _, r := range s {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
