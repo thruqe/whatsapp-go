@@ -103,10 +103,11 @@ func FormatBTCMessage(data *BTCPredictionsResponse, statusLine string) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Bitcoin Price: %s", FormatPriceUSD(data.BitcoinPrice.PriceUSD)))
+	fmt.Fprintf(&sb, "Bitcoin Price: %s", FormatPriceUSD(data.BitcoinPrice.PriceUSD))
 
 	if statusLine != "" {
-		sb.WriteString("\n\n" + statusLine)
+		sb.WriteString("\n\n")
+		sb.WriteString(statusLine)
 	}
 
 	return sb.String()
