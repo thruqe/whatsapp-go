@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
 	"whatsrook/logger"
 
 	"whatsrook"
@@ -27,23 +27,19 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-// BotConfig holds configuration parameters for the CLI
+// BotConfig encapsulates runtime configuration parameters parsed from the CLI interface.
 type BotConfig struct {
 	Session         string
 	Pair            bool
 	QRCode          bool
 	Logout          bool
-	Verbose         bool
 	ClientType      whatsrook.ClientType
-	SkipOldMessages bool
-	DataDir         string
-	WSPort          int
 	Database        string
+	WSPort          int
 	AsyncMessageAck bool
 }
 
-// Bot manages the CLI bot lifecycle: WhatsApp client init, event handling,
-// WebSocket communication, and session state (pairing, logout, persistence).
+// Bot orchestrates the core WhatsApp client, event dispatcher, and API/WebSocket lifecycle.
 type Bot struct {
 	cfg          BotConfig
 	client       *whatsrook.Client
@@ -57,14 +53,8 @@ type Bot struct {
 	mu           sync.Mutex
 }
 
-// Initiates a new Bot instance
+// NewBot constructs and initializes a new Bot lifecycle manager.
 func NewBot(cfg BotConfig) *Bot {
-	if cfg.DataDir == "" {
-		cfg.DataDir = whatsrook.DefaultDataDir()
-	}
-	if cfg.WSPort <= 0 {
-		cfg.WSPort = 3000
-	}
 	return &Bot{
 		cfg:          cfg,
 		groupManager: NewGroupManager(),
@@ -72,28 +62,22 @@ func NewBot(cfg BotConfig) *Bot {
 	}
 }
 
-// GroupManager returns the Bot's GroupManager instance.
+// GroupManager returns the Bot's associated group state manager.
 func (b *Bot) GroupManager() *GroupManager {
 	return b.groupManager
 }
 
-// Launches the Client and it's Activities
+// Start boots the WhatsApp client, initializes the WebSocket API server, and enters the event loop.
 func (b *Bot) Start(ctx context.Context) error {
-	// Validate session phone number
-	// This can be improved later
-	// TODO: Add more robust validation
 	if b.cfg.Session == "" {
 		return errors.New("session phone number is required")
 	}
 
-	// Initialize core WhatsApp client
 	client := whatsrook.NewClient(whatsrook.Config{
 		Session:         b.cfg.Session,
-		DataDir:         b.cfg.DataDir,
+		DataDir:         whatsrook.DefaultDataDir(),
 		Database:        b.cfg.Database,
 		ClientType:      b.cfg.ClientType,
-		Verbose:         b.cfg.Verbose,
-		SkipOldMessages: b.cfg.SkipOldMessages,
 		AsyncMessageAck: b.cfg.AsyncMessageAck,
 	})
 
@@ -101,7 +85,6 @@ func (b *Bot) Start(ctx context.Context) error {
 	b.client = client
 	b.mu.Unlock()
 
-	// Initiate WebSocket, HTTP & bind port
 	hub := newHub()
 	b.mu.Lock()
 	b.hub = hub
@@ -110,39 +93,30 @@ func (b *Bot) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", hub.ServeWS(false))
 
-	startPort := b.cfg.WSPort
-	var listener net.Listener
-	var actualPort int
-	for p := startPort; p < startPort+100; p++ {
-		l, err := net.Listen("tcp", fmt.Sprintf(":%d", p))
-		if err == nil {
-			listener = l
-			actualPort = p
-			break
-		}
-		if p == startPort {
-			Logger.Warn("port in use, attempting to bind alternative port", "attempted_port", p, "err", err)
-		}
+	// Bind to port :0 to allow the OS to allocate a dynamic ephemeral port
+	bindAddr := ":0"
+	if b.cfg.WSPort > 0 {
+		bindAddr = fmt.Sprintf(":%d", b.cfg.WSPort)
 	}
 
-	if listener == nil {
-		return errors.New("failed to find an available port to bind HTTP server")
+	listener, err := net.Listen("tcp", bindAddr)
+	if err != nil {
+		return fmt.Errorf("failed to bind API listener on %s: %w", bindAddr, err)
 	}
 
-	if actualPort != startPort {
-		Logger.Warn("port in use — switched to alternative port", "original_port", startPort, "new_port", actualPort)
-	}
-
+	boundPort := listener.Addr().(*net.TCPAddr).Port
 	b.listener = listener
+
 	server := &http.Server{Handler: mux}
 	b.httpServer = server
 
 	go func() {
-		Logger.Info("listening", "port", actualPort, "session", b.cfg.Session)
+		Logger.Info("API and WebSocket server online", "port", boundPort, "session", b.cfg.Session, "addr", listener.Addr().String())
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			Logger.Error("http server error", "err", err)
+			Logger.Error("http server runtime error", "err", err)
 		}
 	}()
+
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -155,24 +129,19 @@ func (b *Bot) Start(ctx context.Context) error {
 	for {
 		err := b.runSession(ctx)
 
-		// Clean shutdown or context cancelled
-		// Exit normally.
 		if err == nil || errors.Is(err, context.Canceled) {
 			return nil
 		}
 
-		// Session logged out (401 or unpaired)
-		// Clear device record from shared DB and exit so caller can enter idle mode.
 		if errors.Is(err, whatsrook.ErrLoggedOut) || strings.Contains(err.Error(), "logged out") || b.loggedOut.Load() {
-			Logger.Warn("Logged out session detected — device record cleared from shared database.")
+			Logger.Warn("logged out session detected; device record cleared from database")
 			b.loggedOut.Store(false)
 			return whatsrook.ErrLoggedOut
 		}
 
-		// Pairing stalled (malformed WA notification). Wipe the device record and retry.
 		if errors.Is(err, whatsrook.ErrPairTimeout) {
-			Logger.Error("session error", "err", "Pairing timed out — WhatsApp sent a bad response.")
-			Logger.Warn("session action", "warn", "The device record will be cleared and a new code generated.")
+			Logger.Error("session error", "err", "pairing timed out due to invalid remote response")
+			Logger.Warn("session action", "warn", "clearing device record and regenerating pairing key")
 
 			b.mu.Lock()
 			cli := b.client
@@ -194,8 +163,7 @@ func (b *Bot) Start(ctx context.Context) error {
 			continue
 		}
 
-		// Any other error is fatal.
-		return fmt.Errorf("session error: %w", err)
+		return fmt.Errorf("session encountered unrecoverable error: %w", err)
 	}
 }
 
@@ -227,7 +195,6 @@ func (b *Bot) runSession(ctx context.Context) error {
 		return errors.New("failed to initialize wa-core client")
 	}
 
-	// Initialize and migrate CLI custom database tables at startup
 	if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok && s != nil {
 		clistore.InitTables(sessionCtx, s)
 		if val, err := clistore.GetSetting(sessionCtx, s, cliutils.BotNamePromptDismissedKey); err == nil && val == "true" {
@@ -241,16 +208,14 @@ func (b *Bot) runSession(ctx context.Context) error {
 	}
 
 	_ = b.groupManager.LoadFromDB(sessionCtx, cli)
-
-	// Register wacaller raw call adapter hook
 	commands.RegisterWACaller(cli)
 
-	// ── Logout
+	// Explicit session logout routine
 	if b.cfg.Logout {
-		Logger.Info("logging out session", "session", b.cfg.Session)
+		Logger.Info("initiating session logout", "session", b.cfg.Session)
 
 		if cli.Store.ID == nil {
-			Logger.Info("session was never paired, skipping server logout")
+			Logger.Info("session was never paired; skipping server-side revocation")
 		} else {
 			connected := make(chan struct{}, 1)
 			cli.AddEventHandler(func(evt any) {
@@ -263,30 +228,29 @@ func (b *Bot) runSession(ctx context.Context) error {
 			})
 
 			if err := cli.Connect(); err != nil {
-				Logger.Warn("connect failed before logout, clearing device record only", "err", err)
+				Logger.Warn("socket connection failed prior to logout; purging local device state only", "err", err)
 			} else {
 				logoutCtx, logoutCancel := context.WithTimeout(sessionCtx, 10*time.Second)
 				select {
 				case <-connected:
-					Logger.Info("connected — sending logout to WhatsApp servers")
+					Logger.Info("connected to WhatsApp routing servers; dispatching logout frame")
 				case <-logoutCtx.Done():
-					Logger.Warn("timed out waiting for connection, sending logout anyway")
+					Logger.Warn("connection timeout during logout sequence; forcing server revocation")
 				}
 				logoutCancel()
 
 				if err := cli.Logout(sessionCtx); err != nil {
-					Logger.Warn("server logout returned error", "err", err)
+					Logger.Warn("server logout command returned error", "err", err)
 				}
 				cli.Disconnect()
 			}
 		}
 
 		b.client.ClearSessionDB(sessionCtx, "")
-		Logger.Info("session device record cleared successfully", "session", b.cfg.Session)
+		Logger.Info("session credentials and records purged successfully", "session", b.cfg.Session)
 		return nil
 	}
 
-	// ── Normal / pair run
 	cli.AddEventHandler(func(evt any) {
 		b.WAEventHandler(evt)
 	})
@@ -301,14 +265,14 @@ func (b *Bot) runSession(ctx context.Context) error {
 		} else {
 			go func() {
 				if err := b.runQR(sessionCtx); err != nil {
-					Logger.Error("runQR failed", "err", err)
+					Logger.Error("runQR execution error", "err", err)
 				}
 			}()
 		}
 	} else {
 		if err := cli.Connect(); err != nil {
 			if b.loggedOut.Load() || strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "logged out") {
-				Logger.Warn("Connect failed due to logged-out status — clearing device record from shared database...", "err", err)
+				Logger.Warn("connect rejected due to expired authentication; clearing local device record", "err", err)
 				b.client.ClearSessionDB(sessionCtx, "")
 				return whatsrook.ErrLoggedOut
 			}
@@ -317,12 +281,11 @@ func (b *Bot) runSession(ctx context.Context) error {
 	}
 
 	if b.loggedOut.Load() {
-		Logger.Warn("Session logged out — clearing device record from shared database...")
+		Logger.Warn("session revoked; clearing local device record")
 		b.client.ClearSessionDB(sessionCtx, "")
 		return whatsrook.ErrLoggedOut
 	}
 
-	// Start background schedulers tied to session context
 	if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok && s != nil {
 		commands.StartAutoMuteScheduler(sessionCtx, cli)
 		commands.StartAutoBioScheduler(sessionCtx, cli)
@@ -332,7 +295,7 @@ func (b *Bot) runSession(ctx context.Context) error {
 		select {
 		case <-sessionCtx.Done():
 			if b.loggedOut.Load() {
-				Logger.Warn("Session logged out during runtime — clearing device record from shared database...")
+				Logger.Warn("session terminated during runtime; purging device record")
 				b.client.ClearSessionDB(ctx, "")
 				return whatsrook.ErrLoggedOut
 			}
@@ -342,7 +305,7 @@ func (b *Bot) runSession(ctx context.Context) error {
 			b.hub.Broadcast(ack)
 		}
 		if b.loggedOut.Load() {
-			Logger.Warn("Session logged out during runtime — clearing device record from shared database...")
+			Logger.Warn("session terminated during runtime; purging device record")
 			b.client.ClearSessionDB(ctx, "")
 			return whatsrook.ErrLoggedOut
 		}
@@ -477,11 +440,11 @@ func (b *Bot) runQR(ctx context.Context) error {
 	} else {
 		defer func() {
 			_ = qrServer.Close()
-			Logger.Debug("temporary qr server closed and port released", "port", qrServer.Port())
+			Logger.Debug("temporary qr server released", "port", qrServer.Port())
 		}()
 		Logger.Info("temporary QR server started", "url", qrServer.URL())
 		if b.cfg.QRCode {
-			fmt.Printf("\n==> Open this URL in your browser to scan the QR code: %s\n\n", qrServer.URL())
+			fmt.Printf("\n==> Scan QR Code interface via browser: %s\n\n", qrServer.URL())
 		}
 	}
 
@@ -503,7 +466,7 @@ func (b *Bot) runQR(ctx context.Context) error {
 			Logger.Info("QR code pairing successful, shutting down temporary QR server")
 			return nil
 		default:
-			Logger.Debug("qr channel event", "event", evt.Event)
+			Logger.Debug("qr event dispatched", "event", evt.Event)
 		}
 	}
 	return nil
@@ -523,20 +486,21 @@ func (b *Bot) WAEventHandler(evt any) {
 
 	switch v := evt.(type) {
 	case *events.QR:
-		_ = v // handled via qrChan in runQR
+		_ = v // QR frames handled directly via runQR channel loop
 
 	case *events.PairSuccess:
-		Logger.Info("paired successfully")
+		Logger.Info("pairing completed successfully")
 		broadcast(simpleEvent(EventPairSuccess))
 
 	case *events.PairError:
-		Logger.Warn("pairing failed", "err", v.Error)
+		Logger.Warn("pairing procedure failed", "err", v.Error)
 		broadcast(EventMessage{
 			Kind:    EventPairError,
 			Payload: PairErrorPayload{Reason: v.Error.Error()},
 		})
+
 	case *events.LoggedOut:
-		Logger.Warn("logged out", "reason", v.Reason)
+		Logger.Warn("device logged out by remote session", "reason", v.Reason)
 		b.loggedOut.Store(true)
 		broadcast(simpleEvent(EventLoggedOut))
 		b.mu.Lock()
@@ -547,11 +511,11 @@ func (b *Bot) WAEventHandler(evt any) {
 		}
 
 	case *events.Disconnected:
-		Logger.Info("disconnected")
+		Logger.Info("socket connection disconnected")
 		broadcast(simpleEvent(EventDisconnected))
 
 	case *events.Connected:
-		Logger.Info("connected", "session", b.cfg.Session)
+		Logger.Info("socket connection established", "session", b.cfg.Session)
 		broadcast(simpleEvent(EventConnected))
 		if cli != nil {
 			go func() {
@@ -562,11 +526,6 @@ func (b *Bot) WAEventHandler(evt any) {
 		}
 
 	case *events.Message:
-		// Skip messages sent before the bot started running
-		if b.cfg.SkipOldMessages && v.Info.Timestamp.Before(b.startupTime) {
-			return
-		}
-
 		if v.Info.Chat.Server == "broadcast" || v.Info.Chat.String() == "status@broadcast" {
 			go b.handleLikeStatus(context.Background(), v)
 		}
@@ -574,7 +533,6 @@ func (b *Bot) WAEventHandler(evt any) {
 		if commands.HandlePendingAudioReply(context.Background(), cli, v) {
 			return
 		}
-
 		if commands.HandlePendingMenuMediaReply(context.Background(), cli, v) {
 			return
 		}
@@ -596,11 +554,11 @@ func (b *Bot) WAEventHandler(evt any) {
 		})
 
 	case *events.Presence:
-		Logger.Debug("events: received Presence event", "from", v.From.String(), "unavailable", v.Unavailable, "lastSeen", v.LastSeen)
+		Logger.Debug("presence update received", "from", v.From.String(), "unavailable", v.Unavailable, "lastSeen", v.LastSeen)
 		commands.TrackPresence(v.From, !v.Unavailable)
 
 	case *events.ChatPresence:
-		Logger.Debug("events: received ChatPresence event", "sender", v.Sender.String(), "state", v.State, "media", v.Media)
+		Logger.Debug("chat presence update received", "sender", v.Sender.String(), "state", v.State, "media", v.Media)
 		commands.TrackPresence(v.Sender, true)
 
 	case *events.Receipt:
@@ -609,7 +567,7 @@ func (b *Bot) WAEventHandler(evt any) {
 		}
 
 	case *events.CallOffer:
-		Logger.Info("call offer received", "from", v.CallCreator.String())
+		Logger.Info("incoming call offer received", "from", v.CallCreator.String())
 		b.handleAntiCall(context.Background(), v)
 		b.hub.Broadcast(EventMessage{
 			Kind: EventIncomingCall,
@@ -621,7 +579,7 @@ func (b *Bot) WAEventHandler(evt any) {
 		})
 
 	case *events.GroupInfo:
-		Logger.Info("group info update received", "jid", v.JID.String())
+		Logger.Info("group metadata update received", "jid", v.JID.String())
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 		b.handleGroupGreetings(context.Background(), v)
 		b.handleGroupEventsNotification(context.Background(), v)
@@ -635,11 +593,11 @@ func (b *Bot) WAEventHandler(evt any) {
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.NewsletterJoin:
-		Logger.Info("newsletter joined", "jid", v.ID.String())
+		Logger.Info("newsletter subscribed", "jid", v.ID.String())
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.NewsletterLeave:
-		Logger.Info("newsletter left", "jid", v.ID.String())
+		Logger.Info("newsletter unlinked", "jid", v.ID.String())
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.NewsletterMuteChange:
@@ -648,10 +606,19 @@ func (b *Bot) WAEventHandler(evt any) {
 	case *events.NewsletterLiveUpdate:
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
-	case *events.HistorySync, *events.UndecryptableMessage, *events.UndecryptedMessage, *events.StreamError, *events.Blocklist, *events.NotifyAccountReachoutTimelock, *events.UserAbout, *events.IdentityChange, *events.PrivacySettings, *events.KeepAliveTimeout, *events.KeepAliveRestored, *events.MediaRetry, *events.QRScannedWithoutMultidevice, *events.ManualLoginReconnect, *events.PushName, *events.AppState, *events.AppStateSyncComplete, *events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted, *events.CallOfferNotice, *events.CallAccept, *events.CallPreAccept, *events.CallRelayLatency, *events.CallTransport, *events.CallTerminate, *events.CallReject, *events.UnknownCallEvent:
-		// Ignore low-level history sync, call signaling, and receipt events to avoid log clutter
+	case *events.HistorySync, *events.UndecryptableMessage, *events.UndecryptedMessage,
+		*events.StreamError, *events.Blocklist, *events.NotifyAccountReachoutTimelock,
+		*events.UserAbout, *events.IdentityChange, *events.PrivacySettings,
+		*events.KeepAliveTimeout, *events.KeepAliveRestored, *events.MediaRetry,
+		*events.QRScannedWithoutMultidevice, *events.ManualLoginReconnect,
+		*events.PushName, *events.AppState, *events.AppStateSyncComplete,
+		*events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted,
+		*events.CallOfferNotice, *events.CallAccept, *events.CallPreAccept,
+		*events.CallRelayLatency, *events.CallTransport, *events.CallTerminate,
+		*events.CallReject, *events.UnknownCallEvent:
+		// Ignored to avoid log noise
 
 	default:
-		Logger.Debug("unhandled event", "type", fmt.Sprintf("%T", evt))
+		Logger.Debug("unhandled event received", "type", fmt.Sprintf("%T", evt))
 	}
 }

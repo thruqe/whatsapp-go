@@ -10,7 +10,10 @@ import (
 	"strings"
 	"sync"
 
-	"whatsrook/logger"
+	Logger "whatsrook/logger"
+
+	"whatsrook/utils"
+	"whatsrook/utils/cache"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
@@ -18,8 +21,6 @@ import (
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
-	"whatsrook/utils"
-	"whatsrook/utils/cache"
 
 	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
