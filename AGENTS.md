@@ -19,5 +19,4 @@ Utilize the [Taskfile](./Taskfile.yml)
 ## Relevant Documentation
 
 - [README](./README.md)
-- [Docs](./docs)
 - [Security](./SECURITY.md)
