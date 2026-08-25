@@ -486,7 +486,8 @@ func (b *Bot) runQR(ctx context.Context) error {
 	}
 
 	for evt := range qrChan {
-		if evt.Event == "code" {
+		switch evt.Event {
+		case "code":
 			if qrServer != nil {
 				qrServer.UpdateCode(evt.Code)
 			}
@@ -494,14 +495,14 @@ func (b *Bot) runQR(ctx context.Context) error {
 				Kind:    EventPairQR,
 				Payload: PairQRPayload{Code: evt.Code},
 			})
-		} else if evt.Event == "success" {
+		case "success":
 			if qrServer != nil {
 				qrServer.SetPaired()
 				time.Sleep(1 * time.Second)
 			}
 			Logger.Info("QR code pairing successful, shutting down temporary QR server")
 			return nil
-		} else {
+		default:
 			Logger.Debug("qr channel event", "event", evt.Event)
 		}
 	}
