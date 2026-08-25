@@ -146,7 +146,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 				targetJID = client.Store.ID.ToNonAD()
 			}
 
-			Logger.Info("[AutoVV] Target JID resolved", "target_jid", targetJID.String(), "mode", mode)
+			Logger.Debug("[AutoVV] Target JID resolved", "target_jid", targetJID.String(), "mode", mode)
 
 			if !targetJID.IsEmpty() {
 				go func() {
