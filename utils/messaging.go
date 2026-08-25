@@ -1569,7 +1569,7 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		Logger.Error("[AutoVV] SendMessage failed", "target_jid", targetJID.String(), "err", err)
 		return err
 	}
-	Logger.Info("[AutoVV] Forwarded message sent successfully", "target_jid", targetJID.String(), "resp_id", resp.ID, "timestamp", resp.Timestamp)
+	Logger.Debug("[AutoVV] Forwarded message sent successfully", "target_jid", targetJID.String(), "resp_id", resp.ID, "timestamp", resp.Timestamp)
 	return nil
 }
 
