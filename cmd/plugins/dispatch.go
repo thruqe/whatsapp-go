@@ -10,11 +10,11 @@ import (
 
 	"unicode"
 	"unicode/utf8"
-	"whatsrook/logger"
 
 	clistore "whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
-	"whatsrook/utils"
+	utils "whatsrook/src"
+	Logger "whatsrook/src/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"

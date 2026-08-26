@@ -1,10 +1,10 @@
-package utils
+package src
 
 import (
 	"fmt"
 	"strings"
 
-	"whatsrook/logger"
+	Logger "whatsrook/src/logger"
 
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"

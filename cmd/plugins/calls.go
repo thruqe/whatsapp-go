@@ -12,8 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"whatsrook/logger"
-
 	"github.com/rs/zerolog"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -22,7 +20,8 @@ import (
 
 	clistore "whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
-	"whatsrook/utils"
+	utils "whatsrook/src"
+	Logger "whatsrook/src/logger"
 )
 
 func init() {
@@ -323,7 +322,7 @@ func handleSetCallAudio(ctx *Context) error {
 		return ctx.Replyf("Failed to create media directory: %v", err)
 	}
 
-	ext := utils.ExtensionFor(audioMsg.GetMimetype())
+	ext := cliutils.ExtensionFor(audioMsg.GetMimetype())
 	if ext == "" || ext == ".bin" {
 		ext = ".mp3"
 	}

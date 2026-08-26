@@ -1,7 +1,7 @@
-package utils
+package src
 
 import (
-	"whatsrook/logger"
+	Logger "whatsrook/src/logger"
 
 	waLog "go.mau.fi/whatsmeow/util/log"
 )

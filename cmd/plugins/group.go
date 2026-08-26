@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 	"unicode"
-	"whatsrook/logger"
 
 	cliutils "whatsrook/cmd/utils"
-	"whatsrook/utils"
+	utils "whatsrook/src"
+	Logger "whatsrook/src/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"

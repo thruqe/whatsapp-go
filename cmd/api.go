@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"whatsrook/logger"
+	"whatsrook/src/logger"
 
 	"github.com/coder/websocket"
 	"go.mau.fi/whatsmeow"

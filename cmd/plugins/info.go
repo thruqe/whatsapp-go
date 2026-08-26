@@ -10,14 +10,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"whatsrook/logger"
+
+	"whatsrook/cmd/updater"
+	cliutils "whatsrook/cmd/utils"
+	utils "whatsrook/src"
+	Logger "whatsrook/src/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types/events"
-	"whatsrook/cmd/updater"
-	cliutils "whatsrook/cmd/utils"
-	"whatsrook/utils"
 )
 
 func init() {

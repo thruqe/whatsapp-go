@@ -13,8 +13,8 @@ import (
 	"whatsrook/cmd/plugins"
 	clistore "whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
-	"whatsrook/logger"
-	"whatsrook/utils"
+	utils "whatsrook/src"
+	Logger "whatsrook/src/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCommon"

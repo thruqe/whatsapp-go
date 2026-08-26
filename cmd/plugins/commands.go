@@ -3,7 +3,7 @@ package plugins
 import (
 	"strings"
 	"sync"
-	"whatsrook/utils"
+	utils "whatsrook/src"
 )
 
 type Context = utils.PluginContext

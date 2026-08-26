@@ -1,4 +1,4 @@
-package utils
+package src
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"crypto/sha256"
 	"sync"
 
-	"whatsrook/logger"
+	Logger "whatsrook/src/logger"
 
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"

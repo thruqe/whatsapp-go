@@ -3,8 +3,9 @@ package plugins
 import (
 	"strings"
 
+	utils "whatsrook/src"
+
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"whatsrook/utils"
 )
 
 func init() {

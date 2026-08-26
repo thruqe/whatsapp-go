@@ -3,9 +3,10 @@ package plugins
 import (
 	"strings"
 
-	"go.mau.fi/whatsmeow"
 	cliutils "whatsrook/cmd/utils"
-	"whatsrook/utils"
+	utils "whatsrook/src"
+
+	"go.mau.fi/whatsmeow"
 )
 
 func init() {
@@ -121,7 +122,7 @@ func handleBusinessLink(ctx *Context) error {
 	}
 
 	return ctx.Text().
-		Header("Business Short Link Target").
+		Header("Business Short Link").
 		FieldIf(target.VerifiedName != "", "Verified Name", target.VerifiedName).
 		FieldIf(target.PushName != "", "Push Name", target.PushName).
 		FieldIf(!target.JID.IsEmpty(), "Target Account", "@"+target.JID.User, target.JID).

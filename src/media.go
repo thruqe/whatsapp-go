@@ -1,4 +1,4 @@
-package utils
+package src
 
 import (
 	"bytes"
@@ -44,14 +44,17 @@ func EnsureJPEG(ctx context.Context, inputBytes []byte) ([]byte, error) {
 	defer os.Remove(tmpIn)
 	defer os.Remove(tmpOut)
 
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", tmpIn, "-vframes", "1", "-q:v", "2", tmpOut)
-	if err := cmd.Run(); err == nil {
-		if converted, errRead := os.ReadFile(tmpOut); errRead == nil && len(converted) > 0 {
-			return converted, nil
-		}
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", tmpIn, "-frames:v", "1", "-q:v", "2", tmpOut)
+	if err := cmd.Run(); err != nil {
+		return inputBytes, nil
 	}
 
-	return inputBytes, nil
+	jpgBytes, err := os.ReadFile(tmpOut)
+	if err != nil || len(jpgBytes) == 0 {
+		return inputBytes, nil
+	}
+
+	return jpgBytes, nil
 }
 
 // AudioPTTMeta contains converted Opus OGG data, duration in seconds, and 64-bin amplitude waveform bytes.
@@ -82,8 +85,20 @@ func EnsureOpusPTT(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, error
 	defer os.Remove(tempOut)
 	defer os.Remove(tempPcm)
 
-	// 1. Transcode audio to Opus OGG (specifying 1 channel & 48000Hz required by libopus on mobile FFmpeg builds)
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", tempIn, "-ac", "1", "-ar", "48000", "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", tempOut)
+	// 1. Transcode to Ogg Opus suitable for WhatsApp PTT voice notes
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+		"-i", tempIn,
+		"-c:a", "libopus",
+		"-b:a", "32k",
+		"-vbr", "on",
+		"-compression_level", "10",
+		"-application", "voip",
+		"-ar", "48000",
+		"-ac", "1",
+		"-f", "ogg",
+		tempOut,
+	)
+
 	if out, err := cmd.CombinedOutput(); err != nil {
 		log.Printf("[WARN] EnsureOpusPTT: ffmpeg conversion failed: %v (%s)", err, string(out))
 		return &AudioPTTMeta{Data: audioBytes, Converted: false}, nil
@@ -109,6 +124,11 @@ func EnsureOpusPTT(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, error
 	}
 
 	return meta, nil
+}
+
+// OpusPTT is an alias for EnsureOpusPTT for concise caller ergonomics.
+func OpusPTT(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, error) {
+	return EnsureOpusPTT(ctx, audioBytes)
 }
 
 func ExtractWaveformForTest(pcmBytes []byte, sampleRate int) (uint32, []byte) {

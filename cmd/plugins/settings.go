@@ -15,7 +15,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -24,7 +23,8 @@ import (
 
 	"whatsrook"
 	cliutils "whatsrook/cmd/utils"
-	"whatsrook/utils"
+	utils "whatsrook/src"
+	Logger "whatsrook/src/logger"
 )
 
 func resetAFKUserTracker() {

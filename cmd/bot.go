@@ -11,16 +11,16 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"whatsrook/logger"
-
 	"whatsrook"
+
+	Logger "whatsrook/src/logger"
+
 	commands "whatsrook/cmd/plugins"
 	clistore "whatsrook/cmd/store"
 	"whatsrook/cmd/updater"
 	cliutils "whatsrook/cmd/utils"
-	"whatsrook/utils"
-	"whatsrook/utils/qr"
+	utils "whatsrook/src"
+	"whatsrook/src/qr"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"

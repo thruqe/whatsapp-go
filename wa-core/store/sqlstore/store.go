@@ -336,12 +336,6 @@ func (s *SQLStore) GetManyIdentities(ctx context.Context, addresses []string) (m
 	return result, generation, nil
 }
 
-func (s *SQLStore) cacheFetchedIdentities(result map[string][32]byte, fetched map[string]identityCacheEntry) {
-	s.identityCacheLock.Lock()
-	defer s.identityCacheLock.Unlock()
-	s.cacheFetchedIdentitiesLocked(result, fetched)
-}
-
 func (s *SQLStore) cacheFetchedIdentitiesLocked(result map[string][32]byte, fetched map[string]identityCacheEntry) {
 	for address, entry := range fetched {
 		if current, ok := s.identityCache[address]; ok {

@@ -12,12 +12,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/types/events"
 
 	cliutils "whatsrook/cmd/utils"
-	"whatsrook/utils"
+	utils "whatsrook/src"
+	Logger "whatsrook/src/logger"
 )
 
 func RecordRecentMessage(evt *events.Message) {

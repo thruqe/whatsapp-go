@@ -1,5 +1,5 @@
 // WebP image processing – encode, decode, and manipulate WebP images.
-package utils
+package src
 
 import (
 	"bytes"
@@ -31,8 +31,8 @@ var ExifHeader = [22]byte{
 	0x16, 0x00, 0x00, 0x00, // Offset to data
 }
 
-// exifStickerMetadata represents the metadata serialized inside the EXIF chunk
-type exifStickerMetadata struct {
+// ExifStickerMetadata represents the metadata serialized inside the EXIF chunk
+type ExifStickerMetadata struct {
 	PackID              string   `json:"sticker-pack-id"`
 	PackName            string   `json:"sticker-pack-name"`
 	Publisher           string   `json:"sticker-pack-publisher"`
@@ -42,7 +42,7 @@ type exifStickerMetadata struct {
 }
 
 // buildExif builds the EXIF buffer with the header and JSON metadata.
-func buildExif(metadata *exifStickerMetadata) ([]byte, error) {
+func buildExif(metadata *ExifStickerMetadata) ([]byte, error) {
 	jsonBytes, err := json.Marshal(metadata)
 	if err != nil {
 		return nil, err
@@ -294,7 +294,7 @@ func extractEXIF(webpData []byte) ([]byte, error) {
 // AddStickerMetadataWithOptions adds sticker metadata to a WebP image with advanced options.
 func AddStickerMetadataWithOptions(webpData []byte, packName, publisher string, emojis []string, androidLink, iosLink *string) ([]byte, error) {
 	packID := uuid.New().String()
-	meta := &exifStickerMetadata{
+	meta := &ExifStickerMetadata{
 		PackID:              packID,
 		PackName:            packName,
 		Publisher:           publisher,
@@ -317,7 +317,7 @@ func AddStickerMetadata(webpData []byte, packName, publisher string) ([]byte, er
 }
 
 // GetStickerMetadata extracts and decodes sticker metadata from a WebP image if present.
-func GetStickerMetadata(webpData []byte) (*exifStickerMetadata, error) {
+func GetStickerMetadata(webpData []byte) (*ExifStickerMetadata, error) {
 	exifBytes, err := extractEXIF(webpData)
 	if err != nil {
 		return nil, err
@@ -335,7 +335,7 @@ func GetStickerMetadata(webpData []byte) (*exifStickerMetadata, error) {
 	}
 
 	jsonBytes := exifBytes[len(ExifHeader):]
-	var meta exifStickerMetadata
+	var meta ExifStickerMetadata
 	if err := json.Unmarshal(jsonBytes, &meta); err != nil {
 		return nil, nil // Return nil, nil if malformed or different format, matching Rust
 	}
