@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 	"unicode"
-	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/types"
 
 	cliutils "whatsrook/cmd/utils"
+	Logger "whatsrook/src/logger"
 )
 
 func init() {

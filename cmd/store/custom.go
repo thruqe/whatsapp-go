@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"whatsrook/utils/cache"
+	"whatsrook/src/cache"
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"

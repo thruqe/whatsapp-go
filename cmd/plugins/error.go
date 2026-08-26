@@ -1,8 +1,6 @@
 package plugins
 
-import (
-	"whatsrook/logger"
-)
+import Logger "whatsrook/src/logger"
 
 type PluginError struct {
 	UserMessage string

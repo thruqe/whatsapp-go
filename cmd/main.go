@@ -15,8 +15,8 @@ import (
 
 	"whatsrook"
 	"whatsrook/cmd/updater"
-	Logger "whatsrook/logger"
-	"whatsrook/utils/cache"
+	"whatsrook/src/cache"
+	Logger "whatsrook/src/logger"
 )
 
 func main() {

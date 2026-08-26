@@ -6,10 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"whatsrook/logger"
-
 	"whatsrook/cmd/store"
-	"whatsrook/utils"
+	utils "whatsrook/src"
+	Logger "whatsrook/src/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"

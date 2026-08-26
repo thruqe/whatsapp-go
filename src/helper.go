@@ -1,4 +1,4 @@
-package utils
+package src
 
 import (
 	"go.mau.fi/whatsmeow/proto/waE2E"

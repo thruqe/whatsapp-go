@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"whatsrook/utils"
+	utils "whatsrook/src"
 
 	"go.mau.fi/whatsmeow/appstate"
 	waBinary "go.mau.fi/whatsmeow/binary"

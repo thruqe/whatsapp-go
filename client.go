@@ -1,3 +1,11 @@
+// package whatsrook implements the core session manager, database coordinator, and lifecycle bridge
+// for the whatsmeow whatsapp protocol engine.
+//
+// architectural mechanics:
+// this is the central orchestrator coordinating multi-backend persistent storage (shared sqlite / postgresql),
+// device registration identity resolution, companion hardware profile emulation (chrome, android, ios),
+// and event-driven message dispatching. it encapsulates raw connection primitives inside a thread-safe
+// client abstraction, providing structured fallback strategies and integrated caching layers.
 package whatsrook
 
 import (
@@ -10,10 +18,10 @@ import (
 	"strings"
 	"sync"
 
-	Logger "whatsrook/logger"
+	"whatsrook/src"
+	Logger "whatsrook/src/logger"
 
-	"whatsrook/utils"
-	"whatsrook/utils/cache"
+	"whatsrook/src/cache"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
@@ -26,20 +34,26 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// ClientType represents the platform emulated by the WhatsApp client.
+// clienttype specifies the companion operating system and hardware profile to emulate during registration.
 type ClientType int
 
 var (
+	// errloggedout is the sentinel error indicating that the active session has been explicitly
+	// terminated by the remote whatsapp server or unlinked by the primary device.
 	ErrLoggedOut = errors.New("logged out from WhatsApp")
 )
 
 const (
-	ClientChrome  ClientType = iota
-	ClientAndroid ClientType = iota
-	ClientIos     ClientType = iota
+	// clientchrome emulates a desktop web client running on linux.
+	ClientChrome ClientType = iota
+	// clientandroid emulates an android mobile companion device.
+	ClientAndroid
+	// clientios emulates an ios mobile companion device.
+	ClientIos
 )
 
-// ParseClientType converts a platform name string to its ClientType enum.
+// parseclienttype parses an arbitrary platform string into its corresponding clienttype enum.
+// this performs case-insensitive normalization; returns false if the platform identifier is unknown.
 func ParseClientType(s string) (ClientType, bool) {
 	c, ok := map[string]ClientType{
 		"chrome":  ClientChrome,
@@ -49,18 +63,33 @@ func ParseClientType(s string) (ClientType, bool) {
 	return c, ok
 }
 
-// Config holds configuration parameters for a Client instance.
+// config defines the operational parameters, storage directories, and runtime flags for a client instance.
 type Config struct {
-	Session         string
-	DataDir         string // Directory for logs and the shared SQLite database (default: next to the binary)
-	Database        string // Database connection URL or "sqlite" (default: "sqlite"). Can also be set via DATABASE_URL_<phone> env var for per-session override.
-	ClientType      ClientType
-	Verbose         bool
+	// session holds the primary identifier (e.g., phone number or session token) for the device.
+	Session string
+
+	// datadir specifies the base filesystem path for logs and local database storage.
+	DataDir string
+
+	// database defines the connection uri or storage driver selector (e.g., "sqlite", postgres connection string).
+	Database string
+
+	// clienttype defines the companion device platform signature emulated during pairing.
+	ClientType ClientType
+
+	// verbose toggles debug-level tracing across whatsmeow protocol logs and internal drivers.
+	Verbose bool
+
+	// skipoldmessages instructs the client to ignore backlog history during initial handshake synchronization.
 	SkipOldMessages bool
-	AsyncMessageAck bool // If true, SendMessage will return immediately after writing to the socket and process server ACKs in the background.
+
+	// asyncmessageack enables non-blocking message dispatch where write operations return immediately
+	// upon socket flush without blocking on server-side message receipt acknowledgments.
+	AsyncMessageAck bool
 }
 
-// Abstraction over the whatsmeow WhatsApp client and store container.
+// client is the primary abstraction encapsulating the whatsmeow core client, database container,
+// and concurrency control primitives.
 type Client struct {
 	Config Config
 
@@ -69,15 +98,15 @@ type Client struct {
 	mu        sync.Mutex
 }
 
-// NewClient creates and initializes a new WhatsRook core Client instance.
+// newclient constructs an uninitialized client instance and populates baseline configuration defaults.
 func NewClient(cfg Config) *Client {
 	c := &Client{Config: cfg}
 	c.applyDefaults()
 	return c
 }
 
-// DefaultDataDir returns the directory next to the running binary (or cwd when
-// running via `go run`/tests).
+// defaultdatadir resolves the working directory adjacent to the executing binary.
+// this handles execution under testing environments or `go run` by falling back to the current working directory.
 func DefaultDataDir() string {
 	if exePath, err := os.Executable(); err == nil {
 		if !strings.Contains(exePath, "go-build") && !strings.Contains(exePath, "/tmp/") && !strings.Contains(exePath, `\Temp\`) {
@@ -87,33 +116,41 @@ func DefaultDataDir() string {
 	return "."
 }
 
-// DefaultAuthDir is kept for backward-compatibility with any external callers;
-// it now delegates to DefaultDataDir.
+// defaultauthdir is a legacy delegation wrapper maintained strictly for backward compatibility.
 func DefaultAuthDir() string { return DefaultDataDir() }
 
+// applydefaults verifies and fills missing filesystem paths in the client configuration.
 func (c *Client) applyDefaults() {
 	if c.Config.DataDir == "" {
 		c.Config.DataDir = DefaultDataDir()
 	}
 }
 
-// WAClient returns the underlying whatsmeow.Client instance.
+// waclient returns the underlying whatsmeow client instance under a mutex read lock.
+// this prevents data races if the underlying client is reassigned or cleared during runtime reconnects.
 func (c *Client) WAClient() *whatsmeow.Client {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.rawClient
 }
 
-// Container returns the underlying sqlstore.Container instance.
+// container returns the shared sqlstore container under mutex synchronization.
 func (c *Client) Container() *sqlstore.Container {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.container
 }
 
-// InitSession initializes the logger, shared database store container, and whatsmeow client.
-// All sessions share a single database file (SQLite) or a single Postgres database;
-// no per-session directory is created.
+// initsession establishes the persistent database container, configures logging subsystems,
+// resolves or creates device credentials, and bootstraps the core whatsmeow protocol client.
+//
+// initialization flow:
+// 1. configuration validation and logging hierarchy setup.
+// 2. database initialization (postgresql with automatic ssl fallback, or wal-mode sqlite).
+// 3. identity resolution via getorcreatedevice matching the session phone number.
+// 4. external cache injection (attaching the default cache layer to reduce database lookup pressure).
+// 5. companion platform payload construction (emulating chrome, android, or ios user-agent headers).
+// todo: implement structured health-check probes prior to completing initialization.
 func (c *Client) InitSession(ctx context.Context) error {
 	c.applyDefaults()
 
@@ -121,8 +158,8 @@ func (c *Client) InitSession(ctx context.Context) error {
 		return errors.New("session phone number is required")
 	}
 
-	// Logs go into DataDir/logs/ — shared across all sessions.
-	if err := utils.InitLogger(c.Config.DataDir, c.Config.Verbose); err != nil {
+	// initialize centralized logger writing to datadir/logs
+	if err := src.InitLogger(c.Config.DataDir, c.Config.Verbose); err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
@@ -131,7 +168,7 @@ func (c *Client) InitSession(ctx context.Context) error {
 		waLevel = "DEBUG"
 	}
 
-	// Shared database path for SQLite: DataDir/whatsrook.db
+	// resolve shared sqlite database path
 	dbPath := filepath.Join(c.Config.DataDir, "whatsrook.db")
 
 	container, err := c.initStore(ctx, dbPath, waLevel)
@@ -139,7 +176,7 @@ func (c *Client) InitSession(ctx context.Context) error {
 		return fmt.Errorf("failed to open db: %w", err)
 	}
 
-	// Retrieve existing device for this session phone number, or create a new one.
+	// retrieve existing cryptographic keys or allocate a clean unpaired device container
 	deviceStore, err := c.getOrCreateDevice(ctx, container)
 	if err != nil {
 		_ = container.Close()
@@ -147,10 +184,11 @@ func (c *Client) InitSession(ctx context.Context) error {
 	}
 	deviceStore.ExternalCache = cache.Default()
 
-	clientLog := utils.WhatsmeowStyle("Client", "INFO", true)
+	clientLog := src.WhatsmeowStyle("Client", "INFO", true)
 	rawClient := whatsmeow.NewClient(deviceStore, clientLog)
 	rawClient.AsyncMessageAck = c.Config.AsyncMessageAck
 
+	// configure companion platform registration headers and os version payloads
 	switch c.Config.ClientType {
 	case ClientAndroid:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_ANDROID_PHONE.Enum()
@@ -180,8 +218,9 @@ func (c *Client) InitSession(ctx context.Context) error {
 	return nil
 }
 
-// getOrCreateDevice finds an existing device matching the session phone number
-// in the shared container, or returns a freshly created (unpaired) device.
+// getorcreatedevice scans the sql container for an existing device record matching the session identifier.
+// this strips leading plus prefixes to match jid user parts directly.
+// if no matching record exists, this creates and returns a new unpaired device.
 func (c *Client) getOrCreateDevice(ctx context.Context, container *sqlstore.Container) (*store.Device, error) {
 	devices, err := container.GetAllDevices(ctx)
 	if err != nil {
@@ -189,7 +228,7 @@ func (c *Client) getOrCreateDevice(ctx context.Context, container *sqlstore.Cont
 	}
 
 	phone := c.Config.Session
-	// Strip leading '+' so we can do a prefix match on JID users like "447911123456.0".
+	// strip leading '+' so prefix comparison aligns with stored jid user parts (e.g., "447911123456.0")
 	phone = strings.TrimPrefix(phone, "+")
 
 	for _, dev := range devices {
@@ -198,11 +237,11 @@ func (c *Client) getOrCreateDevice(ctx context.Context, container *sqlstore.Cont
 		}
 	}
 
-	// No matching device — return a new unpaired device.
+	// no matching credentials found; allocate a new container for qr/pairing code flows
 	return container.NewDevice(), nil
 }
 
-// Close closes the underlying database store container.
+// close cleanly closes the underlying sql store container and resets internal pointers.
 func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -214,7 +253,7 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// AddEventHandler registers an event handler function on the whatsmeow client.
+// addeventhandler registers an event listener callback with the active whatsmeow client.
 func (c *Client) AddEventHandler(handler func(evt any)) {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -224,7 +263,7 @@ func (c *Client) AddEventHandler(handler func(evt any)) {
 	}
 }
 
-// Connect connects the WhatsApp client.
+// connect initiates the websocket connection handshake with the whatsapp infrastructure.
 func (c *Client) Connect() error {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -235,7 +274,7 @@ func (c *Client) Connect() error {
 	return cli.Connect()
 }
 
-// Disconnect disconnects the WhatsApp client.
+// disconnect terminates the active websocket transport connection cleanly without unlinking the session.
 func (c *Client) Disconnect() {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -245,7 +284,7 @@ func (c *Client) Disconnect() {
 	}
 }
 
-// Logout logs out the WhatsApp client session from WhatsApp servers.
+// logout revokes the companion pairing token on whatsapp servers and invalidates the session keys.
 func (c *Client) Logout(ctx context.Context) error {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -256,13 +295,11 @@ func (c *Client) Logout(ctx context.Context) error {
 	return cli.Logout(ctx)
 }
 
-// WipeSession is a no-op kept for backward-compatibility.
-// Directory-based session wiping is no longer used; use Client.ClearSessionDB
-// to remove only the affected device record from the shared database.
+// wipesession is a deprecated no-op retained for API backward compatibility.
 func WipeSession(_ string) {}
 
-// ClearSessionDB deletes the current session's device record from the shared
-// database. Other sessions stored in the same database are not affected.
+// clearsessiondb deletes the specific device record associated with this session from the shared database,
+// leaving all other session records untouched, and closes the client container.
 func (c *Client) ClearSessionDB(ctx context.Context, _ string) {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -277,6 +314,7 @@ func (c *Client) ClearSessionDB(ctx context.Context, _ string) {
 	_ = c.Close()
 }
 
+// sanitizedburl redacts database password credentials from connection strings prior to log emission.
 func sanitizeDBURL(rawURL string) string {
 	if rawURL == "" {
 		return ""
@@ -295,6 +333,7 @@ func sanitizeDBURL(rawURL string) string {
 	return rawURL
 }
 
+// ensuressldisabled injects or overrides sslmode=disable on postgresql connection strings during fallback attempts.
 func ensureSSLDisabled(rawURL string) string {
 	if strings.HasSuffix(rawURL, "?sslmode=disable") {
 		return rawURL
@@ -312,12 +351,23 @@ func ensureSSLDisabled(rawURL string) string {
 	return u.String()
 }
 
+// initstore resolves database configuration precedence (explicit config -> per-session env -> global env -> sqlite)
+// and handles automatic connection fallbacks between postgresql and high-performance sqlite instances.
+//
+// database resilience strategy:
+//  1. attempt postgresql connection using provided credentials.
+//  2. if connection fails with ssl requirements, retry with sslmode=disable.
+//  3. if postgresql is entirely unreachable, gracefully fall back to local sqlite.
+//  4. sqlite is initialized with explicit pragma directives (wal mode, normal sync, busy timeout, cache sizing)
+//     to optimize concurrent read/write throughput and prevent database locking panics.
+//
+// todo: consider adding connection pool tuning parameters (max open/idle connections) to config.
 func (c *Client) initStore(ctx context.Context, dbPath, waLevel string) (*sqlstore.Container, error) {
-	dbLog := utils.WhatsmeowStyle("Database", waLevel, true)
+	dbLog := src.WhatsmeowStyle("Database", waLevel, true)
 
+	// resolve database connection uri with hierarchical environment variable overrides
 	dbConn := c.Config.Database
 	if dbConn == "" {
-		// Per-session override: DATABASE_URL_<phone> takes priority over generic env vars.
 		phone := strings.TrimPrefix(c.Config.Session, "+")
 		if phone != "" {
 			dbConn = os.Getenv("DATABASE_URL_" + phone)
@@ -327,15 +377,10 @@ func (c *Client) initStore(ctx context.Context, dbPath, waLevel string) (*sqlsto
 		dbConn = os.Getenv("DATABASE_URL")
 	}
 	if dbConn == "" {
-		dbConn = os.Getenv("POSTGRES_URL")
-	}
-	if dbConn == "" {
-		dbConn = os.Getenv("DB_URL")
-	}
-	if dbConn == "" {
 		dbConn = "sqlite"
 	}
 
+	// postgresql initialization path
 	if dbConn != "sqlite" && dbConn != "none" && (strings.HasPrefix(dbConn, "postgres://") || strings.HasPrefix(dbConn, "postgresql://")) {
 		Logger.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
 		container, err := sqlstore.New(ctx, "postgres", dbConn, dbLog)
@@ -344,6 +389,7 @@ func (c *Client) initStore(ctx context.Context, dbPath, waLevel string) (*sqlsto
 			return container, nil
 		}
 
+		// ssl fallback retry logic
 		if !strings.HasSuffix(dbConn, "?sslmode=disable") {
 			disableURL := ensureSSLDisabled(dbConn)
 			Logger.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
@@ -359,6 +405,7 @@ func (c *Client) initStore(ctx context.Context, dbPath, waLevel string) (*sqlsto
 		Logger.Warn("falling back to SQLite after PostgreSQL connection failure")
 	}
 
+	// sqlite fallback / primary storage path with optimized performance pragmas
 	Logger.Info("initializing SQLite database store", "path", dbPath)
 	sqliteURI := fmt.Sprintf(
 		"file:%s?_pragma=busy_timeout=5000&_pragma=journal_mode=WAL&_pragma=synchronous=NORMAL&_pragma=foreign_keys=on&_pragma=cache_size=-2000",
@@ -371,7 +418,7 @@ func (c *Client) initStore(ctx context.Context, dbPath, waLevel string) (*sqlsto
 	return container, nil
 }
 
-// GetJoinedGroups returns all WhatsApp groups the user is participating in.
+// getjoinedgroups retrieves all group chats currently joined by the active account.
 func (c *Client) GetJoinedGroups(ctx context.Context) ([]*types.GroupInfo, error) {
 	wa := c.WAClient()
 	if wa == nil {
@@ -380,7 +427,7 @@ func (c *Client) GetJoinedGroups(ctx context.Context) ([]*types.GroupInfo, error
 	return wa.GetJoinedGroups(ctx)
 }
 
-// GetSubscribedNewsletters returns all newsletters/channels the user is subscribed to.
+// getsubscribednewsletters retrieves all channels and newsletters subscribed to by the active account.
 func (c *Client) GetSubscribedNewsletters(ctx context.Context) ([]*types.NewsletterMetadata, error) {
 	wa := c.WAClient()
 	if wa == nil {
@@ -389,7 +436,7 @@ func (c *Client) GetSubscribedNewsletters(ctx context.Context) ([]*types.Newslet
 	return wa.GetSubscribedNewsletters(ctx)
 }
 
-// GetGroupInfo retrieves the full group metadata and participants for a given group JID.
+// getgroupinfo fetches full metadata, settings, and participant lists for a specific group jid.
 func (c *Client) GetGroupInfo(ctx context.Context, jid types.JID) (*types.GroupInfo, error) {
 	wa := c.WAClient()
 	if wa == nil {
@@ -398,7 +445,7 @@ func (c *Client) GetGroupInfo(ctx context.Context, jid types.JID) (*types.GroupI
 	return wa.GetGroupInfo(ctx, jid)
 }
 
-// GetNewsletterInfo retrieves the metadata for a given newsletter/channel JID.
+// getnewsletterinfo fetches complete metadata and subscriber details for a specific newsletter jid.
 func (c *Client) GetNewsletterInfo(ctx context.Context, jid types.JID) (*types.NewsletterMetadata, error) {
 	wa := c.WAClient()
 	if wa == nil {

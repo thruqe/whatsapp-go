@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	utils "whatsrook/src"
+
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
-	"whatsrook/utils"
 )
 
 func ResolveBusinessTarget(ctx context.Context, client *whatsmeow.Client, targets []types.JID, chat types.JID, prefix, cmdName string) (types.JID, types.JID, error) {

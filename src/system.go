@@ -1,21 +1,9 @@
-package utils
+package src
 
 import (
 	"fmt"
-	"os/exec"
-	"runtime"
 	"strings"
 )
-
-// GetGitCommit returns the short commit hash if running inside a Git repository.
-func GetGitCommit() string {
-	cmd := exec.Command("git", "rev-parse", "--short", "HEAD")
-	out, err := cmd.Output()
-	if err != nil {
-		return "N/A"
-	}
-	return strings.TrimSpace(string(out))
-}
 
 // SystemMetadata contains runtime system and environment details.
 type SystemMetadata struct {
@@ -25,24 +13,6 @@ type SystemMetadata struct {
 	Arch      string
 	NumCPU    int
 	GoVersion string
-}
-
-// GetSystemMetadata gathers system metadata for diagnostics and status reporting.
-func GetSystemMetadata(version string) SystemMetadata {
-	commit := "N/A"
-	cmd := exec.Command("git", "rev-parse", "--short", "HEAD")
-	if out, err := cmd.Output(); err == nil {
-		commit = strings.TrimSpace(string(out))
-	}
-
-	return SystemMetadata{
-		Version:   version,
-		Commit:    commit,
-		OS:        runtime.GOOS,
-		Arch:      runtime.GOARCH,
-		NumCPU:    runtime.NumCPU(),
-		GoVersion: runtime.Version(),
-	}
 }
 
 // FormatBytes converts a byte count into a human-readable string (KB, MB, GB).

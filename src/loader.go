@@ -1,11 +1,11 @@
-package utils
+package src
 
 import (
 	"fmt"
 	"sync"
 	"time"
 
-	"whatsrook/logger"
+	Logger "whatsrook/src/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -76,7 +76,7 @@ func (l *Loader) activate() {
 
 	Logger.Debug("StartLoader: sending loader message synchronously", "id", l.id, "text", l.initialText)
 	resp, err := l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, &waE2E.Message{
-		Conversation: new(displayText),
+		Conversation: &displayText,
 	})
 	if err != nil {
 		Logger.Error("StartLoader: failed to send loader message", "err", err)

@@ -11,8 +11,8 @@ import (
 	"go.mau.fi/whatsmeow/types"
 
 	cliutils "whatsrook/cmd/utils"
-	"whatsrook/logger"
-	"whatsrook/utils"
+	utils "whatsrook/src"
+	Logger "whatsrook/src/logger"
 )
 
 func init() {

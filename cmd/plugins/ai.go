@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"whatsrook/logger"
+	cliutils "whatsrook/cmd/utils"
+	Logger "whatsrook/src/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
-	cliutils "whatsrook/cmd/utils"
 )
 
 func init() {

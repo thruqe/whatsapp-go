@@ -9,7 +9,7 @@ import (
 
 	"strings"
 	cliutils "whatsrook/cmd/utils"
-	"whatsrook/logger"
+	Logger "whatsrook/src/logger"
 
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow/proto/waE2E"

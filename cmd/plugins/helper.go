@@ -9,7 +9,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 
 	clistore "whatsrook/cmd/store"
-	"whatsrook/utils"
+	utils "whatsrook/src"
 )
 
 type StoreWrapper struct {
