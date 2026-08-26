@@ -421,6 +421,45 @@ func (ctx *PluginContext) ReplyWithVideo(data []byte, mimetype, caption string) 
 	return ctx.replyVideoInternal(data, mimetype, caption, false)
 }
 
+// ReplyWithVideoWithMentions uploads and sends a video as a reply with mentioned JIDs.
+func (ctx *PluginContext) ReplyWithVideoWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error {
+	ctx.StopAutoLoader()
+	if mimetype == "" {
+		mimetype = "video/mp4"
+	}
+	cinfo := ctx.replyContextInfo()
+	if cinfo == nil && len(mentions) > 0 {
+		cinfo = &waE2E.ContextInfo{}
+	}
+	if cinfo != nil {
+		for _, m := range mentions {
+			if !m.IsEmpty() {
+				cinfo.MentionedJID = append(cinfo.MentionedJID, m.ToNonAD().String())
+			}
+		}
+	}
+	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaVideo)
+	if err != nil {
+		Logger.Error("ReplyWithVideoWithMentions: upload failed", "err", err)
+		return fmt.Errorf("video upload failed: %w", err)
+	}
+	msg := &waE2E.Message{
+		VideoMessage: &waE2E.VideoMessage{
+			URL:           &uploaded.URL,
+			DirectPath:    &uploaded.DirectPath,
+			MediaKey:      uploaded.MediaKey,
+			Mimetype:      &mimetype,
+			FileEncSHA256: uploaded.FileEncSHA256,
+			FileSHA256:    uploaded.FileSHA256,
+			FileLength:    new(uint64(len(data))),
+			Caption:       &caption,
+			ContextInfo:   cinfo,
+		},
+	}
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
+	return err
+}
+
 // ReplyWithVideoGif uploads and sends a video with GifPlayback enabled as a reply so it plays as an inline looping GIF.
 func (ctx *PluginContext) ReplyWithVideoGif(data []byte, mimetype, caption string) error {
 	return ctx.replyVideoInternal(data, mimetype, caption, true)

@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"os/exec"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -51,7 +52,7 @@ func init() {
 	})
 	Register(&Command{
 		Name:        "sh",
-		Alias:       "exec",
+		Alias:       "exec,ps,cmd,shell,bash",
 		Description: "Execute a shell command with real-time log streaming and stdin input (sudoers only).",
 		Category:    "owner",
 		IsPublic:    false,
@@ -310,6 +311,9 @@ func handleSh(ctx *Context) error {
 	commandStr := strings.TrimSpace(ctx.RawArgs)
 	if commandStr == "" {
 		p := ctx.GetPrefix()
+		if runtime.GOOS == "windows" {
+			return ctx.Replyf("Usage: %ssh <command line>\n\nExample:\n%ssh dir\n%ssh git status\n%ssh yt-dlp \"https://...\" -t mp4", p, p, p, p)
+		}
 		return ctx.Replyf("Usage: %ssh <command line>\n\nExample:\n%ssh yt-dlp \"https://...\" -t mp4\n%ssh ls -la", p, p, p)
 	}
 
@@ -327,29 +331,44 @@ func handleSh(ctx *Context) error {
 	}
 	cliutils.ActiveShellSessionsMu.Unlock()
 
-	shell := "bash"
-	if _, err := exec.LookPath("bash"); err != nil {
-		shell = "sh"
-	}
-
-	// If stdbuf exists, use it to force unbuffered / line-buffered stdout and stderr
-	execCmdStr := commandStr
-	if _, err := exec.LookPath("stdbuf"); err == nil {
-		execCmdStr = "stdbuf -oL -eL " + commandStr
-	}
-
 	execCtx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	cmd := exec.CommandContext(execCtx, shell, "-c", execCmdStr)
 
-	// Set unbuffered terminal environment variables
-	cmd.Env = append(os.Environ(),
-		"TERM=xterm-256color",
-		"PYTHONUNBUFFERED=1",
-		"FORCE_COLOR=1",
-		"CLICOLOR_FORCE=1",
-		"CI=1",
-		"HOMEBREW_NO_AUTO_UPDATE=1",
-	)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		psScript := "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " + commandStr
+		if pwshPath, err := exec.LookPath("pwsh"); err == nil {
+			cmd = exec.CommandContext(execCtx, pwshPath, "-NoProfile", "-NonInteractive", "-Command", psScript)
+		} else if psPath, err := exec.LookPath("powershell"); err == nil {
+			cmd = exec.CommandContext(execCtx, psPath, "-NoProfile", "-NonInteractive", "-Command", psScript)
+		} else {
+			cmd = exec.CommandContext(execCtx, "cmd.exe", "/c", commandStr)
+		}
+		cmd.Env = append(os.Environ(),
+			"PYTHONUNBUFFERED=1",
+			"CI=1",
+		)
+	} else {
+		shell := "bash"
+		if _, err := exec.LookPath("bash"); err != nil {
+			shell = "sh"
+		}
+
+		// If stdbuf exists, use it to force unbuffered / line-buffered stdout and stderr
+		execCmdStr := commandStr
+		if _, err := exec.LookPath("stdbuf"); err == nil {
+			execCmdStr = "stdbuf -oL -eL " + commandStr
+		}
+
+		cmd = exec.CommandContext(execCtx, shell, "-c", execCmdStr)
+		cmd.Env = append(os.Environ(),
+			"TERM=xterm-256color",
+			"PYTHONUNBUFFERED=1",
+			"FORCE_COLOR=1",
+			"CLICOLOR_FORCE=1",
+			"CI=1",
+			"HOMEBREW_NO_AUTO_UPDATE=1",
+		)
+	}
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {

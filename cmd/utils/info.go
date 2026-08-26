@@ -12,7 +12,7 @@ const (
 	AliveMediaMimeKey = "alive_media_mime"
 	AliveMediaFileKey = "alive_media_file"
 
-	DefaultAliveTpl      = "{bot} IS ALIVE\n\nOwner: {owner}\n⏱️ Uptime: {uptime}\nLatency: {latency}\nRAM: {ram}\nGoroutines: {goroutines}\nVersion: {version}\n\nType {prefix}menu to display available commands."
+	DefaultAliveTpl      = "@user I am alive\n\nuse {prefix}alive customize to see how alive message can be customize"
 	DefaultAliveTemplate = DefaultAliveTpl
 )
 
