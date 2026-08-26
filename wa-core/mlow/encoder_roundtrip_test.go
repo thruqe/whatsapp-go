@@ -62,7 +62,7 @@ func TestPitchBlockRoundTripsContour(t *testing.T) {
 		pp := SmplPitchParams{GainIdx: c.gains, BlocksegIdx: c.bsx, Laginds: c.laginds}
 		est := SmplLsfState{PrevLag: -1, PrevFracLag: -1, PrevLagblk: -1, PrevLagidx: -1}
 		enc := NewRangeEncoder(64)
-		encodeSmplPitch(enc, mem, &est, 320, 4, 0, subfr, &pp)
+		encodeSmplPitch(enc, mem, &est, 4, 0, subfr, &pp)
 		enc.Done()
 		if enc.Err() != 0 {
 			t.Fatalf("case %d: encoder error", ci)

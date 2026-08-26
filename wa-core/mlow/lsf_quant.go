@@ -240,11 +240,12 @@ func lsfMinDist(lsfs, minDist []float32) {
 	for k := range 1000 {
 		delta := float32(k)*1.0e-6 - dm
 		dlsfs[minIx] += delta
-		if minIx == 0 {
+		switch minIx {
+		case 0:
 			dlsfs[1] -= delta
-		} else if minIx == n {
+		case n:
 			dlsfs[n-1] -= delta
-		} else {
+		default:
 			delta *= 0.5
 			dlsfs[minIx-1] -= delta
 			dlsfs[minIx+1] -= delta

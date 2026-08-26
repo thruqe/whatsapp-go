@@ -483,7 +483,7 @@ func encodeSmplGains(enc *RangeEncoder, _ *SmplMem, p3 int32, subfrCounts [4]int
 // encodeSmplPitch is the inverse of DecodeSmplPitch: encode the LTP gains/filters,
 // then the lag contour (blockseg selector + per-block lag indices) via the pitch
 // tables, mutating the predictor state identically.
-func encodeSmplPitch(enc *RangeEncoder, _ *SmplMem, st *SmplLsfState, p2, p3, p6 int32, subfrCounts [4]int32, pp *SmplPitchParams) {
+func encodeSmplPitch(enc *RangeEncoder, _ *SmplMem, st *SmplLsfState, p3, p6 int32, subfrCounts [4]int32, pp *SmplPitchParams) {
 	// Source of truth: https://github.com/oxidezap/whatsapp-rust/blob/ed12f359a086b28e807ba236f0977af1000859fe/wacore/src/voip/mlow/encode.rs#L337-L405
 	// Source of truth: https://github.com/oxidezap/whatsapp-rust/blob/924eb2c15aa9ffc7362293c74b2888e171831434/wacore/src/voip/mlow/encode.rs#L337-L405 (seed cc-table rewire: Group C LTP gains from CcTables)
 	cc := LoadCcTables()
@@ -552,7 +552,7 @@ func EncodeSmplFrame(fp *SmplFrameParams, log ...zerolog.Logger) ([]byte, error)
 		encodeSmplLsf(enc, tbl, &st, fp.Config, f, &ip.Lsf)
 		encodeSmplPulses(enc, mem, p2, p3, p4, p6, ip.Lsf.Stage1, &ip.Pulses)
 		if ip.Lsf.Stage1 == 1 {
-			encodeSmplPitch(enc, mem, &st, p2, p3, p6, ip.Pulses.Subfr, &ip.Pitch)
+			encodeSmplPitch(enc, mem, &st, p3, p6, ip.Pulses.Subfr, &ip.Pitch)
 		} else {
 			encodeSmplGains(enc, mem, p3, ip.Pulses.Subfr, &ip.Gains)
 		}
