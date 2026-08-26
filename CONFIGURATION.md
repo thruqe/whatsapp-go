@@ -46,7 +46,7 @@ To use pairing-code auth, run with `-auth pair` (or `-a pair`) alongside your se
 
 ```bash
 whatsrook -s 2348000000000 -auth pair
-````
+```
 
 whatsrook will generate an 8-character pairing code (e.g. `ABCD-1234`). Enter this code on your phone under WhatsApp > Linked Devices > Link with phone number.
 
@@ -206,4 +206,4 @@ Database migrations are split into two decoupled layers:
 
 1. Protocol Core Migrations (`whatsmeow_version`): These are managed automatically by sqlstore (../wa-core/store/sqlstore/), and handle WhatsApp identity keys, prekeys, session crypto state, contacts, and message history.
 
-2. whatsrook Migrations (`whatsrook_version`): These are managed automatically by migrations (../cli/store/migrations.go), and run idempotent versioned schema upgrades (v1 through v7) for bot settings, cached groups, media configs, and composite indexes.
+2. whatsrook Migrations (`whatsrook_version`): These are managed automatically by migrations (../cmd/store/migrations.go), and run idempotent versioned schema upgrades (v1 through v7) for bot settings, cached groups, media configs, and composite indexes.

@@ -58,9 +58,6 @@ func mustHex(t *testing.T, s string) []byte {
 	return b
 }
 
-//go:fix inline
-func u32ptr(v uint32) *uint32 { return new(v) }
-
 // TestEncodeHeadersMatchKAT checks the 16-byte speech and 20-byte DTX header encodings.
 func TestEncodeHeadersMatchKAT(t *testing.T) {
 	k := loadKat(t)
@@ -204,11 +201,6 @@ func TestVideoStreamMatchesCapturedWebFrameMetadata(t *testing.T) {
 	if got, want := hex.EncodeToString(thirdExtension), "32200002510000610000910002000000"; got != want {
 		t.Errorf("third extension = %s, want %s", got, want)
 	}
-}
-
-//go:fix inline
-func ptrRtpHeader(header RtpHeader) *RtpHeader {
-	return new(header)
 }
 
 // TestEstimateWireBytesMatchKAT checks the on-wire size estimator for speech/DTX/priming.

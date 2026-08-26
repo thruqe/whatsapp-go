@@ -84,18 +84,18 @@ func runBump(args []string) error {
 	fmt.Printf("✓ %s -> %s\n", filepath.Base(versionTxtPath), versionStr)
 
 	// 2. Update cli/updater/updater.go fallback string
-	updaterPath := filepath.Join(rootDir, "cli", "updater", "updater.go")
+	updaterPath := filepath.Join(rootDir, "cmd", "updater", "updater.go")
 	if data, err := os.ReadFile(updaterPath); err == nil {
 		re := regexp.MustCompile(`return "\d+\.\d+\.\d+"`)
 		updated := re.ReplaceAllString(string(data), fmt.Sprintf(`return "%s"`, versionStr))
 		if err := os.WriteFile(updaterPath, []byte(updated), 0o644); err != nil {
 			return fmt.Errorf("failed writing %s: %w", updaterPath, err)
 		}
-		fmt.Printf("✓ %s -> %s\n", filepath.Join("cli", "updater", "updater.go"), versionStr)
+		fmt.Printf("✓ %s -> %s\n", filepath.Join("cmd", "updater", "updater.go"), versionStr)
 	}
 
 	// 3. Update cli/versioninfo.json
-	versionInfoPath := filepath.Join(rootDir, "cli", "versioninfo.json")
+	versionInfoPath := filepath.Join(rootDir, "cmd", "versioninfo.json")
 	if data, err := os.ReadFile(versionInfoPath); err == nil {
 		var v map[string]any
 		if err := json.Unmarshal(data, &v); err != nil {
@@ -131,7 +131,7 @@ func runBump(args []string) error {
 		if err := os.WriteFile(versionInfoPath, append(indented, '\n'), 0o644); err != nil {
 			return fmt.Errorf("failed writing %s: %w", versionInfoPath, err)
 		}
-		fmt.Printf("✓ %s -> %s\n", filepath.Join("cli", "versioninfo.json"), versionStr)
+		fmt.Printf("✓ %s -> %s\n", filepath.Join("cmd", "versioninfo.json"), versionStr)
 	}
 
 	fmt.Printf("Version successfully bumped to %s\n", versionStr)

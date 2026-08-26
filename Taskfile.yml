@@ -15,14 +15,14 @@ tasks:
     cmds:
       - go mod download
       - go mod tidy
-      - cd cli && go mod download && go mod tidy
+      - cd cmd && go mod download && go mod tidy
 
   fix:
     desc: Apply go fix modernizers across all modules
     cmds:
       - go fix ./...
       - cd wa-core && go fix ./...
-      - cd cli && go fix ./...
+      - cd cmd && go fix ./...
 
   fmt:
     desc: Format, vet, and staticcheck all Go code
@@ -31,14 +31,14 @@ tasks:
       - gofmt -w -s .
       - cd wa-core && go fmt ./...
       - cd wa-core && gofmt -w -s .
-      - cd cli && go fmt ./...
-      - cd cli && gofmt -w -s .
+      - cd cmd && go fmt ./...
+      - cd cmd && gofmt -w -s .
       - go vet ./...
       - cd wa-core && go vet ./...
-      - cd cli && go vet ./...
+      - cd cmd && go vet ./...
       - staticcheck ./...
       - cd wa-core && staticcheck ./...
-      - cd cli && staticcheck ./...
+      - cd cmd && staticcheck ./...
 
   test:
     desc: Run the test suite
@@ -47,25 +47,25 @@ tasks:
         PKGS=$(go list -f '{{"{{"}}if .TestGoFiles{{"}}"}}{{"{{"}}.ImportPath{{"}}"}}{{"{{"}}end{{"}}"}}' ./...)
         if [ -n "$PKGS" ]; then go test -v -timeout 120s $PKGS; fi
       - cd wa-core && go test -v -timeout 60s ./...
-      - cd cli && go test -v -timeout 60s ./...
+      - cd cmd && go test -v -timeout 60s ./...
 
   update:
     desc: Upgrade all Go dependencies
     cmds:
       - go get -u ./...
       - go mod tidy
-      - cd cli && go get -u ./...
-      - cd cli && go mod tidy
+      - cd cmd && go get -u ./...
+      - cd cmd && go mod tidy
 
   bump:
-    desc: Bump release version to current date (day.month.year) across version.txt and cli
+    desc: Bump release version to current date (day.month.year) across version.txt and cmd
     cmds:
-      - go run ./scripts/*.go bump {{.CLI_ARGS}}
+      - go run ./scripts/*.go bump {{.cmd_ARGS}}
 
   proto:
     desc: Compile and update all wa-core protobuf definitions
     cmds:
-      - go run ./scripts/*.go proto {{.CLI_ARGS}}
+      - go run ./scripts/*.go proto {{.cmd_ARGS}}
 
   build:
     desc: "Build stripped, optimized binary executable into {{.BIN_PATH}}"
@@ -74,7 +74,7 @@ tasks:
     cmds:
       - cmd: mkdir -p bin
         platforms: [linux, darwin, windows]
-      - cd cli && go build -trimpath -ldflags="-s -w -buildid=" -v -o ../{{.BIN_PATH}} .
+      - cd cmd && go build -trimpath -ldflags="-s -w -buildid=" -v -o ../{{.BIN_PATH}} .
 
   clean:
     desc: Remove build artifacts and temporary files

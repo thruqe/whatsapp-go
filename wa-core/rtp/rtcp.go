@@ -20,7 +20,7 @@ const (
 	SrtcpTrailerLen  int   = 14
 
 	ntpUnixOffsetSecs    uint64 = 2208988800
-	WhatsappRtcpCnameLen        = 18
+	WhatsappRtcpCnameLen uint8  = 18
 )
 
 // IsRtcpPacket reports whether data is an RTCP packet (vs a WhatsApp RTP packet).

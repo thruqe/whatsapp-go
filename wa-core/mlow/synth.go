@@ -136,13 +136,14 @@ func smplStabilizeNLSF(nlsf, minSpacing []float32) {
 	loopN := 0
 	for min < 0.0 {
 		d := float32(loopN)*smplStabilizeEps - min
-		if sel == 0 {
+		switch sel {
+		case 0:
 			marg[0] += d
 			marg[1] -= d
-		} else if sel == L {
+		case L:
 			marg[L] += d
 			marg[L-1] -= d
-		} else {
+		default:
 			marg[sel] += d
 			half := d * 0.5
 			marg[sel-1] -= half
