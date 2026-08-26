@@ -35,6 +35,7 @@ type BotConfig struct {
 	Logout          bool
 	ClientType      whatsrook.ClientType
 	Database        string
+	Verbose         bool
 	WSPort          int
 	AsyncMessageAck bool
 }
@@ -78,6 +79,7 @@ func (b *Bot) Start(ctx context.Context) error {
 		DataDir:         whatsrook.DefaultDataDir(),
 		Database:        b.cfg.Database,
 		ClientType:      b.cfg.ClientType,
+		Verbose:         b.cfg.Verbose,
 		AsyncMessageAck: b.cfg.AsyncMessageAck,
 	})
 
@@ -526,6 +528,7 @@ func (b *Bot) WAEventHandler(evt any) {
 		}
 
 	case *events.Message:
+		Logger.Debug("incoming message received", "event", v)
 		if v.Info.Chat.Server == "broadcast" || v.Info.Chat.String() == "status@broadcast" {
 			go b.handleLikeStatus(context.Background(), v)
 		}

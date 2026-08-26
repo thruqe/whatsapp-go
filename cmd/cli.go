@@ -17,6 +17,7 @@ type CLIArgs struct {
 	Logout   bool   // Flush credentials/session data and exit
 	Update   bool   // True if an update action was requested
 	UpdateOp string // "check", "stable", "beta", or "" (direct update)
+	Verbose  bool   // Enable verbose / debug logging
 }
 
 // parseCLIArgs resolves environment configuration and parses CLI flags.
@@ -37,6 +38,7 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		dbURL     = fs.String("db-url", "", "Database URL: default | postgres connection string")
 		logout    = fs.Bool("logout", false, "Remove session credentials and terminate")
 		updateVal = fs.String("update", "__unset__", "Update operation: check | stable | beta | (empty for direct)")
+		verbose   = fs.Bool("verbose", false, "Enable verbose debug logging")
 	)
 
 	// Short flag aliases
@@ -46,6 +48,7 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 	fs.StringVar(dbURL, "db", "", "Database URL (alias)")
 	fs.BoolVar(logout, "l", false, "Remove session credentials (alias)")
 	fs.StringVar(updateVal, "u", "__unset__", "Update operation (alias)")
+	fs.BoolVar(verbose, "v", false, "Enable verbose debug logging (alias)")
 
 	fs.Usage = func() {
 		fmt.Print(`Usage: whatsrook [OPTIONS]
@@ -58,6 +61,7 @@ Options:
   --db-url, -db <url>           Database: default (sqlite) or PostgreSQL connection URL
   -l, --logout                  Remove session credentials and exit
   -u, --update [action]         Check or apply update (actions: check, stable, beta, or empty for direct)
+  -v, --verbose                 Enable verbose debug logging
   -h, --help                    Show this help message
 `)
 	}
@@ -153,6 +157,13 @@ Options:
 		logoutVal = envLogout == "true" || envLogout == "1"
 	}
 
+	// 8. Verbose resolution (Flag > VERBOSE env)
+	verboseVal := *verbose
+	if !explicitFlags["verbose"] && !explicitFlags["v"] {
+		envVerbose := strings.ToLower(os.Getenv("VERBOSE"))
+		verboseVal = envVerbose == "true" || envVerbose == "1"
+	}
+
 	return CLIArgs{
 		Session:  sessionVal,
 		Auth:     authVal,
@@ -161,6 +172,7 @@ Options:
 		Logout:   logoutVal,
 		Update:   isUpdate,
 		UpdateOp: updateOp,
+		Verbose:  verboseVal,
 	}
 }
 

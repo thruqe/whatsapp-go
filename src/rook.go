@@ -4,13 +4,19 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"fmt"
 	"sync"
+	"time"
 
-	Logger "whatsrook/src/logger"
-
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+
+	Logger "whatsrook/src/logger"
 )
+
+// DefaultPollTimeout is the default duration a poll remains active before auto-deleting.
+const DefaultPollTimeout = 25 * time.Second
 
 // WARook is the per-request builder engine bound to a PluginContext.
 type WARook struct {
@@ -22,14 +28,9 @@ func From(ctx *PluginContext) *WARook {
 	return &WARook{ctx: ctx}
 }
 
-// NewButton creates a ButtonBuilder with the given body text.
-func (r *WARook) NewButton(body string) *ButtonBuilder {
-	return &ButtonBuilder{rook: r, body: body}
-}
-
-// NewPoll creates a PollBuilder for the given question (single-choice by default).
+// NewPoll creates a PollBuilder for the given question (single-choice & 25s auto-delete by default).
 func (r *WARook) NewPoll(question string) *PollBuilder {
-	return &PollBuilder{rook: r, question: question, single: true}
+	return NewPoll(r, question)
 }
 
 // NewMessage creates a MessageBuilder with optional text.
@@ -88,15 +89,6 @@ func (r *Response) Delete(msgID types.MessageID) error {
 // interactive flows from inside a handler.
 func (r *Response) Rook() *WARook { return From(r.ctx) }
 
-// ButtonRequest carries the data of a button click event.
-type ButtonRequest struct {
-	ButtonID    string
-	DisplayText string
-	Sender      types.JID
-	Chat        types.JID
-	Ctx         context.Context
-}
-
 // PollRequest carries the data of a decrypted poll vote.
 type PollRequest struct {
 	PollMsgID       types.MessageID
@@ -115,14 +107,16 @@ type ListRequest struct {
 	Ctx    context.Context
 }
 
-type buttonRoute struct {
-	once bool
-	fn   func(req ButtonRequest, res *Response)
-}
-
 type pollRoute struct {
-	options []string
-	fn      func(req PollRequest, res *Response)
+	chat           types.JID
+	client         *whatsmeow.Client
+	pollMsgID      types.MessageID
+	precedingMsgID types.MessageID
+	options        []string
+	once           bool
+	autoDelete     bool
+	timer          *time.Timer
+	fn             func(req PollRequest, res *Response)
 }
 
 type listRoute struct {
@@ -131,26 +125,109 @@ type listRoute struct {
 }
 
 var (
-	reactorsMu   sync.RWMutex
-	buttonRoutes = make(map[string]buttonRoute)
-	pollRoutes   = make(map[types.MessageID]pollRoute)
-	listRoutes   = make(map[string]listRoute)
+	reactorsMu sync.RWMutex
+	pollRoutes = make(map[types.MessageID]pollRoute)
+	listRoutes = make(map[string]listRoute)
 )
 
-// RegisterButtonHandler registers a reactive handler for a button ID.
-// If once is true the handler auto-removes after its first invocation.
-func RegisterButtonHandler(id string, once bool, fn func(req ButtonRequest, res *Response)) {
+// PollRouteConfig configures a reactive route for a poll message.
+type PollRouteConfig struct {
+	PollMsgID      types.MessageID
+	PrecedingMsgID types.MessageID
+	Chat           types.JID
+	Client         *whatsmeow.Client
+	Options        []string
+	Once           bool
+	AutoDelete     bool
+	Timeout        time.Duration
+	Fn             func(req PollRequest, res *Response)
+}
+
+// RegisterPollRoute registers a reactive route with full lifecycle, timeout, and auto-delete management.
+func RegisterPollRoute(cfg PollRouteConfig) {
+	if cfg.Timeout <= 0 && cfg.AutoDelete {
+		cfg.Timeout = DefaultPollTimeout
+	}
+
+	var timer *time.Timer
+	if cfg.AutoDelete && cfg.Timeout > 0 {
+		timer = time.AfterFunc(cfg.Timeout, func() {
+			reactorsMu.Lock()
+			r, exists := pollRoutes[cfg.PollMsgID]
+			if exists {
+				delete(pollRoutes, cfg.PollMsgID)
+			}
+			remaining := len(pollRoutes)
+			reactorsMu.Unlock()
+
+			if exists {
+				Logger.Debug("WARook: poll expired after timeout and auto-deleted",
+					"pollMsgID", cfg.PollMsgID,
+					"chat", cfg.Chat.String(),
+					"timeout", cfg.Timeout,
+					"remainingActivePollRoutes", remaining,
+				)
+				client := cfg.Client
+				if client == nil && r.client != nil {
+					client = r.client
+				}
+				chat := cfg.Chat
+				if chat.IsEmpty() && !r.chat.IsEmpty() {
+					chat = r.chat
+				}
+				if client != nil && !chat.IsEmpty() {
+					go func(cli *whatsmeow.Client, ch types.JID, pID, preID types.MessageID) {
+						revokeMsg := cli.BuildRevoke(ch, types.EmptyJID, pID)
+						_, _ = cli.SendMessage(context.Background(), ch, revokeMsg)
+						if preID != "" {
+							preRevoke := cli.BuildRevoke(ch, types.EmptyJID, preID)
+							_, _ = cli.SendMessage(context.Background(), ch, preRevoke)
+						}
+						Logger.Debug("WARook: auto-deleted expired poll and preceding messages", "pollMsgID", pID, "precedingMsgID", preID)
+					}(client, chat, cfg.PollMsgID, cfg.PrecedingMsgID)
+				}
+			}
+		})
+	}
+
 	reactorsMu.Lock()
-	buttonRoutes[id] = buttonRoute{once: once, fn: fn}
+	pollRoutes[cfg.PollMsgID] = pollRoute{
+		chat:           cfg.Chat,
+		client:         cfg.Client,
+		pollMsgID:      cfg.PollMsgID,
+		precedingMsgID: cfg.PrecedingMsgID,
+		options:        cfg.Options,
+		once:           cfg.Once,
+		autoDelete:     cfg.AutoDelete,
+		timer:          timer,
+		fn:             cfg.Fn,
+	}
+	total := len(pollRoutes)
 	reactorsMu.Unlock()
+
+	Logger.Debug("WARook: registered poll vote handler",
+		"pollMsgID", cfg.PollMsgID,
+		"precedingMsgID", cfg.PrecedingMsgID,
+		"optionsCount", len(cfg.Options),
+		"options", cfg.Options,
+		"once", cfg.Once,
+		"autoDelete", cfg.AutoDelete,
+		"timeout", cfg.Timeout,
+		"totalActivePollRoutes", total,
+	)
 }
 
 // RegisterPollHandler registers a reactive handler for votes on a specific poll message.
 // options must match the original poll option names for SHA-256 hash matching.
-func RegisterPollHandler(pollMsgID types.MessageID, options []string, fn func(req PollRequest, res *Response)) {
-	reactorsMu.Lock()
-	pollRoutes[pollMsgID] = pollRoute{options: options, fn: fn}
-	reactorsMu.Unlock()
+func RegisterPollHandler(pollMsgID types.MessageID, options []string, once bool, fn func(req PollRequest, res *Response)) {
+	RegisterPollRoute(PollRouteConfig{
+		PollMsgID:  pollMsgID,
+		Options:    options,
+		Once:       once,
+		AutoDelete: true,
+		Timeout:    DefaultPollTimeout,
+		Fn:         fn,
+	})
 }
 
 // RegisterListHandler registers a reactive handler for a list row ID.
@@ -161,54 +238,25 @@ func RegisterListHandler(rowID string, once bool, fn func(req ListRequest, res *
 	reactorsMu.Unlock()
 }
 
-// DeregisterButtonHandlers removes registered handlers for the given button IDs.
-func DeregisterButtonHandlers(ids ...string) {
-	reactorsMu.Lock()
-	for _, id := range ids {
-		delete(buttonRoutes, id)
-	}
-	reactorsMu.Unlock()
-}
-
-// DeregisterPollHandler removes the registered handler for a poll message.
+// DeregisterPollHandler removes the registered handler for a poll message and cancels any pending timeout.
 func DeregisterPollHandler(pollMsgID types.MessageID) {
 	reactorsMu.Lock()
-	delete(pollRoutes, pollMsgID)
+	if r, ok := pollRoutes[pollMsgID]; ok {
+		if r.timer != nil {
+			r.timer.Stop()
+		}
+		delete(pollRoutes, pollMsgID)
+	}
+	total := len(pollRoutes)
 	reactorsMu.Unlock()
-}
-
-// DispatchButtonClick looks up and fires a registered handler for buttonID.
-// Returns true if a handler was found and fired.
-func DispatchButtonClick(ctx *PluginContext, buttonID, displayText string) bool {
-	if buttonID == "" {
-		return false
-	}
-	reactorsMu.RLock()
-	route, ok := buttonRoutes[buttonID]
-	reactorsMu.RUnlock()
-	if !ok {
-		return false
-	}
-	if route.once {
-		reactorsMu.Lock()
-		delete(buttonRoutes, buttonID)
-		reactorsMu.Unlock()
-	}
-	req := ButtonRequest{ButtonID: buttonID, DisplayText: displayText, Sender: ctx.Sender, Chat: ctx.Chat, Ctx: ctx.Ctx}
-	res := newResponse(ctx)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				Logger.Error("WARook: button handler panicked", "buttonID", buttonID, "panic", r)
-			}
-		}()
-		route.fn(req, res)
-	}()
-	return true
+	Logger.Debug("WARook: deregistered poll vote handler",
+		"pollMsgID", pollMsgID,
+		"totalActivePollRoutes", total,
+	)
 }
 
 // DispatchPollVoteEvent decrypts the poll vote in evt, matches selected option
-// hashes against stored option names, and fires the registered handler.
+// hashes against stored option names, auto-deletes the poll message, and fires the registered handler.
 // Returns true if a handler was found and fired.
 func DispatchPollVoteEvent(ctx *PluginContext, evt *events.Message) bool {
 	pollUpdate := evt.Message.GetPollUpdateMessage()
@@ -217,44 +265,168 @@ func DispatchPollVoteEvent(ctx *PluginContext, evt *events.Message) bool {
 	}
 	key := pollUpdate.GetPollCreationMessageKey()
 	if key == nil || key.GetID() == "" {
+		Logger.Debug("WARook: poll vote message key is empty or nil",
+			"sender", ctx.Sender.String(),
+			"chat", ctx.Chat.String(),
+		)
 		return false
 	}
 	pollMsgID := types.MessageID(key.GetID())
+
+	Logger.Debug("WARook: incoming poll vote event",
+		"targetPollMsgID", pollMsgID,
+		"sender", ctx.Sender.String(),
+		"chat", ctx.Chat.String(),
+		"senderTimestamp", evt.Info.Timestamp,
+	)
 
 	reactorsMu.RLock()
 	route, ok := pollRoutes[pollMsgID]
 	reactorsMu.RUnlock()
 	if !ok {
+		Logger.Debug("WARook: no registered reactive route for poll message",
+			"targetPollMsgID", pollMsgID,
+			"sender", ctx.Sender.String(),
+			"chat", ctx.Chat.String(),
+		)
 		return false
 	}
 
+	// Stop expiration timer immediately upon receiving vote
+	if route.timer != nil {
+		route.timer.Stop()
+	}
+
+	// Deregister the route immediately so the poll cannot be used again
+	if route.once || route.autoDelete {
+		reactorsMu.Lock()
+		delete(pollRoutes, pollMsgID)
+		remaining := len(pollRoutes)
+		reactorsMu.Unlock()
+		Logger.Debug("WARook: poll handler consumed and deregistered on vote",
+			"targetPollMsgID", pollMsgID,
+			"remainingActivePollRoutes", remaining,
+		)
+	}
+
+	// Auto-delete the poll message (and any preceding text body) from the chat
+	if route.autoDelete {
+		client := ctx.Client
+		if client == nil {
+			client = route.client
+		}
+		chat := ctx.Chat
+		if chat.IsEmpty() {
+			chat = route.chat
+		}
+		if client != nil && !chat.IsEmpty() {
+			go func(cli *whatsmeow.Client, ch types.JID, pID, preID types.MessageID) {
+				Logger.Debug("WARook: auto-deleting completed poll message on vote", "pollMsgID", pID, "chat", ch.String())
+				revokeMsg := cli.BuildRevoke(ch, types.EmptyJID, pID)
+				_, err := cli.SendMessage(context.Background(), ch, revokeMsg)
+				if err != nil {
+					Logger.Debug("WARook: auto-delete poll message failed", "pollMsgID", pID, "err", err)
+				} else {
+					Logger.Debug("WARook: auto-deleted completed poll message", "pollMsgID", pID)
+				}
+				if preID != "" {
+					preRevoke := cli.BuildRevoke(ch, types.EmptyJID, preID)
+					_, _ = cli.SendMessage(context.Background(), ch, preRevoke)
+					Logger.Debug("WARook: auto-deleted completed preceding text message", "precedingMsgID", preID)
+				}
+			}(client, chat, pollMsgID, route.precedingMsgID)
+		}
+	}
+
+	decryptStart := time.Now()
 	decrypted, err := ctx.Client.DecryptPollVote(context.Background(), evt)
 	if err != nil {
-		Logger.Error("WARook: poll vote decryption failed", "pollMsgID", pollMsgID, "err", err)
+		Logger.Error("WARook: poll vote decryption failed",
+			"targetPollMsgID", pollMsgID,
+			"sender", ctx.Sender.String(),
+			"chat", ctx.Chat.String(),
+			"err", err,
+			"duration", time.Since(decryptStart),
+		)
 		return false
 	}
+
+	Logger.Debug("WARook: poll vote decrypted successfully",
+		"targetPollMsgID", pollMsgID,
+		"selectedHashesCount", len(decrypted.SelectedOptions),
+		"duration", time.Since(decryptStart),
+	)
 
 	var selectedOptions []string
 	for _, optHash := range decrypted.SelectedOptions {
+		matched := false
 		for _, name := range route.options {
 			h := sha256.Sum256([]byte(name))
 			if bytes.Equal(h[:], optHash) {
 				selectedOptions = append(selectedOptions, name)
+				matched = true
+				Logger.Debug("WARook: matched poll option hash to option name",
+					"targetPollMsgID", pollMsgID,
+					"optionName", name,
+					"hashHex", fmt.Sprintf("%x", optHash),
+				)
 				break
 			}
 		}
+		if !matched {
+			Logger.Debug("WARook: unmapped option hash in poll vote",
+				"targetPollMsgID", pollMsgID,
+				"hashHex", fmt.Sprintf("%x", optHash),
+				"expectedOptions", route.options,
+			)
+		}
 	}
 
-	req := PollRequest{PollMsgID: pollMsgID, SelectedOptions: selectedOptions, Sender: ctx.Sender, Chat: ctx.Chat, Ctx: ctx.Ctx}
+	Logger.Debug("WARook: dispatching poll vote to reactive callback",
+		"targetPollMsgID", pollMsgID,
+		"sender", ctx.Sender.String(),
+		"chat", ctx.Chat.String(),
+		"selectedOptions", selectedOptions,
+	)
+
+	reqCtx := ctx.Ctx
+	if reqCtx == nil || reqCtx.Err() != nil {
+		reqCtx = context.Background()
+	}
+	req := PollRequest{
+		PollMsgID:       pollMsgID,
+		SelectedOptions: selectedOptions,
+		Sender:          ctx.Sender,
+		Chat:            ctx.Chat,
+		Ctx:             reqCtx,
+	}
 	res := newResponse(ctx)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				Logger.Error("WARook: poll handler panicked", "pollMsgID", pollMsgID, "panic", r)
-			}
+	if route.fn != nil {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					Logger.Error("WARook: poll handler panicked",
+						"targetPollMsgID", pollMsgID,
+						"sender", ctx.Sender.String(),
+						"chat", ctx.Chat.String(),
+						"panic", r,
+					)
+				}
+			}()
+			handlerStart := time.Now()
+			route.fn(req, res)
+			Logger.Debug("WARook: poll callback finished successfully",
+				"targetPollMsgID", pollMsgID,
+				"duration", time.Since(handlerStart),
+			)
 		}()
-		route.fn(req, res)
-	}()
+		return true
+	}
+
+	Logger.Debug("WARook: poll vote decrypted but route has no custom callback function",
+		"targetPollMsgID", pollMsgID,
+		"selectedOptions", selectedOptions,
+	)
 	return true
 }
 

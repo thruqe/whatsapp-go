@@ -99,7 +99,7 @@ func init() {
 	Register(&Command{
 		Name:        "poll",
 		Alias:       "lockpoll",
-		Description: "Create a poll with single or multiple choice selection buttons",
+		Description: "Create a poll with single or multiple choice options",
 		Category:    "group",
 		GroupOnly:   true,
 		IsPublic:    true,
@@ -585,11 +585,11 @@ func handleAntiLink(ctx *Context) error {
 			Numbered(1, "Default Links: Block all web links (http://, https://, www, .com, etc.)").
 			Numbered(2, "Custom URLs: Block specific domain patterns separated by comma (e.g. chat.whatsapp.com, t.me)").
 			Trimmed()
-		buttons := []struct{ ID, Text string }{
-			{ID: p + "antilink default", Text: "Default Links"},
-			{ID: p + "antilink custom", Text: "Custom URLs"},
+		options := []string{
+			"Default Links",
+			"Custom URLs",
 		}
-		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AntiLink Settings", ctx.GetBotName()), buttons)
+		return sendPollReply(ctx, bodyText, options)
 
 	case "default":
 		_ = s.PutSetting(ctx.Ctx, modeKey, "default")
@@ -602,11 +602,11 @@ func handleAntiLink(ctx *Context) error {
 			Blank().
 			Line("Anti-link will now block all web links sent in this group!").
 			Trimmed()
-		buttons := []struct{ ID, Text string }{
-			{ID: p + "antilink off", Text: "Deactivate"},
-			{ID: p + "antilink mode", Text: "Customize Mode"},
+		options := []string{
+			"Deactivate",
+			"Customize Mode",
 		}
-		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AntiLink Settings", ctx.GetBotName()), buttons)
+		return sendPollReply(ctx, bodyText, options)
 
 	case "custom", "set":
 		customInput := ""
@@ -638,11 +638,11 @@ func handleAntiLink(ctx *Context) error {
 				Section("Example:").
 				Linef("%santilink set chat.whatsapp.com, t.me, instagram.com", p).
 				Trimmed()
-			buttons := []struct{ ID, Text string }{
-				{ID: p + "antilink default", Text: "Default Links"},
-				{ID: p + "antilink off", Text: "Deactivate"},
+			options := []string{
+				"Default Links",
+				"Deactivate",
 			}
-			return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AntiLink Settings", ctx.GetBotName()), buttons)
+			return sendPollReply(ctx, bodyText, options)
 		}
 
 		rawParts := strings.Split(customInput, ",")
@@ -671,11 +671,11 @@ func handleAntiLink(ctx *Context) error {
 			Blank().
 			Line("Anti-link will now block messages containing these custom domain patterns!").
 			Trimmed()
-		buttons := []struct{ ID, Text string }{
-			{ID: p + "antilink off", Text: "Deactivate"},
-			{ID: p + "antilink mode", Text: "Customize Mode"},
+		options := []string{
+			"Deactivate",
+			"Customize Mode",
 		}
-		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AntiLink Settings", ctx.GetBotName()), buttons)
+		return sendPollReply(ctx, bodyText, options)
 
 	case "action", "act":
 		if len(args) > 1 {
@@ -695,12 +695,12 @@ func handleAntiLink(ctx *Context) error {
 			Numbered(2, "Kick: Delete message & kick participant").
 			Numbered(3, "Warn: Issue warning (default 3 max). Kick upon reaching threshold").
 			Trimmed()
-		buttons := []struct{ ID, Text string }{
-			{ID: p + "antilink action delete", Text: "Delete Only"},
-			{ID: p + "antilink action kick", Text: "Kick User"},
-			{ID: p + "antilink action warn", Text: "Warn User"},
+		options := []string{
+			"Delete Only",
+			"Kick User",
+			"Warn User",
 		}
-		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AntiLink Action", ctx.GetBotName()), buttons)
+		return sendPollReply(ctx, bodyText, options)
 
 	case "setwarn", "maxwarn":
 		if len(args) < 2 {
@@ -771,20 +771,18 @@ func sendAntiLinkMenu(ctx *Context, s *StoreWrapper, note string) error {
 		Bulletf("`%santilink action <delete|kick|warn>` - Set action mode", p).
 		Bulletf("`%santilink setwarn 3` - Customize max warnings", p)
 
-	var toggleBtn struct{ ID, Text string }
+	toggleText := "Activate"
 	if status == "on" {
-		toggleBtn = struct{ ID, Text string }{ID: p + "antilink off", Text: "Deactivate"}
-	} else {
-		toggleBtn = struct{ ID, Text string }{ID: p + "antilink on", Text: "Activate"}
+		toggleText = "Deactivate"
 	}
 
-	buttons := []struct{ ID, Text string }{
-		toggleBtn,
-		{ID: p + "antilink action", Text: "Action Mode"},
-		{ID: p + "antilink mode", Text: "Customize"},
+	options := []string{
+		toggleText,
+		"Action Mode",
+		"Customize",
 	}
 
-	return sendInteractiveButtons(ctx, tb.Trimmed(), Sprintf("%s AntiLink Moderation", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
 func handleAntiWord(ctx *Context) error {
@@ -817,8 +815,6 @@ func handleAntiWord(ctx *Context) error {
 		sub = strings.ToLower(args[0])
 	}
 
-	p := ctx.GetPrefix()
-
 	switch sub {
 	case "on", "enable", "activate":
 		_ = s.PutSetting(ctx.Ctx, "antiword_status:"+chatKey, "on")
@@ -846,12 +842,12 @@ func handleAntiWord(ctx *Context) error {
 			Numbered(2, "Kick: Delete message & kick participant").
 			Numbered(3, "Warn: Issue warning (default 3 max). Kick upon reaching threshold").
 			Trimmed()
-		buttons := []struct{ ID, Text string }{
-			{ID: p + "antiword action delete", Text: "Delete Only"},
-			{ID: p + "antiword action kick", Text: "Kick User"},
-			{ID: p + "antiword action warn", Text: "Warn User"},
+		options := []string{
+			"Delete Only",
+			"Kick User",
+			"Warn User",
 		}
-		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AntiWord Action", ctx.GetBotName()), buttons)
+		return sendPollReply(ctx, bodyText, options)
 
 	case "setwarn", "maxwarn":
 		if len(args) < 2 {
@@ -964,20 +960,18 @@ func sendAntiWordMenu(ctx *Context, s *StoreWrapper, note string) error {
 		Bulletf("`%santiword action <delete|kick|warn>` - Set action mode", p).
 		Bulletf("`%santiword setwarn 3` - Set warning limit", p)
 
-	var toggleBtn struct{ ID, Text string }
+	toggleText := "Activate"
 	if status == "on" {
-		toggleBtn = struct{ ID, Text string }{ID: p + "antiword off", Text: "Deactivate"}
-	} else {
-		toggleBtn = struct{ ID, Text string }{ID: p + "antiword on", Text: "Activate"}
+		toggleText = "Deactivate"
 	}
 
-	buttons := []struct{ ID, Text string }{
-		toggleBtn,
-		{ID: p + "antiword action", Text: "Action Mode"},
-		{ID: p + "antiword list", Text: "List Words"},
+	options := []string{
+		toggleText,
+		"Action Mode",
+		"List Words",
 	}
 
-	return sendInteractiveButtons(ctx, tb.Trimmed(), Sprintf("%s AntiWord Moderation", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
 func handleGStats(ctx *Context) error {
@@ -1108,15 +1102,29 @@ func handlePoll(ctx *Context) error {
 		tb.Numbered(i+1, opt)
 	}
 	tb.Blank().
-		Line("Select poll type below to create poll.")
+		Line("Select poll type from the poll below to create your poll.")
 
-	p := ctx.GetPrefix()
-	pollArgs := question + " | " + strings.Join(options, " | ")
-	return ctx.Rook().NewButton(tb.String()).
-		Footer(Sprintf("%s Interactive Poll", ctx.GetBotName())).
-		Add(p+"poll --single "+pollArgs, "SINGLE CHOICE").
-		Add(p+"poll --multi "+pollArgs, "MULTIPLE CHOICE").
-		Reply()
+	_ = ctx.Reply(tb.String())
+
+	poll := ctx.Rook().NewPoll("Select Poll Type:")
+	poll.AddOption("Single Choice").
+		AddOption("Multiple Choice")
+
+	return poll.Reply(func(req utils.PollRequest, res *utils.Response) {
+		if len(req.SelectedOptions) > 0 {
+			single := req.SelectedOptions[0] == "Single Choice"
+			subPoll := res.Rook().NewPoll(question)
+			if single {
+				subPoll.SingleChoice()
+			} else {
+				subPoll.MultiChoice()
+			}
+			for _, opt := range options {
+				subPoll.AddOption(opt)
+			}
+			_ = subPoll.Reply()
+		}
+	})
 }
 
 func handleInvite(ctx *Context) error {
@@ -1475,7 +1483,6 @@ func handleLeave(ctx *Context) error {
 		return ctx.Reply("This command can only be used in a group.")
 	}
 
-	p := ctx.GetPrefix()
 	senderUser := ctx.Sender.ToNonAD().User
 
 	arg0 := ""
@@ -1514,16 +1521,13 @@ func handleLeave(ctx *Context) error {
 		return ctx.Reply("Leave group cancelled.")
 	}
 
-	confirmBtnID := Sprintf("%sleave confirm_%s", p, senderUser)
-	cancelBtnID := Sprintf("%sleave cancel_%s", p, senderUser)
-
-	bodyText := "⚠️ ARE YOU SURE YOU WANT ME TO LEAVE THIS GROUP?\n\nClick 'Confirm Leave' below to confirm or 'Cancel' to keep me in the group."
-	buttons := []struct{ ID, Text string }{
-		{ID: confirmBtnID, Text: "Confirm Leave"},
-		{ID: cancelBtnID, Text: "Cancel"},
+	bodyText := "⚠️ ARE YOU SURE YOU WANT ME TO LEAVE THIS GROUP?\n\nSelect an option from the poll below to confirm or cancel."
+	options := []string{
+		"Confirm Leave",
+		"Cancel",
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, bodyText, options)
 }
 
 func handleJoin(ctx *Context) error {
@@ -1687,9 +1691,142 @@ func handleAntiMsg(ctx *Context) error {
 		sub = strings.ToLower(args[0])
 	}
 
-	targets := extractTargetParticipants(ctx, args)
+	// 1. Explicit global state commands that do not target participants
+	switch sub {
+	case "on", "enable":
+		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
+		return sendAntiMsgMenu(ctx, s, "AntiMsg has been activated for this group.")
 
-	if len(targets) > 0 && sub != "del" && sub != "remove" && sub != "delete" {
+	case "off", "disable":
+		_ = s.PutSetting(ctx.Ctx, statusKey, "off")
+		return sendAntiMsgMenu(ctx, s, "AntiMsg has been deactivated for this group.")
+
+	case "toggle":
+		curr, _ := s.GetSetting(ctx.Ctx, statusKey)
+		if curr == "on" {
+			_ = s.PutSetting(ctx.Ctx, statusKey, "off")
+			return sendAntiMsgMenu(ctx, s, "AntiMsg has been deactivated for this group.")
+		}
+		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
+		return sendAntiMsgMenu(ctx, s, "AntiMsg has been activated for this group.")
+
+	case "clear":
+		_ = s.PutSetting(ctx.Ctx, usersKey, "")
+		return sendAntiMsgMenu(ctx, s, "AntiMsg target list has been cleared.")
+
+	case "list", "status":
+		rawUsers, _ := s.GetSetting(ctx.Ctx, usersKey)
+		users := splitCSV(rawUsers)
+		status, _ := s.GetSetting(ctx.Ctx, statusKey)
+		if status == "" {
+			status = "off"
+		}
+
+		p := ctx.GetPrefix()
+		if len(users) == 0 {
+			bodyText := NewText().
+				Header("ANTIMSG TARGETS").
+				Field("Status", strings.ToUpper(status)).
+				Field("Targets", "None").
+				Blank().
+				Line("No participants are currently targeted in this group.").
+				Linef("Reply to or mention (@user) anyone with %santimsg to add them.", p).
+				Trimmed()
+			options := []string{"Activate"}
+			return sendPollReply(ctx, bodyText, options)
+		}
+
+		var mentions []types.JID
+		var displayUsers []types.JID
+
+		for _, u := range users {
+			uj, err := types.ParseJID(u)
+			if err != nil || uj.IsEmpty() {
+				continue
+			}
+			if !slices.ContainsFunc(displayUsers, func(existing types.JID) bool {
+				return utils.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj)
+			}) {
+				displayUsers = append(displayUsers, uj)
+			}
+		}
+
+		tb := ctx.Text().
+			Header("ANTIMSG TARGETS").
+			Field("Status", strings.ToUpper(status)).
+			Fieldf("Total", "%d targeted user(s)", len(displayUsers)).
+			Blank().
+			Section("Targeted Participants:")
+
+		for _, uj := range displayUsers {
+			resolvedJID, username := ctx.ResolveMention(uj)
+			tb.Bullet("@" + username)
+			mentions = append(mentions, resolvedJID)
+		}
+
+		toggleText := "Activate"
+		if status == "on" {
+			toggleText = "Deactivate"
+		}
+
+		options := []string{
+			toggleText,
+			"Clear Targets",
+		}
+
+		return sendPollReplyWithMentions(ctx, tb.Trimmed(), options, mentions)
+
+	case "del", "remove", "delete":
+		targets := extractTargetParticipants(ctx, args)
+		if len(targets) == 0 {
+			return ctx.Reply("Please reply to a user's message or mention (@user) to remove them from AntiMsg.")
+		}
+		rawUsers, _ := s.GetSetting(ctx.Ctx, usersKey)
+		users := splitCSV(rawUsers)
+
+		var removedMentions []types.JID
+		var removedUsernames []string
+
+		for _, t := range targets {
+			newUsers := make([]string, 0, len(users))
+			for _, uStr := range users {
+				uJID, err := types.ParseJID(uStr)
+				if err == nil && utils.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
+					continue
+				}
+				newUsers = append(newUsers, uStr)
+			}
+			users = newUsers
+			resolvedJID, username := ctx.ResolveMention(t)
+			removedMentions = append(removedMentions, resolvedJID)
+			removedUsernames = append(removedUsernames, "@"+username)
+		}
+
+		_ = s.PutSetting(ctx.Ctx, usersKey, strings.Join(users, ","))
+
+		bodyText := NewText().
+			Header("ANTIMSG UPDATED").
+			Field("Removed", strings.Join(removedUsernames, ", ")).
+			Fieldf("Total", "%d targeted user(s)", len(users)).
+			Trimmed()
+
+		status, _ := s.GetSetting(ctx.Ctx, statusKey)
+		toggleText := "Activate"
+		if status == "on" {
+			toggleText = "Deactivate"
+		}
+
+		options := []string{
+			toggleText,
+			"Target List",
+		}
+
+		return sendPollReplyWithMentions(ctx, bodyText, options, removedMentions)
+	}
+
+	// 2. Target addition: when sub is "add", or user simply runs .antimsg @user or replies to user
+	targets := extractTargetParticipants(ctx, args)
+	if len(targets) > 0 {
 		rawUsers, _ := s.GetSetting(ctx.Ctx, usersKey)
 		users := splitCSV(rawUsers)
 
@@ -1734,7 +1871,6 @@ func handleAntiMsg(ctx *Context) error {
 		_ = s.PutSetting(ctx.Ctx, usersKey, strings.Join(users, ","))
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
 
-		p := ctx.GetPrefix()
 		tb := NewText().
 			Header("ANTIMSG ACTIVATED").
 			Field("Status", "ON").
@@ -1747,172 +1883,22 @@ func handleAntiMsg(ctx *Context) error {
 		}
 		bodyText := tb.Trimmed()
 
-		buttons := []struct{ ID, Text string }{
-			{ID: p + "antimsg off", Text: "Deactivate"},
-			{ID: p + "antimsg list", Text: "Target List"},
-			{ID: p + "antimsg clear", Text: "Clear Targets"},
+		options := []string{
+			"Deactivate",
+			"Target List",
+			"Clear Targets",
 		}
 
-		return sendInteractiveButtonsWithMentions(ctx, bodyText, Sprintf("%s AntiMsg Moderation", ctx.GetBotName()), buttons, addedMentions)
+		return sendPollReplyWithMentions(ctx, bodyText, options, addedMentions)
 	}
 
-	switch sub {
-	case "on", "enable":
-		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
-		return sendAntiMsgMenu(ctx, s, "AntiMsg has been activated for this group.")
-
-	case "off", "disable":
-		_ = s.PutSetting(ctx.Ctx, statusKey, "off")
-		return sendAntiMsgMenu(ctx, s, "AntiMsg has been deactivated for this group.")
-
-	case "toggle":
-		curr, _ := s.GetSetting(ctx.Ctx, statusKey)
-		if curr == "on" {
-			_ = s.PutSetting(ctx.Ctx, statusKey, "off")
-			return sendAntiMsgMenu(ctx, s, "AntiMsg has been deactivated for this group.")
-		}
-		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
-		return sendAntiMsgMenu(ctx, s, "AntiMsg has been activated for this group.")
-
-	case "add":
-		if len(targets) == 0 {
-			p := ctx.GetPrefix()
-			return ctx.Replyf("Please reply to a user's message or mention (@user) to add them to AntiMsg.\n\nExample:\n- Reply to message with `%santimsg`\n- `%santimsg @user`", p, p)
-		}
-		return nil
-
-	case "del", "remove", "delete":
-		if len(targets) == 0 {
-			return ctx.Reply("Please reply to a user's message or mention (@user) to remove them from AntiMsg.")
-		}
-		rawUsers, _ := s.GetSetting(ctx.Ctx, usersKey)
-		users := splitCSV(rawUsers)
-
-		var removedMentions []types.JID
-		var removedUsernames []string
-
-		for _, t := range targets {
-			newUsers := make([]string, 0, len(users))
-			for _, uStr := range users {
-				uJID, err := types.ParseJID(uStr)
-				if err == nil && utils.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
-					continue
-				}
-				newUsers = append(newUsers, uStr)
-			}
-			users = newUsers
-			resolvedJID, username := ctx.ResolveMention(t)
-			removedMentions = append(removedMentions, resolvedJID)
-			removedUsernames = append(removedUsernames, "@"+username)
-		}
-
-		_ = s.PutSetting(ctx.Ctx, usersKey, strings.Join(users, ","))
-
+	if sub == "add" {
 		p := ctx.GetPrefix()
-		bodyText := NewText().
-			Header("ANTIMSG UPDATED").
-			Field("Removed", strings.Join(removedUsernames, ", ")).
-			Fieldf("Total", "%d targeted user(s)", len(users)).
-			Trimmed()
-
-		status, _ := s.GetSetting(ctx.Ctx, statusKey)
-		var toggleBtn struct{ ID, Text string }
-		if status == "on" {
-			toggleBtn = struct{ ID, Text string }{ID: p + "antimsg off", Text: "Deactivate"}
-		} else {
-			toggleBtn = struct{ ID, Text string }{ID: p + "antimsg on", Text: "Activate"}
-		}
-
-		buttons := []struct{ ID, Text string }{
-			toggleBtn,
-			{ID: p + "antimsg list", Text: "Target List"},
-		}
-
-		return sendInteractiveButtonsWithMentions(ctx, bodyText, Sprintf("%s AntiMsg Moderation", ctx.GetBotName()), buttons, removedMentions)
-
-	case "list":
-		rawUsers, _ := s.GetSetting(ctx.Ctx, usersKey)
-		users := splitCSV(rawUsers)
-		status, _ := s.GetSetting(ctx.Ctx, statusKey)
-		if status == "" {
-			status = "off"
-		}
-
-		p := ctx.GetPrefix()
-		if len(users) == 0 {
-			bodyText := NewText().
-				Header("ANTIMSG TARGETS").
-				Field("Status", strings.ToUpper(status)).
-				Field("Targets", "None").
-				Blank().
-				Line("No participants are currently targeted in this group.").
-				Linef("Reply to or mention (@user) anyone with %santimsg to add them.", p).
-				Trimmed()
-			buttons := []struct{ ID, Text string }{
-				{ID: p + "antimsg on", Text: "Activate"},
-			}
-			return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AntiMsg Moderation", ctx.GetBotName()), buttons)
-		}
-
-		var mentions []types.JID
-		var displayUsers []types.JID
-
-		for _, u := range users {
-			uj, err := types.ParseJID(u)
-			if err != nil || uj.IsEmpty() {
-				continue
-			}
-			if !slices.ContainsFunc(displayUsers, func(existing types.JID) bool {
-				return utils.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj)
-			}) {
-				displayUsers = append(displayUsers, uj)
-			}
-		}
-
-		tb := ctx.Text().
-			Header("ANTIMSG TARGETS").
-			Field("Status", strings.ToUpper(status)).
-			Fieldf("Total", "%d targeted user(s)", len(displayUsers)).
-			Blank().
-			Section("Targeted Participants:")
-
-		for _, uj := range displayUsers {
-			resolvedJID, username := ctx.ResolveMention(uj)
-			tb.Bullet("@" + username)
-			mentions = append(mentions, resolvedJID)
-		}
-
-		var toggleBtn struct{ ID, Text string }
-		if status == "on" {
-			toggleBtn = struct{ ID, Text string }{ID: p + "antimsg off", Text: "Deactivate"}
-		} else {
-			toggleBtn = struct{ ID, Text string }{ID: p + "antimsg on", Text: "Activate"}
-		}
-
-		buttons := []struct{ ID, Text string }{
-			toggleBtn,
-			{ID: p + "antimsg clear", Text: "Clear Targets"},
-		}
-
-		return sendInteractiveButtonsWithMentions(ctx, tb.Trimmed(), Sprintf("%s AntiMsg Moderation", ctx.GetBotName()), buttons, mentions)
-
-	case "clear":
-		_ = s.PutSetting(ctx.Ctx, usersKey, "")
-		p := ctx.GetPrefix()
-		bodyText := "AntiMsg target list cleared for this group."
-		buttons := []struct{ ID, Text string }{
-			{ID: p + "antimsg off", Text: "Deactivate"},
-		}
-		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AntiMsg Moderation", ctx.GetBotName()), buttons)
-
-	default:
-		currStatus, _ := s.GetSetting(ctx.Ctx, statusKey)
-		if currStatus != "on" {
-			_ = s.PutSetting(ctx.Ctx, statusKey, "on")
-			return sendAntiMsgMenu(ctx, s, "AntiMsg has been activated for this group.")
-		}
-		return sendAntiMsgMenu(ctx, s, "")
+		return ctx.Replyf("Please reply to a user's message or mention (@user) to add them to AntiMsg.\n\nExample:\n- Reply to message with `%santimsg`\n- `%santimsg @user`", p, p)
 	}
+
+	// 3. Default menu display
+	return sendAntiMsgMenu(ctx, s, "")
 }
 
 func sendAntiMsgMenu(ctx *Context, s *StoreWrapper, note string) error {
@@ -1948,20 +1934,18 @@ func sendAntiMsgMenu(ctx *Context, s *StoreWrapper, note string) error {
 		Bulletf("Remove user: `%santimsg del @user`", p).
 		Bulletf("View list: `%santimsg list`", p)
 
-	var actionButton struct{ ID, Text string }
+	toggleText := "Activate"
 	if status == "on" {
-		actionButton = struct{ ID, Text string }{ID: p + "antimsg off", Text: "Deactivate"}
-	} else {
-		actionButton = struct{ ID, Text string }{ID: p + "antimsg on", Text: "Activate"}
+		toggleText = "Deactivate"
 	}
 
-	buttons := []struct{ ID, Text string }{
-		actionButton,
-		{ID: p + "antimsg list", Text: "Target List"},
-		{ID: p + "antimsg clear", Text: "Clear Targets"},
+	options := []string{
+		toggleText,
+		"Target List",
+		"Clear Targets",
 	}
 
-	return sendInteractiveButtons(ctx, tb.Trimmed(), Sprintf("%s AntiMsg Moderation", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
 func isSubcommand(s string) bool {
@@ -1987,7 +1971,14 @@ func extractTargetParticipants(ctx *Context, args []string) []types.JID {
 	}
 
 	if quotedSender, ok := ctx.GetQuotedSender(); ok && !quotedSender.IsEmpty() {
-		addJID(quotedSender)
+		if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
+			botJID := ctx.Client.Store.ID.ToNonAD()
+			if !utils.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, botJID) {
+				addJID(quotedSender)
+			}
+		} else {
+			addJID(quotedSender)
+		}
 	}
 
 	if ci := ctx.GetContextInfo(); ci != nil {
@@ -2109,7 +2100,6 @@ func sendAntiSpamMenu(ctx *Context, s *StoreWrapper) error {
 		status = "off"
 	}
 
-	p := ctx.GetPrefix()
 	bodyText := NewText().
 		Header("ANTISPAM CONFIGURATION").
 		Field("Group", groupName).
@@ -2118,19 +2108,17 @@ func sendAntiSpamMenu(ctx *Context, s *StoreWrapper) error {
 		Line("Choose an option below to change status or view customization options.").
 		Trimmed()
 
-	var actionButton struct{ ID, Text string }
+	actionText := "Activate"
 	if status == "on" {
-		actionButton = struct{ ID, Text string }{ID: p + "antispam off", Text: "Deactivate"}
-	} else {
-		actionButton = struct{ ID, Text string }{ID: p + "antispam on", Text: "Activate"}
+		actionText = "Deactivate"
 	}
 
-	buttons := []struct{ ID, Text string }{
-		actionButton,
-		{ID: p + "antispam customize", Text: "Customize"},
+	options := []string{
+		actionText,
+		"Customize",
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AntiSpam Moderation", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, bodyText, options)
 }
 
 func sendAntiSpamCustomizeGuide(ctx *Context) error {
@@ -2607,7 +2595,6 @@ func sendEventsMenu(ctx *Context, s *StoreWrapper) error {
 		status = "off"
 	}
 
-	p := ctx.GetPrefix()
 	bodyText := NewText().
 		Header("GROUP EVENTS NOTIFICATIONS").
 		Field("Status", strings.ToUpper(status)).
@@ -2615,19 +2602,17 @@ func sendEventsMenu(ctx *Context, s *StoreWrapper) error {
 		Line("Choose an option below to toggle notifications or view customization options.").
 		Trimmed()
 
-	var actionButton struct{ ID, Text string }
+	actionText := "Activate"
 	if status == "on" {
-		actionButton = struct{ ID, Text string }{ID: p + "events off", Text: "Deactivate"}
-	} else {
-		actionButton = struct{ ID, Text string }{ID: p + "events on", Text: "Activate"}
+		actionText = "Deactivate"
 	}
 
-	buttons := []struct{ ID, Text string }{
-		actionButton,
-		{ID: p + "events customize", Text: "Customize"},
+	options := []string{
+		actionText,
+		"Customize",
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s Group Events", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, bodyText, options)
 }
 
 func sendEventsCustomizeGuide(ctx *Context) error {
@@ -2895,7 +2880,6 @@ func sendWarnMenu(ctx *Context, s *StoreWrapper) error {
 		maxLimit = 3
 	}
 
-	p := ctx.GetPrefix()
 	bodyText := NewText().
 		Header("WARN CONFIGURATION").
 		Fieldf("Max Warn Threshold", "%d Warnings", maxLimit).
@@ -2903,12 +2887,12 @@ func sendWarnMenu(ctx *Context, s *StoreWrapper) error {
 		Line("Choose an option below to set threshold or view customization guide.").
 		Trimmed()
 
-	buttons := []struct{ ID, Text string }{
-		{ID: p + "setwarn 3", Text: "Set Limit (3)"},
-		{ID: p + "warn customize", Text: "Customize"},
+	options := []string{
+		"Set Limit (3)",
+		"Customize",
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s Warn Moderation", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, bodyText, options)
 }
 
 func sendWarnCustomizeGuide(ctx *Context) error {
@@ -3156,7 +3140,6 @@ func sendGreetingMenu(ctx *Context, s *StoreWrapper, kind string) error {
 		status = "off"
 	}
 
-	p := ctx.GetPrefix()
 	bodyText := NewText().
 		Header(strings.ToUpper(kind)+" CONFIGURATION").
 		Field("Group", groupName).
@@ -3165,19 +3148,17 @@ func sendGreetingMenu(ctx *Context, s *StoreWrapper, kind string) error {
 		Line("Choose an option below to change status or view customization options.").
 		Trimmed()
 
-	var actionButton struct{ ID, Text string }
+	actionText := "Activate"
 	if status == "on" {
-		actionButton = struct{ ID, Text string }{ID: p + kind + " off", Text: "Deactivate"}
-	} else {
-		actionButton = struct{ ID, Text string }{ID: p + kind + " on", Text: "Activate"}
+		actionText = "Deactivate"
 	}
 
-	buttons := []struct{ ID, Text string }{
-		actionButton,
-		{ID: p + kind + " customize", Text: "Customize"},
+	options := []string{
+		actionText,
+		"Customize",
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s %s Moderation", ctx.GetBotName(), titleCase(kind)), buttons)
+	return sendPollReply(ctx, bodyText, options)
 }
 
 func sendGreetingCustomizeGuide(ctx *Context, kind string) error {
@@ -3463,12 +3444,8 @@ func handleCaptcha(ctx *Context) error {
 		tb.Blank()
 		tb.Line("Captcha verification is now active. Newly joined participants are required to complete verification within the specified time limit or they will be kicked out.")
 
-		return ctx.Rook().NewButton(tb.Trimmed()).
-			Footer(ctx.GetBotName()+" Captcha").
-			Mentions(ctx.Sender).
-			Add(p+"captcha off", "Deactivate").
-			Add(p+"captcha time", "Set Timeout").
-			Send(ctx.Chat)
+		options := []string{"Deactivate", "Set Timeout"}
+		return sendPollReplyWithMentions(ctx, tb.Trimmed(), options, []types.JID{ctx.Sender})
 
 	case "off", "disable":
 		if err := s.PutSetting(ctx.Ctx, statusKey, "off"); err != nil {
@@ -3481,11 +3458,8 @@ func handleCaptcha(ctx *Context) error {
 		tb.Blank()
 		tb.Line("Captcha verification has been turned off for this group.")
 
-		return ctx.Rook().NewButton(tb.Trimmed()).
-			Footer(ctx.GetBotName()+" Captcha").
-			Mentions(ctx.Sender).
-			Add(p+"captcha on", "Activate").
-			Send(ctx.Chat)
+		options := []string{"Activate"}
+		return sendPollReplyWithMentions(ctx, tb.Trimmed(), options, []types.JID{ctx.Sender})
 
 	case "toggle":
 		curr, _ := s.GetSetting(ctx.Ctx, statusKey)
@@ -3507,17 +3481,12 @@ func handleCaptcha(ctx *Context) error {
 		tb.Blank()
 		tb.Linef("Captcha verification has been %s for this group.", verb)
 
-		btn := ctx.Rook().NewButton(tb.Trimmed()).
-			Footer(ctx.GetBotName() + " Captcha").
-			Mentions(ctx.Sender)
-
+		actionText := "Activate"
 		if next == "on" {
-			btn.Add(p+"captcha off", "Deactivate")
-		} else {
-			btn.Add(p+"captcha on", "Activate")
+			actionText = "Deactivate"
 		}
-		btn.Add(p+"captcha time", "Set Timeout")
-		return btn.Send(ctx.Chat)
+		options := []string{actionText, "Set Timeout"}
+		return sendPollReplyWithMentions(ctx, tb.Trimmed(), options, []types.JID{ctx.Sender})
 
 	case "time", "timeout", "duration":
 		if len(args) < 2 {
@@ -3536,13 +3505,8 @@ func handleCaptcha(ctx *Context) error {
 			tb.Linef("To change verification time limit, use: %scaptcha time <seconds>", p)
 			tb.Linef("Example: %scaptcha time 120 (2 mins)", p)
 
-			return ctx.Rook().NewButton(tb.Trimmed()).
-				Footer(ctx.GetBotName()+" Captcha").
-				Mentions(ctx.Sender).
-				Add(p+"captcha time 60", "1 Min").
-				Add(p+"captcha time 120", "2 Mins").
-				Add(p+"captcha time 180", "3 Mins").
-				Send(ctx.Chat)
+			options := []string{"1 Min", "2 Mins", "3 Mins"}
+			return sendPollReplyWithMentions(ctx, tb.Trimmed(), options, []types.JID{ctx.Sender})
 		}
 		sec, parseErr := strconv.Atoi(args[1])
 		if parseErr != nil || sec < 10 || sec > 600 {
@@ -3558,12 +3522,8 @@ func handleCaptcha(ctx *Context) error {
 		tb.Blank()
 		tb.Linef("Newly joined members will have %s to verify before being removed.", formatCaptchaTimeout(sec))
 
-		return ctx.Rook().NewButton(tb.Trimmed()).
-			Footer(ctx.GetBotName()+" Captcha").
-			Mentions(ctx.Sender).
-			Add(p+"captcha on", "Activate").
-			Add(p+"captcha off", "Deactivate").
-			Send(ctx.Chat)
+		options := []string{"Activate", "Deactivate"}
+		return sendPollReplyWithMentions(ctx, tb.Trimmed(), options, []types.JID{ctx.Sender})
 
 	case "help", "guide", "info":
 		return sendCaptchaGuide(ctx)
@@ -3587,7 +3547,6 @@ func sendCaptchaMenu(ctx *Context, s *StoreWrapper, groupName string) error {
 		}
 	}
 
-	p := ctx.GetPrefix()
 	tb := ctx.Rook().NewText()
 	tb.Header("CAPTCHA CONFIGURATION")
 	tb.Field("Group", groupName)
@@ -3599,20 +3558,17 @@ func sendCaptchaMenu(ctx *Context, s *StoreWrapper, groupName string) error {
 	tb.Blank()
 	tb.Line("Note: This plugin only works if this bot is an admin.")
 
-	btnBuilder := ctx.Rook().NewButton(tb.Trimmed()).
-		Footer(ctx.GetBotName() + " Captcha Moderation").
-		Mentions(ctx.Sender)
-
+	actionText := "Activate"
 	if status == "on" {
-		btnBuilder.Add(p+"captcha off", "Deactivate")
-	} else {
-		btnBuilder.Add(p+"captcha on", "Activate")
+		actionText = "Deactivate"
+	}
+	options := []string{
+		actionText,
+		"Set Timeout",
+		"Help / Guide",
 	}
 
-	btnBuilder.Add(p+"captcha time", "Set Timeout")
-	btnBuilder.Add(p+"captcha help", "Help / Guide")
-
-	return btnBuilder.Send(ctx.Chat)
+	return sendPollReplyWithMentions(ctx, tb.Trimmed(), options, []types.JID{ctx.Sender})
 }
 
 func sendCaptchaGuide(ctx *Context) error {

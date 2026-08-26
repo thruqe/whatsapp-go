@@ -1095,11 +1095,17 @@ func getButtonTypeFromMessage(msg *waE2E.Message) string {
 		return getButtonTypeFromMessage(msg.ViewOnceMessageV2Extension.Message)
 	case msg.EphemeralMessage != nil:
 		return getButtonTypeFromMessage(msg.EphemeralMessage.Message)
+	case msg.DocumentWithCaptionMessage != nil:
+		return getButtonTypeFromMessage(msg.DocumentWithCaptionMessage.Message)
+	case msg.BotForwardedMessage != nil:
+		return getButtonTypeFromMessage(msg.BotForwardedMessage.Message)
 	case msg.ButtonsMessage != nil:
 		return "buttons"
 	case msg.ListMessage != nil:
 		return "list"
 	case msg.InteractiveMessage != nil && msg.InteractiveMessage.GetNativeFlowMessage() != nil:
+		return "native_flow"
+	case msg.InteractiveMessage != nil && msg.InteractiveMessage.GetCarouselMessage() != nil:
 		return "native_flow"
 	case msg.InteractiveResponseMessage != nil:
 		return "interactive_response"
@@ -1120,6 +1126,10 @@ func buildNativeFlowBizNode(msg *waE2E.Message, nowUnix int64) waBinary.Node {
 			msg = msg.ViewOnceMessageV2Extension.Message
 		case msg.EphemeralMessage != nil:
 			msg = msg.EphemeralMessage.Message
+		case msg.DocumentWithCaptionMessage != nil:
+			msg = msg.DocumentWithCaptionMessage.Message
+		case msg.BotForwardedMessage != nil:
+			msg = msg.BotForwardedMessage.Message
 		default:
 			goto unwrapped
 		}
@@ -1161,15 +1171,24 @@ func getButtonAttributes(msg *waE2E.Message) waBinary.Attrs {
 		return getButtonAttributes(msg.ViewOnceMessageV2Extension.Message)
 	case msg.EphemeralMessage != nil:
 		return getButtonAttributes(msg.EphemeralMessage.Message)
-	case msg.TemplateMessage != nil:
-		return waBinary.Attrs{}
+	case msg.DocumentWithCaptionMessage != nil:
+		return getButtonAttributes(msg.DocumentWithCaptionMessage.Message)
+	case msg.BotForwardedMessage != nil:
+		return getButtonAttributes(msg.BotForwardedMessage.Message)
+	case msg.ButtonsMessage != nil:
+		return waBinary.Attrs{
+			"header_type": strings.ToLower(msg.ButtonsMessage.GetHeaderType().String()),
+		}
 	case msg.ListMessage != nil:
 		return waBinary.Attrs{
-			"v":    "2",
-			"type": strings.ToLower(waE2E.ListMessage_ListType_name[int32(msg.ListMessage.GetListType())]),
+			"type": strings.ToLower(msg.ListMessage.GetListType().String()),
+		}
+	case msg.InteractiveResponseMessage != nil:
+		return waBinary.Attrs{
+			"type": "native_flow_response",
 		}
 	default:
-		return waBinary.Attrs{}
+		return nil
 	}
 }
 
@@ -1287,21 +1306,30 @@ func (cli *Client) getMessageContent(
 	if extraParams.metaNode != nil {
 		content = append(content, *extraParams.metaNode)
 	}
+	hasBizNode := false
 	if extraParams.additionalNodes != nil {
+		for _, n := range *extraParams.additionalNodes {
+			if n.Tag == "biz" {
+				hasBizNode = true
+				break
+			}
+		}
 		content = append(content, *extraParams.additionalNodes...)
 	}
 
-	if buttonType := getButtonTypeFromMessage(message); buttonType != "" {
-		if buttonType == "native_flow" {
-			content = append(content, buildNativeFlowBizNode(message, time.Now().Unix()))
-		} else {
-			content = append(content, waBinary.Node{
-				Tag: "biz",
-				Content: []waBinary.Node{{
-					Tag:   buttonType,
-					Attrs: getButtonAttributes(message),
-				}},
-			})
+	if !hasBizNode {
+		if buttonType := getButtonTypeFromMessage(message); buttonType != "" {
+			if buttonType == "native_flow" {
+				content = append(content, buildNativeFlowBizNode(message, time.Now().Unix()))
+			} else {
+				content = append(content, waBinary.Node{
+					Tag: "biz",
+					Content: []waBinary.Node{{
+						Tag:   buttonType,
+						Attrs: getButtonAttributes(message),
+					}},
+				})
+			}
 		}
 	}
 	return content

@@ -55,7 +55,7 @@ func init() {
 	Register(&Command{
 		Name:        "timezone",
 		Alias:       "tz",
-		Description: "View or configure timezone for automute schedules via interactive buttons",
+		Description: "View or configure timezone for automute schedules via poll replies",
 		Category:    "settings",
 		IsPublic:    true,
 		Handler:     handleTimezone,
@@ -92,7 +92,7 @@ func init() {
 	Register(&Command{
 		Name:        "privacy",
 		Alias:       "myprivacy",
-		Description: "View and update WhatsApp privacy settings (Last Seen, Profile Photo, Status, Read Receipts) via interactive buttons",
+		Description: "View and update WhatsApp privacy settings (Last Seen, Profile Photo, Status, Read Receipts) via poll replies",
 		Category:    "settings",
 		IsPublic:    false,
 		Handler:     handlePrivacy,
@@ -598,7 +598,6 @@ func sendAutoBioMenu(ctx *Context, s *StoreWrapper) error {
 	}
 	tzStr := getAutoBioTimezone(ctx.Ctx, s)
 
-	p := ctx.GetPrefix()
 	bodyText := NewText().
 		Header("AUTOBIO CONFIGURATION").
 		Field("Status", statusStr).
@@ -607,19 +606,17 @@ func sendAutoBioMenu(ctx *Context, s *StoreWrapper) error {
 		Line("Choose an option below to change status or view customization options.").
 		Trimmed()
 
-	var actionButton struct{ ID, Text string }
+	actionText := "Activate"
 	if enabled == "true" {
-		actionButton = struct{ ID, Text string }{ID: p + "autobio off", Text: "Deactivate"}
-	} else {
-		actionButton = struct{ ID, Text string }{ID: p + "autobio on", Text: "Activate"}
+		actionText = "Deactivate"
 	}
 
-	buttons := []struct{ ID, Text string }{
-		actionButton,
-		{ID: p + "autobio customize", Text: "Customize"},
+	options := []string{
+		actionText,
+		"Customize",
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AutoBio Updater", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, bodyText, options)
 }
 
 func sendAutoBioCustomizeGuide(ctx *Context, s *StoreWrapper) error {
@@ -810,37 +807,28 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 		tb.Numbered(globalIdx, Bold(tz)+offsetStr)
 	}
 
-	var buttons []struct{ ID, Text string }
+	var options []string
 	for idx, tz := range pageItems {
 		globalIdx := startIdx + idx + 1
-		btnText := tz
-		if len(btnText) > 20 {
-			btnText = btnText[:20]
+		optText := Sprintf("%d. %s", globalIdx, tz)
+		if len(optText) > 40 {
+			optText = optText[:37] + "..."
 		}
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   Sprintf("%stimezone setidx %d", p, globalIdx),
-			Text: btnText,
-		})
+		options = append(options, optText)
 	}
 
 	if page < totalPages {
 		nextPage := page + 1
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   Sprintf("%stimezone page %d", p, nextPage),
-			Text: Sprintf("Next (Page %d)", nextPage),
-		})
+		options = append(options, Sprintf("Next (Page %d)", nextPage))
 	} else if page > 1 {
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   Sprintf("%stimezone page 1", p),
-			Text: "First Page",
-		})
+		options = append(options, "First Page")
 	}
 
 	tb.Blank().
-		Line("Tap a button above to select your timezone, or type:").
+		Line("Select an option from the poll below or type:").
 		Linef("%stimezone <Name> (e.g. %stimezone Africa/Lagos)", p, p)
 
-	return sendInteractiveButtons(ctx, tb.Trimmed(), Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
 func handleReconfigure(ctx *Context) error {
@@ -1114,12 +1102,12 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "prefix", UpdatedAt: time.Now()}
 		cliutils.BotWizardMu.Unlock()
 
-		bodyText := "Bot menu thumbnail updated successfully.\n\nBot Customization Wizard (Step 3/4)\n\nPlease send the symbol or prefix you want to use (e.g. ., !, / or 'none').\n\nOr click Skip below to keep current prefix."
-		buttons := []struct{ ID, Text string }{
-			{ID: p + "setbot prompt_prefix", Text: "Set Prefix"},
-			{ID: p + "setbot skip 3", Text: "Skip"},
+		bodyText := "Bot menu thumbnail updated successfully.\n\nBot Customization Wizard (Step 3/4)\n\nPlease send the symbol or prefix you want to use (e.g. ., !, / or 'none').\n\nOr select Skip below to keep current prefix."
+		options := []string{
+			"Set Prefix",
+			"Skip",
 		}
-		_ = sendInteractiveButtons(fakeCtx, bodyText, Sprintf("%s Setup", fakeCtx.GetBotName()), buttons)
+		_ = sendPollReply(fakeCtx, bodyText, options)
 		return true
 
 	case "prefix":
@@ -1138,12 +1126,12 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "bio", UpdatedAt: time.Now()}
 		cliutils.BotWizardMu.Unlock()
 
-		bodyText := Sprintf("Prefix set to %q.\n\nBot Customization Wizard (Step 4/4)\n\nPlease send the text for your bot's WhatsApp status bio.\n\nOr click Skip to finish wizard.", newPrefix)
-		buttons := []struct{ ID, Text string }{
-			{ID: p + "setbot prompt_bio", Text: "Set Bio"},
-			{ID: p + "setbot skip 4", Text: "Skip"},
+		bodyText := Sprintf("Prefix set to %q.\n\nBot Customization Wizard (Step 4/4)\n\nPlease send the text for your bot's WhatsApp status bio.\n\nOr select Skip to finish wizard.", newPrefix)
+		bioOptions := []string{
+			"Set Bio",
+			"Skip",
 		}
-		_ = sendInteractiveButtons(fakeCtx, bodyText, Sprintf("%s Setup", fakeCtx.GetBotName()), buttons)
+		_ = sendPollReply(fakeCtx, bodyText, bioOptions)
 		return true
 
 	case "bio":
@@ -1224,12 +1212,12 @@ func handleSetBot(ctx *Context) error {
 				cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "bio", UpdatedAt: time.Now()}
 				cliutils.BotWizardMu.Unlock()
 
-				bodyText := "Bot Customization Wizard (Step 4/4)\n\nPlease send the text for your bot's WhatsApp status bio.\n\nOr click Skip to finish."
-				buttons := []struct{ ID, Text string }{
-					{ID: p + "setbot prompt_bio", Text: "Set Bio"},
-					{ID: p + "setbot skip 4", Text: "Skip"},
+				bodyText := "Bot Customization Wizard (Step 4/4)\n\nPlease send the text for your bot's WhatsApp status bio.\n\nOr select Skip to finish."
+				options := []string{
+					"Set Bio",
+					"Skip",
 				}
-				return sendInteractiveButtons(ctx, bodyText, Sprintf("%s Setup", ctx.GetBotName()), buttons)
+				return sendPollReply(ctx, bodyText, options)
 			}
 
 			if stepNum == 4 || stepNum == 0 {
@@ -1302,11 +1290,11 @@ func handleSetBot(ctx *Context) error {
 			DismissBotNamePrompt(ctx.Ctx, s)
 			_ = s.PutSetting(ctx.Ctx, cliutils.BotNameAwaitingInputPrefix+senderUser, "")
 			bodyText := "BOT NAME CUSTOMIZATION RECOMMENDED: Keeping default name WhatsRook is fine. You can start the customization wizard anytime using " + p + "reconfigure:"
-			buttons := []struct{ ID, Text string }{
-				{ID: p + "reconfigure", Text: "Start Wizard"},
-				{ID: p + "setbot setup_ignore", Text: "Keep Default"},
+			options := []string{
+				"Start Wizard",
+				"Keep Default",
 			}
-			return sendInteractiveButtons(ctx, bodyText, Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+			return sendPollReply(ctx, bodyText, options)
 
 		case "setup_ignore":
 			DismissBotNamePrompt(ctx.Ctx, s)
@@ -1341,30 +1329,30 @@ func sendSetBotPage(ctx *Context, pageNum int) error {
 		Field("Thumbnail", thumbStatus).
 		Field("Prefix", curPrefix)
 
-	var buttons []struct{ ID, Text string }
+	var options []string
 
 	switch pageNum {
 	case 1:
-		buttons = []struct{ ID, Text string }{
-			{ID: p + "reconfigure", Text: "Wizard"},
-			{ID: p + "setbot prompt_name", Text: "Bot Name"},
-			{ID: p + "setbot page 2", Text: "Next ▶️"},
+		options = []string{
+			"Wizard",
+			"Bot Name",
+			"Next ▶️",
 		}
 	case 2:
-		buttons = []struct{ ID, Text string }{
-			{ID: p + "setbot prompt_thumb", Text: "Thumbnail"},
-			{ID: p + "setbot prompt_prefix", Text: "Prefix"},
-			{ID: p + "setbot page 3", Text: "Next ▶️"},
+		options = []string{
+			"Thumbnail",
+			"Prefix",
+			"Next ▶️",
 		}
 	default:
-		buttons = []struct{ ID, Text string }{
-			{ID: p + "setbot prompt_bio", Text: "Bio"},
-			{ID: p + "setbot reset", Text: "Reset All"},
-			{ID: p + "setbot page 1", Text: "◀️ Back"},
+		options = []string{
+			"Bio",
+			"Reset All",
+			"◀️ Back",
 		}
 	}
 
-	return sendInteractiveButtons(ctx, tb.Trimmed(), Sprintf("%s Settings", botName), buttons)
+	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
 func sendWizardSummaryCard(ctx *Context) error {
@@ -1446,7 +1434,6 @@ func sendLikeStatusMenu(ctx *Context, s *StoreWrapper) error {
 		status = "off"
 	}
 
-	p := ctx.GetPrefix()
 	bodyText := NewText().
 		Header("LIFESTATUS AUTO-REACTION").
 		Field("Status", strings.ToUpper(status)).
@@ -1454,19 +1441,17 @@ func sendLikeStatusMenu(ctx *Context, s *StoreWrapper) error {
 		Line("Automatically reacts to status broadcasts with random love emojis (❤️, 💕, 💖, 💗, 💓, 💞, 💘, 💌, 🥰, 😍).").
 		Trimmed()
 
-	var actionButton struct{ ID, Text string }
+	actionText := "Activate"
 	if status == "on" {
-		actionButton = struct{ ID, Text string }{ID: p + "likestatus off", Text: "Deactivate"}
-	} else {
-		actionButton = struct{ ID, Text string }{ID: p + "likestatus on", Text: "Activate"}
+		actionText = "Deactivate"
 	}
 
-	buttons := []struct{ ID, Text string }{
-		actionButton,
-		{ID: p + "likestatus customize", Text: "Customize"},
+	options := []string{
+		actionText,
+		"Customize",
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s LikeStatus", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, bodyText, options)
 }
 
 func sendLikeStatusCustomizeGuide(ctx *Context) error {
@@ -1551,7 +1536,6 @@ func handlePrivacy(ctx *Context) error {
 		privacy = &pSettings
 	}
 
-	p := ctx.GetPrefix()
 	tb := ctx.Text().Header("WhatsApp Account Privacy Settings")
 
 	if privacy != nil {
@@ -1566,24 +1550,15 @@ func handlePrivacy(ctx *Context) error {
 		tb.Line("Privacy settings unavailable.")
 	}
 
-	tb.Blank().Line("Tap a button below to configure privacy:")
+	tb.Blank().Line("Select an option from the poll below to configure privacy:")
 
-	buttons := []struct{ ID, Text string }{
-		{
-			ID:   Sprintf("%sprivacy last all", p),
-			Text: "Last Seen: Everyone",
-		},
-		{
-			ID:   Sprintf("%sprivacy last contacts", p),
-			Text: "Last Seen: Contacts",
-		},
-		{
-			ID:   Sprintf("%sprivacy last none", p),
-			Text: "Last Seen: Nobody",
-		},
+	options := []string{
+		"Last Seen: Everyone",
+		"Last Seen: Contacts",
+		"Last Seen: Nobody",
 	}
 
-	return sendInteractiveButtons(ctx, tb.Trimmed(), "Powered by WhatsRook", buttons)
+	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
 func updatePrivacySetting(ctx *Context, nameStr, valStr string) error {
@@ -1876,7 +1851,6 @@ func handleAutoVV(ctx *Context) error {
 		if mode == "" {
 			mode = "dm"
 		}
-		p := ctx.GetPrefix()
 		modeText := "DM (Private to Owner)"
 		if mode == "public" || mode == "chat" {
 			modeText = "Public (Same Chat)"
@@ -1893,24 +1867,20 @@ func handleAutoVV(ctx *Context) error {
 			Bullet("Private (DM): Unwrapped media is saved & sent privately to your DM.").
 			Bullet("Public (Chat): Unwrapped media is posted in the chat where it was received.").
 			Trimmed()
-		var actionButton struct{ ID, Text string }
+		actionText := "Activate"
 		if curr == "on" {
-			actionButton = struct{ ID, Text string }{ID: p + "autovv off", Text: "Deactivate"}
-		} else {
-			actionButton = struct{ ID, Text string }{ID: p + "autovv on", Text: "Activate"}
+			actionText = "Deactivate"
 		}
-		var modeButton struct{ ID, Text string }
-		if mode == "public" || mode == "chat" {
-			modeButton = struct{ ID, Text string }{ID: p + "autovv dm", Text: "Switch to DM (Private)"}
-		} else {
-			modeButton = struct{ ID, Text string }{ID: p + "autovv public", Text: "Switch to Public (Chat)"}
+		modeAction := "Switch to DM (Private)"
+		if mode != "public" && mode != "chat" {
+			modeAction = "Switch to Public (Chat)"
 		}
-		buttons := []struct{ ID, Text string }{
-			actionButton,
-			modeButton,
-			{ID: p + "autovv customize", Text: "Guide"},
+		options := []string{
+			actionText,
+			modeAction,
+			"Guide",
 		}
-		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AutoVV Settings", ctx.GetBotName()), buttons)
+		return sendPollReply(ctx, bodyText, options)
 	}
 
 	sub := strings.ToLower(args[0])
@@ -1969,24 +1939,21 @@ func handleAutoStatusSave(ctx *Context) error {
 		if curr == "" {
 			curr = "off"
 		}
-		p := ctx.GetPrefix()
 		bodyText := NewText().
 			Header("AUTO-STATUS SAVER").
 			Field("Status", strings.ToUpper(curr)).
 			Blank().
 			Line("Automatically saves incoming WhatsApp status broadcasts to your DM.").
 			Trimmed()
-		var actionButton struct{ ID, Text string }
+		actionText := "Activate"
 		if curr == "on" {
-			actionButton = struct{ ID, Text string }{ID: p + "autostatus off", Text: "Deactivate"}
-		} else {
-			actionButton = struct{ ID, Text string }{ID: p + "autostatus on", Text: "Activate"}
+			actionText = "Deactivate"
 		}
-		buttons := []struct{ ID, Text string }{
-			actionButton,
-			{ID: p + "autostatus customize", Text: "Customize"},
+		options := []string{
+			actionText,
+			"Customize",
 		}
-		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AutoStatus", ctx.GetBotName()), buttons)
+		return sendPollReply(ctx, bodyText, options)
 	}
 
 	sub := strings.ToLower(args[0])

@@ -22,6 +22,10 @@ import (
 func main() {
 	args := parseCLIArgs()
 
+	if args.Verbose {
+		Logger.SetVerbose(true)
+	}
+
 	if args.Update {
 		handleUpdate(args.UpdateOp)
 		return
@@ -55,6 +59,7 @@ func main() {
 		Logout:          args.Logout,
 		ClientType:      clientType,
 		Database:        args.Database,
+		Verbose:         args.Verbose,
 		WSPort:          0, // 0 instructs OS to bind to a random available port
 		AsyncMessageAck: true,
 	})

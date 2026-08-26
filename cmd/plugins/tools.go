@@ -330,12 +330,12 @@ func handleFancy(ctx *Context) error {
 					tb.Linef("#%d (%s): %s", fn, f.Name, preview)
 				}
 			}
-			buttons := []struct{ ID, Text string }{
-				{ID: Sprintf("%sfancy 14 %s", p, quotedText), Text: "Small Caps (#14)"},
-				{ID: Sprintf("%sfancy 2 %s", p, quotedText), Text: "Bold (#2)"},
-				{ID: Sprintf("%sfancy 8 %s", p, quotedText), Text: "Fraktur (#8)"},
+			options := []string{
+				"Small Caps (#14)",
+				"Bold (#2)",
+				"Fraktur (#8)",
 			}
-			return sendInteractiveButtons(ctx, tb.String(), Sprintf("%s Fancy Converter", ctx.GetBotName()), buttons)
+			return sendPollReply(ctx, tb.String(), options)
 		}
 
 		tb := ctx.Text().
@@ -348,15 +348,15 @@ func handleFancy(ctx *Context) error {
 			Bulletf("`%sfancy 14` (as reply to a message)", p).
 			Bulletf("`%sfancy 2 WhatsRook AI`", p).
 			Blank().
-			Line("Select an interactive font preset below to convert default sample text:")
+			Line("Select a font preset from the poll below to convert default sample text:")
 
-		buttons := []struct{ ID, Text string }{
-			{ID: Sprintf("%sfancy 14 Hello World", p), Text: "Small Caps (#14)"},
-			{ID: Sprintf("%sfancy 2 Hello World", p), Text: "Bold (#2)"},
-			{ID: Sprintf("%sfancy 8 Hello World", p), Text: "Fraktur (#8)"},
+		options := []string{
+			"Small Caps (#14)",
+			"Bold (#2)",
+			"Fraktur (#8)",
 		}
 
-		return sendInteractiveButtons(ctx, tb.String(), Sprintf("%s Fancy Converter", ctx.GetBotName()), buttons)
+		return sendPollReply(ctx, tb.String(), options)
 	}
 
 	num, err := strconv.Atoi(ctx.Args[0])

@@ -870,15 +870,14 @@ func handleUnscrambleLeaderboard(ctx *Context) error {
 }
 
 func sendUnscrambleInteractiveMenu(ctx *Context, hostTag string, hostMention types.JID) error {
-	p := ctx.GetPrefix()
 	bodyText := Sprintf("UNSCRAMBLE GAME\n\nHosted by %s\n\n30s Join Window Open!\nType 'join' to play.\n\nRules:\n- Words progress from 3 to 16 letters\n- Turn time decreases as difficulty rises (30s -> 6s)\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag)
 
-	buttons := []struct{ ID, Text string }{
-		{ID: p + "unscramble start", Text: "Start Match"},
-		{ID: p + "unscramble lb", Text: "Leaderboard"},
+	options := []string{
+		"Start Match",
+		"Leaderboard",
 	}
 
-	return sendInteractiveButtonsWithMentions(ctx, bodyText, "WhatsRook Unscramble Game", buttons, []types.JID{hostMention})
+	return sendPollReplyWithMentions(ctx, bodyText, options, []types.JID{hostMention})
 }
 
 func isPureEmoji(s string) bool {
@@ -1352,13 +1351,12 @@ func startWCGChainTurn(ctx *Context, game *cliutils.WCGGame) {
 	msg := Sprintf("TURN: %s\n\nRound %d\nRequired Starting Letter: *%c*\nMinimum Word Length: *%d* characters\nTime Limit: %d seconds!\n\nType a valid English word matching the required letter!",
 		currentPlayer.Tag, game.RoundCount, unicode.ToUpper(reqChar), minLen, timeSec)
 
-	p := ctx.GetPrefix()
-	buttons := []struct{ ID, Text string }{
-		{ID: p + "wcg end", Text: "End Game"},
-		{ID: p + "wcg lb", Text: "Leaderboard"},
+	options := []string{
+		"End Game",
+		"Leaderboard",
 	}
 
-	err := sendInteractiveButtonsWithMentions(ctx, msg, Sprintf("Powered by %s", ctx.GetBotName()), buttons, []types.JID{currentPlayer.MentionJID})
+	err := sendPollReplyWithMentions(ctx, msg, options, []types.JID{currentPlayer.MentionJID})
 	if err != nil {
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 	}
@@ -1453,13 +1451,12 @@ func finishWCGChainGame(ctx *Context, game *cliutils.WCGGame, winner *cliutils.W
 		promptMsg := Sprintf("Notice for %s:\nYou are the last player standing, but you do not have the highest score (Highest: %s with %d pts vs your %d pts).\nWould you like to continue playing solo to obtain higher points or end this game?",
 			winnerTag, highestTag, highestScore, winner.Score)
 
-		p := ctx.GetPrefix()
-		buttons := []struct{ ID, Text string }{
-			{ID: p + "wcg start", Text: "Continue Solo"},
-			{ID: p + "wcg cancel", Text: "End Game"},
+		options := []string{
+			"Continue Solo",
+			"End Game",
 		}
 
-		_ = sendInteractiveButtonsWithMentions(ctx, promptMsg, "WhatsRook Word Chain", buttons, []types.JID{winnerJID, highestJID})
+		_ = sendPollReplyWithMentions(ctx, promptMsg, options, []types.JID{winnerJID, highestJID})
 	}
 }
 
@@ -1579,12 +1576,12 @@ func sendWCGChainInteractiveMenu(ctx *Context, hostTag string, hostMention types
 	p := ctx.GetPrefix()
 	bodyText := Sprintf("WORD CHAIN GAME (WCG)\n\nHosted by %s\n\n30s Join Window Open!\nType '%swcg join' to play.\n\nRules:\n- Starting letter is picked at random\n- Words must start with required letter and meet length limit\n- Validated in real-time across 5 parallel dictionary APIs\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag, p)
 
-	buttons := []struct{ ID, Text string }{
-		{ID: p + "wcg start", Text: "Start Match"},
-		{ID: p + "wcg end", Text: "End Game"},
+	options := []string{
+		"Start Match",
+		"End Game",
 	}
 
-	return sendInteractiveButtonsWithMentions(ctx, bodyText, Sprintf("Powered by %s", ctx.GetBotName()), buttons, []types.JID{hostMention})
+	return sendPollReplyWithMentions(ctx, bodyText, options, []types.JID{hostMention})
 }
 
 func HandleWCGLobbyInput(ctx *Context, text string) bool {

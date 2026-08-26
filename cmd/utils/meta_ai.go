@@ -96,7 +96,9 @@ func processMetaAiQueue(ch chan metaAiRequest) {
 func IsDummyPlaceholderText(s string) bool {
 	trimmed := strings.TrimSpace(s)
 	if trimmed == "" || trimmed == "_" || trimmed == "__" || trimmed == "___" ||
-		trimmed == "_We_" || trimmed == "_Thinking_" || trimmed == "..." {
+		trimmed == "_We_" || trimmed == "_Thinking_" || trimmed == "..." ||
+		strings.HasPrefix(trimmed, "_We need to respond") ||
+		strings.HasPrefix(trimmed, "_Thinking") {
 		return true
 	}
 	return false
@@ -127,12 +129,110 @@ func ExtractMetaAiText(msg *waE2E.Message) string {
 			}
 		}
 		res := text.String()
-		if IsDummyPlaceholderText(res) {
-			return ""
+		if !IsDummyPlaceholderText(res) && res != "" {
+			return res
 		}
-		return res
+
+		if unified := rich.GetUnifiedResponse(); unified != nil && len(unified.GetData()) > 0 {
+			res = extractTextFromUnifiedJSON(unified.GetData())
+			if !IsDummyPlaceholderText(res) && res != "" {
+				return res
+			}
+		}
+		return ""
 	}
 	return ""
+}
+
+func extractTextFromUnifiedJSON(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var jsonBytes []byte
+	if json.Valid(raw) {
+		jsonBytes = raw
+	} else {
+		decoded := make([]byte, base64.StdEncoding.DecodedLen(len(raw)))
+		if n, err := base64.StdEncoding.Decode(decoded, raw); err == nil {
+			jsonBytes = decoded[:n]
+		}
+	}
+	if len(jsonBytes) == 0 {
+		return ""
+	}
+
+	var data struct {
+		Sections []struct {
+			ViewModel struct {
+				Primitive struct {
+					Typename string `json:"__typename"`
+					Text     string `json:"text"`
+					Rows     []struct {
+						IsHeader bool     `json:"is_header"`
+						Cells    []string `json:"cells"`
+					} `json:"rows"`
+					Language   string `json:"language"`
+					CodeBlocks []struct {
+						Content string `json:"content"`
+						Type    string `json:"type"`
+					} `json:"code_blocks"`
+				} `json:"primitive"`
+			} `json:"view_model"`
+		} `json:"sections"`
+	}
+
+	if err := json.Unmarshal(jsonBytes, &data); err != nil {
+		return ""
+	}
+
+	var sb strings.Builder
+	for _, sec := range data.Sections {
+		p := sec.ViewModel.Primitive
+		switch p.Typename {
+		case "GenAIMarkdownTextUXPrimitive":
+			if p.Text != "" && !IsDummyPlaceholderText(p.Text) {
+				if sb.Len() > 0 && !strings.HasSuffix(sb.String(), "\n") {
+					sb.WriteString("\n")
+				}
+				sb.WriteString(p.Text)
+			}
+		case "GenATableUXPrimitive":
+			if len(p.Rows) > 0 {
+				if sb.Len() > 0 && !strings.HasSuffix(sb.String(), "\n") {
+					sb.WriteString("\n")
+				}
+				for rIdx, row := range p.Rows {
+					sb.WriteString("| " + strings.Join(row.Cells, " | ") + " |\n")
+					if rIdx == 0 || row.IsHeader {
+						var seps []string
+						for range row.Cells {
+							seps = append(seps, "---")
+						}
+						sb.WriteString("| " + strings.Join(seps, " | ") + " |\n")
+					}
+				}
+			}
+		case "GenAICodeUXPrimitive":
+			if len(p.CodeBlocks) > 0 {
+				if sb.Len() > 0 && !strings.HasSuffix(sb.String(), "\n") {
+					sb.WriteString("\n")
+				}
+				lang := p.Language
+				if lang == "" {
+					lang = "text"
+				}
+				sb.WriteString("```" + lang + "\n")
+				for _, b := range p.CodeBlocks {
+					sb.WriteString(b.Content)
+				}
+				if !strings.HasSuffix(sb.String(), "\n") {
+					sb.WriteString("\n")
+				}
+				sb.WriteString("```\n")
+			}
+		}
+	}
+	return sb.String()
 }
 
 func ExtractMetaAiGeneratedImage(msg *waE2E.Message) (mediaURL string, mimeType string, text string) {

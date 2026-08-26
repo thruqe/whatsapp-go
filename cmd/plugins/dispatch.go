@@ -79,17 +79,33 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 		displayText := extractInteractionDisplayText(evt)
 		if text != "" {
-			if utils.DispatchButtonClick(cctx, text, displayText) {
-				return true
-			}
 			if utils.DispatchListSelection(cctx, text, displayText) {
 				return true
 			}
 		}
-		if evt.Message.GetPollUpdateMessage() != nil {
+		if pollUpdate := evt.Message.GetPollUpdateMessage(); pollUpdate != nil {
+			targetID := ""
+			if key := pollUpdate.GetPollCreationMessageKey(); key != nil {
+				targetID = key.GetID()
+			}
+			Logger.Debug("Dispatcher: incoming poll vote message detected",
+				"targetPollMsgID", targetID,
+				"chat", chatStr,
+				"sender", senderStr,
+			)
 			if utils.DispatchPollVoteEvent(cctx, evt) {
+				Logger.Debug("Dispatcher: poll vote event successfully dispatched to reactive route",
+					"targetPollMsgID", targetID,
+					"chat", chatStr,
+					"sender", senderStr,
+				)
 				return true
 			}
+			Logger.Debug("Dispatcher: poll vote event has no matching reactive route",
+				"targetPollMsgID", targetID,
+				"chat", chatStr,
+				"sender", senderStr,
+			)
 		}
 	}
 
@@ -482,11 +498,21 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 						p = cliutils.DefaultPrefix
 					}
 					bodyText := "BOT NAME CUSTOMIZATION RECOMMENDED\n\nIt's highly recommended to give your own copy of WhatsRook its own name!\nFor example, you can name it something like Fuzzy or Meow.\n\nYou can also run " + p + "reconfigure anytime to open the setup wizard."
-					buttons := []struct{ ID, Text string }{
-						{ID: p + "setbot setup_customize", Text: "Customize Bot"},
-						{ID: p + "setbot setup_continue", Text: "Continue"},
+					options := []string{
+						"Customize Bot",
+						"Continue",
 					}
-					_ = sendInteractiveButtons(cctx, bodyText, Sprintf("Powered by %s", botName), buttons)
+					_ = sendPollReply(cctx, bodyText, options, func(req PollRequest, res *utils.Response) {
+						for _, opt := range req.SelectedOptions {
+							if strings.EqualFold(opt, "Customize Bot") {
+								runCommand(ctx, client, evt, "reconfigure")
+							} else if strings.EqualFold(opt, "Continue") {
+								s, _ := getSQLStore(client)
+								DismissBotNamePrompt(ctx, s)
+								_ = res.Reply("Bot name prompt dismissed. You can run `" + p + "reconfigure` anytime to customize your bot name.")
+							}
+						}
+					})
 					return true
 				}
 			}
@@ -505,7 +531,11 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			}
 		}()
 
-		reqCtx, cancel := context.WithCancel(ctx)
+		baseCtx := ctx
+		if baseCtx == nil || baseCtx.Err() != nil {
+			baseCtx = context.Background()
+		}
+		reqCtx, cancel := context.WithCancel(baseCtx)
 		defer cancel()
 
 		cctx := &Context{
