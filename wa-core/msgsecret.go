@@ -263,15 +263,24 @@ func (cli *Client) DecryptPollVote(ctx context.Context, vote *events.Message) (*
 	if pollUpdate == nil {
 		return nil, ErrNotPollUpdateMessage
 	}
-	plaintext, err := cli.decryptMsgSecret(ctx, vote, EncSecretPollVote, pollUpdate.GetVote(), pollUpdate.GetPollCreationMessageKey())
+	targetKey := pollUpdate.GetPollCreationMessageKey()
+	targetID := ""
+	if targetKey != nil {
+		targetID = targetKey.GetID()
+	}
+	cli.Log.Debugf("Decrypting poll vote for message ID %q from sender %s", targetID, vote.Info.Sender)
+	plaintext, err := cli.decryptMsgSecret(ctx, vote, EncSecretPollVote, pollUpdate.GetVote(), targetKey)
 	if err != nil {
+		cli.Log.Errorf("Failed to decrypt poll vote for %q from %s: %v", targetID, vote.Info.Sender, err)
 		return nil, fmt.Errorf("failed to decrypt poll vote: %w", err)
 	}
 	var msg waE2E.PollVoteMessage
 	err = proto.Unmarshal(plaintext, &msg)
 	if err != nil {
+		cli.Log.Errorf("Failed to decode poll vote protobuf for %q: %v", targetID, err)
 		return nil, fmt.Errorf("failed to decode poll vote protobuf: %w", err)
 	}
+	cli.Log.Debugf("Successfully decrypted poll vote for %q with %d selected option hash(es)", targetID, len(msg.SelectedOptions))
 	return &msg, nil
 }
 
@@ -356,6 +365,7 @@ func (cli *Client) BuildPollVote(ctx context.Context, pollInfo *types.MessageInf
 //
 //	resp, err := cli.SendMessage(context.Background(), chat, cli.BuildPollCreation("meow?", []string{"yes", "no"}, 1))
 func (cli *Client) BuildPollCreation(name string, optionNames []string, selectableOptionCount int) *waE2E.Message {
+	cli.Log.Debugf("Building poll creation message: name=%q, optionsCount=%d, selectableCount=%d", name, len(optionNames), selectableOptionCount)
 	msgSecret := random.Bytes(32)
 	if selectableOptionCount < 0 || selectableOptionCount > len(optionNames) {
 		selectableOptionCount = 0
@@ -378,8 +388,10 @@ func (cli *Client) BuildPollCreation(name string, optionNames []string, selectab
 
 // EncryptPollVote encrypts a poll vote message. This is a slightly lower-level function, using BuildPollVote is recommended.
 func (cli *Client) EncryptPollVote(ctx context.Context, pollInfo *types.MessageInfo, vote *waE2E.PollVoteMessage) (*waE2E.PollUpdateMessage, error) {
+	cli.Log.Debugf("Encrypting poll vote for message ID %q with %d selected option(s)", pollInfo.ID, len(vote.SelectedOptions))
 	plaintext, err := proto.Marshal(vote)
 	if err != nil {
+		cli.Log.Errorf("Failed to marshal poll vote protobuf for %q: %v", pollInfo.ID, err)
 		return nil, fmt.Errorf("failed to marshal poll vote protobuf: %w", err)
 	}
 	ownID := cli.getOwnLID()
@@ -388,8 +400,10 @@ func (cli *Client) EncryptPollVote(ctx context.Context, pollInfo *types.MessageI
 	}
 	ciphertext, iv, err := cli.encryptMsgSecret(ctx, ownID, pollInfo.Chat, pollInfo.Sender, pollInfo.ID, EncSecretPollVote, plaintext)
 	if err != nil {
+		cli.Log.Errorf("Failed to encrypt poll vote for %q: %v", pollInfo.ID, err)
 		return nil, fmt.Errorf("failed to encrypt poll vote: %w", err)
 	}
+	cli.Log.Debugf("Successfully encrypted poll vote for message ID %q", pollInfo.ID)
 	return &waE2E.PollUpdateMessage{
 		PollCreationMessageKey: getKeyFromInfo(pollInfo),
 		Vote: &waE2E.PollEncValue{

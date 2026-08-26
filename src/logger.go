@@ -12,6 +12,11 @@ func InitLogger(sessionDir string, verbose bool) error {
 	return Logger.InitLogger(sessionDir, verbose)
 }
 
+// SetVerbose sets the global log level to DebugLevel if verbose is true, otherwise InfoLevel.
+func SetVerbose(verbose bool) {
+	Logger.SetVerbose(verbose)
+}
+
 // CloseLogger flushes and closes all open log files.
 func CloseLogger() {
 	Logger.Close()

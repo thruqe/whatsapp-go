@@ -234,39 +234,30 @@ func renderCSAIPage(ctx *Context, s *StoreWrapper, page int) error {
 	}
 	tb.Numbered(11, "Custom Trait / How You Refer To Me: Enter your own custom prompt.")
 
-	var buttons []struct{ ID, Text string }
+	var options []string
 	for idx, trait := range pageItems {
 		globalIdx := startIdx + idx + 1
-		btnText := Sprintf("%d. %s", globalIdx, trait.Name)
-		if len(btnText) > 20 {
-			btnText = btnText[:20]
+		optText := Sprintf("%d. %s", globalIdx, trait.Name)
+		if len(optText) > 40 {
+			optText = optText[:37] + "..."
 		}
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   Sprintf("%scsai set %d", p, globalIdx),
-			Text: btnText,
-		})
+		options = append(options, optText)
 	}
 
 	if page < totalPages {
 		nextPage := page + 1
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   Sprintf("%scsai page %d", p, nextPage),
-			Text: Sprintf("Next (Page %d)", nextPage),
-		})
+		options = append(options, Sprintf("Next (Page %d)", nextPage))
 	} else {
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   Sprintf("%scsai custom", p),
-			Text: "11. Custom Trait",
-		})
+		options = append(options, "11. Custom Trait")
 	}
 
 	tb.Blank().
-		Line("To select a personality, tap a button above or type:").
+		Line("To select a personality, select an option from the poll below or type:").
 		Bulletf("%scsai <number> (e.g. %scsai 3)", p, p).
 		Bulletf("%scsai custom <prompt> (e.g. %scsai custom Refer to me as Sir)", p, p).
 		Bulletf("%scsai reset (to restore default AI behavior)", p)
 
-	return sendInteractiveButtons(ctx, tb.Trimmed(), Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
 func isMediaGenerationPrompt(prompt string) bool {
@@ -921,7 +912,6 @@ func handleWhy(ctx *Context) error {
 		pagePulls = res.Pulls[startIdx:endIdx]
 	}
 
-	p := ctx.GetPrefix()
 	tb := ctx.Text(res.Answer)
 
 	if totalPulls > 0 {
@@ -942,35 +932,31 @@ func handleWhy(ctx *Context) error {
 		}
 	}
 
-	var buttons []struct{ ID, Text string }
+	var options []string
 	for i, pull := range pagePulls {
 		globalIdx := startIdx + i + 1
 		btnQuery := strings.TrimSpace(pull.Query)
 		if btnQuery == "" {
 			btnQuery = strings.TrimSpace(pull.Label)
 		}
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   Sprintf("%swhy %s", p, btnQuery),
-			Text: Sprintf("Question %d", globalIdx),
-		})
+		if btnQuery != "" {
+			optText := Sprintf("%d. %s", globalIdx, btnQuery)
+			if len(optText) > 60 {
+				optText = optText[:57] + "..."
+			}
+			options = append(options, optText)
+		}
 	}
 
 	if page < totalPages {
 		nextPage := page + 1
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   Sprintf("%swhy page %d %s", p, nextPage, query),
-			Text: "Next",
-		})
+		options = append(options, Sprintf("Next (Page %d)", nextPage))
 	} else if totalPages > 1 && page == totalPages {
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   Sprintf("%swhy page 1 %s", p, query),
-			Text: "First Page",
-		})
+		options = append(options, "First Page")
 	}
 
-	if len(buttons) > 0 {
-		footer := Sprintf("Powered by why.com • %s", ctx.GetBotName())
-		if err := sendInteractiveButtons(ctx, tb.String(), footer, buttons); err == nil {
+	if len(options) > 0 {
+		if err := sendPollReply(ctx, tb.String(), options); err == nil {
 			return nil
 		}
 	}

@@ -8,6 +8,8 @@ import (
 
 type Context = utils.PluginContext
 type TextBuilder = utils.TextBuilder
+type PollBuilder = utils.PollBuilder
+type PollRequest = utils.PollRequest
 
 func NewText(initial ...string) *TextBuilder {
 	return utils.NewText(initial...)

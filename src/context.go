@@ -156,6 +156,16 @@ func (c *PluginContext) NewTextf(format string, args ...any) *TextBuilder {
 	return b
 }
 
+// Poll initializes a new PollBuilder bound to this PluginContext.
+func (c *PluginContext) Poll(question string) *PollBuilder {
+	return c.Rook().NewPoll(question)
+}
+
+// NewPoll initializes a new PollBuilder bound to this PluginContext.
+func (c *PluginContext) NewPoll(question string) *PollBuilder {
+	return c.Rook().NewPoll(question)
+}
+
 // Rook returns a WARook builder engine bound to this PluginContext.
 func (c *PluginContext) Rook() *WARook {
 	return From(c)

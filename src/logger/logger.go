@@ -56,6 +56,15 @@ func SetLevel(lvl zapcore.Level) {
 	atomicLevel.SetLevel(lvl)
 }
 
+// SetVerbose sets the global log level to DebugLevel if verbose is true, otherwise InfoLevel.
+func SetVerbose(verbose bool) {
+	if verbose {
+		atomicLevel.SetLevel(zapcore.DebugLevel)
+	} else {
+		atomicLevel.SetLevel(zapcore.InfoLevel)
+	}
+}
+
 // GetLevel returns the current global logging level.
 func GetLevel() zapcore.Level {
 	return atomicLevel.Level()

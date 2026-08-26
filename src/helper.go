@@ -36,6 +36,10 @@ func UnwrapMessageProto(msg *waE2E.Message) *waE2E.Message {
 			msg = edited.GetMessage()
 			continue
 		}
+		if bfm := msg.GetBotForwardedMessage(); bfm != nil && bfm.GetMessage() != nil {
+			msg = bfm.GetMessage()
+			continue
+		}
 		if devSent := msg.GetDeviceSentMessage(); devSent != nil && devSent.GetMessage() != nil {
 			msg = devSent.GetMessage()
 			continue
@@ -205,6 +209,16 @@ func ExtractTextFromProto(msg *waE2E.Message) string {
 	}
 	if evt := msg.GetEventMessage(); evt != nil && evt.GetName() != "" {
 		return "📅 " + evt.GetName()
+	}
+	if rich := msg.GetRichResponseMessage(); rich != nil {
+		for _, sub := range rich.GetSubmessages() {
+			if sub.GetMessageText() != "" {
+				return sub.GetMessageText()
+			}
+		}
+	}
+	if bfm := msg.GetBotForwardedMessage(); bfm != nil && bfm.GetMessage() != nil {
+		return ExtractTextFromProto(bfm.GetMessage())
 	}
 	return ""
 }

@@ -606,12 +606,12 @@ func sendVVMenu(ctx *Context, s *StoreWrapper) error {
 		Linef("Reply to any ViewOnce image, video, or audio message with %svv to unwrap it.", p).
 		Trimmed()
 
-	buttons := []struct{ ID, Text string }{
-		{ID: p + "vv dest owner", Text: "Set Owner DM"},
-		{ID: p + "vv customize", Text: "Customize"},
+	options := []string{
+		"Set Owner DM",
+		"Customize",
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s VV Unwrapper", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, bodyText, options)
 }
 
 func sendVVCustomizeGuide(ctx *Context, s *StoreWrapper) error {

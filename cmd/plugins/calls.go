@@ -241,12 +241,8 @@ func handleCall(ctx *Context) error {
 			Bulletf("%scallvideo [number] - Video call & media", p).
 			Bulletf("%svoicemail [on/off] - Automated voicemail", p).
 			Trimmed()
-		buttons := []struct{ ID, Text string }{
-			{ID: p + "callaudio", Text: "Call Audio"},
-			{ID: p + "callvideo", Text: "Call Video"},
-			{ID: p + "voicemail", Text: "Voicemail"},
-		}
-		return sendInteractiveButtons(ctx, body, Sprintf("%s Calls", ctx.GetBotName()), buttons)
+		options := []string{"Call Audio", "Call Video", "Voicemail"}
+		return sendPollReply(ctx, body, options)
 	}
 
 	targetJID := targets[0]
@@ -262,13 +258,10 @@ func handleCall(ctx *Context) error {
 		}
 	}
 
-	// Show choice buttons for target
+	// Show choice options for target
 	body := Sprintf("Place Call to %s\n\nSelect call type:", targetMention)
-	buttons := []struct{ ID, Text string }{
-		{ID: Sprintf("%scallaudio %s", p, targetJID.User), Text: "Audio Call"},
-		{ID: Sprintf("%scallvideo %s", p, targetJID.User), Text: "Video Call"},
-	}
-	return sendInteractiveButtonsWithMentions(ctx, body, Sprintf("%s Calls", ctx.GetBotName()), buttons, []types.JID{targetJID})
+	options := []string{"Audio Call", "Video Call"}
+	return sendPollReplyWithMentions(ctx, body, options, []types.JID{targetJID})
 }
 
 func handleCallAudio(ctx *Context) error {
@@ -577,7 +570,6 @@ func sendAntiCallMenu(ctx *Context, s *StoreWrapper) error {
 		status = "off"
 	}
 
-	p := ctx.GetPrefix()
 	bodyText := NewText().
 		Header("ANTICALL CONFIGURATION").
 		Field("Status", strings.ToUpper(status)).
@@ -585,19 +577,17 @@ func sendAntiCallMenu(ctx *Context, s *StoreWrapper) error {
 		Line("Choose an option below to change status or view customization options.").
 		Trimmed()
 
-	var actionButton struct{ ID, Text string }
+	actionText := "Activate"
 	if status == "on" {
-		actionButton = struct{ ID, Text string }{ID: p + "anticall off", Text: "Deactivate"}
-	} else {
-		actionButton = struct{ ID, Text string }{ID: p + "anticall on", Text: "Activate"}
+		actionText = "Deactivate"
 	}
 
-	buttons := []struct{ ID, Text string }{
-		actionButton,
-		{ID: p + "anticall customize", Text: "Customize"},
+	options := []string{
+		actionText,
+		"Customize",
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, Sprintf("%s AntiCall Rejection", ctx.GetBotName()), buttons)
+	return sendPollReply(ctx, bodyText, options)
 }
 
 func sendAntiCallCustomizeGuide(ctx *Context) error {
@@ -694,20 +684,18 @@ func handleVoicemail(ctx *Context) error {
 			Bulletf("%svoicemail off", p).
 			Trimmed()
 
-		var actionButton struct{ ID, Text string }
+		actionText := "Activate"
 		if status == "on" {
-			actionButton = struct{ ID, Text string }{ID: p + "voicemail off", Text: "Deactivate"}
-		} else {
-			actionButton = struct{ ID, Text string }{ID: p + "voicemail on", Text: "Activate"}
+			actionText = "Deactivate"
 		}
 
-		buttons := []struct{ ID, Text string }{
-			actionButton,
-			{ID: p + "callaudio", Text: "Call Audio"},
-			{ID: p + "callvideo", Text: "Call Video"},
+		options := []string{
+			actionText,
+			"Call Audio",
+			"Call Video",
 		}
 
-		return sendInteractiveButtons(ctx, bodyText, Sprintf("%s Voicemail", ctx.GetBotName()), buttons)
+		return sendPollReply(ctx, bodyText, options)
 	}
 }
 
