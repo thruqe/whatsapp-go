@@ -367,7 +367,6 @@ type BitrateController struct {
 	prevVoiced           int32
 	rateContWnrgSmth     float32
 	rateContBitrateScale [smplCelpMaxRates]float32
-	bitrateDeltaSmth     [smplCelpMaxRates]float32
 	rateContBitrate      [smplCelpMaxRates]float32
 	adjustmentFactor     [smplCelpMaxRates]float32
 }

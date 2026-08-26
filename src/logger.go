@@ -3,6 +3,7 @@ package src
 import (
 	Logger "whatsrook/src/logger"
 
+	"github.com/rs/zerolog"
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
@@ -19,4 +20,9 @@ func CloseLogger() {
 // WhatsmeowStyle creates a fast waLog.Logger adapter with module prefix.
 func WhatsmeowStyle(module string, minLevel string, color bool) waLog.Logger {
 	return Logger.WhatsmeowStyle(module, minLevel, color)
+}
+
+// ZerologStyle creates a zerolog.Logger adapter that routes all events through Zap.
+func ZerologStyle(module string) zerolog.Logger {
+	return Logger.ZerologStyle(module)
 }

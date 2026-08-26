@@ -110,6 +110,14 @@ func TestSlogBridge(t *testing.T) {
 	slog.Error("testing slog error through zap bridge", "err", os.ErrClosed)
 }
 
+func TestZerologAdapter(t *testing.T) {
+	zlog := ZerologStyle("wacaller")
+	zlog.Info().Str("call_id", "ABC-123").Bool("video", false).Msg("offer sent")
+	zlog.Debug().Str("relay", "pmo1c01").Int("bytes", 352).Msg("relay connected")
+	zlog.Warn().Str("call_id", "ABC-123").Msg("call ended early")
+	zlog.Error().Err(os.ErrPermission).Msg("media failed")
+}
+
 func TestConcurrentLogging(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := range 50 {

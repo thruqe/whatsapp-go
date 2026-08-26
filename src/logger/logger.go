@@ -2,15 +2,19 @@ package Logger
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/rs/zerolog"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -382,6 +386,95 @@ func (z *zapWaLogger) Sub(module string) waLog.Logger {
 }
 
 var _ waLog.Logger = (*zapWaLogger)(nil)
+
+// ─────────────────────────────────────────────────────────────
+// zerolog Adapter
+// ─────────────────────────────────────────────────────────────
+
+type zerologToZapWriter struct {
+	logger *zap.Logger
+}
+
+func (w *zerologToZapWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	if len(p) == 0 {
+		return n, nil
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(p, &raw); err != nil {
+		w.logger.Info(strings.TrimSpace(string(p)))
+		return n, nil
+	}
+
+	var msg string
+	if m, ok := raw[zerolog.MessageFieldName].(string); ok {
+		msg = m
+		delete(raw, zerolog.MessageFieldName)
+	} else if m, ok := raw["msg"].(string); ok {
+		msg = m
+		delete(raw, "msg")
+	}
+
+	lvl := zapcore.InfoLevel
+	if l, ok := raw[zerolog.LevelFieldName].(string); ok {
+		delete(raw, zerolog.LevelFieldName)
+		switch strings.ToLower(l) {
+		case "trace", "debug":
+			lvl = zapcore.DebugLevel
+		case "info":
+			lvl = zapcore.InfoLevel
+		case "warn", "warning":
+			lvl = zapcore.WarnLevel
+		case "error":
+			lvl = zapcore.ErrorLevel
+		case "fatal", "panic":
+			lvl = zapcore.DPanicLevel
+		}
+	}
+
+	delete(raw, zerolog.TimestampFieldName)
+	delete(raw, "timestamp")
+	delete(raw, "subsystem")
+
+	if ce := w.logger.Check(lvl, msg); ce != nil {
+		if len(raw) == 0 {
+			ce.Write()
+			return n, nil
+		}
+
+		keys := make([]string, 0, len(raw))
+		for k := range raw {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		fields := make([]zapcore.Field, 0, len(keys))
+		for _, k := range keys {
+			fields = append(fields, zap.Any(k, raw[k]))
+		}
+		ce.Write(fields...)
+	}
+
+	return n, nil
+}
+
+// ZerologStyle creates a zerolog.Logger adapter that routes all log entries through Zap with structured fields and level routing.
+func ZerologStyle(module string) zerolog.Logger {
+	mu.RLock()
+	base := rawLogger
+	mu.RUnlock()
+
+	var sub *zap.Logger
+	if module != "" {
+		sub = base.Named(module).WithOptions(zap.AddCallerSkip(1))
+	} else {
+		sub = base.WithOptions(zap.AddCallerSkip(1))
+	}
+
+	writer := &zerologToZapWriter{logger: sub}
+	return zerolog.New(writer).Level(zerolog.DebugLevel)
+}
 
 // ─────────────────────────────────────────────────────────────
 // Direct Logging Functions (Universal & Ergonomic)

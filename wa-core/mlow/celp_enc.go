@@ -21,9 +21,11 @@ const (
 	celpLtpInterpolDelay = 8
 	celpLagSubfrlen      = 40
 	celpMaxpitchLen      = 320
-
-	celpGAcbRdMu float32 = 0.014999999664723873
 	fcbgVDeltaN          = 67
+)
+
+const (
+	celpGAcbRdMu float32 = 0.014999999664723873
 
 	vGainMinDb   float32 = -100.0
 	vGainMaxDb   float32 = 0.0

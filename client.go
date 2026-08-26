@@ -186,6 +186,7 @@ func (c *Client) InitSession(ctx context.Context) error {
 
 	clientLog := src.WhatsmeowStyle("Client", "INFO", true)
 	rawClient := whatsmeow.NewClient(deviceStore, clientLog)
+	rawClient.SetCallLogger(src.ZerologStyle("wacaller"))
 	rawClient.AsyncMessageAck = c.Config.AsyncMessageAck
 
 	// configure companion platform registration headers and os version payloads
