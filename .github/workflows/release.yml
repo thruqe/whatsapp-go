@@ -88,7 +88,7 @@ jobs:
         run: |
           BIN_NAME="whatsrook${{ matrix.target.ext }}"
           if [ "${{ matrix.target.os }}" = "windows" ]; then
-            go -C scripts run . res
+            GOOS="" GOARCH="" go -C scripts run . res
           fi
           (cd cmd && go build -trimpath -ldflags="-s -w -buildid=" -v -o "../$BIN_NAME" .)
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
