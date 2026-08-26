@@ -48,6 +48,16 @@ func runRes(args []string) error {
 		"--product-version", productVersion,
 		"--arch", "amd64,arm64,386,arm",
 	)
+	// Ensure the go-winres invocation uses the native host toolchain
+	var hostEnv []string
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, "GOOS=") || strings.HasPrefix(env, "GOARCH=") {
+			continue
+		}
+		hostEnv = append(hostEnv, env)
+	}
+	hostEnv = append(hostEnv, "GOOS=", "GOARCH=")
+	cmd.Env = hostEnv
 	cmd.Dir = cmdDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
