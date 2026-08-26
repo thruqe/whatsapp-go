@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -83,7 +82,7 @@ func runBump(args []string) error {
 	}
 	fmt.Printf("✓ %s -> %s\n", filepath.Base(versionTxtPath), versionStr)
 
-	// 2. Update cli/updater/updater.go fallback string
+	// 2. Update cmd/updater/updater.go fallback string
 	updaterPath := filepath.Join(rootDir, "cmd", "updater", "updater.go")
 	if data, err := os.ReadFile(updaterPath); err == nil {
 		re := regexp.MustCompile(`return "\d+\.\d+\.\d+"`)
@@ -94,44 +93,9 @@ func runBump(args []string) error {
 		fmt.Printf("✓ %s -> %s\n", filepath.Join("cmd", "updater", "updater.go"), versionStr)
 	}
 
-	// 3. Update cli/versioninfo.json
-	versionInfoPath := filepath.Join(rootDir, "cmd", "versioninfo.json")
-	if data, err := os.ReadFile(versionInfoPath); err == nil {
-		var v map[string]any
-		if err := json.Unmarshal(data, &v); err != nil {
-			return fmt.Errorf("failed parsing %s: %w", versionInfoPath, err)
-		}
-
-		if ffi, ok := v["FixedFileInfo"].(map[string]any); ok {
-			if fv, ok := ffi["FileVersion"].(map[string]any); ok {
-				fv["Major"] = day
-				fv["Minor"] = month
-				fv["Patch"] = yearShort
-				fv["Build"] = 0
-			}
-			if pv, ok := ffi["ProductVersion"].(map[string]any); ok {
-				pv["Major"] = day
-				pv["Minor"] = month
-				pv["Patch"] = yearShort
-				pv["Build"] = 0
-			}
-		}
-
-		if sfi, ok := v["StringFileInfo"].(map[string]any); ok {
-			sfi["FileVersion"] = fmt.Sprintf("%s.0", versionStr)
-			sfi["ProductVersion"] = versionStr
-			sfi["LegalCopyright"] = fmt.Sprintf("Copyright © %d Thruqe", yearFull)
-		}
-
-		indented, err := json.MarshalIndent(v, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed formatting %s: %w", versionInfoPath, err)
-		}
-
-		if err := os.WriteFile(versionInfoPath, append(indented, '\n'), 0o644); err != nil {
-			return fmt.Errorf("failed writing %s: %w", versionInfoPath, err)
-		}
-		fmt.Printf("✓ %s -> %s\n", filepath.Join("cmd", "versioninfo.json"), versionStr)
+	// 3. Refresh binary resources with new version
+	if err := runRes(nil); err != nil {
+		fmt.Printf("⚠️ Warning: failed to regenerate binary resources: %v\n", err)
 	}
 
 	fmt.Printf("Version successfully bumped to %s\n", versionStr)

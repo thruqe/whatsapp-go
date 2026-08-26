@@ -60,12 +60,17 @@ tasks:
   bump:
     desc: Bump release version to current date (day.month.year) across version.txt and cmd
     cmds:
-      - go run ./scripts/*.go bump {{.cmd_ARGS}}
+      - go -C scripts run . bump {{.cmd_ARGS}}
 
   proto:
     desc: Compile and update all wa-core protobuf definitions
     cmds:
-      - go run ./scripts/*.go proto {{.cmd_ARGS}}
+      - go -C scripts run . proto {{.cmd_ARGS}}
+
+  res:
+    desc: Generate Windows binary resource metadata and icons from assets/logo.png
+    cmds:
+      - go -C scripts run . res
 
   build:
     desc: "Build stripped, optimized binary executable into {{.BIN_PATH}}"
@@ -74,6 +79,8 @@ tasks:
     cmds:
       - cmd: mkdir -p bin
         platforms: [linux, darwin, windows]
+      - cmd: go -C scripts run . res
+        platforms: [windows]
       - cd cmd && go build -trimpath -ldflags="-s -w -buildid=" -v -o ../{{.BIN_PATH}} .
 
   clean:

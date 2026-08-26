@@ -35,9 +35,12 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 		return
 	}
 
-	autoAcceptStatus, _ := clistore.GetSetting(ctx, s, cliutils.AutoAcceptCallSettingKey)
-	if autoAcceptStatus == "on" {
-		Logger.Debug("anticall: skipping reject because autoacceptcall is enabled", "call_id", v.CallID)
+	voicemailStatus, _ := clistore.GetSetting(ctx, s, cliutils.VoicemailSettingKey)
+	if voicemailStatus == "" {
+		voicemailStatus, _ = clistore.GetSetting(ctx, s, "autoacceptcall_status")
+	}
+	if voicemailStatus == "on" {
+		Logger.Debug("anticall: skipping reject because voicemail is enabled", "call_id", v.CallID)
 		return
 	}
 

@@ -599,7 +599,13 @@ func sendAutoBioMenu(ctx *Context, s *StoreWrapper) error {
 	tzStr := getAutoBioTimezone(ctx.Ctx, s)
 
 	p := ctx.GetPrefix()
-	bodyText := Sprintf("╭━━━〔 AUTOBIO CONFIGURATION 〕━━━\n│ Status   : %s\n│ Timezone : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", statusStr, tzStr)
+	bodyText := NewText().
+		Header("AUTOBIO CONFIGURATION").
+		Field("Status", statusStr).
+		Field("Timezone", tzStr).
+		Blank().
+		Line("Choose an option below to change status or view customization options.").
+		Trimmed()
 
 	var actionButton struct{ ID, Text string }
 	if enabled == "true" {
@@ -1441,7 +1447,12 @@ func sendLikeStatusMenu(ctx *Context, s *StoreWrapper) error {
 	}
 
 	p := ctx.GetPrefix()
-	bodyText := Sprintf("╭━━━〔 LIFESTATUS AUTO-REACTION 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically reacts to status broadcasts with random love emojis (❤️, 💕, 💖, 💗, 💓, 💞, 💘, 💌, 🥰, 😍).", strings.ToUpper(status))
+	bodyText := NewText().
+		Header("LIFESTATUS AUTO-REACTION").
+		Field("Status", strings.ToUpper(status)).
+		Blank().
+		Line("Automatically reacts to status broadcasts with random love emojis (❤️, 💕, 💖, 💗, 💓, 💞, 💘, 💌, 🥰, 😍).").
+		Trimmed()
 
 	var actionButton struct{ ID, Text string }
 	if status == "on" {
@@ -1871,7 +1882,17 @@ func handleAutoVV(ctx *Context) error {
 			modeText = "Public (Same Chat)"
 		}
 
-		bodyText := Sprintf("╭━━━〔 AUTO-VIEWONCE SETTINGS 〕━━━\n│ Status : %s\n│ Mode   : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically intercepts incoming ViewOnce media and re-uploads fresh non-expiring media.\n\nModes:\n• Private (DM): Unwrapped media is saved & sent privately to your DM.\n• Public (Chat): Unwrapped media is posted in the chat where it was received.", strings.ToUpper(curr), modeText)
+		bodyText := NewText().
+			Header("AUTO-VIEWONCE SETTINGS").
+			Field("Status", strings.ToUpper(curr)).
+			Field("Mode", modeText).
+			Blank().
+			Line("Automatically intercepts incoming ViewOnce media and re-uploads fresh non-expiring media.").
+			Blank().
+			Section("Modes:").
+			Bullet("Private (DM): Unwrapped media is saved & sent privately to your DM.").
+			Bullet("Public (Chat): Unwrapped media is posted in the chat where it was received.").
+			Trimmed()
 		var actionButton struct{ ID, Text string }
 		if curr == "on" {
 			actionButton = struct{ ID, Text string }{ID: p + "autovv off", Text: "Deactivate"}
@@ -1916,7 +1937,17 @@ func handleAutoVV(ctx *Context) error {
 		return ctx.Reply("Auto ViewOnce forwarding ENABLED.")
 	case "customize", "custom", "help":
 		p := ctx.GetPrefix()
-		return ctx.Replyf("╭━━━〔 AUTOVV GUIDE 〕━━━\n\nCommands:\n• %sautovv on\n• %sautovv off\n• %sautovv dm (Private DM)\n• %sautovv public (Group/Chat)\n• %sautovv toggle\n\nAutomatically intercepts ViewOnce media sent in chats, downloads media bytes immediately to prevent CDN expiry, and forwards clean unwrapped media to your DM or the public chat.", p, p, p, p, p)
+		return ctx.Text().
+			Header("AUTOVV GUIDE").
+			Section("Commands:").
+			Bulletf("%sautovv on", p).
+			Bulletf("%sautovv off", p).
+			Bulletf("%sautovv dm (Private DM)", p).
+			Bulletf("%sautovv public (Group/Chat)", p).
+			Bulletf("%sautovv toggle", p).
+			Blank().
+			Line("Automatically intercepts ViewOnce media sent in chats, downloads media bytes immediately to prevent CDN expiry, and forwards clean unwrapped media to your DM or the public chat.").
+			Reply()
 	default:
 		return ctx.Replyf("Usage: %sautovv [on|off|dm|public|toggle|customize]", ctx.GetPrefix())
 	}
@@ -1939,7 +1970,12 @@ func handleAutoStatusSave(ctx *Context) error {
 			curr = "off"
 		}
 		p := ctx.GetPrefix()
-		bodyText := Sprintf("╭━━━〔 AUTO-STATUS SAVER 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically saves incoming WhatsApp status broadcasts to your DM.", strings.ToUpper(curr))
+		bodyText := NewText().
+			Header("AUTO-STATUS SAVER").
+			Field("Status", strings.ToUpper(curr)).
+			Blank().
+			Line("Automatically saves incoming WhatsApp status broadcasts to your DM.").
+			Trimmed()
 		var actionButton struct{ ID, Text string }
 		if curr == "on" {
 			actionButton = struct{ ID, Text string }{ID: p + "autostatus off", Text: "Deactivate"}
@@ -1971,7 +2007,15 @@ func handleAutoStatusSave(ctx *Context) error {
 		return ctx.Reply("Auto Status saving ENABLED.")
 	case "customize", "custom", "help":
 		p := ctx.GetPrefix()
-		return ctx.Replyf("╭━━━〔 AUTOSTATUS GUIDE 〕━━━\n\nCommands:\n• %sautostatus on\n• %sautostatus off\n• %sautostatus toggle\n\nAutomatically intercepts contacts' status broadcasts and forwards them to your DM.", p, p, p)
+		return ctx.Text().
+			Header("AUTOSTATUS GUIDE").
+			Section("Commands:").
+			Bulletf("%sautostatus on", p).
+			Bulletf("%sautostatus off", p).
+			Bulletf("%sautostatus toggle", p).
+			Blank().
+			Line("Automatically intercepts contacts' status broadcasts and forwards them to your DM.").
+			Reply()
 	default:
 		return ctx.Replyf("Usage: %sautostatus [on|off|toggle|customize]", ctx.GetPrefix())
 	}

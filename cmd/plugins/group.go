@@ -577,7 +577,14 @@ func handleAntiLink(ctx *Context) error {
 		return sendAntiLinkMenu(ctx, s, "Anti-link protection has been activated for this group.")
 
 	case "mode", "customize":
-		bodyText := Sprintf("╭━━━〔 ANTILINK CUSTOMIZE 〕━━━\n│ Group : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose Anti-Link Protection Mode:\n\n1. *Default Links*: Block all web links (http://, https://, www, .com, etc.)\n2. *Custom URLs*: Block specific domain patterns separated by comma (e.g. `chat.whatsapp.com, t.me`)", groupName)
+		bodyText := NewText().
+			Header("ANTILINK CUSTOMIZE").
+			Field("Group", groupName).
+			Blank().
+			Section("Choose Anti-Link Protection Mode:").
+			Numbered(1, "Default Links: Block all web links (http://, https://, www, .com, etc.)").
+			Numbered(2, "Custom URLs: Block specific domain patterns separated by comma (e.g. chat.whatsapp.com, t.me)").
+			Trimmed()
 		buttons := []struct{ ID, Text string }{
 			{ID: p + "antilink default", Text: "Default Links"},
 			{ID: p + "antilink custom", Text: "Custom URLs"},
@@ -587,7 +594,14 @@ func handleAntiLink(ctx *Context) error {
 	case "default":
 		_ = s.PutSetting(ctx.Ctx, modeKey, "default")
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
-		bodyText := Sprintf("╭━━━〔 ANTILINK MODE SET 〕━━━\n│ Group : %s\n│ Mode  : DEFAULT (ALL LINKS)\n│ Status: ACTIVE\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAnti-link will now block all web links sent in this group!", groupName)
+		bodyText := NewText().
+			Header("ANTILINK MODE SET").
+			Field("Group", groupName).
+			Field("Mode", "DEFAULT (ALL LINKS)").
+			Field("Status", "ACTIVE").
+			Blank().
+			Line("Anti-link will now block all web links sent in this group!").
+			Trimmed()
 		buttons := []struct{ ID, Text string }{
 			{ID: p + "antilink off", Text: "Deactivate"},
 			{ID: p + "antilink mode", Text: "Customize Mode"},
@@ -611,7 +625,19 @@ func handleAntiLink(ctx *Context) error {
 				currCustom = "chat.whatsapp.com"
 				_ = s.PutSetting(ctx.Ctx, customKey, currCustom)
 			}
-			bodyText := Sprintf("╭━━━〔 ANTILINK CUSTOM MODE 〕━━━\n│ Group   : %s\n│ Mode    : CUSTOM DOMAINS\n│ Status  : ACTIVE\n│ Blocked : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nTo update custom domains, send:\n`%santilink set domain1, domain2`\n\nExample:\n`%santilink set chat.whatsapp.com, t.me, instagram.com`", groupName, currCustom, p, p)
+			bodyText := NewText().
+				Header("ANTILINK CUSTOM MODE").
+				Field("Group", groupName).
+				Field("Mode", "CUSTOM DOMAINS").
+				Field("Status", "ACTIVE").
+				Field("Blocked", currCustom).
+				Blank().
+				Section("To update custom domains, send:").
+				Linef("%santilink set domain1, domain2", p).
+				Blank().
+				Section("Example:").
+				Linef("%santilink set chat.whatsapp.com, t.me, instagram.com", p).
+				Trimmed()
 			buttons := []struct{ ID, Text string }{
 				{ID: p + "antilink default", Text: "Default Links"},
 				{ID: p + "antilink off", Text: "Deactivate"},
@@ -636,7 +662,15 @@ func handleAntiLink(ctx *Context) error {
 		_ = s.PutSetting(ctx.Ctx, modeKey, "custom")
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
 
-		bodyText := Sprintf("╭━━━〔 ANTILINK CUSTOMIZED 〕━━━\n│ Group   : %s\n│ Mode    : CUSTOM DOMAINS\n│ Status  : ACTIVE\n│ Blocked : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAnti-link will now block messages containing these custom domain patterns!", groupName, newCustomStr)
+		bodyText := NewText().
+			Header("ANTILINK CUSTOMIZED").
+			Field("Group", groupName).
+			Field("Mode", "CUSTOM DOMAINS").
+			Field("Status", "ACTIVE").
+			Field("Blocked", newCustomStr).
+			Blank().
+			Line("Anti-link will now block messages containing these custom domain patterns!").
+			Trimmed()
 		buttons := []struct{ ID, Text string }{
 			{ID: p + "antilink off", Text: "Deactivate"},
 			{ID: p + "antilink mode", Text: "Customize Mode"},
@@ -652,7 +686,15 @@ func handleAntiLink(ctx *Context) error {
 			_ = s.PutSetting(ctx.Ctx, "antilink_action:"+chatKey, act)
 			return sendAntiLinkMenu(ctx, s, Sprintf("Anti-link action mode updated to *%s*.", strings.ToUpper(act)))
 		}
-		bodyText := Sprintf("╭━━━〔 ANTILINK ACTION MODE 〕━━━\n│ Group : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose what happens when a non-admin participant sends a link:\n\n1. *Delete*: Delete message only\n2. *Kick*: Delete message & kick participant\n3. *Warn*: Issue warning (default 3 max). Kick upon reaching threshold", groupName)
+		bodyText := NewText().
+			Header("ANTILINK ACTION MODE").
+			Field("Group", groupName).
+			Blank().
+			Section("Choose what happens when a non-admin participant sends a link:").
+			Numbered(1, "Delete: Delete message only").
+			Numbered(2, "Kick: Delete message & kick participant").
+			Numbered(3, "Warn: Issue warning (default 3 max). Kick upon reaching threshold").
+			Trimmed()
 		buttons := []struct{ ID, Text string }{
 			{ID: p + "antilink action delete", Text: "Delete Only"},
 			{ID: p + "antilink action kick", Text: "Kick User"},
@@ -795,7 +837,15 @@ func handleAntiWord(ctx *Context) error {
 			_ = s.PutSetting(ctx.Ctx, "antiword_action:"+chatKey, act)
 			return sendAntiWordMenu(ctx, s, Sprintf("Anti-word action mode set to *%s*.", strings.ToUpper(act)))
 		}
-		bodyText := Sprintf("╭━━━〔 ANTIWORD ACTION MODE 〕━━━\n│ Group : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose what happens when a non-admin participant sends a banned word:\n\n1. *Delete*: Delete message only\n2. *Kick*: Delete message & kick participant\n3. *Warn*: Issue warning (default 3 max). Kick upon reaching threshold", groupName)
+		bodyText := NewText().
+			Header("ANTIWORD ACTION MODE").
+			Field("Group", groupName).
+			Blank().
+			Section("Choose what happens when a non-admin participant sends a banned word:").
+			Numbered(1, "Delete: Delete message only").
+			Numbered(2, "Kick: Delete message & kick participant").
+			Numbered(3, "Warn: Issue warning (default 3 max). Kick upon reaching threshold").
+			Trimmed()
 		buttons := []struct{ ID, Text string }{
 			{ID: p + "antiword action delete", Text: "Delete Only"},
 			{ID: p + "antiword action kick", Text: "Kick User"},
@@ -1685,10 +1735,17 @@ func handleAntiMsg(ctx *Context) error {
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
 
 		p := ctx.GetPrefix()
-		bodyText := Sprintf("╭━━━〔 ANTIMSG ACTIVATED 〕━━━\n│ Status : ON\n│ Added  : %s\n│ Total  : %d targeted user(s)\n╰━━━━━━━━━━━━━━━━━━━━━━\n\nAntiMsg is active! Messages from targeted participants will be automatically deleted.", strings.Join(addedUsernames, ", "), len(users))
+		tb := NewText().
+			Header("ANTIMSG ACTIVATED").
+			Field("Status", "ON").
+			Field("Added", strings.Join(addedUsernames, ", ")).
+			Fieldf("Total", "%d targeted user(s)", len(users)).
+			Blank().
+			Line("AntiMsg is active! Messages from targeted participants will be automatically deleted.")
 		if len(sudoRejected) > 0 {
-			bodyText += Sprintf("\n\n⚠️ Skipped bot owner/sudoers: %s", strings.Join(sudoRejected, ", "))
+			tb.Blank().Linef("⚠️ Skipped bot owner/sudoers: %s", strings.Join(sudoRejected, ", "))
 		}
+		bodyText := tb.Trimmed()
 
 		buttons := []struct{ ID, Text string }{
 			{ID: p + "antimsg off", Text: "Deactivate"},
@@ -1752,7 +1809,11 @@ func handleAntiMsg(ctx *Context) error {
 		_ = s.PutSetting(ctx.Ctx, usersKey, strings.Join(users, ","))
 
 		p := ctx.GetPrefix()
-		bodyText := Sprintf("╭━━━〔 ANTIMSG UPDATED 〕━━━\n│ Removed: %s\n│ Total  : %d targeted user(s)\n╰━━━━━━━━━━━━━━━━━━━━━━", strings.Join(removedUsernames, ", "), len(users))
+		bodyText := NewText().
+			Header("ANTIMSG UPDATED").
+			Field("Removed", strings.Join(removedUsernames, ", ")).
+			Fieldf("Total", "%d targeted user(s)", len(users)).
+			Trimmed()
 
 		status, _ := s.GetSetting(ctx.Ctx, statusKey)
 		var toggleBtn struct{ ID, Text string }
@@ -1779,7 +1840,14 @@ func handleAntiMsg(ctx *Context) error {
 
 		p := ctx.GetPrefix()
 		if len(users) == 0 {
-			bodyText := Sprintf("╭━━━〔 ANTIMSG TARGETS 〕━━━\n│ Status: %s\n│ Targets: None\n╰━━━━━━━━━━━━━━━━━━━━━━\n\nNo participants are currently targeted in this group.\nReply to or mention (@user) anyone with %santimsg to add them.", strings.ToUpper(status), p)
+			bodyText := NewText().
+				Header("ANTIMSG TARGETS").
+				Field("Status", strings.ToUpper(status)).
+				Field("Targets", "None").
+				Blank().
+				Line("No participants are currently targeted in this group.").
+				Linef("Reply to or mention (@user) anyone with %santimsg to add them.", p).
+				Trimmed()
 			buttons := []struct{ ID, Text string }{
 				{ID: p + "antimsg on", Text: "Activate"},
 			}
@@ -2042,7 +2110,13 @@ func sendAntiSpamMenu(ctx *Context, s *StoreWrapper) error {
 	}
 
 	p := ctx.GetPrefix()
-	bodyText := Sprintf("╭━━━〔 ANTISPAM CONFIGURATION 〕━━━\n│ Group  : %s\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", groupName, strings.ToUpper(status))
+	bodyText := NewText().
+		Header("ANTISPAM CONFIGURATION").
+		Field("Group", groupName).
+		Field("Status", strings.ToUpper(status)).
+		Blank().
+		Line("Choose an option below to change status or view customization options.").
+		Trimmed()
 
 	var actionButton struct{ ID, Text string }
 	if status == "on" {
@@ -2534,7 +2608,12 @@ func sendEventsMenu(ctx *Context, s *StoreWrapper) error {
 	}
 
 	p := ctx.GetPrefix()
-	bodyText := Sprintf("╭━━━〔 GROUP EVENTS NOTIFICATIONS 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to toggle notifications or view customization options.", strings.ToUpper(status))
+	bodyText := NewText().
+		Header("GROUP EVENTS NOTIFICATIONS").
+		Field("Status", strings.ToUpper(status)).
+		Blank().
+		Line("Choose an option below to toggle notifications or view customization options.").
+		Trimmed()
 
 	var actionButton struct{ ID, Text string }
 	if status == "on" {
@@ -2817,7 +2896,12 @@ func sendWarnMenu(ctx *Context, s *StoreWrapper) error {
 	}
 
 	p := ctx.GetPrefix()
-	bodyText := Sprintf("╭━━━〔 WARN CONFIGURATION 〕━━━\n│ Max Warn Threshold : %d Warnings\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to set threshold or view customization guide.", maxLimit)
+	bodyText := NewText().
+		Header("WARN CONFIGURATION").
+		Fieldf("Max Warn Threshold", "%d Warnings", maxLimit).
+		Blank().
+		Line("Choose an option below to set threshold or view customization guide.").
+		Trimmed()
 
 	buttons := []struct{ ID, Text string }{
 		{ID: p + "setwarn 3", Text: "Set Limit (3)"},
@@ -3073,7 +3157,13 @@ func sendGreetingMenu(ctx *Context, s *StoreWrapper, kind string) error {
 	}
 
 	p := ctx.GetPrefix()
-	bodyText := Sprintf("╭━━━〔 %s CONFIGURATION 〕━━━\n│ Group  : %s\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", strings.ToUpper(kind), groupName, strings.ToUpper(status))
+	bodyText := NewText().
+		Header(strings.ToUpper(kind)+" CONFIGURATION").
+		Field("Group", groupName).
+		Field("Status", strings.ToUpper(status)).
+		Blank().
+		Line("Choose an option below to change status or view customization options.").
+		Trimmed()
 
 	var actionButton struct{ ID, Text string }
 	if status == "on" {
