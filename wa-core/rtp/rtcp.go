@@ -2,6 +2,7 @@ package rtp
 
 import (
 	"encoding/binary"
+	"log"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -20,7 +21,7 @@ const (
 	SrtcpTrailerLen  int   = 14
 
 	ntpUnixOffsetSecs    uint64 = 2208988800
-	WhatsappRtcpCnameLen uint8  = 18
+	WhatsappRtcpCnameLen        = 18
 )
 
 // IsRtcpPacket reports whether data is an RTCP packet (vs a WhatsApp RTP packet).
@@ -308,6 +309,10 @@ func BuildSourceDescription(localSsrc uint32, cname *[WhatsappRtcpCnameLen]byte,
 	packet[8] = 1
 	packet[9] = WhatsappRtcpCnameLen
 	copy(packet[10:28], cname[:])
+
+	log.Printf("SDES build: ssrc=%d cnameLen=%d cname=%q packet=% x",
+		localSsrc, WhatsappRtcpCnameLen, cname[:], packet[:])
+
 	return packet
 }
 
