@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	AutoAcceptCallSettingKey = "autoacceptcall_status"
+	VoicemailSettingKey = "voicemail_status"
 )
 
 type PendingCall struct {

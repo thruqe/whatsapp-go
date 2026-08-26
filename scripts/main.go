@@ -26,6 +26,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error running proto: %v\n", err)
 			os.Exit(1)
 		}
+	case "res":
+		if err := runRes(subArgs); err != nil {
+			fmt.Fprintf(os.Stderr, "Error running res: %v\n", err)
+			os.Exit(1)
+		}
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -44,6 +49,7 @@ Usage:
 Available Commands:
   bump   [version]  Bump release version to current date (D.M.YY) or specified version across metadata files
   proto  [filter]   Compile and update all wa-core protobuf definitions using protoc
+  res               Generate Windows binary resources & metadata with app icon from assets/logo.png
   help              Display this help message
 
 Examples:

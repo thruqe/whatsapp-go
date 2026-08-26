@@ -599,7 +599,12 @@ func sendVVMenu(ctx *Context, s *StoreWrapper) error {
 	}
 
 	p := ctx.GetPrefix()
-	bodyText := Sprintf("╭━━━〔 VIEWONCE UNWRAPPER 〕━━━\n│ Destination : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nReply to any ViewOnce image, video, or audio message with %svv to unwrap it.", dest, p)
+	bodyText := NewText().
+		Header("VIEWONCE UNWRAPPER").
+		Field("Destination", dest).
+		Blank().
+		Linef("Reply to any ViewOnce image, video, or audio message with %svv to unwrap it.", p).
+		Trimmed()
 
 	buttons := []struct{ ID, Text string }{
 		{ID: p + "vv dest owner", Text: "Set Owner DM"},

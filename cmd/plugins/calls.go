@@ -58,7 +58,6 @@ func init() {
 	})
 	Register(&Command{
 		Name:        "voicemail",
-		Alias:       "autoacceptcall",
 		Description: "Toggle or check automated voicemail answering for incoming calls",
 		Category:    "calls",
 		IsPublic:    true,
@@ -235,7 +234,13 @@ func handleCall(ctx *Context) error {
 	p := ctx.GetPrefix()
 	targets := ctx.GetTargets()
 	if len(targets) < 1 {
-		body := Sprintf("Call Management\n\nSelect an action below:\n- %scallaudio [number] - Audio call & media\n- %scallvideo [number] - Video call & media\n- %svoicemail [on/off] - Automated voicemail", p, p, p)
+		body := NewText().
+			Header("Call Management").
+			Section("Select an action below:").
+			Bulletf("%scallaudio [number] - Audio call & media", p).
+			Bulletf("%scallvideo [number] - Video call & media", p).
+			Bulletf("%svoicemail [on/off] - Automated voicemail", p).
+			Trimmed()
 		buttons := []struct{ ID, Text string }{
 			{ID: p + "callaudio", Text: "Call Audio"},
 			{ID: p + "callvideo", Text: "Call Video"},
@@ -573,7 +578,12 @@ func sendAntiCallMenu(ctx *Context, s *StoreWrapper) error {
 	}
 
 	p := ctx.GetPrefix()
-	bodyText := Sprintf("╭━━━〔 ANTICALL CONFIGURATION 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", strings.ToUpper(status))
+	bodyText := NewText().
+		Header("ANTICALL CONFIGURATION").
+		Field("Status", strings.ToUpper(status)).
+		Blank().
+		Line("Choose an option below to change status or view customization options.").
+		Trimmed()
 
 	var actionButton struct{ ID, Text string }
 	if status == "on" {
@@ -630,25 +640,31 @@ func handleVoicemail(ctx *Context) error {
 	if len(ctx.Args) > 0 {
 		switch strings.ToLower(ctx.Args[0]) {
 		case "on", "enable", "activate":
-			_ = s.PutSetting(ctx.Ctx, "voicemail_status", "on")
+			_ = s.PutSetting(ctx.Ctx, cliutils.VoicemailSettingKey, "on")
 			return ctx.Reply("Automated voicemail activated. Incoming calls will be automatically answered with your default call audio/video media.")
 		case "off", "disable", "deactivate":
-			_ = s.PutSetting(ctx.Ctx, "voicemail_status", "off")
+			_ = s.PutSetting(ctx.Ctx, cliutils.VoicemailSettingKey, "off")
 			return ctx.Reply("Automated voicemail deactivated.")
 		case "toggle":
-			curr, _ := s.GetSetting(ctx.Ctx, "voicemail_status")
+			curr, _ := s.GetSetting(ctx.Ctx, cliutils.VoicemailSettingKey)
+			if curr == "" {
+				curr, _ = s.GetSetting(ctx.Ctx, "autoacceptcall_status")
+			}
 			if curr == "on" {
-				_ = s.PutSetting(ctx.Ctx, "voicemail_status", "off")
+				_ = s.PutSetting(ctx.Ctx, cliutils.VoicemailSettingKey, "off")
 				return ctx.Reply("Automated voicemail deactivated.")
 			}
-			_ = s.PutSetting(ctx.Ctx, "voicemail_status", "on")
+			_ = s.PutSetting(ctx.Ctx, cliutils.VoicemailSettingKey, "on")
 			return ctx.Reply("Automated voicemail activated.")
 		default:
 			p := ctx.GetPrefix()
 			return ctx.Replyf("Usage:\n- %svoicemail on\n- %svoicemail off\n- %svoicemail toggle", p, p, p)
 		}
 	} else {
-		status, _ := s.GetSetting(ctx.Ctx, "voicemail_status")
+		status, _ := s.GetSetting(ctx.Ctx, cliutils.VoicemailSettingKey)
+		if status == "" {
+			status, _ = s.GetSetting(ctx.Ctx, "autoacceptcall_status")
+		}
 		if status == "" {
 			status = "off"
 		}
@@ -665,7 +681,18 @@ func handleVoicemail(ctx *Context) error {
 			videoStatus = "Not Set"
 		}
 
-		bodyText := Sprintf("╭━━━〔 VOICEMAIL CONFIGURATION 〕━━━\n│ Status : %s\n│ Audio  : %s\n│ Video  : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically answer incoming calls with your saved call media.\n\nUsage:\n• `%svoicemail on`\n• `%svoicemail off`", strings.ToUpper(status), audioStatus, videoStatus, p, p)
+		bodyText := NewText().
+			Header("VOICEMAIL CONFIGURATION").
+			Field("Status", strings.ToUpper(status)).
+			Field("Audio", audioStatus).
+			Field("Video", videoStatus).
+			Blank().
+			Line("Automatically answer incoming calls with your saved call media.").
+			Blank().
+			Section("Usage").
+			Bulletf("%svoicemail on", p).
+			Bulletf("%svoicemail off", p).
+			Trimmed()
 
 		var actionButton struct{ ID, Text string }
 		if status == "on" {
@@ -684,10 +711,10 @@ func handleVoicemail(ctx *Context) error {
 	}
 }
 
-// SetupAutoAcceptCall wires the OnIncomingCall handler.
-func SetupAutoAcceptCall(wa *whatsmeow.Client) {
+// SetupVoicemail wires the OnIncomingCall handler.
+func SetupVoicemail(wa *whatsmeow.Client) {
 	if wa == nil {
-		Logger.Error("SetupAutoAcceptCall: nil client")
+		Logger.Error("SetupVoicemail: nil client")
 		return
 	}
 
@@ -708,9 +735,12 @@ func handleIncomingCall(call *whatsmeow.Call, waClient *whatsmeow.Client) {
 		return
 	}
 
-	status, _ := s.GetSetting(ctx, cliutils.AutoAcceptCallSettingKey)
+	status, _ := s.GetSetting(ctx, cliutils.VoicemailSettingKey)
+	if status == "" {
+		status, _ = s.GetSetting(ctx, "autoacceptcall_status")
+	}
 	if status != "on" {
-		Logger.Info("autoacceptcall: incoming call offer ignored because autoacceptcall is not enabled (enable using .autoacceptcall on)", "call_id", call.ID(), "from", call.Peer().String(), "status", status)
+		Logger.Info("voicemail: incoming call offer ignored because voicemail is not enabled (enable using .voicemail on)", "call_id", call.ID(), "from", call.Peer().String(), "status", status)
 		return
 	}
 
@@ -718,7 +748,7 @@ func handleIncomingCall(call *whatsmeow.Call, waClient *whatsmeow.Client) {
 	videoPath := resolveSavedCallVideo(waClient, types.EmptyJID)
 
 	isVideo := call.IsVideo()
-	Logger.Info("autoacceptcall: answering incoming call", "from", call.Peer().String(), "call_id", call.ID(), "is_video", isVideo, "audio", audioPath, "video", videoPath)
+	Logger.Info("voicemail: answering incoming call", "from", call.Peer().String(), "call_id", call.ID(), "is_video", isVideo, "audio", audioPath, "video", videoPath)
 
 	// Set up null receivers BEFORE answering
 	call.Receive(whatsmeow.SinkFunc(func(pcm []float32) {}))
@@ -735,13 +765,13 @@ func handleIncomingCall(call *whatsmeow.Call, waClient *whatsmeow.Client) {
 				} else if audioPath != "" {
 					startAudioMedia(call, audioPath)
 				} else {
-					Logger.Warn("autoacceptcall: no video or audio media found for incoming video call")
+					Logger.Warn("voicemail: no video or audio media found for incoming video call")
 				}
 			} else {
 				if audioPath != "" {
 					startAudioMedia(call, audioPath)
 				} else {
-					Logger.Warn("autoacceptcall: no audio media found for incoming voice call")
+					Logger.Warn("voicemail: no audio media found for incoming voice call")
 				}
 			}
 		})
@@ -749,13 +779,13 @@ func handleIncomingCall(call *whatsmeow.Call, waClient *whatsmeow.Client) {
 
 	// OnReady fires when first inbound RTP packet arrives
 	call.OnReady(func() {
-		Logger.Info("autoacceptcall: OnReady fired, starting media", "call_id", call.ID())
+		Logger.Info("voicemail: OnReady fired, starting media", "call_id", call.ID())
 		startMedia()
 	})
 
 	// Let wacaller handle the full signaling — Answer waits for mute_v2 then sends accept
 	if err := call.Answer(); err != nil {
-		Logger.Error("autoacceptcall: call.Answer() failed", "call_id", call.ID(), "err", err)
+		Logger.Error("voicemail: call.Answer() failed", "call_id", call.ID(), "err", err)
 		return
 	}
 
@@ -764,18 +794,18 @@ func handleIncomingCall(call *whatsmeow.Call, waClient *whatsmeow.Client) {
 	go func() {
 		time.Sleep(10 * time.Second)
 		if call.State() != whatsmeow.CallPhaseEnded {
-			Logger.Info("autoacceptcall: OnReady timeout, starting media anyway", "call_id", call.ID())
+			Logger.Info("voicemail: OnReady timeout, starting media anyway", "call_id", call.ID())
 			startMedia()
 		}
 	}()
 }
 
 func startAudioMedia(call *whatsmeow.Call, audioPath string) {
-	Logger.Info("autoacceptcall: starting audio media", "call_id", call.ID(), "path", audioPath)
+	Logger.Info("voicemail: starting audio media", "call_id", call.ID(), "path", audioPath)
 
 	src, err := openAudioSource(audioPath)
 	if err != nil {
-		Logger.Error("autoacceptcall: failed to load audio", "path", audioPath, "err", err)
+		Logger.Error("voicemail: failed to load audio", "path", audioPath, "err", err)
 		_ = call.Hangup()
 		return
 	}
@@ -790,24 +820,24 @@ func startAudioMedia(call *whatsmeow.Call, audioPath string) {
 	go func() {
 		time.Sleep(duration)
 		if call.State() != whatsmeow.CallPhaseEnded {
-			Logger.Info("autoacceptcall: audio duration completed, hanging up", "call_id", call.ID())
+			Logger.Info("voicemail: audio duration completed, hanging up", "call_id", call.ID())
 			_ = call.Hangup()
 		}
 	}()
 }
 
 func startVideoMedia(call *whatsmeow.Call, videoPath string) {
-	Logger.Info("autoacceptcall: starting video media", "call_id", call.ID(), "path", videoPath)
+	Logger.Info("voicemail: starting video media", "call_id", call.ID(), "path", videoPath)
 
 	mp3Path, h264Path, err := utils.PrepareCallVideo(videoPath)
 	if err != nil {
-		Logger.Error("autoacceptcall: failed to prepare video", "err", err)
+		Logger.Error("voicemail: failed to prepare video", "err", err)
 		_ = call.Hangup()
 		return
 	}
 
 	if err := call.SetVideoEnabled(true); err != nil {
-		Logger.Error("autoacceptcall: SetVideoEnabled failed", "err", err)
+		Logger.Error("voicemail: SetVideoEnabled failed", "err", err)
 	}
 
 	audioFile := mp3Path
@@ -816,26 +846,26 @@ func startVideoMedia(call *whatsmeow.Call, videoPath string) {
 	}
 	src, err := openAudioSource(audioFile)
 	if err != nil {
-		Logger.Error("autoacceptcall: failed to load audio", "path", audioFile, "err", err)
+		Logger.Error("voicemail: failed to load audio", "path", audioFile, "err", err)
 		_ = call.Hangup()
 		return
 	}
 	call.Play(src)
 
 	if h264Path == "" {
-		Logger.Warn("autoacceptcall: no h264 track, audio-only for video call", "call_id", call.ID())
+		Logger.Warn("voicemail: no h264 track, audio-only for video call", "call_id", call.ID())
 		return
 	}
 
 	h264Data, err := os.ReadFile(h264Path)
 	if err != nil || len(h264Data) == 0 {
-		Logger.Error("autoacceptcall: failed to read h264", "path", h264Path, "err", err)
+		Logger.Error("voicemail: failed to read h264", "path", h264Path, "err", err)
 		return
 	}
 
 	frames := utils.SplitAnnexBAccessUnits(h264Data)
 	if len(frames) == 0 {
-		Logger.Error("autoacceptcall: no video frames", "path", h264Path)
+		Logger.Error("voicemail: no video frames", "path", h264Path)
 		return
 	}
 
@@ -857,7 +887,7 @@ func startVideoMedia(call *whatsmeow.Call, videoPath string) {
 			select {
 			case <-timer.C:
 				if call.State() != whatsmeow.CallPhaseEnded {
-					Logger.Info("autoacceptcall: video duration completed, hanging up immediately", "call_id", call.ID())
+					Logger.Info("voicemail: video duration completed, hanging up immediately", "call_id", call.ID())
 					_ = call.Hangup()
 				}
 				return
@@ -867,20 +897,20 @@ func startVideoMedia(call *whatsmeow.Call, videoPath string) {
 				}
 				if frameIdx >= len(frames) {
 					if call.State() != whatsmeow.CallPhaseEnded {
-						Logger.Info("autoacceptcall: all video frames sent, hanging up immediately", "call_id", call.ID())
+						Logger.Info("voicemail: all video frames sent, hanging up immediately", "call_id", call.ID())
 						_ = call.Hangup()
 					}
 					return
 				}
 				if err := call.SendVideoWithDuration(frames[frameIdx], frameDur); err != nil {
 					if !strings.Contains(err.Error(), "has no active video media") {
-						Logger.Error("autoacceptcall: SendVideoWithDuration failed", "err", err)
+						Logger.Error("voicemail: SendVideoWithDuration failed", "err", err)
 					}
 				}
 				frameIdx++
 				if frameIdx >= len(frames) {
 					if call.State() != whatsmeow.CallPhaseEnded {
-						Logger.Info("autoacceptcall: reached last frame, hanging up immediately", "call_id", call.ID())
+						Logger.Info("voicemail: reached last frame, hanging up immediately", "call_id", call.ID())
 						_ = call.Hangup()
 					}
 					return
@@ -888,9 +918,6 @@ func startVideoMedia(call *whatsmeow.Call, videoPath string) {
 			}
 		}
 	}()
-}
-
-func HandleAutoAcceptIncomingCall(ctx context.Context, client *whatsmeow.Client, v *events.CallOffer) {
 }
 
 func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
@@ -1091,7 +1118,7 @@ func RegisterWACaller(wa *whatsmeow.Client) *whatsmeow.Client {
 		return nil
 	}
 	wa.SetCallLogger(meowLogger())
-	SetupAutoAcceptCall(wa)
+	SetupVoicemail(wa)
 	return wa
 }
 

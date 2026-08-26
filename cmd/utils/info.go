@@ -12,7 +12,7 @@ const (
 	AliveMediaMimeKey = "alive_media_mime"
 	AliveMediaFileKey = "alive_media_file"
 
-	DefaultAliveTpl      = "╭━━━〔 {bot} IS ALIVE 〕━━━\n│  Owner   : {owner}\n│ ⏱️ Uptime  : {uptime}\n│  Latency : {latency}\n│  RAM     : {ram}\n│ ️ Goroutines: {goroutines}\n│  Version : {version}\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nType {prefix}menu to display available commands."
+	DefaultAliveTpl      = "{bot} IS ALIVE\n\nOwner: {owner}\n⏱️ Uptime: {uptime}\nLatency: {latency}\nRAM: {ram}\nGoroutines: {goroutines}\nVersion: {version}\n\nType {prefix}menu to display available commands."
 	DefaultAliveTemplate = DefaultAliveTpl
 )
 

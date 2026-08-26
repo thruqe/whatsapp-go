@@ -1,4 +1,4 @@
-//go:generate go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest -platform-specific=true
+//go:generate go -C ../scripts run . res
 
 package main
 

@@ -311,10 +311,10 @@ func TestMemoryStore_Concurrency(t *testing.T) {
 	wg.Add(workers * 3)
 
 	// concurrent writers
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		go func(workerID int) {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for j := range iterations {
 				key := fmt.Sprintf("k:%d", (workerID*iterations+j)%100)
 				_ = store.Set(ctx, key, fmt.Sprintf("val-%d", j), 50*time.Millisecond)
 			}
@@ -322,10 +322,10 @@ func TestMemoryStore_Concurrency(t *testing.T) {
 	}
 
 	// concurrent readers
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		go func(workerID int) {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for j := range iterations {
 				key := fmt.Sprintf("k:%d", (workerID*iterations+j)%100)
 				_, _, _ = store.Get(ctx, key)
 			}
@@ -333,10 +333,10 @@ func TestMemoryStore_Concurrency(t *testing.T) {
 	}
 
 	// concurrent deleters
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		go func(workerID int) {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for j := range iterations {
 				key := fmt.Sprintf("k:%d", (workerID*iterations+j)%100)
 				_ = store.Delete(ctx, key)
 			}
