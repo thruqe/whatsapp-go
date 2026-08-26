@@ -87,7 +87,7 @@ jobs:
           GOEXPERIMENT: nojsonv2
         run: |
           BIN_NAME="whatsrook${{ matrix.target.ext }}"
-          cd cli && go build -trimpath -ldflags="-s -w -buildid=" -v -o "../$BIN_NAME" .
+          (cd cmd && go build -trimpath -ldflags="-s -w -buildid=" -v -o "../$BIN_NAME" .)
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
 
       - name: Verify Binary
@@ -131,8 +131,7 @@ jobs:
         run: |
           mkdir staging
           cp "$BIN_NAME" staging/
-          cp -r cli/resources staging/ 2>/dev/null || true
-          cp -r prompts staging/ 2>/dev/null || true
+          cp -r assets staging/ 2>/dev/null || true
           cp LICENSE staging/ 2>/dev/null || true
           cp README.md staging/ 2>/dev/null || true
           cp version.txt staging/ 2>/dev/null || true

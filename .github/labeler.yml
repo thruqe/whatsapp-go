@@ -25,19 +25,24 @@ area:core:
 area:cli:
   - changed-files:
       - any-glob-to-any-file:
-          - 'cli/**'
+          - 'cmd/**'
 
 area:plugins:
   - changed-files:
       - any-glob-to-any-file:
-          - 'cli/plugins/**'
+          - 'cmd/plugins/**'
 
 area:voip:
   - changed-files:
       - any-glob-to-any-file:
-          - 'wa-core/wacaller/**'
+          - 'wa-core/mlow/**'
+          - 'wa-core/rtp/**'
+          - 'wa-core/srtp/**'
+          - 'wa-core/stun/**'
+          - 'wa-core/call*.go'
 
 area:utils:
   - changed-files:
       - any-glob-to-any-file:
-          - 'utils/**'
+          - 'src/**'
+          - 'cmd/utils/**'

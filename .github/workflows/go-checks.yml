@@ -37,21 +37,25 @@ jobs:
       - name: Vet Code (go vet)
         run: |
           go vet ./...
+          (cd wa-core && go vet ./...)
+          (cd cmd && go vet ./...)
 
       - name: Static Analysis (staticcheck)
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@latest
           staticcheck ./...
-          cd cli && staticcheck ./...
+          (cd wa-core && staticcheck ./...)
+          (cd cmd && staticcheck ./...)
 
       - name: Run Tests (go test)
         run: |
           go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
-          cd cli && go test -v -race ./...
+          (cd wa-core && go test -v -race ./...)
+          (cd cmd && go test -v -race ./...)
 
       - name: Verify Build
         env:
           GOEXPERIMENT: nojsonv2
         run: |
           go build -v ./...
-          cd cli && go build -v .
+          (cd cmd && go build -v .)
