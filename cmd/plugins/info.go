@@ -18,6 +18,7 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -137,6 +138,29 @@ func handleAlive(ctx *Context) error {
 		sub := strings.ToLower(args[0])
 
 		switch sub {
+		case "customize", "help", "guide":
+			if len(args) > 1 {
+				if !ctx.IsSudo() {
+					return ctx.Reply("Only sudoers/owners can customize the alive message template.")
+				}
+				newTpl := strings.TrimSpace(ctx.RawArgs[len(args[0]):])
+				if strings.EqualFold(newTpl, "reset") || strings.EqualFold(newTpl, "clear") || strings.EqualFold(newTpl, "default") {
+					if okStore {
+						_ = s.PutSetting(ctx.Ctx, cliutils.AliveTemplateKey, "")
+						_ = s.PutSetting(ctx.Ctx, cliutils.AliveMediaTypeKey, "")
+						_ = s.PutSetting(ctx.Ctx, cliutils.AliveMediaFileKey, "")
+					}
+					return renderAliveResponse(ctx, cliutils.DefaultAliveTemplate, "")
+				}
+				if okStore {
+					if err := s.PutSetting(ctx.Ctx, cliutils.AliveTemplateKey, newTpl); err != nil {
+						return ctx.Reply("Failed to save alive template: " + err.Error())
+					}
+				}
+				return renderAliveResponse(ctx, newTpl, "")
+			}
+			return sendAliveCustomizeGuide(ctx)
+
 		case "msg", "set", "template":
 			if !ctx.IsSudo() {
 				return ctx.Reply("Only sudoers/owners can customize the alive message template.")
@@ -204,9 +228,6 @@ func handleAlive(ctx *Context) error {
 			}
 			return ctx.Reply("Alive media URL updated successfully!")
 
-		case "help", "guide":
-			return sendAliveCustomizeGuide(ctx)
-
 		case "reset", "clear":
 			if !ctx.IsSudo() {
 				return ctx.Reply("Only sudoers/owners can reset alive configuration.")
@@ -272,32 +293,46 @@ func renderAliveResponse(ctx *Context, tpl, fallbackMediaURL string) error {
 	replacer := strings.NewReplacer(
 		"{bot}", ctx.GetBotName(),
 		"@bot", ctx.GetBotName(),
+		"[bot]", ctx.GetBotName(),
 		"{owner}", ownerName,
 		"@owner", ownerName,
+		"[owner]", ownerName,
 		"{user}", userTag,
 		"@user", userTag,
+		"[user]", userTag,
 		"{name}", pushName,
 		"@name", pushName,
+		"[name]", pushName,
 		"{uptime}", uptime,
 		"@uptime", uptime,
+		"[uptime]", uptime,
 		"{latency}", latency,
 		"@latency", latency,
+		"[latency]", latency,
 		"{ram}", ramUsage,
 		"@ram", ramUsage,
+		"[ram]", ramUsage,
 		"{goroutines}", goroutines,
 		"@goroutines", goroutines,
+		"[goroutines]", goroutines,
 		"{version}", "v2.5.0",
 		"@version", "v2.5.0",
+		"[version]", "v2.5.0",
 		"{prefix}", ctx.GetPrefix(),
 		"@prefix", ctx.GetPrefix(),
+		"[prefix]", ctx.GetPrefix(),
 		"{fact}", randomFact,
 		"@fact", randomFact,
+		"[fact]", randomFact,
 		"{quote}", randomQuote,
 		"@quote", randomQuote,
+		"[quote]", randomQuote,
 		"{joke}", randomJoke,
 		"@joke", randomJoke,
+		"[joke]", randomJoke,
 		"{rizz}", randomRizz,
 		"@rizz", randomRizz,
+		"[rizz]", randomRizz,
 	)
 
 	bodyText := replacer.Replace(tpl)
@@ -323,6 +358,11 @@ func renderAliveResponse(ctx *Context, tpl, fallbackMediaURL string) error {
 		}
 	}
 
+	var mentions []types.JID
+	if strings.Contains(tpl, "@user") || strings.Contains(tpl, "{user}") || strings.Contains(tpl, "[user]") {
+		mentions = []types.JID{ctx.Sender}
+	}
+
 	if mediaType != "" && mediaFile != "" {
 		mediaBytes, errRead := os.ReadFile(mediaFile)
 		if errRead == nil && len(mediaBytes) > 0 {
@@ -331,12 +371,12 @@ func renderAliveResponse(ctx *Context, tpl, fallbackMediaURL string) error {
 				if mime == "" {
 					mime = "image/jpeg"
 				}
-				return ctx.ReplyWithImage(mediaBytes, mime, bodyText)
+				return ctx.ReplyWithImageWithMentions(mediaBytes, mime, bodyText, mentions)
 			case "video":
 				if mime == "" {
 					mime = "video/mp4"
 				}
-				return ctx.ReplyWithVideo(mediaBytes, mime, bodyText)
+				return ctx.ReplyWithVideoWithMentions(mediaBytes, mime, bodyText, mentions)
 			case "audio":
 				return replyWithAliveAudioCard(ctx, mediaBytes, bodyText, ownerName)
 			}
@@ -346,21 +386,13 @@ func renderAliveResponse(ctx *Context, tpl, fallbackMediaURL string) error {
 	if mediaURL != "" {
 		imgBytes, errDl := utils.FetchURLBytes(ctx.Ctx, mediaURL)
 		if errDl == nil && len(imgBytes) > 0 {
-			return ctx.ReplyWithImage(imgBytes, "image/jpeg", bodyText)
+			return ctx.ReplyWithImageWithMentions(imgBytes, "image/jpeg", bodyText, mentions)
 		}
 		bodyText = bodyText + "\n\n" + mediaURL
 	}
 
-	if strings.Contains(tpl, "@user") || strings.Contains(tpl, "{user}") {
-		_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
-			ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-				Text: &bodyText,
-				ContextInfo: &waE2E.ContextInfo{
-					MentionedJID: []string{senderJID.String()},
-				},
-			},
-		})
-		return err
+	if len(mentions) > 0 {
+		return ctx.ReplyWithMentions(bodyText, mentions)
 	}
 
 	return ctx.Reply(bodyText)
@@ -399,7 +431,7 @@ func replyWithAliveAudioCard(ctx *Context, data []byte, bodyText, ownerName stri
 	}
 
 	senderJID := ctx.Sender.ToNonAD()
-	if strings.Contains(bodyText, "@user") || strings.Contains(bodyText, "{user}") {
+	if strings.Contains(bodyText, "@user") || strings.Contains(bodyText, "{user}") || strings.Contains(bodyText, "[user]") {
 		cinfo.MentionedJID = []string{senderJID.String()}
 	}
 
@@ -437,32 +469,32 @@ func sendAliveCustomizeGuide(ctx *Context) error {
 		Header("ALIVE CUSTOMIZATION GUIDE").
 		Section("Usage").
 		Bulletf("Check Alive Status : %salive", p).
-		Bulletf("Custom Message     : %salive msg <your custom template> or %salive <template>", p, p).
+		Bulletf("Customize Message  : %salive customize <your template> or %salive msg <template>", p, p).
 		Bulletf("Reply with Media   : Reply to an image, video, or audio message with %salive to set it as your alive media!", p).
 		Indent(4, "- Image/Video : Sent with your custom text template as the caption.").NewLine().
 		Indent(4, "- Audio       : Sent as an audio voice note with a music card (context info).").NewLine().
 		Bulletf("Custom Media URL   : %salive media <url | clear>", p).
-		Bulletf("Reset Template     : %salive msg reset", p).
+		Bulletf("Reset to Default   : %salive msg reset", p).
 		Blank().
 		Section("Available Placeholders").
-		Bullet("@user / {user}     : Sender mention tag").
-		Bullet("@name / {name}     : Sender pushname").
-		Bullet("@uptime / {uptime} : Active system uptime").
-		Bullet("@bot / {bot}       : Bot display name").
-		Bullet("@owner / {owner}   : Bot owner user ID").
-		Bullet("@latency / {latency}: Response latency").
-		Bullet("@ram / {ram}       : Allocated RAM usage").
-		Bullet("@goroutines / {goroutines}: Active Go routines").
-		Bullet("@version / {version} : Engine version").
-		Bullet("@prefix / {prefix} : Active command prefix").
-		Bullet("@fact / {fact}     : Random fact from API").
-		Bullet("@quote / {quote}   : Random quote from API").
-		Bullet("@joke / {joke}     : Random joke from API").
-		Bullet("@rizz / {rizz}     : Random rizz from API").
+		Bullet("@user / {user} / [user]     : Sender mention tag").
+		Bullet("@name / {name} / [name]     : Sender pushname").
+		Bullet("@uptime / {uptime} / [uptime] : Active system uptime").
+		Bullet("@bot / {bot} / [bot]       : Bot display name").
+		Bullet("@owner / {owner} / [owner]   : Bot owner user ID").
+		Bullet("@latency / {latency} / [latency]: Response latency").
+		Bullet("@ram / {ram} / [ram]       : Allocated RAM usage").
+		Bullet("@goroutines / {goroutines}  : Active Go routines").
+		Bullet("@version / {version}       : Engine version").
+		Bullet("@prefix / {prefix} / [prefix] : Active command prefix").
+		Bullet("@fact / {fact} / [fact]     : Random fact from API").
+		Bullet("@quote / {quote} / [quote]   : Random quote from API").
+		Bullet("@joke / {joke} / [joke]     : Random joke from API").
+		Bullet("@rizz / {rizz} / [rizz]     : Random rizz from API").
 		Blank().
 		Section("Example Custom Templates").
-		Linef("%salive msg Hello @name! @bot is active. Uptime: @uptime", p).
-		Linef("%salive @user I am alive @uptime", p).
+		Linef("%salive customize @user I am alive and kicking! 🚀 Uptime: @uptime", p).
+		Linef("%salive customize Hello @name, @bot is online!", p).
 		Reply()
 }
 

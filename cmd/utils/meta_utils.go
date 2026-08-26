@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"go.mau.fi/whatsmeow/types"
@@ -23,20 +24,13 @@ import (
 //
 // This means ANY command reachable on PATH inside this process's
 // environment can be executed, with arbitrary arguments, including but
-// not limited to:
-//   - destructive operations (deleting files, wiping data)
-//   - reading or exfiltrating any file/secret/credential accessible to
-//     this process (env vars, API keys, session/auth tokens, database
-//     files, etc.)
-//   - outbound network requests (data exfiltration, downloading and
-//     running additional payloads)
-//   - further compromising the container or, if the container has any
-//     mounted volumes, shared credentials, or network reach, pivoting
-//     beyond it
+// not limited to `curl`, `rm`, `wget`, `nc`, `dd`, interpreters, etc.
+// Any upstream caller, prompt injection, or identity confusion flaw
+// that allows an attacker to invoke this function with an arbitrary
+// command string achieves FULL PROCESS TAKEOVER on this machine.
 //
-// Restricting WHO can trigger this (e.g. sudo/owner-only checks) does
-// NOT make this function itself safe — it only narrows which accounts,
-// if compromised (phished, session-hijacked, device malware, leaked
+// All other mechanisms that grant shell access to sudoers (the `.sh`
+// command, the interactive shell session, the `device/status`
 // session file, etc.), grant an attacker this same arbitrary execution
 // capability. The owner's WhatsApp session is a single point of failure
 // for the entire container the moment this function is reachable from
@@ -47,12 +41,29 @@ import (
 // allowlisted set of operations (specific binaries + specific argument
 // values only) instead of this function.
 func RunCmd(input string) (string, error) {
-	parts := strings.Fields(input)
-	if len(parts) == 0 {
+	input = strings.TrimSpace(input)
+	if input == "" {
 		return "", fmt.Errorf("empty command")
 	}
 
-	cmd := exec.Command(parts[0], parts[1:]...)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		psScript := "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " + input
+		if pwshPath, err := exec.LookPath("pwsh"); err == nil {
+			cmd = exec.Command(pwshPath, "-NoProfile", "-NonInteractive", "-Command", psScript)
+		} else if psPath, err := exec.LookPath("powershell"); err == nil {
+			cmd = exec.Command(psPath, "-NoProfile", "-NonInteractive", "-Command", psScript)
+		} else {
+			cmd = exec.Command("cmd.exe", "/c", input)
+		}
+	} else {
+		shell := "bash"
+		if _, err := exec.LookPath("bash"); err != nil {
+			shell = "sh"
+		}
+		cmd = exec.Command(shell, "-c", input)
+	}
+
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
