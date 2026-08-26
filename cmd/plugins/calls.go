@@ -1083,11 +1083,7 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 }
 
 func meowLogger() zerolog.Logger {
-	return zerolog.New(zerolog.ConsoleWriter{
-		Out:        os.Stderr,
-		NoColor:    true,
-		PartsOrder: []string{zerolog.TimestampFieldName, zerolog.LevelFieldName, "message"},
-	}).With().Str("subsystem", "wacaller").Timestamp().Logger().Level(zerolog.InfoLevel)
+	return Logger.ZerologStyle("wacaller")
 }
 
 func RegisterWACaller(wa *whatsmeow.Client) *whatsmeow.Client {
