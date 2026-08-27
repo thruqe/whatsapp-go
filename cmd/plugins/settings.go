@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"math/rand"
 	"net/url"
 	"unicode"
@@ -2156,7 +2155,7 @@ func sendAutoReactMenu(ctx *Context, s *StoreWrapper) error {
 
 	displayEmojis := strings.Join(emojis, " ")
 	if len(emojis) > 10 {
-		displayEmojis = strings.Join(emojis[:10], " ") + fmt.Sprintf(" (+%d more)", len(emojis)-10)
+		displayEmojis = strings.Join(emojis[:10], " ") + Sprintf(" (+%d more)", len(emojis)-10)
 	}
 
 	actionText := "Activate"
