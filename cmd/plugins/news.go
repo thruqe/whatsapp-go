@@ -2,7 +2,6 @@ package plugins
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -105,7 +104,7 @@ func handleBTC(ctx *Context) error {
 		return ctx.Replyf("Failed to fetch Bitcoin data: %v", err)
 	}
 
-	statusLine := fmt.Sprintf("Use %sbitcoin stop to end live bitcoin price", p)
+	statusLine := Sprintf("Use %sbitcoin stop to end live bitcoin price", p)
 	bodyText := cliutils.FormatBTCMessage(data, statusLine)
 
 	btcCtx, cancel := context.WithCancel(context.Background())
@@ -173,7 +172,7 @@ func runBTCLiveLoop(ctx *Context, sess *btcLiveSession, btcCtx context.Context, 
 				continue
 			}
 
-			statusLine := fmt.Sprintf("Use %sbitcoin stop to end live bitcoin price", p)
+			statusLine := Sprintf("Use %sbitcoin stop to end live bitcoin price", p)
 			updatedText := cliutils.FormatBTCMessage(latestData, statusLine)
 
 			_, editErr := ctx.Edit(sess.msgID, updatedText)
