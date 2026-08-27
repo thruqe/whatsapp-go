@@ -161,6 +161,12 @@ func mapOptionToCommandArgs(cmdName, option string) string {
 	}
 
 	switch cleaned {
+	case "1 min", "1 minute":
+		return cmdName + " time 60"
+	case "2 mins", "2 minutes":
+		return cmdName + " time 120"
+	case "3 mins", "3 minutes":
+		return cmdName + " time 180"
 	case "activate":
 		return cmdName + " activate"
 	case "deactivate":

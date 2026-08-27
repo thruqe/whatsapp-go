@@ -453,11 +453,11 @@ func handleAntiCall(ctx *Context) error {
 
 	sub := strings.ToLower(args[0])
 	switch sub {
-	case "on", "enable":
+	case "on", "enable", "activate":
 		_ = s.PutSetting(ctx.Ctx, "anticall_status", "on")
 		return ctx.Reply("AntiCall enabled.")
 
-	case "off", "disable":
+	case "off", "disable", "deactivate":
 		_ = s.PutSetting(ctx.Ctx, "anticall_status", "off")
 		return ctx.Reply("AntiCall disabled.")
 
@@ -480,10 +480,10 @@ func handleAntiCall(ctx *Context) error {
 		}
 		mode := strings.ToLower(args[1])
 		switch mode {
-		case "on", "true":
+		case "on", "true", "enable", "activate":
 			_ = s.PutSetting(ctx.Ctx, "anticall_contacts_only", "true")
 			return ctx.Reply("AntiCall set to allow calls from contacts only.")
-		case "off", "false":
+		case "off", "false", "disable", "deactivate":
 			_ = s.PutSetting(ctx.Ctx, "anticall_contacts_only", "false")
 			return ctx.Reply("AntiCall contacts only restriction disabled.")
 		case "toggle":

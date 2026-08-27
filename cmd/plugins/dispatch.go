@@ -919,18 +919,21 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 	}
 
 	if violation {
+		Logger.Debug("handleGroupModeration: violation detected", "chat", chatStr, "violation", violationType, "reason", reason, "sender", sender.String())
 		botIsAdmin := false
 		if client.Store.ID != nil {
 			botIsAdmin = utils.IsAdminRaw(ctx, client, info, *client.Store.ID)
 		}
 
 		if botIsAdmin {
+			Logger.Debug("handleGroupModeration: revoking offending message", "chat", chatStr, "msg_id", evt.Info.ID, "sender", evt.Info.Sender.String())
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
 			resolvedJID, username := utils.ResolveMentionRaw(ctx, client, evt.Info.Sender)
 
 			actionKey := violationType + "_action:" + chatStr
 			action, _ := s.GetSetting(ctx, actionKey)
 			action = strings.ToLower(strings.TrimSpace(action))
+			Logger.Debug("handleGroupModeration: executing violation action", "chat", chatStr, "action", action, "user", username)
 
 			switch action {
 			case "kick":
@@ -998,6 +1001,8 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 				})
 			}
 			return true
+		} else {
+			Logger.Warn("handleGroupModeration: violation detected but bot is not admin to enforce moderation", "chat", chatStr, "violation", violationType, "reason", reason, "sender", sender.String())
 		}
 	}
 

@@ -527,14 +527,14 @@ func handleAutoBio(ctx *Context) error {
 	}
 
 	switch arg0 {
-	case "on", "enable", "true", "start":
+	case "on", "enable", "true", "start", "activate":
 		if err := s.PutSetting(ctx.Ctx, "autobio_enabled", "true"); err != nil {
 			return ctx.Reply("Failed to enable AutoBio.")
 		}
 		_, _ = updateAutoBio(ctx.Ctx, ctx.Client)
 		return ctx.Reply("AutoBio ENABLED! Status bio will update every minute with local time and quotes.")
 
-	case "off", "disable", "false", "stop":
+	case "off", "disable", "false", "stop", "deactivate":
 		if err := s.PutSetting(ctx.Ctx, "autobio_enabled", "false"); err != nil {
 			return ctx.Reply("Failed to disable AutoBio.")
 		}
@@ -1403,11 +1403,11 @@ func handleLikeStatusCmd(ctx *Context) error {
 
 	sub := strings.ToLower(args[0])
 	switch sub {
-	case "on", "enable":
+	case "on", "enable", "activate":
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
 		return ctx.Reply("LikeStatus ENABLED. The bot will automatically react to status broadcasts with love emojis.")
 
-	case "off", "disable":
+	case "off", "disable", "deactivate":
 		_ = s.PutSetting(ctx.Ctx, statusKey, "off")
 		return ctx.Reply("LikeStatus DISABLED.")
 
@@ -1885,10 +1885,10 @@ func handleAutoVV(ctx *Context) error {
 
 	sub := strings.ToLower(args[0])
 	switch sub {
-	case "on", "enable":
+	case "on", "enable", "activate":
 		_ = s.PutSetting(ctx.Ctx, "autovv", "on")
 		return ctx.Reply("Auto ViewOnce forwarding ENABLED.")
-	case "off", "disable":
+	case "off", "disable", "deactivate":
 		_ = s.PutSetting(ctx.Ctx, "autovv", "off")
 		return ctx.Reply("Auto ViewOnce forwarding DISABLED.")
 	case "dm", "private":
@@ -1919,7 +1919,7 @@ func handleAutoVV(ctx *Context) error {
 			Line("Automatically intercepts ViewOnce media sent in chats, downloads media bytes immediately to prevent CDN expiry, and forwards clean unwrapped media to your DM or the public chat.").
 			Reply()
 	default:
-		return ctx.Replyf("Usage: %sautovv [on|off|dm|public|toggle|customize]", ctx.GetPrefix())
+		return ctx.Replyf("Usage: %sautovv [activate|deactivate|dm|public|toggle|customize]", ctx.GetPrefix())
 	}
 }
 
@@ -1958,10 +1958,10 @@ func handleAutoStatusSave(ctx *Context) error {
 
 	sub := strings.ToLower(args[0])
 	switch sub {
-	case "on", "enable":
+	case "on", "enable", "activate":
 		_ = s.PutSetting(ctx.Ctx, "autostatussave", "on")
 		return ctx.Reply("Auto Status saving ENABLED. incoming status updates will be sent to your DM.")
-	case "off", "disable":
+	case "off", "disable", "deactivate":
 		_ = s.PutSetting(ctx.Ctx, "autostatussave", "off")
 		return ctx.Reply("Auto Status saving DISABLED.")
 	case "toggle":
