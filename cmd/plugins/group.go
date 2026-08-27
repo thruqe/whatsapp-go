@@ -3384,8 +3384,8 @@ func parseCaptchaTime(raw string) (int, bool) {
 					return sec, true
 				}
 			}
-		} else if strings.HasSuffix(val, "s") {
-			numStr := strings.TrimSuffix(val, "s")
+		} else if before, ok := strings.CutSuffix(val, "s"); ok {
+			numStr := before
 			if num, err := strconv.Atoi(numStr); err == nil {
 				if num >= 10 && num <= 600 {
 					return num, true

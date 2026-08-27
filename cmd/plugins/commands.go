@@ -75,7 +75,7 @@ func Register(c *Command) {
 	}
 	registry[key] = c
 	if c.Alias != "" {
-		for _, a := range strings.Split(c.Alias, ",") {
+		for a := range strings.SplitSeq(c.Alias, ",") {
 			a = strings.TrimSpace(a)
 			if a != "" {
 				registry[strings.ToLower(a)] = c

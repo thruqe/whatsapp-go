@@ -139,8 +139,8 @@ func mapOptionToCommandArgs(cmdName, option string) string {
 
 	// Page navigation
 	if strings.HasPrefix(cleaned, "next (page ") || strings.HasPrefix(cleaned, "page ") {
-		if idx := strings.Index(cleaned, "page "); idx != -1 {
-			numStr := strings.TrimRight(strings.TrimSpace(cleaned[idx+5:]), ")")
+		if _, after, ok := strings.Cut(cleaned, "page "); ok {
+			numStr := strings.TrimRight(strings.TrimSpace(after), ")")
 			return cmdName + " page " + numStr
 		}
 	}
