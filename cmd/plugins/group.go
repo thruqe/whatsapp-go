@@ -1693,11 +1693,11 @@ func handleAntiMsg(ctx *Context) error {
 
 	// 1. Explicit global state commands that do not target participants
 	switch sub {
-	case "on", "enable":
+	case "on", "enable", "activate":
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
 		return sendAntiMsgMenu(ctx, s, "AntiMsg has been activated for this group.")
 
-	case "off", "disable":
+	case "off", "disable", "deactivate":
 		_ = s.PutSetting(ctx.Ctx, statusKey, "off")
 		return sendAntiMsgMenu(ctx, s, "AntiMsg has been deactivated for this group.")
 
@@ -1952,7 +1952,8 @@ func isSubcommand(s string) bool {
 	s = strings.ToLower(s)
 	return s == "add" || s == "del" || s == "remove" || s == "delete" ||
 		s == "on" || s == "off" || s == "toggle" || s == "list" ||
-		s == "clear" || s == "enable" || s == "disable" || s == "status"
+		s == "clear" || s == "enable" || s == "disable" || s == "status" ||
+		s == "activate" || s == "deactivate"
 }
 
 func extractTargetParticipants(ctx *Context, args []string) []types.JID {
@@ -2020,13 +2021,13 @@ func handleAntiSpam(ctx *Context) error {
 
 	sub := strings.ToLower(args[0])
 	switch sub {
-	case "on", "enable":
+	case "on", "enable", "activate":
 		if err := s.PutSetting(ctx.Ctx, statusKey, "on"); err != nil {
 			return ctx.Reply("Failed to enable AntiSpam.")
 		}
 		return ctx.Reply("AntiSpam feature enabled for this group.")
 
-	case "off", "disable":
+	case "off", "disable", "deactivate":
 		if err := s.PutSetting(ctx.Ctx, statusKey, "off"); err != nil {
 			return ctx.Reply("Failed to disable AntiSpam.")
 		}
@@ -2563,11 +2564,11 @@ func handleEventsCmd(ctx *Context) error {
 
 	sub := strings.ToLower(args[0])
 	switch sub {
-	case "on", "enable":
+	case "on", "enable", "activate":
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
 		return ctx.Reply("Group Events notifications ENABLED.")
 
-	case "off", "disable":
+	case "off", "disable", "deactivate":
 		_ = s.PutSetting(ctx.Ctx, statusKey, "off")
 		return ctx.Reply("Group Events notifications DISABLED.")
 
@@ -3020,10 +3021,10 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 
 	sub := strings.ToLower(args[0])
 	switch sub {
-	case "on", "enable":
+	case "on", "enable", "activate":
 		return applyToggle(ctx, s, statusKey, "on", label+" message")
 
-	case "off", "disable":
+	case "off", "disable", "deactivate":
 		return applyToggle(ctx, s, statusKey, "off", label+" message")
 
 	case "toggle":
@@ -3038,7 +3039,7 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 			return ctx.Reply(label + " participant tag setting: " + curr)
 		}
 		mode := strings.ToLower(args[1])
-		if mode != "on" && mode != "true" && mode != "off" && mode != "false" && mode != "toggle" {
+		if mode != "on" && mode != "true" && mode != "enable" && mode != "activate" && mode != "off" && mode != "false" && mode != "disable" && mode != "deactivate" && mode != "toggle" {
 			return ctx.Reply("Usage: " + ctx.GetPrefix() + kind + " tag [on|off|toggle]")
 		}
 		return applyToggle(ctx, s, tagKey, mode, label+" participant tagging")
@@ -3049,7 +3050,7 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 			return ctx.Reply(label + " group description setting: " + curr)
 		}
 		mode := strings.ToLower(args[1])
-		if mode != "on" && mode != "true" && mode != "off" && mode != "false" && mode != "toggle" {
+		if mode != "on" && mode != "true" && mode != "enable" && mode != "activate" && mode != "off" && mode != "false" && mode != "disable" && mode != "deactivate" && mode != "toggle" {
 			return ctx.Reply("Usage: " + ctx.GetPrefix() + kind + " desc [on|off|toggle]")
 		}
 		return applyToggle(ctx, s, descKey, mode, label+" group description inclusion")
@@ -3089,16 +3090,16 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 		return ctx.Reply(label + " media URL saved.")
 
 	default:
-		return ctx.Reply("Usage: " + ctx.GetPrefix() + kind + " [on|off|toggle|customize|tag|desc|msg|media]")
+		return ctx.Reply("Usage: " + ctx.GetPrefix() + kind + " [activate|deactivate|toggle|customize|tag|desc|msg|media]")
 	}
 }
 
 func applyToggle(ctx *Context, s *StoreWrapper, key, mode, label string) error {
 	next := "on"
 	switch mode {
-	case "on", "true":
+	case "on", "true", "enable", "activate":
 		next = "on"
-	case "off", "false":
+	case "off", "false", "disable", "deactivate":
 		next = "off"
 	case "toggle":
 		curr, _ := s.GetSetting(ctx.Ctx, key)
@@ -3222,6 +3223,28 @@ func captchaKey(groupJID, userJID types.JID) string {
 	return groupJID.ToNonAD().String() + ":" + userJID.ToNonAD().String()
 }
 
+// ClearPendingCaptchasForGroup cancels all timers and removes pending captchas for a specific group.
+func ClearPendingCaptchasForGroup(groupJID types.JID) int {
+	pendingCaptchaMu.Lock()
+	defer pendingCaptchaMu.Unlock()
+
+	chatStr := groupJID.ToNonAD().String()
+	cleared := 0
+	for k, p := range pendingCaptchas {
+		if strings.HasPrefix(k, chatStr+":") {
+			if p.Timer != nil {
+				p.Timer.Stop()
+			}
+			delete(pendingCaptchas, k)
+			cleared++
+		}
+	}
+	if cleared > 0 {
+		Logger.Debug("ClearPendingCaptchasForGroup: cleared pending captchas", "group", chatStr, "count", cleared)
+	}
+	return cleared
+}
+
 // RegisterPendingCaptcha registers a new pending captcha verification for a participant.
 func RegisterPendingCaptcha(groupJID, userJID, resolvedJID types.JID, username, code string, duration time.Duration, onTimeout func()) {
 	pendingCaptchaMu.Lock()
@@ -3241,6 +3264,7 @@ func RegisterPendingCaptcha(groupJID, userJID, resolvedJID types.JID, username, 
 		pendingCaptchaMu.Unlock()
 
 		if ok && onTimeout != nil {
+			Logger.Debug("RegisterPendingCaptcha: timeout triggered", "group", groupJID.String(), "user", userJID.String(), "code", code)
 			onTimeout()
 		}
 	})
@@ -3256,6 +3280,7 @@ func RegisterPendingCaptcha(groupJID, userJID, resolvedJID types.JID, username, 
 		ExpiresAt:   now.Add(duration),
 		Timer:       timer,
 	}
+	Logger.Debug("RegisterPendingCaptcha: registered new pending captcha", "group", groupJID.String(), "user", userJID.String(), "username", username, "code", code, "duration", duration)
 }
 
 // SetPendingCaptchaMsgID stores the verification message ID for revocation if cancelled.
@@ -3266,6 +3291,20 @@ func SetPendingCaptchaMsgID(groupJID, userJID types.JID, msgID types.MessageID) 
 	key := captchaKey(groupJID, userJID)
 	if p, ok := pendingCaptchas[key]; ok {
 		p.MsgID = msgID
+		Logger.Debug("SetPendingCaptchaMsgID: updated msgID for pending captcha", "group", groupJID.String(), "user", userJID.String(), "msgID", msgID)
+		return
+	}
+
+	chatStr := groupJID.ToNonAD().String()
+	userNonAD := userJID.ToNonAD()
+	for _, p := range pendingCaptchas {
+		if p.GroupJID.ToNonAD().String() == chatStr {
+			if p.UserJID.ToNonAD() == userNonAD || p.ResolvedJID.ToNonAD() == userNonAD || p.UserJID.User == userNonAD.User || p.ResolvedJID.User == userNonAD.User {
+				p.MsgID = msgID
+				Logger.Debug("SetPendingCaptchaMsgID: updated msgID via fallback matching", "group", groupJID.String(), "user", userJID.String(), "msgID", msgID)
+				return
+			}
+		}
 	}
 }
 
@@ -3290,8 +3329,71 @@ func RemovePendingCaptcha(groupJID, userJID types.JID) (*PendingCaptcha, bool) {
 			p.Timer.Stop()
 		}
 		delete(pendingCaptchas, key)
+		Logger.Debug("RemovePendingCaptcha: removed pending captcha", "group", groupJID.String(), "user", userJID.String())
+		return p, true
 	}
-	return p, ok
+
+	chatStr := groupJID.ToNonAD().String()
+	userNonAD := userJID.ToNonAD()
+	for k, entry := range pendingCaptchas {
+		if strings.HasPrefix(k, chatStr+":") {
+			if entry.UserJID.ToNonAD() == userNonAD || entry.ResolvedJID.ToNonAD() == userNonAD || entry.UserJID.User == userNonAD.User || entry.ResolvedJID.User == userNonAD.User {
+				if entry.Timer != nil {
+					entry.Timer.Stop()
+				}
+				delete(pendingCaptchas, k)
+				Logger.Debug("RemovePendingCaptcha: removed pending captcha via fallback matching", "group", groupJID.String(), "user", userJID.String(), "key", k)
+				return entry, true
+			}
+		}
+	}
+	return nil, false
+}
+
+func parseCaptchaTime(raw string) (int, bool) {
+	raw = strings.TrimSpace(strings.ToLower(raw))
+	if raw == "" {
+		return 0, false
+	}
+	if sec, err := strconv.Atoi(raw); err == nil && sec >= 10 && sec <= 600 {
+		return sec, true
+	}
+	fields := strings.Fields(raw)
+	if len(fields) == 2 {
+		num, err := strconv.Atoi(fields[0])
+		if err == nil {
+			unit := strings.TrimRight(fields[1], "s")
+			if unit == "min" || unit == "minute" || unit == "m" {
+				sec := num * 60
+				if sec >= 10 && sec <= 600 {
+					return sec, true
+				}
+			} else if unit == "sec" || unit == "second" || unit == "s" {
+				if num >= 10 && num <= 600 {
+					return num, true
+				}
+			}
+		}
+	} else if len(fields) == 1 {
+		val := fields[0]
+		if strings.HasSuffix(val, "m") || strings.HasSuffix(val, "min") {
+			numStr := strings.TrimRight(strings.TrimRight(val, "in"), "m")
+			if num, err := strconv.Atoi(numStr); err == nil {
+				sec := num * 60
+				if sec >= 10 && sec <= 600 {
+					return sec, true
+				}
+			}
+		} else if strings.HasSuffix(val, "s") {
+			numStr := strings.TrimSuffix(val, "s")
+			if num, err := strconv.Atoi(numStr); err == nil {
+				if num >= 10 && num <= 600 {
+					return num, true
+				}
+			}
+		}
+	}
+	return 0, false
 }
 
 func formatCaptchaTimeout(sec int) string {
@@ -3343,8 +3445,22 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		return false
 	}
 
+	Logger.Debug("HandlePendingCaptchaReply: found pending captcha for participant",
+		"group", chat.String(),
+		"sender", sender.String(),
+		"code", pending.Code,
+		"createdAt", pending.CreatedAt,
+		"expiresAt", pending.ExpiresAt,
+	)
+
 	// Ignore messages sent before the pending captcha was created
 	if !evt.Info.Timestamp.IsZero() && evt.Info.Timestamp.Before(pending.CreatedAt.Add(-2*time.Second)) {
+		Logger.Debug("HandlePendingCaptchaReply: ignoring message sent before captcha creation",
+			"group", chat.String(),
+			"sender", sender.String(),
+			"msgTimestamp", evt.Info.Timestamp,
+			"captchaCreatedAt", pending.CreatedAt,
+		)
 		return false
 	}
 
@@ -3353,8 +3469,21 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		return false
 	}
 
+	cleanText := strings.TrimSpace(strings.Trim(text, "*_`~#"))
+
+	Logger.Debug("HandlePendingCaptchaReply: verifying message text against captcha code",
+		"group", chat.String(),
+		"sender", sender.String(),
+		"input", cleanText,
+		"expected", pending.Code,
+	)
+
 	// Check if user submitted the correct 4-digit code
-	if text == pending.Code {
+	if cleanText == pending.Code {
+		Logger.Debug("HandlePendingCaptchaReply: correct code submitted, verification successful", "group", chat.String(), "sender", sender.String())
+		if pending.MsgID != "" && client != nil {
+			_, _ = client.SendMessage(ctx, chat, client.BuildRevoke(chat, types.EmptyJID, pending.MsgID))
+		}
 		RemovePendingCaptcha(chat, pending.UserJID)
 		RemovePendingCaptcha(chat, sender)
 		resolvedJID, username := utils.ResolveMentionRaw(ctx, client, sender)
@@ -3369,7 +3498,6 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 	}
 
 	// Check if user sent a numeric verification attempt that was wrong
-	cleanText := strings.TrimSpace(text)
 	allDigits := true
 	for _, r := range cleanText {
 		if r < '0' || r > '9' {
@@ -3378,6 +3506,7 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		}
 	}
 	if allDigits && (len(cleanText) == 4 || len(cleanText) == len(pending.Code)) {
+		Logger.Debug("HandlePendingCaptchaReply: incorrect numeric attempt", "group", chat.String(), "sender", sender.String(), "attempt", cleanText, "expected", pending.Code)
 		resolvedJID, username := utils.ResolveMentionRaw(ctx, client, sender)
 
 		pctx := &utils.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
@@ -3416,7 +3545,7 @@ func handleCaptcha(ctx *Context) error {
 		return ctx.Reply("Database store not available.")
 	}
 
-	chatKey := ctx.Chat.String()
+	chatKey := ctx.Chat.ToNonAD().String()
 	statusKey := "captcha_status:" + chatKey
 	timeKey := "captcha_time:" + chatKey
 
@@ -3433,7 +3562,7 @@ func handleCaptcha(ctx *Context) error {
 
 	sub := strings.ToLower(args[0])
 	switch sub {
-	case "on", "enable":
+	case "on", "enable", "activate", "start":
 		if err := s.PutSetting(ctx.Ctx, statusKey, "on"); err != nil {
 			return ctx.Reply("Failed to enable captcha: " + err.Error())
 		}
@@ -3447,10 +3576,11 @@ func handleCaptcha(ctx *Context) error {
 		options := []string{"Deactivate", "Set Timeout"}
 		return sendPollReplyWithMentions(ctx, tb.Trimmed(), options, []types.JID{ctx.Sender})
 
-	case "off", "disable":
+	case "off", "disable", "deactivate", "stop":
 		if err := s.PutSetting(ctx.Ctx, statusKey, "off"); err != nil {
 			return ctx.Reply("Failed to disable captcha: " + err.Error())
 		}
+		ClearPendingCaptchasForGroup(ctx.Chat)
 		tb := ctx.Rook().NewText()
 		tb.Header("CAPTCHA DEACTIVATED")
 		tb.Field("Group", groupName)
@@ -3469,6 +3599,9 @@ func handleCaptcha(ctx *Context) error {
 		}
 		if err := s.PutSetting(ctx.Ctx, statusKey, next); err != nil {
 			return ctx.Reply("Failed to toggle captcha: " + err.Error())
+		}
+		if next == "off" {
+			ClearPendingCaptchasForGroup(ctx.Chat)
 		}
 		verb := "activated"
 		if next == "off" {
@@ -3508,9 +3641,10 @@ func handleCaptcha(ctx *Context) error {
 			options := []string{"1 Min", "2 Mins", "3 Mins"}
 			return sendPollReplyWithMentions(ctx, tb.Trimmed(), options, []types.JID{ctx.Sender})
 		}
-		sec, parseErr := strconv.Atoi(args[1])
-		if parseErr != nil || sec < 10 || sec > 600 {
-			return ctx.Reply("Invalid timeout duration. Please specify a time between 10 and 600 seconds.")
+		timeArg := strings.Join(args[1:], " ")
+		sec, okTime := parseCaptchaTime(timeArg)
+		if !okTime {
+			return ctx.Reply("Invalid timeout duration. Please specify a time between 10 and 600 seconds (e.g. `60`, `120`, `2 mins`).")
 		}
 		if err := s.PutSetting(ctx.Ctx, timeKey, strconv.Itoa(sec)); err != nil {
 			return ctx.Reply("Failed to update timeout: " + err.Error())
@@ -3529,17 +3663,38 @@ func handleCaptcha(ctx *Context) error {
 		return sendCaptchaGuide(ctx)
 
 	default:
-		return ctx.Reply("Usage: " + p + "captcha [on|off|toggle|time|help]")
+		// Check if user passed duration directly (e.g. `captcha 120` or `captcha 2 mins`)
+		if sec, okTime := parseCaptchaTime(ctx.RawArgs); okTime {
+			if err := s.PutSetting(ctx.Ctx, timeKey, strconv.Itoa(sec)); err != nil {
+				return ctx.Reply("Failed to update timeout: " + err.Error())
+			}
+			tb := ctx.Rook().NewText()
+			tb.Header("CAPTCHA TIMEOUT SET")
+			tb.Field("Group", groupName)
+			tb.Field("Timeout", formatCaptchaTimeout(sec))
+			tb.Blank()
+			tb.Linef("Newly joined members will have %s to verify before being removed.", formatCaptchaTimeout(sec))
+
+			options := []string{"Activate", "Deactivate"}
+			return sendPollReplyWithMentions(ctx, tb.Trimmed(), options, []types.JID{ctx.Sender})
+		}
+		return ctx.Reply("Usage: " + p + "captcha [activate|deactivate|toggle|time <sec>|help]")
 	}
 }
 
 func sendCaptchaMenu(ctx *Context, s *StoreWrapper, groupName string) error {
-	chatKey := ctx.Chat.String()
+	chatKey := ctx.Chat.ToNonAD().String()
 	status, _ := s.GetSetting(ctx.Ctx, "captcha_status:"+chatKey)
+	if status == "" {
+		status, _ = s.GetSetting(ctx.Ctx, "captcha_status:"+ctx.Chat.String())
+	}
 	if status == "" {
 		status = "off"
 	}
 	timeoutStr, _ := s.GetSetting(ctx.Ctx, "captcha_time:"+chatKey)
+	if timeoutStr == "" {
+		timeoutStr, _ = s.GetSetting(ctx.Ctx, "captcha_time:"+ctx.Chat.String())
+	}
 	secVal := 120
 	if timeoutStr != "" {
 		if t, err := strconv.Atoi(timeoutStr); err == nil && t > 0 {
@@ -3586,11 +3741,11 @@ func sendCaptchaGuide(ctx *Context) error {
 	tb.Numbered(5, "If they fail to verify within the time limit, they will be kicked out.")
 	tb.Blank()
 	tb.Section("Commands:")
-	tb.Bulletf("`%scaptcha on`       : Enable captcha verification", p)
-	tb.Bulletf("`%scaptcha off`      : Disable captcha verification", p)
-	tb.Bulletf("`%scaptcha toggle`   : Toggle captcha on/off", p)
-	tb.Bulletf("`%scaptcha time <sec>`: Set verification timeout in seconds (10-600s)", p)
-	tb.Bulletf("`%scaptcha help`     : Show this guide", p)
+	tb.Bulletf("`%scaptcha activate`     : Enable captcha verification", p)
+	tb.Bulletf("`%scaptcha deactivate`   : Disable captcha verification", p)
+	tb.Bulletf("`%scaptcha toggle`       : Toggle captcha on/off", p)
+	tb.Bulletf("`%scaptcha time <sec>`   : Set verification timeout (10-600s or e.g. 2 mins)", p)
+	tb.Bulletf("`%scaptcha help`         : Show this guide", p)
 	tb.Blank()
 	tb.Section("Requirements:")
 	tb.Bullet("This plugin only works if this bot is an admin.")
