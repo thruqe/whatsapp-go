@@ -182,6 +182,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	if isBotMentioned(client, evt) && okStore {
 		if mentionProto, err := s.GetSetting(ctx, "mention_proto"); err == nil && mentionProto != "" {
 			if msg, err := utils.DecodeProtoMessage(mentionProto); err == nil {
+				ApplyFilterPlaceholders(ctx, client, evt, msg)
 				setReplyContextInfo(msg, evt)
 				_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
 				return true
@@ -683,26 +684,47 @@ func isSenderBanned(ctx context.Context, client *whatsmeow.Client, sender types.
 }
 
 func setReplyContextInfo(msg *waE2E.Message, evt *events.Message) {
+	if msg == nil || evt == nil {
+		return
+	}
 	stanzaID := evt.Info.ID
 	participant := evt.Info.Sender.ToNonAD().String()
-	ci := &waE2E.ContextInfo{
-		StanzaID:      &stanzaID,
-		Participant:   &participant,
-		QuotedMessage: evt.Message,
+
+	getOrCreateCI := func(ci **waE2E.ContextInfo) {
+		if *ci == nil {
+			*ci = &waE2E.ContextInfo{}
+		}
+		(*ci).StanzaID = &stanzaID
+		(*ci).Participant = &participant
+		(*ci).QuotedMessage = evt.Message
+	}
+
+	if msg.Conversation != nil {
+		text := *msg.Conversation
+		msg.Conversation = nil
+		msg.ExtendedTextMessage = &waE2E.ExtendedTextMessage{
+			Text: &text,
+			ContextInfo: &waE2E.ContextInfo{
+				StanzaID:      &stanzaID,
+				Participant:   &participant,
+				QuotedMessage: evt.Message,
+			},
+		}
+		return
 	}
 
 	if msg.ExtendedTextMessage != nil {
-		msg.ExtendedTextMessage.ContextInfo = ci
+		getOrCreateCI(&msg.ExtendedTextMessage.ContextInfo)
 	} else if msg.ImageMessage != nil {
-		msg.ImageMessage.ContextInfo = ci
+		getOrCreateCI(&msg.ImageMessage.ContextInfo)
 	} else if msg.VideoMessage != nil {
-		msg.VideoMessage.ContextInfo = ci
+		getOrCreateCI(&msg.VideoMessage.ContextInfo)
 	} else if msg.AudioMessage != nil {
-		msg.AudioMessage.ContextInfo = ci
+		getOrCreateCI(&msg.AudioMessage.ContextInfo)
 	} else if msg.DocumentMessage != nil {
-		msg.DocumentMessage.ContextInfo = ci
+		getOrCreateCI(&msg.DocumentMessage.ContextInfo)
 	} else if msg.StickerMessage != nil {
-		msg.StickerMessage.ContextInfo = ci
+		getOrCreateCI(&msg.StickerMessage.ContextInfo)
 	}
 }
 
@@ -726,9 +748,10 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 	trigger := strings.TrimSpace(strings.ToLower(text))
 
 	var bgmProto string
-	err := db.QueryRow(ctx, `SELECT message_proto FROM bot_bgm WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&bgmProto)
+	err := db.QueryRow(ctx, `SELECT message_proto FROM bot_bgm WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND trigger_word=$2 ORDER BY (CASE WHEN our_jid=$1 THEN 1 ELSE 2 END) LIMIT 1`, ourJID, trigger).Scan(&bgmProto)
 	if err == nil && bgmProto != "" {
 		if msg, err := utils.DecodeProtoMessage(bgmProto); err == nil {
+			ApplyFilterPlaceholders(ctx, client, evt, msg)
 			setReplyContextInfo(msg, evt)
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
 			return true
@@ -736,9 +759,10 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 	}
 
 	var filterProto string
-	err = db.QueryRow(ctx, `SELECT message_proto FROM bot_filters WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&filterProto)
+	err = db.QueryRow(ctx, `SELECT message_proto FROM bot_filters WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND trigger_word=$2 ORDER BY (CASE WHEN our_jid=$1 THEN 1 ELSE 2 END) LIMIT 1`, ourJID, trigger).Scan(&filterProto)
 	if err == nil && filterProto != "" {
 		if msg, err := utils.DecodeProtoMessage(filterProto); err == nil {
+			ApplyFilterPlaceholders(ctx, client, evt, msg)
 			setReplyContextInfo(msg, evt)
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
 			return true
