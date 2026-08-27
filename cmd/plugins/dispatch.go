@@ -128,17 +128,23 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		clistore.LogGroupMessage(ctx, s.SQLStore, evt.Info.Chat, evt.Info.Sender)
 	}
 
+	if okStore && !evt.Info.IsFromMe {
+		go HandleAutoRead(ctx, client, s, evt)
+		go HandleAutoReact(ctx, client, s, evt)
+	}
+
 	if handleGroupModeration(ctx, client, evt, text) {
 		return true
 	}
 
-	if evt.Info.Chat.String() == "status@broadcast" {
+	if evt.Info.Chat.String() == "status@broadcast" || evt.Info.Chat.Server == "broadcast" {
 		if okStore {
 			raw, _ := s.GetSetting(ctx, "autostatussave")
 			if raw == "on" && client.Store.ID != nil {
 				ownerJID := client.Store.ID.ToNonAD()
 				_, _ = client.SendMessage(ctx, ownerJID, evt.Message)
 			}
+			go HandleAutoRead(ctx, client, s, evt)
 		}
 	}
 

@@ -5,7 +5,10 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"math/rand"
 	"net/url"
+	"unicode"
 
 	"os"
 	"os/exec"
@@ -142,6 +145,22 @@ func init() {
 		Description: "Toggle automatic status updates saving to DM",
 		Category:    "settings",
 		Handler:     handleAutoStatusSave,
+	})
+	Register(&Command{
+		Name:        "autoreact",
+		Alias:       "reactauto, autoemoji",
+		Description: "Automatically react with emojis to incoming messages. Usage: autoreact [on|off|toggle|emoji <emojis...>|scope <all|group|dm>]",
+		Category:    "settings",
+		IsPublic:    false,
+		Handler:     handleAutoReactCmd,
+	})
+	Register(&Command{
+		Name:        "autoread",
+		Alias:       "readauto, autoblue, readreceipt",
+		Description: "Automatically mark incoming messages and status broadcasts as read. Usage: autoread [on|off|toggle|status <on|off>|scope <all|group|dm>]",
+		Category:    "settings",
+		IsPublic:    false,
+		Handler:     handleAutoReadCmd,
 	})
 }
 
@@ -1985,5 +2004,474 @@ func handleAutoStatusSave(ctx *Context) error {
 			Reply()
 	default:
 		return ctx.Replyf("Usage: %sautostatus [on|off|toggle|customize]", ctx.GetPrefix())
+	}
+}
+
+var defaultAutoReactEmojis = []string{
+	"❤️", "🔥", "👍", "👏", "🎉", "✨", "💯", "🚀", "⚡", "🫡", "🤝", "🥳", "😎", "⭐", "🙌", "💙", "👀",
+}
+
+func parseEmojiList(input string) []string {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return nil
+	}
+	if strings.Contains(input, ",") {
+		parts := strings.Split(input, ",")
+		var res []string
+		for _, p := range parts {
+			trimmed := strings.TrimSpace(p)
+			if trimmed != "" {
+				res = append(res, trimmed)
+			}
+		}
+		if len(res) > 0 {
+			return res
+		}
+	}
+	fields := strings.Fields(input)
+	if len(fields) > 1 {
+		return fields
+	}
+	var res []string
+	for _, r := range input {
+		if !unicode.IsSpace(r) {
+			res = append(res, string(r))
+		}
+	}
+	if len(res) > 0 {
+		return res
+	}
+	return []string{input}
+}
+
+func handleAutoReactCmd(ctx *Context) error {
+	if !ctx.IsSudo() {
+		return ctx.Reply("You are not authorized to use this command.")
+	}
+
+	s, ok := getStore(ctx)
+	if !ok {
+		return ctx.Reply("Settings store unavailable.")
+	}
+
+	args := strings.Fields(ctx.RawArgs)
+	if len(args) == 0 {
+		return sendAutoReactMenu(ctx, s)
+	}
+
+	sub := strings.ToLower(args[0])
+	switch sub {
+	case "on", "enable", "activate", "start":
+		_ = s.PutSetting(ctx.Ctx, "autoreact_status", "on")
+		return ctx.Reply("Auto-React ENABLED. The bot will automatically react with emojis to incoming messages.")
+
+	case "off", "disable", "deactivate", "stop":
+		_ = s.PutSetting(ctx.Ctx, "autoreact_status", "off")
+		return ctx.Reply("Auto-React DISABLED.")
+
+	case "toggle":
+		curr, _ := s.GetSetting(ctx.Ctx, "autoreact_status")
+		if curr == "on" {
+			_ = s.PutSetting(ctx.Ctx, "autoreact_status", "off")
+			return ctx.Reply("Auto-React DISABLED.")
+		}
+		_ = s.PutSetting(ctx.Ctx, "autoreact_status", "on")
+		return ctx.Reply("Auto-React ENABLED. The bot will automatically react with emojis to incoming messages.")
+
+	case "emoji", "emojis", "set":
+		if len(args) < 2 || args[1] == "reset" || args[1] == "clear" || args[1] == "default" {
+			_ = s.PutSetting(ctx.Ctx, "autoreact_emojis", strings.Join(defaultAutoReactEmojis, ","))
+			return ctx.Replyf("Auto-React emojis reset to default:\n%s", strings.Join(defaultAutoReactEmojis, " "))
+		}
+		rawEmojiStr := strings.Join(args[1:], " ")
+		emojis := parseEmojiList(rawEmojiStr)
+		if len(emojis) == 0 {
+			return ctx.Reply("Please provide one or more emojis to use for auto-reactions.")
+		}
+		_ = s.PutSetting(ctx.Ctx, "autoreact_emojis", strings.Join(emojis, ","))
+		return ctx.Replyf("Auto-React emojis updated (%d configured):\n%s", len(emojis), strings.Join(emojis, " "))
+
+	case "scope", "mode":
+		if len(args) < 2 {
+			currScope, _ := s.GetSetting(ctx.Ctx, "autoreact_scope")
+			nextScope := "group"
+			if currScope == "group" {
+				nextScope = "dm"
+			} else if currScope == "dm" {
+				nextScope = "all"
+			}
+			_ = s.PutSetting(ctx.Ctx, "autoreact_scope", nextScope)
+			return ctx.Replyf("Auto-React scope set to: %s", strings.ToUpper(nextScope))
+		}
+		targetScope := strings.ToLower(args[1])
+		switch targetScope {
+		case "all", "global":
+			_ = s.PutSetting(ctx.Ctx, "autoreact_scope", "all")
+			return ctx.Reply("Auto-React scope set to ALL chats (Groups & DMs).")
+		case "group", "groups", "g.us":
+			_ = s.PutSetting(ctx.Ctx, "autoreact_scope", "group")
+			return ctx.Reply("Auto-React scope set to GROUP chats only.")
+		case "dm", "pm", "private", "dms":
+			_ = s.PutSetting(ctx.Ctx, "autoreact_scope", "dm")
+			return ctx.Reply("Auto-React scope set to DIRECT MESSAGES (DMs) only.")
+		default:
+			return ctx.Reply("Invalid scope. Valid options: `all`, `group`, `dm`.")
+		}
+
+	case "all", "global":
+		_ = s.PutSetting(ctx.Ctx, "autoreact_scope", "all")
+		return ctx.Reply("Auto-React scope set to ALL chats (Groups & DMs).")
+
+	case "group", "groups":
+		_ = s.PutSetting(ctx.Ctx, "autoreact_scope", "group")
+		return ctx.Reply("Auto-React scope set to GROUP chats only.")
+
+	case "dm", "pm", "private":
+		_ = s.PutSetting(ctx.Ctx, "autoreact_scope", "dm")
+		return ctx.Reply("Auto-React scope set to DIRECT MESSAGES (DMs) only.")
+
+	case "help", "guide", "info":
+		return sendAutoReactGuide(ctx)
+
+	default:
+		return ctx.Replyf("Usage: %sautoreact [activate|deactivate|toggle|emoji <emojis...>|scope <all|group|dm>|help]", ctx.GetPrefix())
+	}
+}
+
+func sendAutoReactMenu(ctx *Context, s *StoreWrapper) error {
+	status, _ := s.GetSetting(ctx.Ctx, "autoreact_status")
+	if status == "" {
+		status = "off"
+	}
+	scope, _ := s.GetSetting(ctx.Ctx, "autoreact_scope")
+	if scope == "" {
+		scope = "all"
+	}
+	emojisStr, _ := s.GetSetting(ctx.Ctx, "autoreact_emojis")
+	emojis := parseEmojiList(emojisStr)
+	if len(emojis) == 0 {
+		emojis = defaultAutoReactEmojis
+	}
+
+	displayEmojis := strings.Join(emojis, " ")
+	if len(emojis) > 10 {
+		displayEmojis = strings.Join(emojis[:10], " ") + fmt.Sprintf(" (+%d more)", len(emojis)-10)
+	}
+
+	actionText := "Activate"
+	if status == "on" {
+		actionText = "Deactivate"
+	}
+
+	nextScopeAction := "Scope: GROUP"
+	if scope == "group" {
+		nextScopeAction = "Scope: DM"
+	} else if scope == "dm" {
+		nextScopeAction = "Scope: ALL"
+	}
+
+	bodyText := ctx.Rook().NewText().
+		Header("AUTO-REACT CONFIGURATION").
+		Field("Status", strings.ToUpper(status)).
+		Field("Scope", strings.ToUpper(scope)).
+		Field("Emojis", displayEmojis).
+		Blank().
+		Line("Automatically sends emoji reactions to incoming messages.").
+		Trimmed()
+
+	options := []string{
+		actionText,
+		nextScopeAction,
+		"Set Emojis",
+		"Help / Guide",
+	}
+
+	return sendPollReply(ctx, bodyText, options)
+}
+
+func sendAutoReactGuide(ctx *Context) error {
+	p := ctx.GetPrefix()
+	return ctx.Text().
+		Header("AUTO-REACT GUIDE").
+		Line("Auto-React automatically adds emoji reactions to incoming WhatsApp messages.").
+		Blank().
+		Section("Commands:").
+		Bulletf("`%sautoreact on` / `activate`   : Enable auto-reactions", p).
+		Bulletf("`%sautoreact off` / `deactivate`: Disable auto-reactions", p).
+		Bulletf("`%sautoreact toggle`            : Toggle on/off status", p).
+		Bulletf("`%sautoreact emoji <emojis...>` : Configure custom emojis", p).
+		Bulletf("`%sautoreact emoji reset`       : Reset emojis to default", p).
+		Bulletf("`%sautoreact scope all`         : React in all chats", p).
+		Bulletf("`%sautoreact scope group`       : React in groups only", p).
+		Bulletf("`%sautoreact scope dm`          : React in DMs only", p).
+		Blank().
+		Section("Examples:").
+		Linef("`%sautoreact emoji ❤️ 🔥 👍 ✨ 🚀`", p).
+		Linef("`%sautoreact scope group`", p).
+		Reply()
+}
+
+func handleAutoReadCmd(ctx *Context) error {
+	if !ctx.IsSudo() {
+		return ctx.Reply("You are not authorized to use this command.")
+	}
+
+	s, ok := getStore(ctx)
+	if !ok {
+		return ctx.Reply("Settings store unavailable.")
+	}
+
+	args := strings.Fields(ctx.RawArgs)
+	if len(args) == 0 {
+		return sendAutoReadMenu(ctx, s)
+	}
+
+	sub := strings.ToLower(args[0])
+	switch sub {
+	case "on", "enable", "activate", "start":
+		_ = s.PutSetting(ctx.Ctx, "autoread_status", "on")
+		return ctx.Reply("Auto-Read ENABLED. Incoming messages will automatically be marked as read (blue tick).")
+
+	case "off", "disable", "deactivate", "stop":
+		_ = s.PutSetting(ctx.Ctx, "autoread_status", "off")
+		return ctx.Reply("Auto-Read DISABLED.")
+
+	case "toggle":
+		curr, _ := s.GetSetting(ctx.Ctx, "autoread_status")
+		if curr == "on" {
+			_ = s.PutSetting(ctx.Ctx, "autoread_status", "off")
+			return ctx.Reply("Auto-Read DISABLED.")
+		}
+		_ = s.PutSetting(ctx.Ctx, "autoread_status", "on")
+		return ctx.Reply("Auto-Read ENABLED. Incoming messages will automatically be marked as read (blue tick).")
+
+	case "status", "story", "stories":
+		if len(args) > 1 {
+			act := strings.ToLower(args[1])
+			if act == "on" || act == "enable" || act == "activate" {
+				_ = s.PutSetting(ctx.Ctx, "autoread_status_view", "on")
+				return ctx.Reply("Status auto-view/read ENABLED. Status broadcasts will automatically be marked as viewed.")
+			} else if act == "off" || act == "disable" || act == "deactivate" {
+				_ = s.PutSetting(ctx.Ctx, "autoread_status_view", "off")
+				return ctx.Reply("Status auto-view/read DISABLED.")
+			}
+		}
+		curr, _ := s.GetSetting(ctx.Ctx, "autoread_status_view")
+		if curr == "on" {
+			_ = s.PutSetting(ctx.Ctx, "autoread_status_view", "off")
+			return ctx.Reply("Status auto-view/read DISABLED.")
+		}
+		_ = s.PutSetting(ctx.Ctx, "autoread_status_view", "on")
+		return ctx.Reply("Status auto-view/read ENABLED. Status broadcasts will automatically be marked as viewed.")
+
+	case "scope", "mode":
+		if len(args) < 2 {
+			currScope, _ := s.GetSetting(ctx.Ctx, "autoread_scope")
+			nextScope := "group"
+			if currScope == "group" {
+				nextScope = "dm"
+			} else if currScope == "dm" {
+				nextScope = "all"
+			}
+			_ = s.PutSetting(ctx.Ctx, "autoread_scope", nextScope)
+			return ctx.Replyf("Auto-Read scope set to: %s", strings.ToUpper(nextScope))
+		}
+		targetScope := strings.ToLower(args[1])
+		switch targetScope {
+		case "all", "global":
+			_ = s.PutSetting(ctx.Ctx, "autoread_scope", "all")
+			return ctx.Reply("Auto-Read scope set to ALL chats (Groups & DMs).")
+		case "group", "groups", "g.us":
+			_ = s.PutSetting(ctx.Ctx, "autoread_scope", "group")
+			return ctx.Reply("Auto-Read scope set to GROUP chats only.")
+		case "dm", "pm", "private", "dms":
+			_ = s.PutSetting(ctx.Ctx, "autoread_scope", "dm")
+			return ctx.Reply("Auto-Read scope set to DIRECT MESSAGES (DMs) only.")
+		default:
+			return ctx.Reply("Invalid scope. Valid options: `all`, `group`, `dm`.")
+		}
+
+	case "all", "global":
+		_ = s.PutSetting(ctx.Ctx, "autoread_scope", "all")
+		return ctx.Reply("Auto-Read scope set to ALL chats (Groups & DMs).")
+
+	case "group", "groups":
+		_ = s.PutSetting(ctx.Ctx, "autoread_scope", "group")
+		return ctx.Reply("Auto-Read scope set to GROUP chats only.")
+
+	case "dm", "pm", "private":
+		_ = s.PutSetting(ctx.Ctx, "autoread_scope", "dm")
+		return ctx.Reply("Auto-Read scope set to DIRECT MESSAGES (DMs) only.")
+
+	case "help", "guide", "info":
+		return sendAutoReadGuide(ctx)
+
+	default:
+		return ctx.Replyf("Usage: %sautoread [activate|deactivate|toggle|status <on|off>|scope <all|group|dm>|help]", ctx.GetPrefix())
+	}
+}
+
+func sendAutoReadMenu(ctx *Context, s *StoreWrapper) error {
+	status, _ := s.GetSetting(ctx.Ctx, "autoread_status")
+	if status == "" {
+		status = "off"
+	}
+	scope, _ := s.GetSetting(ctx.Ctx, "autoread_scope")
+	if scope == "" {
+		scope = "all"
+	}
+	statusView, _ := s.GetSetting(ctx.Ctx, "autoread_status_view")
+	if statusView == "" {
+		statusView = "off"
+	}
+
+	actionText := "Activate"
+	if status == "on" {
+		actionText = "Deactivate"
+	}
+
+	nextScopeAction := "Scope: GROUP"
+	if scope == "group" {
+		nextScopeAction = "Scope: DM"
+	} else if scope == "dm" {
+		nextScopeAction = "Scope: ALL"
+	}
+
+	statusViewAction := "Status View: ON"
+	if statusView == "on" {
+		statusViewAction = "Status View: OFF"
+	}
+
+	bodyText := ctx.Rook().NewText().
+		Header("AUTO-READ CONFIGURATION").
+		Field("Status", strings.ToUpper(status)).
+		Field("Scope", strings.ToUpper(scope)).
+		Field("Status Broadcasts", strings.ToUpper(statusView)).
+		Blank().
+		Line("Automatically sends read receipts (blue ticks) for incoming messages.").
+		Trimmed()
+
+	options := []string{
+		actionText,
+		nextScopeAction,
+		statusViewAction,
+		"Help / Guide",
+	}
+
+	return sendPollReply(ctx, bodyText, options)
+}
+
+func sendAutoReadGuide(ctx *Context) error {
+	p := ctx.GetPrefix()
+	return ctx.Text().
+		Header("AUTO-READ GUIDE").
+		Line("Auto-Read automatically marks incoming messages and status broadcasts as read (blue ticks).").
+		Blank().
+		Section("Commands:").
+		Bulletf("`%sautoread on` / `activate`   : Enable auto-read", p).
+		Bulletf("`%sautoread off` / `deactivate`: Disable auto-read", p).
+		Bulletf("`%sautoread toggle`            : Toggle auto-read on/off", p).
+		Bulletf("`%sautoread scope all`         : Read all chats (Groups & DMs)", p).
+		Bulletf("`%sautoread scope group`       : Read group messages only", p).
+		Bulletf("`%sautoread scope dm`          : Read private messages only", p).
+		Bulletf("`%sautoread status on|off`     : Auto-view status broadcasts", p).
+		Blank().
+		Section("Examples:").
+		Linef("`%sautoread on`", p).
+		Linef("`%sautoread status on`", p).
+		Linef("`%sautoread scope group`", p).
+		Reply()
+}
+
+func HandleAutoReact(ctx context.Context, client *whatsmeow.Client, s *StoreWrapper, evt *events.Message) {
+	if evt == nil || evt.Info.IsFromMe || client == nil || s == nil {
+		return
+	}
+	if evt.Info.Chat.String() == "status@broadcast" || evt.Info.Chat.Server == "broadcast" {
+		return
+	}
+
+	status, _ := s.GetSetting(ctx, "autoreact_status")
+	if status != "on" {
+		return
+	}
+
+	scope, _ := s.GetSetting(ctx, "autoreact_scope")
+	if scope == "group" && evt.Info.Chat.Server != "g.us" {
+		return
+	}
+	if (scope == "dm" || scope == "private") && evt.Info.Chat.Server == "g.us" {
+		return
+	}
+
+	emojisStr, _ := s.GetSetting(ctx, "autoreact_emojis")
+	emojis := parseEmojiList(emojisStr)
+	if len(emojis) == 0 {
+		emojis = defaultAutoReactEmojis
+	}
+
+	emoji := emojis[rand.Intn(len(emojis))]
+
+	senderJID := evt.Info.Sender
+	if senderJID.IsEmpty() {
+		senderJID = evt.Info.Chat
+	}
+
+	reactionMsg := client.BuildReaction(evt.Info.Chat, senderJID, evt.Info.ID, emoji)
+	_, err := client.SendMessage(ctx, evt.Info.Chat, reactionMsg)
+	if err != nil {
+		Logger.Debug("autoreact: failed to send reaction", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
+	} else {
+		Logger.Debug("autoreact: reaction sent", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "emoji", emoji)
+	}
+}
+
+func HandleAutoRead(ctx context.Context, client *whatsmeow.Client, s *StoreWrapper, evt *events.Message) {
+	if evt == nil || evt.Info.IsFromMe || client == nil || s == nil {
+		return
+	}
+
+	if evt.Info.Chat.String() == "status@broadcast" || evt.Info.Chat.Server == "broadcast" {
+		statusView, _ := s.GetSetting(ctx, "autoread_status_view")
+		generalStatus, _ := s.GetSetting(ctx, "autoread_status")
+		if statusView == "on" || (generalStatus == "on" && statusView != "off") {
+			senderJID := evt.Info.Sender
+			if senderJID.IsEmpty() {
+				senderJID = evt.Info.Chat
+			}
+			err := client.MarkRead(ctx, []types.MessageID{evt.Info.ID}, evt.Info.Timestamp, types.StatusBroadcastJID, senderJID)
+			if err != nil {
+				Logger.Debug("autoread: failed to mark status as read", "msg_id", evt.Info.ID, "err", err)
+			} else {
+				Logger.Debug("autoread: status marked as read", "msg_id", evt.Info.ID, "sender", senderJID.String())
+			}
+		}
+		return
+	}
+
+	status, _ := s.GetSetting(ctx, "autoread_status")
+	if status != "on" {
+		return
+	}
+
+	scope, _ := s.GetSetting(ctx, "autoread_scope")
+	if scope == "group" && evt.Info.Chat.Server != "g.us" {
+		return
+	}
+	if (scope == "dm" || scope == "private") && evt.Info.Chat.Server == "g.us" {
+		return
+	}
+
+	senderJID := evt.Info.Sender
+	if senderJID.IsEmpty() {
+		senderJID = evt.Info.Chat
+	}
+
+	err := client.MarkRead(ctx, []types.MessageID{evt.Info.ID}, evt.Info.Timestamp, evt.Info.Chat, senderJID)
+	if err != nil {
+		Logger.Debug("autoread: failed to mark message as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
+	} else {
+		Logger.Debug("autoread: message marked as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID)
 	}
 }

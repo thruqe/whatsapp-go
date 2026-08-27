@@ -169,6 +169,18 @@ func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
 		return
 	}
 
+	senderJID := v.Info.Sender
+	if senderJID.IsEmpty() {
+		senderJID = v.Info.Chat
+	}
+
+	statusView, _ := clistore.GetSetting(ctx, s, "autoread_status_view")
+	generalRead, _ := clistore.GetSetting(ctx, s, "autoread_status")
+	if statusView == "on" || (generalRead == "on" && statusView != "off") {
+		_ = cli.MarkRead(ctx, []types.MessageID{v.Info.ID}, v.Info.Timestamp, types.StatusBroadcastJID, senderJID)
+		Logger.Debug("autoread: marked status broadcast as read", "msgID", v.Info.ID, "sender", senderJID.String())
+	}
+
 	status, _ := clistore.GetSetting(ctx, s, "likestatus_status")
 	if status != "on" {
 		Logger.Debug("likestatus: feature disabled, skipping auto-reaction", "status", status)
@@ -177,11 +189,6 @@ func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
 
 	loveEmojis := []string{"❤️", "💕", "💖", "💗", "💓", "💞", "💘", "💌", "🥰", "😍"}
 	emoji := loveEmojis[rand.Intn(len(loveEmojis))]
-
-	senderJID := v.Info.Sender
-	if senderJID.IsEmpty() {
-		senderJID = v.Info.Chat
-	}
 
 	reaction := &waE2E.Message{
 		ReactionMessage: &waE2E.ReactionMessage{
