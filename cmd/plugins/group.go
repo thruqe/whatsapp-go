@@ -25,8 +25,8 @@ import (
 func init() {
 	Register(&Command{
 		Name:        "tagall",
-		Alias:       "everyone",
-		Description: "Mention everyone in the group",
+		Alias:       "tag, everyone, all, tagmembers",
+		Description: "Mention everyone in the group. Usage: tagall [message] or tag [message]",
 		Category:    "group",
 		GroupOnly:   true,
 		IsPublic:    true,
@@ -295,7 +295,7 @@ func handleTagAll(ctx *Context) error {
 	if err != nil {
 		return ctx.Replyf("Failed to get group info: %v", err)
 	}
-	if !ctx.IsSenderAdmin(info) {
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
 		return ctx.Reply("Only group admins can tag everyone.")
 	}
 

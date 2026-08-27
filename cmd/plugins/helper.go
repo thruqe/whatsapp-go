@@ -202,6 +202,18 @@ func mapOptionToCommandArgs(cmdName, option string) string {
 		return cmdName + " time"
 	case "help / guide", "guide", "format guide", "help":
 		return cmdName + " guide"
+	case "scope: all", "all chats":
+		return cmdName + " scope all"
+	case "scope: group", "groups only":
+		return cmdName + " scope group"
+	case "scope: dm", "dm only":
+		return cmdName + " scope dm"
+	case "status view: on":
+		return cmdName + " status on"
+	case "status view: off":
+		return cmdName + " status off"
+	case "set emojis":
+		return cmdName + " emoji"
 	case "preview":
 		return cmdName + " preview"
 	case "change timezone":
