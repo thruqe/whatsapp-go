@@ -73,6 +73,11 @@ func (s *Server) URL() string {
 	return fmt.Sprintf("http://127.0.0.1:%d", s.port)
 }
 
+// OpenBrowser attempts to open the default system web browser to the QR server's URL.
+func (s *Server) OpenBrowser() error {
+	return OpenBrowser(s.URL())
+}
+
 // UpdateCode updates the active QR code string and notifies SSE subscribers.
 func (s *Server) UpdateCode(code string) {
 	s.mu.Lock()
