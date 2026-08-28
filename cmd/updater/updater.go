@@ -336,7 +336,7 @@ func newProgressReader(r io.Reader, total int64, out io.Writer) *progressReader 
 		reader:   r,
 		total:    total,
 		out:      out,
-		barWidth: 60,
+		barWidth: 24,
 	}
 }
 
@@ -368,14 +368,14 @@ func (pr *progressReader) render(final bool) {
 		return
 	}
 	now := time.Now()
-	if !final && now.Sub(pr.lastUpdate) < 50*time.Millisecond {
+	if !final && now.Sub(pr.lastUpdate) < 60*time.Millisecond {
 		return
 	}
 	pr.lastUpdate = now
 
 	width := pr.barWidth
 	if width <= 0 {
-		width = 60
+		width = 24
 	}
 
 	if pr.total > 0 {
@@ -388,9 +388,9 @@ func (pr *progressReader) render(final bool) {
 			hashes = width
 			pct = 100.0
 		}
-		bar := strings.Repeat("#", hashes)
+		bar := strings.Repeat("=", hashes)
 		spaces := strings.Repeat(" ", width-hashes)
-		fmt.Fprintf(pr.out, "\r%s%s %5.1f%%", bar, spaces, pct)
+		fmt.Fprintf(pr.out, "\r[%s%s] %5.1f%% (%s / %s)", bar, spaces, pct, formatBytes(pr.current), formatBytes(pr.total))
 	} else {
 		fmt.Fprintf(pr.out, "\rDownloading... %s", formatBytes(pr.current))
 	}
