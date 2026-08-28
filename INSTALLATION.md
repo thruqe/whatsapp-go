@@ -6,30 +6,30 @@ Copy and paste the one-liner command for your platform into your terminal. It wi
 
 **x86_64 (Intel / AMD):**
 ```bash
-curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-linux-amd64.tar.gz | sudo tar -xz -C /usr/local/bin whatsrook && sudo chmod +x /usr/local/bin/whatsrook && whatsrook -i
+curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-linux-amd64.tar.gz | sudo tar -xz -C /usr/local/bin && sudo chmod +x /usr/local/bin/whatsrook && whatsrook -i
 ```
 
 **ARM64 (Raspberry Pi / AWS Graviton / Ampere):**
 ```bash
-curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-linux-arm64.tar.gz | sudo tar -xz -C /usr/local/bin whatsrook && sudo chmod +x /usr/local/bin/whatsrook && whatsrook -i
+curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-linux-arm64.tar.gz | sudo tar -xz -C /usr/local/bin && sudo chmod +x /usr/local/bin/whatsrook && whatsrook -i
 ```
 
 ### macOS
 
 **Apple Silicon (M1 / M2 / M3 / M4):**
 ```bash
-curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-darwin-arm64.tar.gz | sudo tar -xz -C /usr/local/bin whatsrook && sudo chmod +x /usr/local/bin/whatsrook && sudo xattr -d com.apple.quarantine /usr/local/bin/whatsrook 2>/dev/null; whatsrook -i
+curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-darwin-arm64.tar.gz | sudo tar -xz -C /usr/local/bin && sudo chmod +x /usr/local/bin/whatsrook && sudo xattr -d com.apple.quarantine /usr/local/bin/whatsrook 2>/dev/null; whatsrook -i
 ```
 
 **Intel:**
 ```bash
-curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-darwin-amd64.tar.gz | sudo tar -xz -C /usr/local/bin whatsrook && sudo chmod +x /usr/local/bin/whatsrook && sudo xattr -d com.apple.quarantine /usr/local/bin/whatsrook 2>/dev/null; whatsrook -i
+curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-darwin-amd64.tar.gz | sudo tar -xz -C /usr/local/bin && sudo chmod +x /usr/local/bin/whatsrook && sudo xattr -d com.apple.quarantine /usr/local/bin/whatsrook 2>/dev/null; whatsrook -i
 ```
 
 ### Android (Termux)
 
 ```bash
-pkg install -y curl tar && curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-android-arm64.tar.gz | tar -xz -C $PREFIX/bin whatsrook && chmod +x $PREFIX/bin/whatsrook && whatsrook -i
+pkg install -y curl tar && curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-android-arm64.tar.gz | tar -xz -C $PREFIX/bin && chmod +x $PREFIX/bin/whatsrook && whatsrook -i
 ```
 
 ### Windows
