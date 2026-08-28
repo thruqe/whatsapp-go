@@ -371,21 +371,41 @@ func handlePluginInstall(ctx *Context) error {
 			ctx.StartAutoLoader()
 			defer ctx.StopAutoLoader()
 
-			var installed []string
-			var failed []string
+			type result struct {
+				name string
+				err  error
+			}
+			resChan := make(chan result, len(officialExternalPlugins))
+			var wg sync.WaitGroup
 
 			for _, name := range officialExternalPlugins {
-				url, err := ResolveDefaultPluginURL(name)
-				if err != nil {
-					failed = append(failed, utils.Sprintf("%s (%v)", name, err))
-					continue
-				}
-				if err := installExternalPlugin(ctx.GetSendContext(), name, url); err != nil {
-					failed = append(failed, utils.Sprintf("%s (%v)", name, err))
+				wg.Add(1)
+				go func(plugName string) {
+					defer wg.Done()
+					url, err := ResolveDefaultPluginURL(plugName)
+					if err != nil {
+						resChan <- result{name: plugName, err: err}
+						return
+					}
+					err = installExternalPlugin(ctx.GetSendContext(), plugName, url)
+					resChan <- result{name: plugName, err: err}
+				}(name)
+			}
+
+			wg.Wait()
+			close(resChan)
+
+			var installed []string
+			var failed []string
+			for res := range resChan {
+				if res.err != nil {
+					failed = append(failed, utils.Sprintf("%s (%v)", res.name, res.err))
 				} else {
-					installed = append(installed, name)
+					installed = append(installed, res.name)
 				}
 			}
+			sort.Strings(installed)
+			sort.Strings(failed)
 
 			var b strings.Builder
 			if len(installed) > 0 {
@@ -514,10 +534,6 @@ func runExternalPlugin(ctx context.Context, client *whatsmeow.Client, evt *event
 		return false
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
 	chatKey := evt.Info.Chat.String()
 	sessionKey := liveSessionKey(chatKey, name)
 
@@ -525,15 +541,19 @@ func runExternalPlugin(ctx context.Context, client *whatsmeow.Client, evt *event
 	isCancelRequest := len(args) > 0 && isStopArg(args[0])
 	if isCancelRequest {
 		if cancelLiveSession(chatKey, name) {
-			_ = (&Context{
-				Ctx: ctx, Client: client, Evt: evt,
-				Chat: evt.Info.Chat, Sender: evt.Info.Sender,
-			}).Replyf("🛑 Live %s tracking stopped.", name)
+			go func() {
+				_ = (&Context{
+					Ctx: context.Background(), Client: client, Evt: evt,
+					Chat: evt.Info.Chat, Sender: evt.Info.Sender,
+				}).Replyf("🛑 Live %s tracking stopped.", name)
+			}()
 		} else {
-			_ = (&Context{
-				Ctx: ctx, Client: client, Evt: evt,
-				Chat: evt.Info.Chat, Sender: evt.Info.Sender,
-			}).Replyf("No active %s session running in this chat.", name)
+			go func() {
+				_ = (&Context{
+					Ctx: context.Background(), Client: client, Evt: evt,
+					Chat: evt.Info.Chat, Sender: evt.Info.Sender,
+				}).Replyf("No active %s session running in this chat.", name)
+			}()
 		}
 		return true
 	}
@@ -546,127 +566,119 @@ func runExternalPlugin(ctx context.Context, client *whatsmeow.Client, evt *event
 	}
 	liveSessionsMu.Unlock()
 
-	// Build a context — use live timeout for streaming plugins, short timeout for plain ones
-	liveCtx, liveCancel := context.WithTimeout(context.Background(), externalLivePluginTimeout)
-
-	plugCtx := &Context{
-		Ctx:     liveCtx,
-		Client:  client,
-		Evt:     evt,
-		Chat:    evt.Info.Chat,
-		Sender:  evt.Info.Sender,
-		Command: name,
-		Args:    args,
-		RawArgs: rawArgs,
-	}
-
-	prefix := plugCtx.GetPrefix()
-	botName := plugCtx.GetBotName()
-	isSudo := utils.IsSudoRaw(liveCtx, client, evt.Info.Sender)
-
-	hasActiveLive := false
-	liveSessionsMu.Lock()
-	_, hasActiveLive = liveSessions[sessionKey]
-	liveSessionsMu.Unlock()
-
-	requestJSON, _ := json.Marshal(externalPluginRequest{
-		Command:         name,
-		Args:            args,
-		RawArgs:         rawArgs,
-		Chat:            chatKey,
-		Sender:          evt.Info.Sender.String(),
-		Prefix:          prefix,
-		BotName:         botName,
-		PushName:        evt.Info.PushName,
-		IsGroup:         evt.Info.IsGroup,
-		IsSudo:          isSudo,
-		IsLiveSession:   hasActiveLive,
-		IsCancelRequest: isCancelRequest,
-	})
-
-	cmd := exec.CommandContext(liveCtx, path)
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		liveCancel()
-		return false
-	}
-	stdinPipe, err := cmd.StdinPipe()
-	if err != nil {
-		liveCancel()
-		return false
-	}
-	if err := cmd.Start(); err != nil {
-		liveCancel()
-		Logger.Error("external plugin start failed", "plugin", name, "err", err)
-		return false
-	}
-
-	// Write the JSON request + newline to stdin
-	_, _ = fmt.Fprintf(stdinPipe, "%s\n", requestJSON)
-
-	// Read the first line of output to determine if this is a streaming or plain plugin
-	scanner := bufio.NewScanner(stdoutPipe)
-	var firstLine string
-	if scanner.Scan() {
-		firstLine = scanner.Text()
-	}
-
-	isStreaming := strings.HasPrefix(strings.TrimSpace(firstLine), "{\"action\"")
-
-	if !isStreaming {
-		// Plain text protocol (backward-compatible): collect all remaining output
-		_ = stdinPipe.Close()
-		var sb strings.Builder
-		if firstLine != "" {
-			sb.WriteString(firstLine)
-		}
-		for scanner.Scan() {
-			if sb.Len() > 0 {
-				sb.WriteByte('\n')
-			}
-			sb.WriteString(scanner.Text())
-		}
-		_ = cmd.Wait()
-		liveCancel()
-		response := strings.TrimSpace(sb.String())
-		if response != "" {
-			_ = plugCtx.Reply(response)
-		}
-		return true
-	}
-
-	// Streaming protocol: register live session and handle action frames in a goroutine
-	liveSessionsMu.Lock()
-	liveSessions[sessionKey] = &livePluginSession{cancel: liveCancel, pluginName: name}
-	liveSessionsMu.Unlock()
-
+	// Launch external plugin execution asynchronously so incoming message dispatch is NEVER blocked
 	go func() {
+		liveCtx, liveCancel := context.WithTimeout(context.Background(), externalLivePluginTimeout)
+		defer liveCancel()
+
+		plugCtx := &Context{
+			Ctx:     liveCtx,
+			Client:  client,
+			Evt:     evt,
+			Chat:    evt.Info.Chat,
+			Sender:  evt.Info.Sender,
+			Command: name,
+			Args:    args,
+			RawArgs: rawArgs,
+		}
+
+		prefix := plugCtx.GetPrefix()
+		botName := plugCtx.GetBotName()
+		isSudo := utils.IsSudoRaw(liveCtx, client, evt.Info.Sender)
+
+		requestJSON, _ := json.Marshal(externalPluginRequest{
+			Command:         name,
+			Args:            args,
+			RawArgs:         rawArgs,
+			Chat:            chatKey,
+			Sender:          evt.Info.Sender.String(),
+			Prefix:          prefix,
+			BotName:         botName,
+			PushName:        evt.Info.PushName,
+			IsGroup:         evt.Info.IsGroup,
+			IsSudo:          isSudo,
+			IsLiveSession:   false,
+			IsCancelRequest: false,
+		})
+
+		cmd := exec.CommandContext(liveCtx, path)
+		stdoutPipe, err := cmd.StdoutPipe()
+		if err != nil {
+			Logger.Error("external plugin stdout pipe failed", "plugin", name, "err", err)
+			return
+		}
+		stdinPipe, err := cmd.StdinPipe()
+		if err != nil {
+			Logger.Error("external plugin stdin pipe failed", "plugin", name, "err", err)
+			return
+		}
+
+		if err := cmd.Start(); err != nil {
+			Logger.Error("external plugin start failed", "plugin", name, "err", err)
+			_ = plugCtx.Replyf("Failed to start external plugin %q: %v", name, err)
+			return
+		}
+
+		// Register session so .btc stop can cancel it while it runs
+		liveSessionsMu.Lock()
+		liveSessions[sessionKey] = &livePluginSession{cancel: liveCancel, pluginName: name}
+		liveSessionsMu.Unlock()
+
 		defer func() {
 			_ = stdinPipe.Close()
 			_ = cmd.Wait()
-			liveCancel()
 			liveSessionsMu.Lock()
 			if curr, ok := liveSessions[sessionKey]; ok && curr != nil && curr.cancel != nil {
-				// Only clean up if this is still our session
 				delete(liveSessions, sessionKey)
 			}
 			liveSessionsMu.Unlock()
 		}()
 
-		// Process the first action frame we already read
-		if err := handleActionFrame(plugCtx, stdinPipe, firstLine); err != nil {
-			Logger.Debug("external plugin action frame error", "plugin", name, "err", err)
-			return
-		}
+		// Write JSON request + newline to stdin
+		_, _ = fmt.Fprintf(stdinPipe, "%s\n", requestJSON)
+
+		scanner := bufio.NewScanner(stdoutPipe)
+		var firstLine string
+		var isStreaming bool
+		var readFirst bool
 
 		for scanner.Scan() {
 			line := scanner.Text()
-			if strings.TrimSpace(line) == "" {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" {
 				continue
 			}
-			if err := handleActionFrame(plugCtx, stdinPipe, line); err != nil {
-				Logger.Debug("external plugin action frame error", "plugin", name, "err", err)
-				return
+
+			if !readFirst {
+				readFirst = true
+				firstLine = line
+				if strings.HasPrefix(trimmed, "{\"action\"") {
+					isStreaming = true
+				} else {
+					// Plain text mode
+					isStreaming = false
+					break
+				}
+			}
+
+			if isStreaming {
+				if err := handleActionFrame(plugCtx, stdinPipe, line); err != nil {
+					Logger.Debug("external plugin action frame ended", "plugin", name, "err", err)
+					break
+				}
+			}
+		}
+
+		if !isStreaming && readFirst {
+			var sb strings.Builder
+			sb.WriteString(firstLine)
+			for scanner.Scan() {
+				sb.WriteByte('\n')
+				sb.WriteString(scanner.Text())
+			}
+			response := strings.TrimSpace(sb.String())
+			if response != "" {
+				_ = plugCtx.Reply(response)
 			}
 		}
 	}()
