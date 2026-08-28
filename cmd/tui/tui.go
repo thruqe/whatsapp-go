@@ -606,28 +606,57 @@ func (m model) updateEditDB(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "y", "Y", "enter":
-		dataDir := whatsrook.DefaultDataDir()
-		phone := "+" + m.selectedSession.User
-		if err := whatsrook.DeleteStoredSession(m.ctx, dataDir, m.defaultDB, phone); err != nil {
-			m.statusMsg = fmt.Sprintf("Failed to delete session: %v", err)
-			m.isErrorStatus = true
-		} else {
-			m.statusMsg = fmt.Sprintf("Session +%s removed successfully.", m.selectedSession.User)
-			m.isErrorStatus = false
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
 		}
-		sessions, _ := whatsrook.ListStoredSessions(m.ctx, dataDir, m.defaultDB)
-		m.sessions = sessions
-		if len(m.sessions) == 0 {
-			m.state = stateMain
-			m.cursor = 0
-		} else {
-			m.state = stateSessionsList
-			m.cursor = 0
+	case "down", "j":
+		if m.cursor < 1 {
+			m.cursor++
 		}
+	case "1":
+		m.cursor = 0
+		return m.selectDeleteConfirm()
+	case "2":
+		m.cursor = 1
+		return m.selectDeleteConfirm()
+	case "y", "Y":
+		m.cursor = 1
+		return m.selectDeleteConfirm()
 	case "n", "N", "esc", "b", "0":
 		m.state = stateSessionActions
 		m.cursor = 3
+	case "enter":
+		return m.selectDeleteConfirm()
+	}
+	return m, nil
+}
+
+func (m model) selectDeleteConfirm() (tea.Model, tea.Cmd) {
+	if m.cursor == 0 { // Cancel and return
+		m.state = stateSessionActions
+		m.cursor = 3
+		return m, nil
+	}
+
+	// Confirm deletion
+	dataDir := whatsrook.DefaultDataDir()
+	phone := "+" + m.selectedSession.User
+	if err := whatsrook.DeleteStoredSession(m.ctx, dataDir, m.defaultDB, phone); err != nil {
+		m.statusMsg = fmt.Sprintf("Failed to delete session: %v", err)
+		m.isErrorStatus = true
+	} else {
+		m.statusMsg = fmt.Sprintf("Session +%s removed successfully.", m.selectedSession.User)
+		m.isErrorStatus = false
+	}
+	sessions, _ := whatsrook.ListStoredSessions(m.ctx, dataDir, m.defaultDB)
+	m.sessions = sessions
+	if len(m.sessions) == 0 {
+		m.state = stateMain
+		m.cursor = 0
+	} else {
+		m.state = stateSessionsList
+		m.cursor = 0
 	}
 	return m, nil
 }
