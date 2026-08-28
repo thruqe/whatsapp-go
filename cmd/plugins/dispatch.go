@@ -460,6 +460,14 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		}
 	}
 	if !ok {
+		if isExternalPluginInstalled(name) {
+			if !utils.IsSudoRaw(ctx, client, evt.Info.Sender) {
+				Logger.Warn("External plugin execution denied", "plugin", name, "sender", evt.Info.Sender.String())
+				return true
+			}
+			rawArgs := strings.TrimSpace(strings.TrimPrefix(body, fields[0]))
+			return runExternalPlugin(ctx, client, evt, name, args, rawArgs)
+		}
 		Logger.Debug("Command not found", "name", name, "chat", evt.Info.Chat.String())
 		return false
 	}
