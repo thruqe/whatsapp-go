@@ -7,26 +7,31 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"whatsrook"
 	"whatsrook/cmd/tui"
 	Logger "whatsrook/src/logger"
-
-	"golang.org/x/term"
 )
 
-// runStandby initiates standby mode, automatically detecting interactive TTY vs headless cloud environments.
 func runStandby(ctx context.Context, defaultDB string) error {
-	isInteractive := term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
-	if !isInteractive {
-		return runIdleHeadless(ctx)
+	if isTerminalInteractive() {
+		return runInteractiveStandby(ctx, defaultDB)
 	}
-
-	return runInteractiveStandby(ctx, defaultDB)
+	return runHeadlessStandby(ctx)
 }
 
-func runIdleHeadless(ctx context.Context) error {
+func isTerminalInteractive() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) != 0
+}
+
+func runHeadlessStandby(ctx context.Context) error {
 	listener, server, boundPort, err := startStandbyHTTPServer()
 	if err != nil {
 		return err
@@ -38,25 +43,22 @@ func runIdleHeadless(ctx context.Context) error {
 		_ = listener.Close()
 	}()
 
-	fmt.Printf("\rWhatsRook standby (port :%d) • waiting for session • %s\n", boundPort, time.Now().Format("15:04:05"))
+	Logger.Info("headless standby mode active; awaiting configuration", "port", boundPort)
 	<-ctx.Done()
 	return nil
 }
 
 func startStandbyHTTPServer() (net.Listener, *http.Server, int, error) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintf(w, "WhatsRook standby • waiting for session • %s\n", time.Now().Format("15:04:05"))
-	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintln(w, "OK")
+		_, _ = fmt.Fprintln(w, `{"status":"standby","message":"WhatsRook interactive standby engine online"}`)
 	})
 
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
-		return nil, nil, 0, fmt.Errorf("failed to bind standby server: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to bind standby HTTP listener: %w", err)
 	}
 
 	boundPort := listener.Addr().(*net.TCPAddr).Port
@@ -73,37 +75,52 @@ func startStandbyHTTPServer() (net.Listener, *http.Server, int, error) {
 }
 
 func runInteractiveStandby(ctx context.Context, defaultDB string) error {
-	listener, server, boundPort, err := startStandbyHTTPServer()
-	if err != nil {
-		return err
-	}
-	defer func() {
+	for {
+		listener, server, boundPort, err := startStandbyHTTPServer()
+		if err != nil {
+			return err
+		}
+
+		tuiCtx, tuiCancel := context.WithCancel(context.Background())
+		res, shouldRun, err := tui.Run(tuiCtx, defaultDB, boundPort)
+		tuiCancel()
+
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
 		_ = listener.Close()
-	}()
+		cancel()
 
-	res, shouldRun, err := tui.Run(ctx, defaultDB, boundPort)
-	if err != nil {
-		return err
-	}
-	if !shouldRun {
-		return nil
-	}
+		if err != nil {
+			return err
+		}
+		if !shouldRun {
+			tui.ClearTerminal()
+			return nil
+		}
 
-	botCfg := BotConfig{
-		Session:         res.Session,
-		Pair:            res.Pair,
-		QRCode:          res.QRCode,
-		ClientType:      res.ClientType,
-		Database:        res.Database,
-		Verbose:         res.Verbose,
-		WSPort:          0,
-		AsyncMessageAck: true,
-	}
+		botCfg := BotConfig{
+			Session:         res.Session,
+			Pair:            res.Pair,
+			QRCode:          res.QRCode,
+			ClientType:      res.ClientType,
+			Database:        res.Database,
+			Verbose:         res.Verbose,
+			WSPort:          0,
+			AsyncMessageAck: true,
+		}
 
-	return launchBotWithConfig(ctx, botCfg)
+		// When bot runs, listen for Ctrl+C to interrupt the bot and cycle back to the TUI
+		botCtx, botCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		errBot := launchBotWithConfig(botCtx, botCfg)
+		botCancel()
+
+		// Always clear console screen when session exits/interrupts, then loop back to interactive standby
+		tui.ClearTerminal()
+
+		if errBot != nil && !errors.Is(errBot, context.Canceled) && !errors.Is(errBot, whatsrook.ErrLoggedOut) {
+			Logger.Warn("session disconnected, returning to standby menu", "err", errBot)
+		}
+	}
 }
 
 func launchBotWithConfig(ctx context.Context, cfg BotConfig) error {

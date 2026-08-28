@@ -210,8 +210,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
-			m.quitting = true
-			return m, tea.Quit
+			if m.state == stateMain {
+				m.quitting = true
+				return m, tea.Quit
+			}
+			m.state = stateMain
+			m.cursor = 0
+			m.statusMsg = ""
+			return m, nil
 		}
 
 		switch m.state {
