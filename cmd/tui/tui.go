@@ -1,13 +1,16 @@
 package tui
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"whatsrook"
+	"whatsrook/cmd/updater"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,6 +32,7 @@ const (
 	stateNewClient
 	stateNewLogLevel
 	stateNewSaveOption
+	stateUpdateMenu
 )
 
 // SessionResult contains the final configured session parameters to launch.
@@ -153,6 +157,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateNewLogLevel(msg)
 		case stateNewSaveOption:
 			return m.updateNewSaveOption(msg)
+		case stateUpdateMenu:
+			return m.updateUpdateMenu(msg)
 		}
 	}
 
@@ -172,7 +178,7 @@ func (m model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor--
 		}
 	case "down", "j":
-		if m.cursor < 2 {
+		if m.cursor < 3 {
 			m.cursor++
 		}
 	case "1":
@@ -181,7 +187,10 @@ func (m model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "2":
 		m.cursor = 1
 		return m.selectMainOption()
-	case "3", "q", "esc":
+	case "3":
+		m.cursor = 2
+		return m.selectMainOption()
+	case "4", "q", "esc":
 		m.quitting = true
 		return m, tea.Quit
 	case "enter":
@@ -217,9 +226,107 @@ func (m model) selectMainOption() (tea.Model, tea.Cmd) {
 			Verbose:    false,
 		}
 		m.state = stateNewAuth
-	case 2: // Exit
+	case 2: // Update WhatsRook
+		m.cursor = 0
+		m.state = stateUpdateMenu
+	case 3: // Exit
 		m.quitting = true
 		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m model) updateUpdateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "down", "j":
+		if m.cursor < 3 {
+			m.cursor++
+		}
+	case "1":
+		m.cursor = 0
+		return m.selectUpdateOption()
+	case "2":
+		m.cursor = 1
+		return m.selectUpdateOption()
+	case "3":
+		m.cursor = 2
+		return m.selectUpdateOption()
+	case "4", "esc", "b", "0":
+		m.state = stateMain
+		m.cursor = 2
+		m.statusMsg = ""
+	case "enter":
+		return m.selectUpdateOption()
+	}
+	return m, nil
+}
+
+func (m model) selectUpdateOption() (tea.Model, tea.Cmd) {
+	switch m.cursor {
+	case 0: // Check for updates
+		var buf bytes.Buffer
+		currentChannel := updater.GetStoredChannel()
+		up := updater.New(updater.Options{
+			Out:     &buf,
+			Channel: currentChannel,
+		})
+		res, err := up.Check(m.ctx)
+		if err != nil {
+			m.statusMsg = fmt.Sprintf("Update check failed: %v", err)
+			m.isErrorStatus = true
+		} else if res.HasNewVersion {
+			m.statusMsg = fmt.Sprintf("New version available: v%s (Current: v%s)", res.LatestVersion, res.CurrentVersion)
+			m.isErrorStatus = false
+		} else {
+			m.statusMsg = fmt.Sprintf("WhatsRook is up to date (v%s • %s)", res.CurrentVersion, currentChannel)
+			m.isErrorStatus = false
+		}
+	case 1: // Update to stable
+		_ = updater.SetStoredChannel("stable")
+		var buf bytes.Buffer
+		up := updater.New(updater.Options{
+			Out:     &buf,
+			Channel: "stable",
+		})
+		res, err := up.Upgrade(m.ctx, false)
+		if err != nil {
+			m.statusMsg = fmt.Sprintf("Upgrade failed: %v", err)
+			m.isErrorStatus = true
+		} else if res.Updated {
+			fmt.Printf("Upgraded to v%s! Restarting...\n", res.LatestVersion)
+			_ = updater.RestartProcess()
+			os.Exit(0)
+		} else {
+			m.statusMsg = fmt.Sprintf("Already on latest stable version (v%s)", res.CurrentVersion)
+			m.isErrorStatus = false
+		}
+	case 2: // Update to alpha / beta
+		_ = updater.SetStoredChannel("beta")
+		var buf bytes.Buffer
+		up := updater.New(updater.Options{
+			Out:     &buf,
+			Channel: "beta",
+		})
+		res, err := up.Upgrade(m.ctx, true)
+		if err != nil {
+			m.statusMsg = fmt.Sprintf("Alpha upgrade failed: %v", err)
+			m.isErrorStatus = true
+		} else if res.Updated {
+			fmt.Println("Upgraded to latest alpha build! Restarting...")
+			_ = updater.RestartProcess()
+			os.Exit(0)
+		} else {
+			m.statusMsg = "Already tracking latest alpha build."
+			m.isErrorStatus = false
+		}
+	case 3: // Back
+		m.state = stateMain
+		m.cursor = 2
+		m.statusMsg = ""
 	}
 	return m, nil
 }
@@ -796,6 +903,8 @@ func (m model) View() string {
 		s.WriteString(m.viewNewLogLevel())
 	case stateNewSaveOption:
 		s.WriteString(m.viewNewSaveOption())
+	case stateUpdateMenu:
+		s.WriteString(m.viewUpdateMenu())
 	}
 
 	if m.statusMsg != "" {
@@ -839,7 +948,29 @@ func (m model) viewMain() string {
 	options := []string{
 		"Connect to an existing session",
 		"Create a new session",
+		"Check & install updates",
 		"Exit",
+	}
+
+	for i, opt := range options {
+		s.WriteString(renderDotItem(m.cursor == i, opt))
+	}
+
+	s.WriteString(helpStyle.Render(m.getHelpText("select")))
+	return s.String()
+}
+
+func (m model) viewUpdateMenu() string {
+	var s strings.Builder
+	currentChannel := updater.GetStoredChannel()
+	s.WriteString(titleStyle.Render(fmt.Sprintf("UPDATER (Channel: %s)", currentChannel)))
+	s.WriteString("\n\n")
+
+	options := []string{
+		"Check for updates",
+		"Update to latest stable release",
+		"Update to latest alpha / nightly build",
+		"Back to main menu",
 	}
 
 	for i, opt := range options {
