@@ -11,7 +11,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type state int
@@ -60,7 +59,7 @@ type model struct {
 	quitting        bool
 }
 
-// Run launches the modern Bubble Tea standby TUI.
+// Run launches the modern Bubble Tea standby TUI with dot-based navigation.
 func Run(ctx context.Context, defaultDB string, boundPort int) (SessionResult, bool, error) {
 	ti := textinput.New()
 	ti.Placeholder = "+2348062795602"
@@ -209,7 +208,7 @@ func (m model) selectMainOption() (tea.Model, tea.Cmd) {
 }
 
 func (m model) updateSessionsList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	maxIdx := len(m.sessions) // 0 to len(m.sessions)-1, plus Back option
+	maxIdx := len(m.sessions) // 0 to len(m.sessions)-1, plus Back
 	switch msg.String() {
 	case "up", "k":
 		if m.cursor > 0 {
@@ -248,7 +247,6 @@ func (m model) updateSessionsList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cursor = 0
 		m.statusMsg = ""
 	default:
-		// Number shortcuts
 		if n, err := strconv.Atoi(msg.String()); err == nil && n >= 1 && n <= len(m.sessions) {
 			m.cursor = n - 1
 			return m.updateSessionsList(tea.KeyMsg{Type: tea.KeyEnter})
@@ -454,7 +452,6 @@ func (m model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("Session +%s removed successfully.", m.selectedSession.User)
 			m.isErrorStatus = false
 		}
-		// Refresh session list
 		sessions, _ := whatsrook.ListStoredSessions(m.ctx, dataDir, m.defaultDB)
 		m.sessions = sessions
 		if len(m.sessions) == 0 {
@@ -485,7 +482,7 @@ func (m model) updateNewAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.result.QRCode = true
 		m.result.Pair = false
 		m.state = stateNewPhoneInput
-		m.input.Placeholder = "session name or phone (leave blank for auto)"
+		m.input.Placeholder = "session name or phone (optional)"
 		m.input.SetValue("")
 		m.input.Focus()
 		return m, textinput.Blink
@@ -506,7 +503,7 @@ func (m model) updateNewAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.result.QRCode = true
 			m.result.Pair = false
 			m.state = stateNewPhoneInput
-			m.input.Placeholder = "session name or phone (leave blank for auto)"
+			m.input.Placeholder = "session name or phone (optional)"
 			m.input.SetValue("")
 			m.input.Focus()
 			return m, textinput.Blink
@@ -689,6 +686,14 @@ func (m model) View() string {
 	return s.String()
 }
 
+// renderDotItem renders a clean active (●) or inactive (○) focused item.
+func renderDotItem(active bool, text string) string {
+	if active {
+		return "  " + activeDotStyle.Render("●") + " " + activeItemStyle.Render(text) + "\n"
+	}
+	return "  " + inactiveDotStyle.Render("○") + " " + inactiveItemStyle.Render(text) + "\n"
+}
+
 func (m model) viewMain() string {
 	var s strings.Builder
 	s.WriteString(titleStyle.Render("MAIN MENU"))
@@ -701,16 +706,10 @@ func (m model) viewMain() string {
 	}
 
 	for i, opt := range options {
-		if m.cursor == i {
-			s.WriteString(cursorStyle.Render("  ❯ "))
-			s.WriteString(selectedItemStyle.Render(fmt.Sprintf("[%d] %s", i+1, opt)))
-		} else {
-			s.WriteString(itemStyle.Render(fmt.Sprintf("  [%d] %s", i+1, opt)))
-		}
-		s.WriteByte('\n')
+		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use [↑/↓] or [1-3] to navigate • [Enter] to select • [q] to exit"))
+	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc/q to exit"))
 	return s.String()
 }
 
@@ -724,27 +723,15 @@ func (m model) viewSessionsList() string {
 		if name == "" {
 			name = "Personal"
 		}
-		line := fmt.Sprintf("[%d] +%s (%s • %s)", i+1, sess.User, name, sess.Platform)
-		if m.cursor == i {
-			s.WriteString(cursorStyle.Render("  ❯ "))
-			s.WriteString(selectedItemStyle.Render(line))
-		} else {
-			s.WriteString(itemStyle.Render("  " + line))
-		}
-		s.WriteByte('\n')
+		line := fmt.Sprintf("+%s (%s • %s)", sess.User, name, sess.Platform)
+		s.WriteString(renderDotItem(m.cursor == i, line))
 	}
 
 	// Back option
 	backIdx := len(m.sessions)
-	if m.cursor == backIdx {
-		s.WriteString(cursorStyle.Render("  ❯ "))
-		s.WriteString(selectedItemStyle.Render("[0] Back to main menu"))
-	} else {
-		s.WriteString(itemStyle.Render("  [0] Back to main menu"))
-	}
-	s.WriteByte('\n')
+	s.WriteString(renderDotItem(m.cursor == backIdx, "Back to main menu"))
 
-	s.WriteString(helpStyle.Render("Use [↑/↓] to navigate • [Enter] to select • [Esc/b] to go back"))
+	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
 	return s.String()
 }
 
@@ -765,23 +752,10 @@ func (m model) viewSessionActions() string {
 	}
 
 	for i, opt := range options {
-		var line string
-		if i == 3 {
-			line = "[0] Back"
-		} else {
-			line = fmt.Sprintf("[%d] %s", i+1, opt)
-		}
-
-		if m.cursor == i {
-			s.WriteString(cursorStyle.Render("  ❯ "))
-			s.WriteString(selectedItemStyle.Render(line))
-		} else {
-			s.WriteString(itemStyle.Render("  " + line))
-		}
-		s.WriteByte('\n')
+		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use [↑/↓] or [1-3] • [Enter] to select • [Esc/b] to go back"))
+	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
 	return s.String()
 }
 
@@ -817,23 +791,10 @@ func (m model) viewEditVariables() string {
 	}
 
 	for i, opt := range options {
-		var line string
-		if i == 4 {
-			line = "[0] Back"
-		} else {
-			line = fmt.Sprintf("[%d] %s", i+1, opt)
-		}
-
-		if m.cursor == i {
-			s.WriteString(cursorStyle.Render("  ❯ "))
-			s.WriteString(selectedItemStyle.Render(line))
-		} else {
-			s.WriteString(itemStyle.Render("  " + line))
-		}
-		s.WriteByte('\n')
+		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use [↑/↓] or [1-4] • [Enter] to modify • [Esc/b] to go back"))
+	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to modify • Esc to go back"))
 	return s.String()
 }
 
@@ -849,17 +810,10 @@ func (m model) viewEditClient() string {
 	}
 
 	for i, opt := range options {
-		line := fmt.Sprintf("[%d] %s", i+1, opt)
-		if m.cursor == i {
-			s.WriteString(cursorStyle.Render("  ❯ "))
-			s.WriteString(selectedItemStyle.Render(line))
-		} else {
-			s.WriteString(itemStyle.Render("  " + line))
-		}
-		s.WriteByte('\n')
+		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use [↑/↓] or [1-3] • [Enter] to apply"))
+	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to apply • Esc to go back"))
 	return s.String()
 }
 
@@ -874,17 +828,10 @@ func (m model) viewEditLogLevel() string {
 	}
 
 	for i, opt := range options {
-		line := fmt.Sprintf("[%d] %s", i+1, opt)
-		if m.cursor == i {
-			s.WriteString(cursorStyle.Render("  ❯ "))
-			s.WriteString(selectedItemStyle.Render(line))
-		} else {
-			s.WriteString(itemStyle.Render("  " + line))
-		}
-		s.WriteByte('\n')
+		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use [↑/↓] or [1-2] • [Enter] to apply"))
+	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to apply • Esc to go back"))
 	return s.String()
 }
 
@@ -896,7 +843,7 @@ func (m model) viewEditDB() string {
 	s.WriteByte('\n')
 	s.WriteString("  " + m.input.View())
 	s.WriteString("\n\n")
-	s.WriteString(helpStyle.Render("[Enter] to apply • [Esc] to cancel"))
+	s.WriteString(helpStyle.Render("Enter to apply • Esc to cancel"))
 	return s.String()
 }
 
@@ -904,13 +851,14 @@ func (m model) viewDeleteConfirm() string {
 	var s strings.Builder
 	s.WriteString(titleStyle.Render("CONFIRM SESSION DELETION"))
 	s.WriteString("\n\n")
-	s.WriteString(lipgloss.NewStyle().Foreground(dangerColor).Bold(true).Render(
-		fmt.Sprintf("  Are you sure you want to delete session +%s?", m.selectedSession.User),
+	s.WriteString(errorStyle.Render(
+		fmt.Sprintf("Are you sure you want to delete session +%s?", m.selectedSession.User),
 	))
 	s.WriteString("\n\n")
-	s.WriteString("  [y] Confirm deletion\n")
-	s.WriteString("  [n] Cancel and return\n")
-	s.WriteString(helpStyle.Render("Press [y] to delete • [n] or [Esc] to cancel"))
+	s.WriteString(renderDotItem(m.cursor == 0, "Cancel and return"))
+	s.WriteString(renderDotItem(m.cursor == 1, "Confirm deletion"))
+	s.WriteString("\n")
+	s.WriteString(helpStyle.Render("Use ↑/↓ to choose • Enter to confirm • Esc to cancel"))
 	return s.String()
 }
 
@@ -926,23 +874,10 @@ func (m model) viewNewAuth() string {
 	}
 
 	for i, opt := range options {
-		var line string
-		if i == 2 {
-			line = "[0] Back"
-		} else {
-			line = fmt.Sprintf("[%d] %s", i+1, opt)
-		}
-
-		if m.cursor == i {
-			s.WriteString(cursorStyle.Render("  ❯ "))
-			s.WriteString(selectedItemStyle.Render(line))
-		} else {
-			s.WriteString(itemStyle.Render("  " + line))
-		}
-		s.WriteByte('\n')
+		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use [↑/↓] or [1-2] • [Enter] to select • [Esc/b] to go back"))
+	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
 	return s.String()
 }
 
@@ -960,7 +895,7 @@ func (m model) viewNewPhoneInput() string {
 	s.WriteByte('\n')
 	s.WriteString("  " + m.input.View())
 	s.WriteString("\n\n")
-	s.WriteString(helpStyle.Render("[Enter] to continue • [Esc] to go back"))
+	s.WriteString(helpStyle.Render("Enter to continue • Esc to go back"))
 	return s.String()
 }
 
@@ -976,17 +911,10 @@ func (m model) viewNewClient() string {
 	}
 
 	for i, opt := range options {
-		line := fmt.Sprintf("[%d] %s", i+1, opt)
-		if m.cursor == i {
-			s.WriteString(cursorStyle.Render("  ❯ "))
-			s.WriteString(selectedItemStyle.Render(line))
-		} else {
-			s.WriteString(itemStyle.Render("  " + line))
-		}
-		s.WriteByte('\n')
+		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use [↑/↓] or [1-3] • [Enter] to select • [Esc/b] to go back"))
+	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
 	return s.String()
 }
 
@@ -1001,17 +929,10 @@ func (m model) viewNewLogLevel() string {
 	}
 
 	for i, opt := range options {
-		line := fmt.Sprintf("[%d] %s", i+1, opt)
-		if m.cursor == i {
-			s.WriteString(cursorStyle.Render("  ❯ "))
-			s.WriteString(selectedItemStyle.Render(line))
-		} else {
-			s.WriteString(itemStyle.Render("  " + line))
-		}
-		s.WriteByte('\n')
+		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use [↑/↓] or [1-2] • [Enter] to launch session"))
+	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to launch session"))
 	return s.String()
 }
 
