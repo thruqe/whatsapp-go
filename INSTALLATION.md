@@ -75,3 +75,30 @@ tar.exe -xzf "$env:TEMP\wr.tar.gz" -C "$env:LOCALAPPDATA\whatsrook"
 Remove-Item "$env:TEMP\wr.tar.gz"
 & "$env:LOCALAPPDATA\whatsrook\whatsrook.exe" -i
 ```
+
+# Uninstalling
+
+To uninstall and remove WhatsRook from your system:
+
+### Linux
+```bash
+sudo rm -f /usr/local/bin/whatsrook ~/.local/bin/whatsrook
+```
+
+### macOS
+```bash
+sudo rm -f /usr/local/bin/whatsrook
+```
+
+### Android (Termux)
+```bash
+rm -f $PREFIX/bin/whatsrook
+```
+
+### Windows
+
+Open **PowerShell** and paste:
+
+```powershell
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\whatsrook"
+```
