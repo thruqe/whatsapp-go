@@ -10,12 +10,7 @@ For questions about whatsrook use cases (like how to do stuff or seek more help)
 
 ## Installation
 
-If you want to install on your system automatically, see the comprehensive [Installation Guide](./INSTALLATION.md) for step-by-step instructions across Linux, macOS, Android (Termux), and Windows.
-
-| Platform | Quick One-Liner Install |
-| :--- | :--- |
-| **Linux / macOS / Termux** | `curl -fsSL https://raw.githubusercontent.com/ThruqeLabs/whatsrook/master/scripts/install.sh \| bash` |
-| **Windows (PowerShell)** | `irm https://raw.githubusercontent.com/ThruqeLabs/whatsrook/master/scripts/install.ps1 \| iex` |
+If you want to install on your system automatically, see the [Installation Guide](./INSTALLATION.md) for simple one-line copy-and-paste commands for Linux, macOS, Android (Termux), and Windows.
 
 ## Usage
 
