@@ -8,6 +8,15 @@ Join the Chat [@whatsook:public](https://t.me/whatsrookpublic)
 
 For questions about whatsrook use cases (like how to do stuff or seek more help), you can also join the [Telegram Channel](https://t.me/whatsrook) for announcements and general updates.
 
+## Installation
+
+If you want to install on your system automatically, see the comprehensive [Installation Guide](./INSTALLATION.md) for step-by-step instructions across Linux, macOS, Android (Termux), and Windows.
+
+| Platform | Quick One-Liner Install |
+| :--- | :--- |
+| **Linux / macOS / Termux** | `curl -fsSL https://raw.githubusercontent.com/ThruqeLabs/whatsrook/master/scripts/install.sh \| bash` |
+| **Windows (PowerShell)** | `irm https://raw.githubusercontent.com/ThruqeLabs/whatsrook/master/scripts/install.ps1 \| iex` |
+
 ## Usage
 
 The configuration [doc](./CONFIGURATION.md) contains info about all the environment variables needed to run whatsrook.
