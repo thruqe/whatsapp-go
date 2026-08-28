@@ -6,12 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"whatsrook"
 	"whatsrook/cmd/updater"
@@ -40,8 +37,8 @@ func main() {
 	defer cancel()
 
 	if args.Session == "" {
-		if err := runIdleMode(ctx); err != nil {
-			Logger.Error("idle server error", "err", err)
+		if err := runStandby(ctx, args.Database); err != nil {
+			Logger.Error("standby error", "err", err)
 			os.Exit(1)
 		}
 		return
@@ -70,8 +67,8 @@ func main() {
 				return
 			}
 			Logger.Info("session was logged out and removed; switching to standby mode")
-			if err := runIdleMode(ctx); err != nil {
-				Logger.Error("idle server error", "err", err)
+			if err := runStandby(ctx, args.Database); err != nil {
+				Logger.Error("standby error", "err", err)
 				os.Exit(1)
 			}
 			return
@@ -128,55 +125,5 @@ func handleUpdate(op string) {
 			os.Exit(1)
 		}
 		os.Exit(0) // exit after handing off on Windows
-	}
-}
-
-func runIdleMode(ctx context.Context) error {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintf(w, "WhatsRook standby • waiting for session • %s\n", time.Now().Format("15:04:05"))
-	})
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintln(w, "OK")
-	})
-
-	// Bind to port :0 for random assignment
-	listener, err := net.Listen("tcp", ":0")
-	if err != nil {
-		return fmt.Errorf("failed to bind standby server: %w", err)
-	}
-
-	boundPort := listener.Addr().(*net.TCPAddr).Port
-	Logger.Info("standby HTTP server online", "port", boundPort, "addr", listener.Addr().String())
-
-	server := &http.Server{Handler: mux}
-	go func() {
-		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			Logger.Error("standby HTTP server encountered error", "err", err)
-		}
-	}()
-
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_ = server.Shutdown(shutdownCtx)
-		_ = listener.Close()
-	}()
-
-	fmt.Printf("\rWhatsRook standby (port :%d) • waiting for session • %s", boundPort, time.Now().Format("15:04:05"))
-
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			fmt.Printf("\rWhatsRook standby (port :%d) • waiting for session • %s", boundPort, time.Now().Format("15:04:05"))
-		case <-ctx.Done():
-			fmt.Println()
-			return nil
-		}
 	}
 }
