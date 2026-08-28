@@ -220,117 +220,81 @@ const indexHTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WhatsRook • WhatsApp Pairing</title>
+  <title>Connect your WhatsApp • WhatsRook</title>
   <style>
-    :root {
-      --bg: #0c1317;
-      --card-bg: #111b21;
-      --primary: #00a884;
-      --text: #e9edef;
-      --text-muted: #8696a0;
-      --border: #222e35;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    :root { --background: #eef6f4; --surface: rgba(255,255,255,.58); --text: #173b36; --muted: #5f7772; --border: rgba(255,255,255,.8); --whatsapp: #128c7e; --whatsapp-dark: #075e54; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: var(--bg);
+      background: radial-gradient(circle at 12% 12%, rgba(37,211,102,.18), transparent 28rem), radial-gradient(circle at 90% 88%, rgba(18,140,126,.14), transparent 24rem), var(--background);
       color: var(--text);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       min-height: 100vh;
-      padding: 1.5rem;
     }
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 1rem;
-      padding: 2.5rem 2rem;
-      max-width: 440px;
-      width: 100%;
-      text-align: center;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    }
-    .brand {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--primary);
-      margin-bottom: 0.5rem;
-    }
-    .title {
-      font-size: 1.15rem;
-      font-weight: 600;
-      margin-bottom: 0.75rem;
-    }
-    .subtitle {
-      font-size: 0.9rem;
-      color: var(--text-muted);
-      line-height: 1.4;
-      margin-bottom: 1.75rem;
-    }
-    .qr-container {
-      background: #ffffff;
-      border-radius: 0.75rem;
-      padding: 0.75rem;
-      display: inline-block;
-      margin-bottom: 1.5rem;
-      min-width: 280px;
-      min-height: 280px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    .qr-container img {
-      width: 280px;
-      height: 280px;
-      display: block;
-      border-radius: 0.25rem;
-    }
-    .steps {
-      text-align: left;
-      background: rgba(255,255,255,0.03);
-      border-radius: 0.5rem;
-      padding: 1rem;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-    .steps ol { padding-left: 1.25rem; }
-    .success {
-      display: none;
-      padding: 2rem 1rem;
-    }
-    .success .icon {
-      font-size: 3.5rem;
-      color: var(--primary);
-      margin-bottom: 1rem;
-    }
+    .shell { animation: rise .7s ease-out both; margin: auto; max-width: 620px; padding: 3rem 1.25rem; }
+    header { margin-bottom: 1.5rem; text-align: center; }
+    .brand { color: var(--whatsapp-dark); font-size: 1.25rem; font-weight: 600; }
+    .subtitle { color: var(--muted); font-size: .9rem; margin-top: .4rem; }
+    .qr-card { animation: float 6s ease-in-out 1s infinite; background: linear-gradient(135deg, rgba(255,255,255,.78), rgba(255,255,255,.38)); backdrop-filter: blur(22px); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 24px 60px rgba(7,94,84,.13), inset 0 1px 0 rgba(255,255,255,.9); overflow: hidden; padding: 1rem; position: relative; }
+    .qr-card::before { animation: sheen 7s ease-in-out infinite; background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,.55) 48%, transparent 65%); content: ""; inset: 0; pointer-events: none; position: absolute; transform: translateX(-120%); }
+    .card-top { border-bottom: 1px solid rgba(7,94,84,.12); color: var(--text); font-size: .9rem; font-weight: 600; padding: .25rem .25rem .9rem; position: relative; text-align: center; z-index: 1; }
+    .status { color: var(--whatsapp-dark); font-size: .75rem; font-weight: 400; margin-left: .35rem; }
+    .status::before { animation: pulse 1.8s ease-in-out infinite; background: var(--whatsapp); border-radius: 50%; content: ""; display: inline-block; height: .45rem; margin-right: .3rem; width: .45rem; }
+    .qr-container { align-items: center; background: rgba(255,255,255,.7); border-radius: 12px; display: flex; justify-content: center; margin-top: 1rem; padding: 1.25rem; position: relative; z-index: 1; }
+    .qr-container img { display: block; image-rendering: pixelated; max-width: 100%; width: 360px; }
+    .card-foot { color: var(--muted); font-size: .75rem; padding: 0 .25rem .25rem; text-align: center; }
+    .instructions { margin-top: 1.25rem; }
+    .instructions p { font-size: .85rem; font-weight: 600; margin-bottom: .65rem; }
+    .steps { color: var(--muted); counter-reset: step; display: grid; gap: .45rem; list-style: none; }
+    .steps li { align-items: center; display: flex; font-size: .83rem; gap: .6rem; }
+    .steps li::before { align-items: center; background: #dff5f0; border-radius: 50%; color: var(--whatsapp-dark); content: counter(step); counter-increment: step; display: flex; font-size: .7rem; font-weight: 600; height: 1.35rem; justify-content: center; width: 1.35rem; }
+    .success { display: none; padding: 4rem 1rem; text-align: center; }
+    .success .icon { animation: pop .5s ease-out both; color: var(--whatsapp); font-size: 3rem; }
+    .success .title { font-size: 1.25rem; font-weight: 600; margin-top: .5rem; }
+    .success .subtitle { color: var(--muted); font-size: .9rem; margin-top: .5rem; }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @keyframes sheen { 0%, 35% { transform: translateX(-120%); } 65%, 100% { transform: translateX(120%); } }
+    @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(18,140,126,.35); } 50% { box-shadow: 0 0 0 5px rgba(18,140,126,0); } }
+    @keyframes pop { from { opacity: 0; transform: scale(.75); } to { opacity: 1; transform: scale(1); } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; } }
   </style>
 </head>
 <body>
-  <div class="card" id="card">
-    <div id="pairing-view">
+  <div class="shell">
+    <header>
       <div class="brand">WhatsRook</div>
-      <div class="title">Link with WhatsApp</div>
-      <div class="subtitle">Scan this QR code with WhatsApp to connect your bot session.</div>
+      <div class="subtitle">Scan to connect your WhatsApp account</div>
+    </header>
+    <main id="card">
+    <div id="pairing-view">
+      <div class="qr-card">
+      <div class="card-top">Scan with WhatsApp <span class="status">Waiting</span></div>
       <div class="qr-container">
         <img id="qr-img" src="/qr.png?t=0" alt="WhatsApp QR Code">
       </div>
-      <div class="steps">
-        <ol>
-          <li>Open <b>WhatsApp</b> on your phone</li>
-          <li>Tap <b>Settings</b> &gt; <b>Linked Devices</b></li>
-          <li>Tap <b>Link a Device</b> and point camera at screen</li>
+      <div class="card-foot">The code refreshes automatically.</div>
+      </div>
+      <div class="instructions">
+        <p>How to connect</p>
+        <ol class="steps">
+          <li>Open WhatsApp on your phone</li>
+          <li>Go to Settings &gt; Linked Devices</li>
+          <li>Choose Link a Device and scan</li>
         </ol>
       </div>
     </div>
     <div class="success" id="success-view">
       <div class="icon">✓</div>
-      <div class="title" style="color: var(--primary); font-size: 1.4rem;">Paired Successfully!</div>
-      <div class="subtitle" style="margin-top: 0.75rem;">Your session is now connected. You can close this browser tab.</div>
+      <div class="title">Paired successfully</div>
+      <div class="subtitle">Your WhatsApp session is connected. You can close this browser tab.</div>
     </div>
+    </main>
   </div>
 
   <script>
     const qrImg = document.getElementById('qr-img');
     const pairingView = document.getElementById('pairing-view');
+    const qrCard = document.querySelector('.qr-card');
     const successView = document.getElementById('success-view');
 
     function refreshQR() {
@@ -342,6 +306,7 @@ const indexHTML = `<!DOCTYPE html>
       source.onmessage = function(e) {
         if (e.data === 'paired') {
           pairingView.style.display = 'none';
+          qrCard.style.display = 'none';
           successView.style.display = 'block';
           source.close();
         } else if (e.data === 'update') {
