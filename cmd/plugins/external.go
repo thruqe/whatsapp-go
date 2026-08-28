@@ -281,6 +281,37 @@ func uninstallExternalPlugin(name string) error {
 	return nil
 }
 
+// normalizePluginSource ensures remote URLs are resolved with the platform suffix if missing.
+func normalizePluginSource(source string) (string, error) {
+	suffix, err := ResolvePlatformSuffix()
+	if err != nil {
+		return source, err
+	}
+
+	source = strings.ReplaceAll(source, "{platform}", suffix)
+	source = strings.ReplaceAll(source, "{target}", suffix)
+	source = strings.ReplaceAll(source, "{suffix}", suffix)
+
+	if !strings.HasPrefix(source, "http://") && !strings.HasPrefix(source, "https://") {
+		return source, nil
+	}
+
+	knownSuffixes := []string{
+		"linux-amd64", "linux-arm64", "linux-musl-amd64", "linux-musl-arm64",
+		"darwin-amd64", "darwin-arm64", "windows-amd64.exe", "windows-arm64.exe",
+		".exe", ".tar.gz", ".zip",
+	}
+	lowerSource := strings.ToLower(source)
+	for _, ks := range knownSuffixes {
+		if strings.HasSuffix(lowerSource, ks) {
+			return source, nil
+		}
+	}
+
+	source = strings.TrimSuffix(source, "/")
+	return source + "-" + suffix, nil
+}
+
 func handlePluginInstall(ctx *Context) error {
 	p := ctx.GetPrefix()
 	if len(ctx.Args) == 0 {
@@ -345,11 +376,10 @@ func handlePluginInstall(ctx *Context) error {
 		return ctx.Replyf("External plugin %q installed successfully for %s/%s.", name, runtime.GOOS, runtime.GOARCH)
 	}
 
-	name, source := ctx.Args[0], ctx.Args[1]
-	if suffix, err := ResolvePlatformSuffix(); err == nil {
-		source = strings.ReplaceAll(source, "{platform}", suffix)
-		source = strings.ReplaceAll(source, "{target}", suffix)
-		source = strings.ReplaceAll(source, "{suffix}", suffix)
+	name, rawSource := ctx.Args[0], ctx.Args[1]
+	source, err := normalizePluginSource(rawSource)
+	if err != nil {
+		return ctx.Replyf("Platform resolution error: %v", err)
 	}
 
 	ctx.StartAutoLoader()
