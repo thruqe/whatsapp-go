@@ -9,7 +9,7 @@ var (
 	successColor = lipgloss.Color("#10B981") // Emerald green
 	dangerColor  = lipgloss.Color("#F43F5E") // Rose/Red
 	textColor    = lipgloss.Color("#F8FAFC") // Off-white
-	mutedColor   = lipgloss.Color("#94A3B8") // Gray
+	mutedColor   = lipgloss.Color("#64748B") // Slate gray
 
 	// Typography & Container Styles
 	titleStyle = lipgloss.NewStyle().
@@ -34,18 +34,19 @@ var (
 			Bold(true).
 			Foreground(accentColor)
 
-	itemStyle = lipgloss.NewStyle().
-			Foreground(textColor).
-			PaddingLeft(2)
-
-	selectedItemStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(primaryColor).
-				PaddingLeft(0)
-
-	cursorStyle = lipgloss.NewStyle().
+	activeDotStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(primaryColor)
+
+	inactiveDotStyle = lipgloss.NewStyle().
+				Foreground(mutedColor)
+
+	activeItemStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(textColor)
+
+	inactiveItemStyle = lipgloss.NewStyle().
+				Foreground(mutedColor)
 
 	helpStyle = lipgloss.NewStyle().
 			Foreground(mutedColor).
