@@ -16,6 +16,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type state int
@@ -63,11 +64,17 @@ type chanWriter struct {
 }
 
 func (w *chanWriter) Write(p []byte) (n int, err error) {
-	text := strings.TrimRight(string(p), "\r\n")
-	if text != "" {
-		select {
-		case w.ch <- text:
-		default:
+	text := string(p)
+	lines := strings.FieldsFunc(text, func(r rune) bool {
+		return r == '\r' || r == '\n'
+	})
+	for _, l := range lines {
+		trimmed := strings.TrimSpace(l)
+		if trimmed != "" {
+			select {
+			case w.ch <- trimmed:
+			default:
+			}
 		}
 	}
 	return len(p), nil
@@ -194,9 +201,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case updateLogChunkMsg:
 		line := string(msg)
 		if line != "" {
-			m.updateLogs = append(m.updateLogs, line)
-			if len(m.updateLogs) > 12 {
-				m.updateLogs = m.updateLogs[len(m.updateLogs)-12:]
+			if strings.HasPrefix(line, "[") && len(m.updateLogs) > 0 && strings.HasPrefix(m.updateLogs[len(m.updateLogs)-1], "[") {
+				m.updateLogs[len(m.updateLogs)-1] = line
+			} else {
+				m.updateLogs = append(m.updateLogs, line)
+				if len(m.updateLogs) > 30 {
+					m.updateLogs = m.updateLogs[len(m.updateLogs)-30:]
+				}
 			}
 		}
 		return m, waitForLog(m.updateLogChan, m.updateFinChan)
@@ -1149,19 +1160,30 @@ func (m model) viewUpdateProgress() string {
 	s.WriteString(titleStyle.Render(fmt.Sprintf("UPDATING WHATSROOK (%s)", strings.ToUpper(channelName))))
 	s.WriteString("\n\n")
 
+	contentWidth := m.width - 4
+	if contentWidth > 74 {
+		contentWidth = 74
+	} else if contentWidth < 20 {
+		contentWidth = 20
+	}
+
+	logLineStyle := lipgloss.NewStyle().
+		Foreground(mutedColor).
+		Width(contentWidth)
+
 	if m.updateDone {
 		if m.updateErr != nil {
-			s.WriteString(errorStyle.Render(fmt.Sprintf("! Upgrade error: %v", m.updateErr)))
+			s.WriteString(errorStyle.Width(contentWidth).Render(fmt.Sprintf("! Upgrade error: %v", m.updateErr)))
 			s.WriteString("\n\n")
 			s.WriteString(helpStyle.Render("Press [Enter] or [Esc] to return to updater menu"))
 		} else if m.updateResult != nil && m.updateResult.Updated {
-			s.WriteString(successStyle.Render(fmt.Sprintf("✓ Upgrade successful! Version: v%s", m.updateResult.LatestVersion)))
+			s.WriteString(successStyle.Width(contentWidth).Render(fmt.Sprintf("✓ Upgrade successful! Version: v%s", m.updateResult.LatestVersion)))
 			s.WriteString("\n\n")
-			s.WriteString(activeItemStyle.Render("  Press [Enter] to restart WhatsRook with new version now."))
+			s.WriteString(activeItemStyle.Width(contentWidth).Render("  Press [Enter] to restart WhatsRook with new version now."))
 			s.WriteString("\n\n")
 			s.WriteString(helpStyle.Render("Press [Enter] to restart • [Esc] to exit"))
 		} else if m.updateResult != nil {
-			s.WriteString(successStyle.Render(fmt.Sprintf("✓ Already at the latest version (%s).", m.updateResult.CurrentVersion)))
+			s.WriteString(successStyle.Width(contentWidth).Render(fmt.Sprintf("✓ Already at the latest version (%s).", m.updateResult.CurrentVersion)))
 			s.WriteString("\n\n")
 			s.WriteString(helpStyle.Render("Press [Enter] or [Esc] to return to updater menu"))
 		}
@@ -1172,12 +1194,25 @@ func (m model) viewUpdateProgress() string {
 		// Render streaming log lines
 		s.WriteString(headerMutedStyle.Render("  Live Output:"))
 		s.WriteByte('\n')
-		for _, logLine := range m.updateLogs {
-			s.WriteString("    " + inactiveItemStyle.Render(logLine))
+
+		maxLines := 8
+		if m.height > 0 && m.height < 24 {
+			maxLines = 4
+		} else if m.height >= 35 {
+			maxLines = 14
+		}
+
+		visibleLogs := m.updateLogs
+		if len(visibleLogs) > maxLines {
+			visibleLogs = visibleLogs[len(visibleLogs)-maxLines:]
+		}
+
+		for _, logLine := range visibleLogs {
+			s.WriteString("  " + logLineStyle.Render(logLine))
 			s.WriteByte('\n')
 		}
 		s.WriteByte('\n')
-		s.WriteString(helpStyle.Render("Please wait while update is applied..."))
+		s.WriteString(helpStyle.Render(m.getHelpText("")))
 	}
 
 	return s.String()
