@@ -2,21 +2,19 @@
 
 External plugins allow you to extend whatsrook with independently developed executable programs. A plugin can be written in any language (Rust, Go, Python, C, etc.), compiled into a standalone binary, installed into whatsrook, and used directly as a WhatsApp command.
 
-External plugins run as isolated child processes. They do not need to be compiled together with whatsrook, and they do not require changes to the whatsrook Go source code.
+External plugins run as isolated child processes managed by the dedicated [`package external`](file:///home/thruqe/whatsrook/src/external). They can perform virtually any action an internal plugin can do — sending rich media, polls, reactions, audio voice notes, stickers, documents, and real-time live message edits.
 
 ---
 
 ## How It Works
 
-The external plugin lifecycle:
-
-1. Create a plugin program.
-2. Build an executable for the operating system and CPU architecture running whatsrook.
-3. Install the executable with the `.install` command.
-4. Run the plugin by sending its installed command name in WhatsApp.
-5. The plugin reads a JSON request from standard input and either:
+1. Create a plugin program in any language.
+2. Build an executable for the host operating system and CPU architecture.
+3. Install the executable using the `.install` command.
+4. Run the plugin by sending its command name in WhatsApp.
+5. The plugin reads a rich JSON request from standard input and either:
    - **Simple Mode**: Writes a single text reply to standard output.
-   - **Live Streaming Mode**: Writes newline-delimited JSON action frames to standard output to send messages, receive message IDs, and perform live in-place edits (e.g. real-time ticker prices, live progress updates).
+   - **Action Protocol Mode**: Streams newline-delimited JSON action frames to standard output to execute rich WhatsApp actions (images, video, audio, stickers, documents, polls, reactions, live in-place edits).
 
 Example:
 
@@ -25,71 +23,30 @@ Example:
 .weather London
 ```
 
-The `.install`, `.uninstall`, and `.plist` management commands are restricted to the bot owner and configured sudoers.
+---
+
+## Plugin Management Commands
+
+| Command | Usage | Description |
+|---|---|---|
+| `.install <name>` | `.install weather` | Downloads and installs from official registry for host OS/arch |
+| `.install all` | `.install all` | Installs all 13 official external plugins in parallel |
+| `.install <name> <url/path>` | `.install custom https://...` | Installs from custom URL or local path |
+| `.plist` | `.plist` (or `.pluginlist`) | Lists all installed external plugins |
+| `.uninstall <name>` | `.uninstall weather` | Uninstalls an external plugin |
+| `.uninstall all` | `.uninstall all` | Uninstalls all external plugins |
 
 ---
 
-## Plugin Commands
+## Inbound Request Payload (`stdin`)
 
-### Install
-
-Install from official registry (automatically detects host OS & architecture, including Android Termux):
-
-```text
-.install <name>
-```
-
-Install all official plugins at once:
-
-```text
-.install all
-```
-
-Install from a custom HTTP/HTTPS URL or clean URL (whatsrook automatically appends host platform suffix if missing):
-
-```text
-.install weather https://example.com/releases/latest/download/weather
-```
-
-Install a local server binary:
-
-```text
-.install weather /opt/plugins/weather
-```
-
-Plugin names must:
-- Contain between 1 and 64 characters.
-- Start with an alphanumeric character.
-- Contain only letters, numbers, underscores (`_`), and hyphens (`-`).
-
-### List Installed Plugins
-
-```text
-.plist
-```
-
-(`pluginlist` is also accepted as an alias).
-
-### Uninstall
-
-```text
-.uninstall <name>
-.uninstall all
-```
-
----
-
-## Plugin Protocol
-
-### Inbound Request Payload (Standard Input)
-
-When a command is triggered, whatsrook sends a JSON request line on `stdin`:
+When a command is triggered, WhatsRook passes a JSON request line on `stdin`:
 
 ```json
 {
-  "command": "btc",
-  "args": ["stop"],
-  "raw_args": "stop",
+  "command": "calc",
+  "args": ["12", "*", "12"],
+  "raw_args": "12 * 12",
   "chat": "1234567890@s.whatsapp.net",
   "sender": "9876543210@s.whatsapp.net",
   "prefix": ".",
@@ -97,190 +54,155 @@ When a command is triggered, whatsrook sends a JSON request line on `stdin`:
   "push_name": "Alice",
   "is_group": true,
   "is_sudo": true,
+  "is_owner": true,
+  "is_admin": true,
   "live_session": false,
-  "is_cancel_request": true
+  "is_cancel_request": false,
+  "quoted_message": {
+    "id": "3EB0ABC12345",
+    "sender": "1122334455@s.whatsapp.net",
+    "text": "Hello world"
+  },
+  "mentioned_jids": ["1122334455@s.whatsapp.net"]
 }
 ```
 
-#### Request Fields:
+### Request Fields:
 
 | Field | Type | Description |
 |---|---|---|
-| `command` | `string` | The installed plugin name. |
-| `args` | `[]string` | Arguments split on whitespace. |
-| `raw_args` | `string` | The complete unparsed argument string following the command. |
-| `chat` | `string` | WhatsApp JID of the chat where the command was executed. |
-| `sender` | `string` | WhatsApp JID of the sender. |
-| `prefix` | `string` | Active command prefix from bot settings (e.g. `.` or `/`). |
+| `command` | `string` | The installed plugin command name. |
+| `args` | `[]string` | Whitespace-split arguments. |
+| `raw_args` | `string` | Unparsed argument string following the command. |
+| `chat` | `string` | JID of the WhatsApp chat where executed. |
+| `sender` | `string` | JID of the sender. |
+| `prefix` | `string` | Active command prefix (e.g. `.` or `/`). |
 | `bot_name` | `string` | Configured display name of the bot. |
 | `push_name` | `string` | WhatsApp push display name of the sender. |
-| `is_group` | `bool` | `true` if invoked inside a WhatsApp group. |
+| `is_group` | `bool` | `true` if invoked in a group. |
 | `is_sudo` | `bool` | `true` if sender is bot owner or in `sudoers`. |
-| `live_session` | `bool` | `true` if a live streaming session is currently active for this chat & command. |
-| `is_cancel_request` | `bool` | `true` if the argument is a stop keyword (`stop`, `cancel`, `end`, `off`). |
+| `is_owner` | `bool` | `true` if sender is the primary bot owner. |
+| `is_admin` | `bool` | `true` if sender is a group admin. |
+| `quoted_message` | `object` | Context of quoted/replied-to message (`id`, `sender`, `text`). |
+| `mentioned_jids` | `[]string` | List of mentioned user JIDs. |
 
 ---
 
-### Response Modes
+## Action Frame Protocol (`stdout`)
 
-#### 1. Simple Mode (Plain Text)
+External plugins can execute any action an internal plugin can do by writing newline-delimited JSON frames to `stdout`.
 
-For standard one-shot commands, write the reply directly to `stdout`. whatsrook trims the text and sends it as a WhatsApp reply.
-
-```text
-Weather for London: 18°C, Partly Cloudy ⛅
-```
-
-#### 2. Live Streaming & In-Place Editing Mode
-
-For live tickers (like `.btc`), countdowns, progress loaders, or multi-step tasks, external plugins can stream newline-delimited JSON action frames to `stdout`.
-
-##### Action Frames (Plugin → WhatsRook via `stdout`):
-
-1. **Send Initial Message & Obtain Message ID:**
-   ```json
-   {"action":"reply","text":"₿ *Bitcoin Price:* $88,240.50\n\n_Updating every 1.5s..._"}
-   ```
-   WhatsRook responds on `stdin` with an Acknowledgment frame containing the sent WhatsApp `msg_id`:
-   ```json
-   {"ok":true,"msg_id":"3EB0ABC12345"}
-   ```
-
-2. **Live Edit Message:**
-   ```json
-   {"action":"edit","msg_id":"3EB0ABC12345","text":"₿ *Bitcoin Price:* $88,295.10\n\n_Updating every 1.5s..._"}
-   ```
-
-3. **Conclude Live Session:**
-   ```json
-   {"action":"done"}
-   ```
-
----
-
-## Live Session Management & Cancellation
-
-When a streaming plugin is running:
-- WhatsRook tracks the active session keyed by `chat_jid:command_name`.
-- Users in the chat can send `.<command> stop` (e.g. `.btc stop`, `.btc cancel`, `.btc off`) at any time to instantly terminate the live process and clean up resources.
-- Live sessions are automatically capped at a 5-minute safety timeout window.
-
----
-
-## Manifest & Access Permissions
-
-Each installed plugin stores a `<name>.json` manifest file adjacent to its executable. Plugins can configure public access:
-
+### 1. Send Text Reply
 ```json
-{
-  "name": "btc",
-  "description": "Live Bitcoin ticker",
-  "is_public": true
-}
+{"action":"reply","text":"Hello world"}
+```
+WhatsRook responds on `stdin` with an Acknowledgment frame:
+```json
+{"ok":true,"msg_id":"3EB0ABC12345"}
 ```
 
-- When `"is_public": true`, any participant in a chat or group can run the command.
-- When omitted or `false`, only the bot owner and configured `sudoers` can invoke the command.
+### 2. Live In-Place Edit
+```json
+{"action":"edit","msg_id":"3EB0ABC12345","text":"Updated text content"}
+```
+
+### 3. Emoji Reaction
+```json
+{"action":"react","emoji":"🔥"}
+```
+
+### 4. Delete / Revoke Message
+```json
+{"action":"delete","msg_id":"3EB0ABC12345"}
+```
+
+### 5. Send Image
+```json
+{"action":"send_image","data":"https://example.com/chart.png","caption":"Market Chart"}
+```
+*(Supports HTTP/HTTPS URLs or base64 data strings).*
+
+### 6. Send Audio / Voice Note (PTT)
+```json
+{"action":"send_audio","data":"https://example.com/audio.ogg","ptt":true}
+```
+
+### 7. Send Video / GIF
+```json
+{"action":"send_video","data":"https://example.com/animation.mp4","caption":"Check this out","gif_playback":true}
+```
+
+### 8. Send Document
+```json
+{"action":"send_document","data":"https://example.com/report.pdf","filename":"report.pdf","caption":"Annual Report"}
+```
+
+### 9. Send Sticker
+```json
+{"action":"send_sticker","data":"https://example.com/sticker.webp"}
+```
+
+### 10. Send Interactive Poll
+```json
+{"action":"poll","question":"What is your favorite crypto?","options":["Bitcoin","Ethereum","Solana"],"selectable":1}
+```
+
+### 11. Typing Loader Indicator
+```json
+{"action":"loader","text":"Processing your request..."}
+```
+
+### 12. Conclude Session
+```json
+{"action":"done"}
+```
 
 ---
 
-## Rust Example with `whatsrook-sdk`
+## Rust SDK Example (`whatsrook-sdk`)
 
 ```rust
-use std::thread;
-use std::time::{Duration, Instant};
-use whatsrook_sdk::{create_http_client, send_done, send_edit_live, send_reply_live, Request};
+use whatsrook_sdk::{
+    create_http_client, respond, send_action, send_done, send_edit_live, send_image,
+    send_poll, send_react, send_reply_live, Action, Request,
+};
 
 fn main() {
-    let req = Request::load_streaming();
-    let prefix = req.prefix();
+    let req = Request::load();
 
-    let initial_msg = format!("⏳ Starting live countdown...\nUse {}countdown stop to cancel.", prefix);
-    let msg_id = match send_reply_live(&initial_msg) {
-        Some(id) => id,
-        None => return,
-    };
-
-    for i in (1..=10).rev() {
-        thread::sleep(Duration::from_millis(1500));
-        send_edit_live(&msg_id, &format!("⏳ T-minus {} seconds...", i));
+    // Check permissions
+    if req.is_group() && !req.is_admin() {
+        send_react("❌");
+        respond("This feature is for group admins only.");
+        return;
     }
 
-    send_edit_live(&msg_id, "🚀 Blast off!");
+    // Access quoted text if user replied to another message
+    if let Some(quoted) = req.quoted_text() {
+        println!("User replied to: {}", quoted);
+    }
+
+    // React to the message
+    send_react("🚀");
+
+    // Send an interactive poll
+    send_poll("Which asset to track?", &["BTC", "ETH", "Gold"]);
+
+    // Send a live ticker message with in-place edits
+    if let Some(msg_id) = send_reply_live("⏳ Initializing live tracker...") {
+        for i in 1..=5 {
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            send_edit_live(&msg_id, &format!("📈 Tracker tick #{}...", i));
+        }
+    }
+
     send_done();
 }
 ```
 
 ---
 
-## Complete Go Example
-
-```go
-package main
-
-import (
-	"bufio"
-	"encoding/json"
-	"fmt"
-	"os"
-	"strings"
-	"time"
-)
-
-type Request struct {
-	Command string `json:"command"`
-	Prefix  string `json:"prefix"`
-	RawArgs string `json:"raw_args"`
-}
-
-type Action struct {
-	Action string `json:"action"`
-	Text   string `json:"text,omitempty"`
-	MsgID  string `json:"msg_id,omitempty"`
-}
-
-type Ack struct {
-	OK    bool   `json:"ok"`
-	MsgID string `json:"msg_id"`
-}
-
-func main() {
-	reader := bufio.NewReader(os.Stdin)
-	line, _ := reader.ReadString('\n')
-
-	var req Request
-	_ = json.Unmarshal([]byte(strings.TrimSpace(line)), &req)
-
-	// Send initial message
-	action, _ := json.Marshal(Action{Action: "reply", Text: "Loading live status..."})
-	fmt.Println(string(action))
-
-	// Read Ack
-	ackLine, _ := reader.ReadString('\n')
-	var ack Ack
-	_ = json.Unmarshal([]byte(strings.TrimSpace(ackLine)), &ack)
-
-	// Live edit loop
-	for i := 1; i <= 5; i++ {
-		time.Sleep(1500 * time.Millisecond)
-		edit, _ := json.Marshal(Action{
-			Action: "edit",
-			MsgID:  ack.MsgID,
-			Text:   fmt.Sprintf("Live Status Update #%d/5", i),
-		})
-		fmt.Println(string(edit))
-	}
-
-	done, _ := json.Marshal(Action{Action: "done"})
-	fmt.Println(string(done))
-}
-```
-
----
-
-## Building for Multiple Platforms
-
-WhatsRook uses static MUSL compilation on Linux to support both standard servers and Android (Termux) environments seamlessly:
+## Supported Architectures
 
 - **Linux AMD64 (Static MUSL)**: `x86_64-unknown-linux-musl`
 - **Linux ARM64 / Android Termux (Static MUSL)**: `aarch64-unknown-linux-musl`

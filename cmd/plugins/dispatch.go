@@ -14,6 +14,7 @@ import (
 	clistore "whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
 	utils "whatsrook/src"
+	"whatsrook/src/external"
 	Logger "whatsrook/src/logger"
 
 	"go.mau.fi/whatsmeow"
@@ -441,13 +442,13 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	args := fields[1:]
 
 	cmd, ok := Get(name)
-	if !ok && isExternalPluginInstalled(name) {
-		if !utils.IsSudoRaw(ctx, client, evt.Info.Sender) && !isExternalPluginPublic(name) {
+	if !ok && external.DefaultDispatcher.IsInstalled(name) {
+		if !utils.IsSudoRaw(ctx, client, evt.Info.Sender) && !external.DefaultDispatcher.IsPublic(name) {
 			Logger.Warn("External plugin execution denied", "plugin", name, "sender", evt.Info.Sender.String())
 			return true
 		}
 		rawArgs := strings.TrimSpace(strings.TrimPrefix(body, fields[0]))
-		return runExternalPlugin(ctx, client, evt, name, args, rawArgs)
+		return external.DefaultDispatcher.Dispatch(ctx, client, evt, name, args, rawArgs)
 	}
 
 	if !ok {
