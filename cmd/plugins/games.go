@@ -21,8 +21,8 @@ import (
 
 func init() {
 	Register(&Command{
-		Name:        "tictactoe",
-		Alias:       "ttt",
+		Name:        "ttt",
+		Alias:       "tictactoe",
 		Description: "Play Tic-Tac-Toe against the bot AI or another user",
 		Category:    "games",
 		IsPublic:    true,
@@ -30,8 +30,8 @@ func init() {
 	})
 
 	Register(&Command{
-		Name:        "leaderboard",
-		Alias:       "lb",
+		Name:        "lb",
+		Alias:       "leaderboard",
 		Description: "Show overall XP & game leaderboard",
 		Category:    "games",
 		IsPublic:    true,
@@ -629,6 +629,8 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 func handleUnscramble(ctx *Context) error {
 	chatKey := ctx.Chat.String()
 
+	existingGame := cliutils.GetUnscrambleGame(chatKey)
+
 	arg0 := ""
 	if len(ctx.Args) > 0 {
 		arg0 = strings.ToLower(ctx.Args[0])
@@ -637,18 +639,132 @@ func handleUnscramble(ctx *Context) error {
 		return handleUnscrambleLeaderboard(ctx)
 	}
 
-	existingGame := cliutils.GetUnscrambleGame(chatKey)
-	if existingGame != nil {
-		if existingGame.IsHost(ctx.Sender.ToNonAD()) {
-			existingGame.StopTimers()
-			cliutils.DeleteUnscrambleGame(chatKey)
-			return ctx.Reply("Existing game cancelled. Starting a new game...")
-		} else {
-			if existingGame.State == cliutils.UnscrambleStateLobby {
-				return ctx.Reply("A game lobby is already open! Type `.unscramble join` to join or `.unscramble start` to begin.")
-			}
-			return ctx.Reply("A game is already in progress in this chat!")
+	if arg0 == "cancel" || arg0 == "stop" || arg0 == "end" || arg0 == "kill" || arg0 == "reset" {
+		if existingGame == nil {
+			return ctx.Reply("No active Unscramble game to end.")
 		}
+
+		senderLID := ctx.Sender.ToNonAD()
+		isBotOwner := ctx.IsSudo()
+		isHost := existingGame.IsHost(senderLID)
+
+		if !isBotOwner && !isHost {
+			return ctx.Reply("Only the game host or bot owner can end this match.")
+		}
+
+		existingGame.StopTimers()
+		cliutils.DeleteUnscrambleGame(chatKey)
+		return ctx.Reply("Unscramble game cancelled.")
+	}
+
+	if !cliutils.IsDictionaryDBReady() {
+		ctx.StopAutoLoader()
+		resp, err := ctx.Send("Downloading game resources (Dictionary DB)...")
+		var msgID types.MessageID
+		if err == nil {
+			msgID = resp.ID
+		}
+
+		lastUpdate := time.Now()
+		onProgress := func(downloaded, total int64) {
+			if msgID == "" {
+				return
+			}
+			if time.Since(lastUpdate) < 1200*time.Millisecond {
+				return
+			}
+			lastUpdate = time.Now()
+			if total > 0 {
+				pct := float64(downloaded) / float64(total) * 100
+				mbDownloaded := float64(downloaded) / (1024 * 1024)
+				mbTotal := float64(total) / (1024 * 1024)
+				_, _ = ctx.Edit(msgID, Sprintf("Downloading game resources... %.1f%% (%.1f/%.1f MB)", pct, mbDownloaded, mbTotal))
+			} else {
+				mbDownloaded := float64(downloaded) / (1024 * 1024)
+				_, _ = ctx.Edit(msgID, Sprintf("Downloading game resources... %.1f MB", mbDownloaded))
+			}
+		}
+
+		err = cliutils.DownloadDictionaryDBWithProgress(ctx.GetSendContext(), onProgress)
+		if err != nil {
+			if msgID != "" {
+				_, _ = ctx.Edit(msgID, Sprintf("Failed to download game resources: %v", err))
+			}
+			return ctx.Replyf("Failed to download game resources: %v", err)
+		}
+		if msgID != "" {
+			_, _ = ctx.Edit(msgID, "Game resources ready! Initializing...")
+			time.Sleep(400 * time.Millisecond)
+			_, _ = ctx.Delete(msgID)
+		}
+	}
+
+	if arg0 == "join" {
+		if existingGame == nil {
+			return ctx.Replyf("No active Unscramble lobby in this chat. Start one with %sunscramble", ctx.GetPrefix())
+		}
+		existingGame.Mu.Lock()
+		if existingGame.State != cliutils.UnscrambleStateLobby {
+			existingGame.Mu.Unlock()
+			return ctx.Reply("Unscramble game is already in progress!")
+		}
+		senderLID := ctx.Sender.ToNonAD()
+		if existingGame.FindPlayerIndex(senderLID) != -1 {
+			existingGame.Mu.Unlock()
+			mentionJID, username := ctx.ResolveMention(senderLID)
+			tag := "@" + username
+			return ctx.ReplyWithMentions(Sprintf("%s you have already joined the Unscramble match!", tag), []types.JID{mentionJID})
+		}
+		existingGame.Mu.Unlock()
+
+		mentionJID, username := ctx.ResolveMention(senderLID)
+		tag := "@" + username
+		if !existingGame.AddPlayer(senderLID, mentionJID, tag) {
+			return ctx.Reply("Unscramble match has already started!")
+		}
+
+		msg := Sprintf("%s joined the Unscramble match! (%d players in lobby)\nType 'join' to join or wait for the host to start.", tag, len(existingGame.Players))
+		return ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
+	}
+
+	if arg0 == "start" || arg0 == "create" || arg0 == "begin" {
+		if existingGame != nil {
+			existingGame.Mu.Lock()
+			state := existingGame.State
+			playerCount := len(existingGame.Players)
+			existingGame.Mu.Unlock()
+
+			if state == cliutils.UnscrambleStateLobby {
+				senderLID := ctx.Sender.ToNonAD()
+				isBotOwner := ctx.IsSudo()
+				isHost := existingGame.IsHost(senderLID)
+
+				if !isBotOwner && !isHost {
+					return ctx.Reply("Only the game host or bot owner can start the match!")
+				}
+
+				if playerCount == 0 {
+					return ctx.Reply("No players in lobby yet! Type `join` to join first.")
+				}
+				
+				existingGame.StopTimers()
+				startUnscrambleGame(ctx, existingGame)
+				return nil
+			}
+			return ctx.Reply("Unscramble game is already in progress!")
+		}
+		return ctx.Replyf("No active Unscramble lobby in this chat. Start one with %sunscramble", ctx.GetPrefix())
+	}
+
+	if existingGame != nil {
+		existingGame.Mu.Lock()
+		state := existingGame.State
+		playerCount := len(existingGame.Players)
+		existingGame.Mu.Unlock()
+		if state == cliutils.UnscrambleStateLobby {
+			return ctx.Replyf("Unscramble Lobby Open! (%d players)\nType `join` to join or %sunscramble start to begin!", playerCount, ctx.GetPrefix())
+		}
+		return ctx.Reply("An Unscramble game is already in progress in this chat!")
 	}
 
 	hostLID := ctx.Sender.ToNonAD()
@@ -696,13 +812,19 @@ func startUnscrambleGame(ctx *Context, game *cliutils.UnscrambleGame) {
 }
 
 func startUnscrambleTurn(ctx *Context, game *cliutils.UnscrambleGame) {
-	scrambled, timeLimit, currentPlayer := game.StartTurn()
+	scrambled, hint, timeLimit, currentPlayer := game.StartTurn()
 	if currentPlayer == nil {
 		Logger.Error("startUnscrambleTurn: No current player available")
 		return
 	}
 
-	hintMsg := Sprintf("Unscramble the word: *%s*\nHint: Turn for @%s (%ds time limit)", scrambled, currentPlayer.Tag, timeLimit)
+	hintText := hint
+	if hintText == "" {
+		hintText = "Unscramble the letters to form a valid English word."
+	}
+
+	hintMsg := Sprintf("Unscramble the word: *%s* (%d letters)\nHint: %s\n\nTurn for %s (%ds time limit)",
+		scrambled, len(game.CurrentWord), hintText, currentPlayer.Tag, timeLimit)
 	_ = ctx.ReplyWithMentions(hintMsg, []types.JID{currentPlayer.MentionJID})
 
 	timer := time.AfterFunc(time.Duration(timeLimit)*time.Second, func() {
@@ -737,15 +859,15 @@ func finishUnscrambleGame(ctx *Context, game *cliutils.UnscrambleGame) {
 	winner, standings := game.FinishGame()
 	saveUnscrambleStats(ctx, game, winner)
 
-	tb := NewText().Header("🎮 *Unscramble Game Finished!*")
+	tb := NewText().Header("Unscramble Game Finished!")
 
 	if winner != nil {
-		tb.Linef("🏆 *Winner*: @%s (Score: %d)", winner.Tag, winner.Score).Blank()
+		tb.Linef("Winner: @%s (Score: %d)", winner.Tag, winner.Score).Blank()
 	} else {
 		tb.Line("No winner this round!").Blank()
 	}
 
-	tb.Section("📊 *Final Standings*:")
+	tb.Section("Final Standings:")
 	var mentions []types.JID
 	for idx, p := range standings {
 		tb.Numberedf(idx+1, "@%s - %d pts (%d correct)", p.Tag, p.Score, p.CorrectGuesses)
@@ -870,7 +992,8 @@ func handleUnscrambleLeaderboard(ctx *Context) error {
 }
 
 func sendUnscrambleInteractiveMenu(ctx *Context, hostTag string, hostMention types.JID) error {
-	bodyText := Sprintf("UNSCRAMBLE GAME\n\nHosted by %s\n\n30s Join Window Open!\nType 'join' to play.\n\nRules:\n- Words progress from 3 to 16 letters\n- Turn time decreases as difficulty rises (30s -> 6s)\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag)
+	p := ctx.GetPrefix()
+	bodyText := Sprintf("UNSCRAMBLE GAME\n\nHosted by %s\n\n30s Join Window Open!\nType 'join' or '%sunscramble join' to play.\n\nRules:\n- Words progress from 3 to 16 letters\n- Word meanings & clues fetched in real-time from Dictionary API\n- Turn time decreases as difficulty rises (30s -> 6s)\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag, p)
 
 	options := []string{
 		"Start Match",
@@ -919,14 +1042,19 @@ func HandleUnscrambleLobbyInput(ctx *Context, text string) bool {
 	}
 
 	game.Mu.Lock()
-	if game.State == cliutils.UnscrambleStateLobby {
+	if game.State != cliutils.UnscrambleStateLobby {
 		game.Mu.Unlock()
 		return false
 	}
 	game.Mu.Unlock()
 
 	trimmed := strings.ToLower(strings.TrimSpace(text))
-	if trimmed != "join" {
+	isJoinCmd := trimmed == "join" || trimmed == "unscramble join"
+	if !isJoinCmd {
+		clean := strings.Trim(trimmed, ".!/#$%^&*()_+-=`~")
+		isJoinCmd = clean == "join" || clean == "unscramble join" || strings.HasSuffix(clean, "unscramble join")
+	}
+	if !isJoinCmd {
 		return false
 	}
 
@@ -939,6 +1067,9 @@ func HandleUnscrambleLobbyInput(ctx *Context, text string) bool {
 	senderLID := ctx.Sender.ToNonAD()
 	if game.FindPlayerIndex(senderLID) != -1 {
 		game.Mu.Unlock()
+		mentionJID, username := ctx.ResolveMention(senderLID)
+		tag := "@" + username
+		_ = ctx.ReplyWithMentions(Sprintf("%s you have already joined the Unscramble match!", tag), []types.JID{mentionJID})
 		return true
 	}
 	game.Mu.Unlock()
