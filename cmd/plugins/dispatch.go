@@ -441,6 +441,15 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	args := fields[1:]
 
 	cmd, ok := Get(name)
+	if !ok && isExternalPluginInstalled(name) {
+		if !utils.IsSudoRaw(ctx, client, evt.Info.Sender) && !isExternalPluginPublic(name) {
+			Logger.Warn("External plugin execution denied", "plugin", name, "sender", evt.Info.Sender.String())
+			return true
+		}
+		rawArgs := strings.TrimSpace(strings.TrimPrefix(body, fields[0]))
+		return runExternalPlugin(ctx, client, evt, name, args, rawArgs)
+	}
+
 	if !ok {
 		if len(fields) > 1 {
 			for i := 1; i < len(fields); i++ {
@@ -456,14 +465,6 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		}
 	}
 	if !ok {
-		if isExternalPluginInstalled(name) {
-			if !utils.IsSudoRaw(ctx, client, evt.Info.Sender) && !isExternalPluginPublic(name) {
-				Logger.Warn("External plugin execution denied", "plugin", name, "sender", evt.Info.Sender.String())
-				return true
-			}
-			rawArgs := strings.TrimSpace(strings.TrimPrefix(body, fields[0]))
-			return runExternalPlugin(ctx, client, evt, name, args, rawArgs)
-		}
 		Logger.Debug("Command not found", "name", name, "chat", evt.Info.Chat.String())
 		return false
 	}
