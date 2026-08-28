@@ -42,14 +42,20 @@ var externalPluginNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,
 type externalPluginManifest struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	IsPublic    bool   `json:"is_public,omitempty"`
 }
 
 type externalPluginRequest struct {
-	Command string   `json:"command"`
-	Args    []string `json:"args,omitempty"`
-	RawArgs string   `json:"raw_args,omitempty"`
-	Chat    string   `json:"chat"`
-	Sender  string   `json:"sender"`
+	Command  string   `json:"command"`
+	Args     []string `json:"args,omitempty"`
+	RawArgs  string   `json:"raw_args,omitempty"`
+	Chat     string   `json:"chat"`
+	Sender   string   `json:"sender"`
+	Prefix   string   `json:"prefix"`
+	BotName  string   `json:"bot_name"`
+	PushName string   `json:"push_name,omitempty"`
+	IsGroup  bool     `json:"is_group"`
+	IsSudo   bool     `json:"is_sudo"`
 }
 
 func init() {
@@ -464,25 +470,47 @@ func runExternalPlugin(ctx context.Context, client *whatsmeow.Client, evt *event
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, externalPluginTimeout)
 	defer cancel()
-	request, _ := json.Marshal(externalPluginRequest{
+
+	plugCtx := &Context{
+		Ctx:     reqCtx,
+		Client:  client,
+		Evt:     evt,
+		Chat:    evt.Info.Chat,
+		Sender:  evt.Info.Sender,
 		Command: name,
 		Args:    args,
 		RawArgs: rawArgs,
-		Chat:    evt.Info.Chat.String(),
-		Sender:  evt.Info.Sender.String(),
+	}
+
+	prefix := plugCtx.GetPrefix()
+	botName := plugCtx.GetBotName()
+	isSudo := utils.IsSudoRaw(reqCtx, client, evt.Info.Sender)
+
+	request, _ := json.Marshal(externalPluginRequest{
+		Command:  name,
+		Args:     args,
+		RawArgs:  rawArgs,
+		Chat:     evt.Info.Chat.String(),
+		Sender:   evt.Info.Sender.String(),
+		Prefix:   prefix,
+		BotName:  botName,
+		PushName: evt.Info.PushName,
+		IsGroup:  evt.Info.IsGroup,
+		IsSudo:   isSudo,
 	})
-	cmd := exec.CommandContext(reqCtx, path, args...)
+
+	cmd := exec.CommandContext(reqCtx, path)
 	cmd.Stdin = strings.NewReader(string(request))
 	output, err := cmd.Output()
 	if err != nil {
 		Logger.Error("external plugin failed", "plugin", name, "err", err)
-		_ = (&Context{Ctx: reqCtx, Client: client, Evt: evt, Chat: evt.Info.Chat, Sender: evt.Info.Sender}).Replyf("External plugin %q failed: %v", name, err)
+		_ = plugCtx.Replyf("External plugin %q failed: %v", name, err)
 		return true
 	}
 
 	response := strings.TrimSpace(string(output))
 	if response != "" {
-		_ = (&Context{Ctx: reqCtx, Client: client, Evt: evt, Chat: evt.Info.Chat, Sender: evt.Info.Sender}).Reply(response)
+		_ = plugCtx.Reply(response)
 	}
 	return true
 }
@@ -495,3 +523,15 @@ func isExternalPluginInstalled(name string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir() && info.Mode().Perm()&0o111 != 0
 }
+
+// isExternalPluginPublic checks the plugin manifest for IsPublic setting.
+// If no manifest or field absent, defaults to false (sudoers only).
+func isExternalPluginPublic(name string) bool {
+	path, err := externalPluginPath(name)
+	if err != nil {
+		return false
+	}
+	manifest := readExternalPluginManifest(path)
+	return manifest.IsPublic
+}
+
