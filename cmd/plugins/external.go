@@ -657,8 +657,9 @@ func runExternalPlugin(ctx context.Context, client *whatsmeow.Client, evt *event
 				if strings.HasPrefix(trimmed, "{\"action\"") {
 					isStreaming = true
 				} else {
-					// Plain text mode
+					// Plain text mode: close stdinPipe immediately so plugin receives EOF on stdin
 					isStreaming = false
+					_ = stdinPipe.Close()
 					break
 				}
 			}
