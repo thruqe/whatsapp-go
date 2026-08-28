@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"whatsrook"
+	"whatsrook/cmd/tui"
 	"whatsrook/cmd/updater"
 	_ "whatsrook/src"
 	"whatsrook/src/cache"
@@ -62,13 +63,23 @@ func main() {
 		AsyncMessageAck: true,
 	})
 
-	if err := bot.Start(ctx); err != nil {
+	err := bot.Start(ctx)
+	tui.ClearTerminal()
+	if err != nil {
 		if errors.Is(err, whatsrook.ErrLoggedOut) {
 			if ctx.Err() != nil {
 				return
 			}
 			Logger.Info("session was logged out and removed; switching to standby mode")
-			if err := runStandby(ctx, args.Database); err != nil {
+			if err := runStandby(context.Background(), args.Database); err != nil {
+				Logger.Error("standby error", "err", err)
+				os.Exit(1)
+			}
+			return
+		}
+		// If interrupted with Ctrl+C, clear and switch smoothly to interactive standby
+		if errors.Is(err, context.Canceled) {
+			if err := runStandby(context.Background(), args.Database); err != nil {
 				Logger.Error("standby error", "err", err)
 				os.Exit(1)
 			}
