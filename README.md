@@ -12,6 +12,8 @@ For questions about whatsrook use cases (like how to do stuff or seek more help)
 
 The configuration [doc](./CONFIGURATION.md) contains info about all the environment variables needed to run whatsrook.
 
+External plugins can be built independently and installed as executable commands. Read the [external plugin setup documentation](./EXTERNAL_PLUGIN.md) to learn how to create, build, install, and use them.
+
 You can run a simple whatsrook instance on this [free host](https://wha-console.onrender.com/), this service not guaranteed to be alive at this moment, you can deploy own [wha-console](https://github.com/ThruqeLabs/wha-console) to run and manage whatsrook instance.
 
 If you want to run on your local machine, visit the [Downloads Page](https://github.com/ThruqeLabs/whatsrook/releases) and choose the appropriate for your operating system.
