@@ -248,6 +248,9 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, loader *Loader,
 }
 
 func (d *Dispatcher) sendAck(stdinPipe io.WriteCloser, ok bool, msgID string, err error) {
+	if stdinPipe == nil {
+		return
+	}
 	ack := Ack{OK: ok, MsgID: msgID}
 	if err != nil {
 		ack.Error = err.Error()

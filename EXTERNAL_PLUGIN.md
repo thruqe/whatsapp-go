@@ -202,8 +202,25 @@ fn main() {
 
 ---
 
-## Supported Architectures
+## Supported Architectures & WebAssembly (WASM)
 
+WhatsRook supports two execution engines for external plugins:
+
+### 1. WebAssembly / WASI Plugins (`.wasm`)
+WebAssembly modules run inside an embedded, pure-Go sandboxed runtime ([`wazero`](https://github.com/tetratelabs/wazero)). A single `.wasm` module runs universally on all operating systems and architectures with sub-millisecond startup times and memory isolation.
+
+```text
+# Install any WebAssembly plugin
+.install calc https://example.com/calc.wasm
+.calc 2 + 2
+```
+
+To build a Rust plugin as WASM:
+```bash
+cargo build --target wasm32-wasip1 --release
+```
+
+### 2. Native Executables
 - **Linux AMD64 (Static MUSL)**: `x86_64-unknown-linux-musl`
 - **Linux ARM64 / Android Termux (Static MUSL)**: `aarch64-unknown-linux-musl`
 - **macOS Apple Silicon**: `aarch64-apple-darwin`
