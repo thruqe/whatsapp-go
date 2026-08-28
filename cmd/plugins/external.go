@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"whatsrook"
@@ -21,6 +23,7 @@ import (
 	Logger "whatsrook/src/logger"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -29,6 +32,7 @@ const (
 	defaultExternalPluginRepo = "https://github.com/Thruqe/whatsrook-externals/releases/latest/download"
 	maxExternalPluginSize     = 64 << 20
 	externalPluginTimeout     = 30 * time.Second
+	externalLivePluginTimeout = 5 * time.Minute
 )
 
 var officialExternalPlugins = []string{
@@ -39,6 +43,17 @@ var officialExternalPlugins = []string{
 
 var externalPluginNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
+// livePluginSession tracks an active streaming external plugin process.
+type livePluginSession struct {
+	cancel     context.CancelFunc
+	pluginName string
+}
+
+var (
+	liveSessionsMu sync.Mutex
+	liveSessions   = make(map[string]*livePluginSession) // key = "chatJID:pluginName"
+)
+
 type externalPluginManifest struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
@@ -46,16 +61,32 @@ type externalPluginManifest struct {
 }
 
 type externalPluginRequest struct {
-	Command  string   `json:"command"`
-	Args     []string `json:"args,omitempty"`
-	RawArgs  string   `json:"raw_args,omitempty"`
-	Chat     string   `json:"chat"`
-	Sender   string   `json:"sender"`
-	Prefix   string   `json:"prefix"`
-	BotName  string   `json:"bot_name"`
-	PushName string   `json:"push_name,omitempty"`
-	IsGroup  bool     `json:"is_group"`
-	IsSudo   bool     `json:"is_sudo"`
+	Command         string   `json:"command"`
+	Args            []string `json:"args,omitempty"`
+	RawArgs         string   `json:"raw_args,omitempty"`
+	Chat            string   `json:"chat"`
+	Sender          string   `json:"sender"`
+	Prefix          string   `json:"prefix"`
+	BotName         string   `json:"bot_name"`
+	PushName        string   `json:"push_name,omitempty"`
+	IsGroup         bool     `json:"is_group"`
+	IsSudo          bool     `json:"is_sudo"`
+	IsLiveSession   bool     `json:"live_session,omitempty"`
+	IsCancelRequest bool     `json:"is_cancel_request,omitempty"`
+}
+
+// externalPluginAction is a single streaming action frame written by the plugin to stdout.
+type externalPluginAction struct {
+	Action string `json:"action"`           // "reply" | "edit" | "done"
+	Text   string `json:"text,omitempty"`   // for reply and edit
+	MsgID  string `json:"msg_id,omitempty"` // for edit
+}
+
+// externalPluginAck is sent by WhatsRook to the plugin stdin after a "reply" action.
+type externalPluginAck struct {
+	OK    bool   `json:"ok"`
+	MsgID string `json:"msg_id,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 func init() {
@@ -456,6 +487,24 @@ func handlePluginList(ctx *Context) error {
 	return ctx.Reply(strings.TrimSuffix(b.String(), "\n"))
 }
 
+func liveSessionKey(chatJID, pluginName string) string {
+	return chatJID + ":" + pluginName
+}
+
+func cancelLiveSession(chatJID, pluginName string) bool {
+	key := liveSessionKey(chatJID, pluginName)
+	liveSessionsMu.Lock()
+	sess, ok := liveSessions[key]
+	if ok && sess != nil {
+		if sess.cancel != nil {
+			sess.cancel()
+		}
+		delete(liveSessions, key)
+	}
+	liveSessionsMu.Unlock()
+	return ok
+}
+
 func runExternalPlugin(ctx context.Context, client *whatsmeow.Client, evt *events.Message, name string, args []string, rawArgs string) bool {
 	path, err := externalPluginPath(name)
 	if err != nil {
@@ -468,11 +517,40 @@ func runExternalPlugin(ctx context.Context, client *whatsmeow.Client, evt *event
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	reqCtx, cancel := context.WithTimeout(ctx, externalPluginTimeout)
-	defer cancel()
+
+	chatKey := evt.Info.Chat.String()
+	sessionKey := liveSessionKey(chatKey, name)
+
+	// Handle cancel request (.btc stop / .btc cancel)
+	isCancelRequest := len(args) > 0 && isStopArg(args[0])
+	if isCancelRequest {
+		if cancelLiveSession(chatKey, name) {
+			_ = (&Context{
+				Ctx: ctx, Client: client, Evt: evt,
+				Chat: evt.Info.Chat, Sender: evt.Info.Sender,
+			}).Replyf("🛑 Live %s tracking stopped.", name)
+		} else {
+			_ = (&Context{
+				Ctx: ctx, Client: client, Evt: evt,
+				Chat: evt.Info.Chat, Sender: evt.Info.Sender,
+			}).Replyf("No active %s session running in this chat.", name)
+		}
+		return true
+	}
+
+	// Cancel any existing live session before starting a new one
+	liveSessionsMu.Lock()
+	if prev, ok := liveSessions[sessionKey]; ok && prev != nil && prev.cancel != nil {
+		prev.cancel()
+		delete(liveSessions, sessionKey)
+	}
+	liveSessionsMu.Unlock()
+
+	// Build a context — use live timeout for streaming plugins, short timeout for plain ones
+	liveCtx, liveCancel := context.WithTimeout(context.Background(), externalLivePluginTimeout)
 
 	plugCtx := &Context{
-		Ctx:     reqCtx,
+		Ctx:     liveCtx,
 		Client:  client,
 		Evt:     evt,
 		Chat:    evt.Info.Chat,
@@ -484,35 +562,155 @@ func runExternalPlugin(ctx context.Context, client *whatsmeow.Client, evt *event
 
 	prefix := plugCtx.GetPrefix()
 	botName := plugCtx.GetBotName()
-	isSudo := utils.IsSudoRaw(reqCtx, client, evt.Info.Sender)
+	isSudo := utils.IsSudoRaw(liveCtx, client, evt.Info.Sender)
 
-	request, _ := json.Marshal(externalPluginRequest{
-		Command:  name,
-		Args:     args,
-		RawArgs:  rawArgs,
-		Chat:     evt.Info.Chat.String(),
-		Sender:   evt.Info.Sender.String(),
-		Prefix:   prefix,
-		BotName:  botName,
-		PushName: evt.Info.PushName,
-		IsGroup:  evt.Info.IsGroup,
-		IsSudo:   isSudo,
+	hasActiveLive := false
+	liveSessionsMu.Lock()
+	_, hasActiveLive = liveSessions[sessionKey]
+	liveSessionsMu.Unlock()
+
+	requestJSON, _ := json.Marshal(externalPluginRequest{
+		Command:         name,
+		Args:            args,
+		RawArgs:         rawArgs,
+		Chat:            chatKey,
+		Sender:          evt.Info.Sender.String(),
+		Prefix:          prefix,
+		BotName:         botName,
+		PushName:        evt.Info.PushName,
+		IsGroup:         evt.Info.IsGroup,
+		IsSudo:          isSudo,
+		IsLiveSession:   hasActiveLive,
+		IsCancelRequest: isCancelRequest,
 	})
 
-	cmd := exec.CommandContext(reqCtx, path)
-	cmd.Stdin = strings.NewReader(string(request))
-	output, err := cmd.Output()
+	cmd := exec.CommandContext(liveCtx, path)
+	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		Logger.Error("external plugin failed", "plugin", name, "err", err)
-		_ = plugCtx.Replyf("External plugin %q failed: %v", name, err)
+		liveCancel()
+		return false
+	}
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		liveCancel()
+		return false
+	}
+	if err := cmd.Start(); err != nil {
+		liveCancel()
+		Logger.Error("external plugin start failed", "plugin", name, "err", err)
+		return false
+	}
+
+	// Write the JSON request + newline to stdin
+	_, _ = fmt.Fprintf(stdinPipe, "%s\n", requestJSON)
+
+	// Read the first line of output to determine if this is a streaming or plain plugin
+	scanner := bufio.NewScanner(stdoutPipe)
+	var firstLine string
+	if scanner.Scan() {
+		firstLine = scanner.Text()
+	}
+
+	isStreaming := strings.HasPrefix(strings.TrimSpace(firstLine), "{\"action\"")
+
+	if !isStreaming {
+		// Plain text protocol (backward-compatible): collect all remaining output
+		_ = stdinPipe.Close()
+		var sb strings.Builder
+		if firstLine != "" {
+			sb.WriteString(firstLine)
+		}
+		for scanner.Scan() {
+			if sb.Len() > 0 {
+				sb.WriteByte('\n')
+			}
+			sb.WriteString(scanner.Text())
+		}
+		_ = cmd.Wait()
+		liveCancel()
+		response := strings.TrimSpace(sb.String())
+		if response != "" {
+			_ = plugCtx.Reply(response)
+		}
 		return true
 	}
 
-	response := strings.TrimSpace(string(output))
-	if response != "" {
-		_ = plugCtx.Reply(response)
-	}
+	// Streaming protocol: register live session and handle action frames in a goroutine
+	liveSessionsMu.Lock()
+	liveSessions[sessionKey] = &livePluginSession{cancel: liveCancel, pluginName: name}
+	liveSessionsMu.Unlock()
+
+	go func() {
+		defer func() {
+			_ = stdinPipe.Close()
+			_ = cmd.Wait()
+			liveCancel()
+			liveSessionsMu.Lock()
+			if curr, ok := liveSessions[sessionKey]; ok && curr != nil && curr.cancel != nil {
+				// Only clean up if this is still our session
+				delete(liveSessions, sessionKey)
+			}
+			liveSessionsMu.Unlock()
+		}()
+
+		// Process the first action frame we already read
+		if err := handleActionFrame(plugCtx, stdinPipe, firstLine); err != nil {
+			Logger.Debug("external plugin action frame error", "plugin", name, "err", err)
+			return
+		}
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			if err := handleActionFrame(plugCtx, stdinPipe, line); err != nil {
+				Logger.Debug("external plugin action frame error", "plugin", name, "err", err)
+				return
+			}
+		}
+	}()
+
 	return true
+}
+
+// handleActionFrame parses and executes a single JSON action frame from a streaming external plugin.
+// Returns an error to signal the loop should stop.
+func handleActionFrame(plugCtx *Context, stdinPipe io.WriteCloser, line string) error {
+	var frame externalPluginAction
+	if err := json.Unmarshal([]byte(line), &frame); err != nil {
+		return err
+	}
+
+	switch frame.Action {
+	case "reply":
+		msgID, err := plugCtx.ReplyWithID(frame.Text)
+		ack := externalPluginAck{OK: err == nil}
+		if err == nil {
+			ack.MsgID = string(msgID)
+		} else {
+			ack.Error = err.Error()
+		}
+		ackJSON, _ := json.Marshal(ack)
+		_, _ = fmt.Fprintf(stdinPipe, "%s\n", ackJSON)
+
+	case "edit":
+		if frame.MsgID != "" && frame.Text != "" {
+			_, _ = plugCtx.Edit(types.MessageID(frame.MsgID), frame.Text)
+		}
+
+	case "done":
+		return io.EOF
+
+	default:
+		Logger.Debug("external plugin: unknown action", "action", frame.Action)
+	}
+	return nil
+}
+
+func isStopArg(s string) bool {
+	s = strings.ToLower(strings.TrimSpace(s))
+	return s == "stop" || s == "cancel" || s == "end" || s == "off"
 }
 
 func isExternalPluginInstalled(name string) bool {
