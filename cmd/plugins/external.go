@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -23,10 +25,17 @@ import (
 )
 
 const (
-	externalPluginDirEnv  = "WHATSROOK_PLUGIN_DIR"
-	maxExternalPluginSize = 64 << 20
-	externalPluginTimeout = 30 * time.Second
+	externalPluginDirEnv       = "WHATSROOK_PLUGIN_DIR"
+	defaultExternalPluginRepo  = "https://github.com/Thruqe/whatsrook-externals/releases/latest/download"
+	maxExternalPluginSize      = 64 << 20
+	externalPluginTimeout      = 30 * time.Second
 )
+
+var officialExternalPlugins = []string{
+	"weather", "urban", "shorturl", "calc", "fact",
+	"quotes", "joke", "rizz", "btc", "markets",
+	"news", "wabeta", "why",
+}
 
 var externalPluginNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
@@ -46,7 +55,7 @@ type externalPluginRequest struct {
 func init() {
 	Register(&Command{
 		Name:        "install",
-		Description: "Install an external plugin from a local executable or URL (sudoers only)",
+		Description: "Install an external plugin from official registry, custom URL, or local binary (sudoers only)",
 		Category:    "Plugins",
 		IsPublic:    false,
 		Handler:     handlePluginInstall,
@@ -66,6 +75,54 @@ func init() {
 		IsPublic:    false,
 		Handler:     handlePluginList,
 	})
+}
+
+// ResolvePlatformSuffix returns the binary target suffix corresponding to the current OS and architecture.
+func ResolvePlatformSuffix() (string, error) {
+	osName := runtime.GOOS
+	arch := runtime.GOARCH
+
+	switch osName {
+	case "linux":
+		switch arch {
+		case "amd64":
+			return "linux-amd64", nil
+		case "arm64":
+			return "linux-arm64", nil
+		default:
+			return "", fmt.Errorf("unsupported Linux architecture %q (supported: amd64, arm64)", arch)
+		}
+	case "darwin":
+		switch arch {
+		case "arm64":
+			return "darwin-arm64", nil
+		case "amd64":
+			return "darwin-amd64", nil
+		default:
+			return "", fmt.Errorf("unsupported macOS architecture %q (supported: arm64, amd64)", arch)
+		}
+	case "windows":
+		switch arch {
+		case "amd64":
+			return "windows-amd64.exe", nil
+		case "arm64":
+			return "windows-arm64.exe", nil
+		default:
+			return "", fmt.Errorf("unsupported Windows architecture %q (supported: amd64, arm64)", arch)
+		}
+	default:
+		return "", fmt.Errorf("unsupported operating system %q (supported: linux, darwin, windows)", osName)
+	}
+}
+
+// ResolveDefaultPluginURL resolves the download URL for a plugin from the official whatsrook-externals repository.
+func ResolveDefaultPluginURL(name string) (string, error) {
+	suffix, err := ResolvePlatformSuffix()
+	if err != nil {
+		return "", err
+	}
+	name = strings.ToLower(strings.TrimSpace(name))
+	return fmt.Sprintf("%s/%s-%s", defaultExternalPluginRepo, name, suffix), nil
 }
 
 func externalPluginDir() (string, error) {
@@ -225,10 +282,79 @@ func uninstallExternalPlugin(name string) error {
 }
 
 func handlePluginInstall(ctx *Context) error {
-	if len(ctx.Args) != 2 {
-		return ErrUsage(ctx.GetPrefix() + "install <name> <local-path-or-url>")
+	p := ctx.GetPrefix()
+	if len(ctx.Args) == 0 {
+		var b strings.Builder
+		b.WriteString("🔌 *WhatsRook External Plugin Installer*\n\n")
+		b.WriteString("*Usage:*\n")
+		b.WriteString(utils.Sprintf("• `%sinstall <name>` (automatically downloads for host OS/arch from official registry)\n", p))
+		b.WriteString(utils.Sprintf("• `%sinstall all` (installs all 13 official external plugins)\n", p))
+		b.WriteString(utils.Sprintf("• `%sinstall <name> <local-path-or-url>`\n\n", p))
+		b.WriteString("*Official Plugins:*\n")
+		b.WriteString("`" + strings.Join(officialExternalPlugins, "`, `") + "`")
+		return ctx.Reply(b.String())
 	}
+
+	if len(ctx.Args) == 1 {
+		first := strings.ToLower(strings.TrimSpace(ctx.Args[0]))
+		if first == "all" {
+			ctx.StartAutoLoader()
+			defer ctx.StopAutoLoader()
+
+			var installed []string
+			var failed []string
+
+			for _, name := range officialExternalPlugins {
+				url, err := ResolveDefaultPluginURL(name)
+				if err != nil {
+					failed = append(failed, utils.Sprintf("%s (%v)", name, err))
+					continue
+				}
+				if err := installExternalPlugin(ctx.GetSendContext(), name, url); err != nil {
+					failed = append(failed, utils.Sprintf("%s (%v)", name, err))
+				} else {
+					installed = append(installed, name)
+				}
+			}
+
+			var b strings.Builder
+			if len(installed) > 0 {
+				b.WriteString(utils.Sprintf("✅ *Installed %d external plugins:*\n• %s\n", len(installed), strings.Join(installed, ", ")))
+			}
+			if len(failed) > 0 {
+				if b.Len() > 0 {
+					b.WriteByte('\n')
+				}
+				b.WriteString(utils.Sprintf("❌ *Failed to install (%d):*\n• %s", len(failed), strings.Join(failed, "\n• ")))
+			}
+			return ctx.Reply(b.String())
+		}
+
+		name := first
+		url, err := ResolveDefaultPluginURL(name)
+		if err != nil {
+			return ctx.Replyf("Platform detection failed: %v", err)
+		}
+
+		ctx.StartAutoLoader()
+		defer ctx.StopAutoLoader()
+
+		if err := installExternalPlugin(ctx.GetSendContext(), name, url); err != nil {
+			return ctx.Replyf("Plugin installation failed for %q:\n%v", name, err)
+		}
+		return ctx.Replyf("External plugin %q installed successfully for %s/%s.", name, runtime.GOOS, runtime.GOARCH)
+	}
+
 	name, source := ctx.Args[0], ctx.Args[1]
+	if suffix, err := ResolvePlatformSuffix(); err == nil {
+		source = strings.ReplaceAll(source, "{platform}", suffix)
+		source = strings.ReplaceAll(source, "{target}", suffix)
+		source = strings.ReplaceAll(source, "{suffix}", suffix)
+	}
+
+	ctx.StartAutoLoader()
+	defer ctx.StopAutoLoader()
+
 	if err := installExternalPlugin(ctx.GetSendContext(), name, source); err != nil {
 		return ctx.Replyf("Plugin installation failed: %v", err)
 	}
@@ -236,13 +362,34 @@ func handlePluginInstall(ctx *Context) error {
 }
 
 func handlePluginUninstall(ctx *Context) error {
+	p := ctx.GetPrefix()
 	if len(ctx.Args) != 1 {
-		return ErrUsage(ctx.GetPrefix() + "uninstall <name>")
+		return ErrUsage(p + "uninstall <name> (or " + p + "uninstall all)")
 	}
-	if err := uninstallExternalPlugin(ctx.Args[0]); err != nil {
+
+	targetName := strings.ToLower(strings.TrimSpace(ctx.Args[0]))
+	if targetName == "all" {
+		plugins, err := listExternalPlugins()
+		if err != nil {
+			return ctx.Replyf("Failed to list plugins: %v", err)
+		}
+		if len(plugins) == 0 {
+			return ctx.Reply("No external plugins currently installed.")
+		}
+
+		var removed []string
+		for _, plug := range plugins {
+			if err := uninstallExternalPlugin(plug.Name); err == nil {
+				removed = append(removed, plug.Name)
+			}
+		}
+		return ctx.Replyf("Uninstalled %d external plugin(s): %s", len(removed), strings.Join(removed, ", "))
+	}
+
+	if err := uninstallExternalPlugin(targetName); err != nil {
 		return ctx.Replyf("Plugin uninstall failed: %v", err)
 	}
-	return ctx.Replyf("External plugin %q uninstalled.", strings.ToLower(strings.TrimSpace(ctx.Args[0])))
+	return ctx.Replyf("External plugin %q uninstalled.", targetName)
 }
 
 func handlePluginList(ctx *Context) error {
@@ -250,14 +397,19 @@ func handlePluginList(ctx *Context) error {
 	if err != nil {
 		return ctx.Replyf("Failed to list plugins: %v", err)
 	}
+
+	suffix, _ := ResolvePlatformSuffix()
 	if len(plugins) == 0 {
-		return ctx.Reply("No external plugins installed.")
+		p := ctx.GetPrefix()
+		return ctx.Replyf("No external plugins installed.\n\nType `%sinstall <name>` or `%sinstall all` to install plugins (detected platform: %s/%s).", p, p, runtime.GOOS, runtime.GOARCH)
 	}
+
 	var b strings.Builder
-	b.WriteString("Installed external plugins:\n")
+	b.WriteString(utils.Sprintf("🔌 *Installed External Plugins* (%s):\n", suffix))
 	for _, plugin := range plugins {
-		b.WriteString("- ")
+		b.WriteString("• *")
 		b.WriteString(plugin.Name)
+		b.WriteString("*")
 		if plugin.Description != "" {
 			b.WriteString(utils.Sprintf(" - %s", plugin.Description))
 		}

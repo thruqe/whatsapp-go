@@ -268,10 +268,6 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		return true
 	}
 
-	if HandleNewsQuoteInput(cctx, text) {
-		return true
-	}
-
 	if cliutils.GetUnscrambleGame(chatStr) != nil {
 		if HandleUnscrambleLobbyInput(cctx, text) {
 			return true
