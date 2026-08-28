@@ -638,7 +638,7 @@ func (m model) View() string {
 	timeStr := m.currentTime.Format("15:04:05")
 	headerText := fmt.Sprintf(
 		"%s %s %s %s %s",
-		headerTitleStyle.Render("WHATSRCOOK STANDBY"),
+		headerTitleStyle.Render("WHATSROOK STANDBY"),
 		headerMutedStyle.Render("• PORT :"+portStr),
 		headerMutedStyle.Render("• WAITING FOR SESSION"),
 		headerMutedStyle.Render("•"),
