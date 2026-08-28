@@ -131,6 +131,7 @@ var supportedPlatforms = map[string]bool{
 	"darwin/arm64":  true,
 	"linux/amd64":   true,
 	"linux/arm64":   true,
+	"android/arm64": true,
 	"windows/amd64": true,
 }
 
@@ -618,7 +619,7 @@ func (u *Updater) Upgrade(ctx context.Context, isBeta bool) (*UpdateResult, erro
 func candidateAssetNames() ([]string, error) {
 	if !IsSupportedPlatform() {
 		return nil, fmt.Errorf(
-			"unsupported platform %s — supported platforms are: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64, windows/amd64",
+			"unsupported platform %s — supported platforms are: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64, android/arm64, windows/amd64",
 			GetPlatform(),
 		)
 	}

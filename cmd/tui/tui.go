@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +35,7 @@ const (
 	stateNewLogLevel
 	stateNewSaveOption
 	stateUpdateMenu
+	stateUpdateProgress
 )
 
 // SessionResult contains the final configured session parameters to launch.
@@ -47,6 +50,28 @@ type SessionResult struct {
 }
 
 type tickMsg time.Time
+
+type updateLogChunkMsg string
+
+type updateFinishedMsg struct {
+	result *updater.UpdateResult
+	err    error
+}
+
+type chanWriter struct {
+	ch chan<- string
+}
+
+func (w *chanWriter) Write(p []byte) (n int, err error) {
+	text := strings.TrimRight(string(p), "\r\n")
+	if text != "" {
+		select {
+		case w.ch <- text:
+		default:
+		}
+	}
+	return len(p), nil
+}
 
 type model struct {
 	ctx             context.Context
@@ -64,6 +89,15 @@ type model struct {
 	width           int
 	height          int
 	quitting        bool
+
+	// Updater state
+	updateIsBeta  bool
+	updateLogs    []string
+	updateDone    bool
+	updateResult  *updater.UpdateResult
+	updateErr     error
+	updateLogChan chan string
+	updateFinChan chan updateFinishedMsg
 }
 
 // Run launches the modern Bubble Tea standby TUI with responsive layout.
@@ -85,7 +119,7 @@ func Run(ctx context.Context, defaultDB string, boundPort int) (SessionResult, b
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	finalModel, err := p.Run()
 
-	ClearScreen()
+	ClearTerminal()
 
 	if err != nil {
 		return SessionResult{}, false, err
@@ -95,9 +129,20 @@ func Run(ctx context.Context, defaultDB string, boundPort int) (SessionResult, b
 	return fm.result, fm.result.ShouldRun, nil
 }
 
-// ClearScreen clears the terminal screen and scrollback buffer.
-func ClearScreen() {
-	fmt.Print("\033[H\033[2J\033[3J")
+// ClearTerminal resets and clears the entire terminal display and scrollback buffer.
+func ClearTerminal() {
+	_, _ = os.Stdout.WriteString("\033c\033[H\033[2J\033[3J")
+	_ = os.Stdout.Sync()
+
+	if runtime.GOOS == "windows" {
+		cmd := exec.Command("cmd", "/c", "cls")
+		cmd.Stdout = os.Stdout
+		_ = cmd.Run()
+	} else {
+		cmd := exec.Command("clear")
+		cmd.Stdout = os.Stdout
+		_ = cmd.Run()
+	}
 }
 
 func (m model) Init() tea.Cmd {
@@ -111,6 +156,21 @@ func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+func waitForLog(logChan <-chan string, doneChan <-chan updateFinishedMsg) tea.Cmd {
+	return func() tea.Msg {
+		select {
+		case line, ok := <-logChan:
+			if ok {
+				return updateLogChunkMsg(line)
+			}
+			done := <-doneChan
+			return done
+		case done := <-doneChan:
+			return done
+		}
+	}
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -130,6 +190,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.currentTime = time.Time(msg)
 		return m, tickCmd()
+
+	case updateLogChunkMsg:
+		line := string(msg)
+		if line != "" {
+			m.updateLogs = append(m.updateLogs, line)
+			if len(m.updateLogs) > 12 {
+				m.updateLogs = m.updateLogs[len(m.updateLogs)-12:]
+			}
+		}
+		return m, waitForLog(m.updateLogChan, m.updateFinChan)
+
+	case updateFinishedMsg:
+		m.updateDone = true
+		m.updateResult = msg.result
+		m.updateErr = msg.err
+		return m, nil
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -167,6 +243,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateNewSaveOption(msg)
 		case stateUpdateMenu:
 			return m.updateUpdateMenu(msg)
+		case stateUpdateProgress:
+			return m.updateUpdateProgress(msg)
 		}
 	}
 
@@ -186,7 +264,7 @@ func (m model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor--
 		}
 	case "down", "j":
-		if m.cursor < 3 {
+		if m.cursor < 4 {
 			m.cursor++
 		}
 	case "1":
@@ -198,7 +276,10 @@ func (m model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "3":
 		m.cursor = 2
 		return m.selectMainOption()
-	case "4", "q", "esc":
+	case "4":
+		m.cursor = 3
+		return m.selectMainOption()
+	case "5", "q", "esc":
 		m.quitting = true
 		return m, tea.Quit
 	case "enter":
@@ -234,10 +315,14 @@ func (m model) selectMainOption() (tea.Model, tea.Cmd) {
 			Verbose:    false,
 		}
 		m.state = stateNewAuth
-	case 2: // Update WhatsRook
+	case 2: // Check & install updates
 		m.cursor = 0
 		m.state = stateUpdateMenu
-	case 3: // Exit
+	case 3: // Restart WhatsRook
+		ClearTerminal()
+		_ = updater.RestartProcess()
+		os.Exit(0)
+	case 4: // Exit
 		m.quitting = true
 		return m, tea.Quit
 	}
@@ -293,48 +378,76 @@ func (m model) selectUpdateOption() (tea.Model, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("WhatsRook is up to date (v%s • %s)", res.CurrentVersion, currentChannel)
 			m.isErrorStatus = false
 		}
-	case 1: // Update to stable
+		return m, nil
+
+	case 1: // Update to stable (Live Progress)
 		_ = updater.SetStoredChannel("stable")
-		var buf bytes.Buffer
-		up := updater.New(updater.Options{
-			Out:     &buf,
-			Channel: "stable",
-		})
-		res, err := up.Upgrade(m.ctx, false)
-		if err != nil {
-			m.statusMsg = fmt.Sprintf("Upgrade failed: %v", err)
-			m.isErrorStatus = true
-		} else if res.Updated {
-			fmt.Printf("Upgraded to v%s! Restarting...\n", res.LatestVersion)
-			_ = updater.RestartProcess()
-			os.Exit(0)
-		} else {
-			m.statusMsg = fmt.Sprintf("Already on latest stable version (v%s)", res.CurrentVersion)
-			m.isErrorStatus = false
-		}
-	case 2: // Update to alpha / beta
+		return m.startLiveUpgrade(false)
+
+	case 2: // Update to alpha / beta (Live Progress)
 		_ = updater.SetStoredChannel("beta")
-		var buf bytes.Buffer
-		up := updater.New(updater.Options{
-			Out:     &buf,
-			Channel: "beta",
-		})
-		res, err := up.Upgrade(m.ctx, true)
-		if err != nil {
-			m.statusMsg = fmt.Sprintf("Alpha upgrade failed: %v", err)
-			m.isErrorStatus = true
-		} else if res.Updated {
-			fmt.Println("Upgraded to latest alpha build! Restarting...")
-			_ = updater.RestartProcess()
-			os.Exit(0)
-		} else {
-			m.statusMsg = "Already tracking latest alpha build."
-			m.isErrorStatus = false
-		}
+		return m.startLiveUpgrade(true)
+
 	case 3: // Back
 		m.state = stateMain
 		m.cursor = 2
 		m.statusMsg = ""
+	}
+	return m, nil
+}
+
+func (m model) startLiveUpgrade(isBeta bool) (tea.Model, tea.Cmd) {
+	m.state = stateUpdateProgress
+	m.updateIsBeta = isBeta
+	m.updateLogs = []string{"Connecting to release repository..."}
+	m.updateDone = false
+	m.updateResult = nil
+	m.updateErr = nil
+
+	logChan := make(chan string, 100)
+	doneChan := make(chan updateFinishedMsg, 1)
+	m.updateLogChan = logChan
+	m.updateFinChan = doneChan
+
+	go func() {
+		writer := &chanWriter{ch: logChan}
+		chName := "stable"
+		if isBeta {
+			chName = "beta"
+		}
+		up := updater.New(updater.Options{
+			Out:     writer,
+			Channel: chName,
+		})
+		res, err := up.Upgrade(context.Background(), isBeta)
+		doneChan <- updateFinishedMsg{result: res, err: err}
+		close(logChan)
+	}()
+
+	return m, waitForLog(logChan, doneChan)
+}
+
+func (m model) updateUpdateProgress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.updateDone {
+		switch msg.String() {
+		case "enter":
+			if m.updateResult != nil && m.updateResult.Updated {
+				ClearTerminal()
+				_ = updater.RestartProcess()
+				os.Exit(0)
+			}
+			m.state = stateUpdateMenu
+			m.cursor = 0
+			return m, nil
+		case "esc", "b", "q":
+			m.state = stateUpdateMenu
+			m.cursor = 0
+			return m, nil
+		}
+	} else if msg.String() == "esc" {
+		m.state = stateUpdateMenu
+		m.cursor = 0
+		return m, nil
 	}
 	return m, nil
 }
@@ -942,6 +1055,8 @@ func (m model) View() string {
 		s.WriteString(m.viewNewSaveOption())
 	case stateUpdateMenu:
 		s.WriteString(m.viewUpdateMenu())
+	case stateUpdateProgress:
+		s.WriteString(m.viewUpdateProgress())
 	}
 
 	if m.statusMsg != "" {
@@ -986,6 +1101,7 @@ func (m model) viewMain() string {
 		"Connect to an existing session",
 		"Create a new session",
 		"Check & install updates",
+		"Restart WhatsRook",
 		"Exit",
 	}
 
@@ -1015,6 +1131,49 @@ func (m model) viewUpdateMenu() string {
 	}
 
 	s.WriteString(helpStyle.Render(m.getHelpText("select")))
+	return s.String()
+}
+
+func (m model) viewUpdateProgress() string {
+	var s strings.Builder
+	channelName := "Stable Release"
+	if m.updateIsBeta {
+		channelName = "Alpha / Nightly Build"
+	}
+	s.WriteString(titleStyle.Render(fmt.Sprintf("UPDATING WHATSROOK (%s)", strings.ToUpper(channelName))))
+	s.WriteString("\n\n")
+
+	if m.updateDone {
+		if m.updateErr != nil {
+			s.WriteString(errorStyle.Render(fmt.Sprintf("! Upgrade error: %v", m.updateErr)))
+			s.WriteString("\n\n")
+			s.WriteString(helpStyle.Render("Press [Enter] or [Esc] to return to updater menu"))
+		} else if m.updateResult != nil && m.updateResult.Updated {
+			s.WriteString(successStyle.Render(fmt.Sprintf("✓ Upgrade successful! Version: v%s", m.updateResult.LatestVersion)))
+			s.WriteString("\n\n")
+			s.WriteString(activeItemStyle.Render("  Press [Enter] to restart WhatsRook with new version now."))
+			s.WriteString("\n\n")
+			s.WriteString(helpStyle.Render("Press [Enter] to restart • [Esc] to exit"))
+		} else if m.updateResult != nil {
+			s.WriteString(successStyle.Render(fmt.Sprintf("✓ Already at the latest version (%s).", m.updateResult.CurrentVersion)))
+			s.WriteString("\n\n")
+			s.WriteString(helpStyle.Render("Press [Enter] or [Esc] to return to updater menu"))
+		}
+	} else {
+		s.WriteString(activeItemStyle.Render("  ● Update in progress..."))
+		s.WriteString("\n\n")
+
+		// Render streaming log lines
+		s.WriteString(headerMutedStyle.Render("  Live Output:"))
+		s.WriteByte('\n')
+		for _, logLine := range m.updateLogs {
+			s.WriteString("    " + inactiveItemStyle.Render(logLine))
+			s.WriteByte('\n')
+		}
+		s.WriteByte('\n')
+		s.WriteString(helpStyle.Render("Please wait while update is applied..."))
+	}
+
 	return s.String()
 }
 
