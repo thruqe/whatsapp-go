@@ -89,7 +89,13 @@ func RenderFilterTemplate(ctx context.Context, client *whatsmeow.Client, evt *ev
 	ramUsage := Sprintf("%.2f MB", float64(memStats.Alloc)/1024/1024)
 	goroutines := strconv.Itoa(runtime.NumGoroutine())
 
-	latency := Sprintf("%d ms", time.Since(startMeasure).Milliseconds())
+	elapsed := time.Since(startMeasure)
+	var latency string
+	if ms := elapsed.Milliseconds(); ms > 0 {
+		latency = Sprintf("%d ms", ms)
+	} else {
+		latency = Sprintf("%d ns", elapsed.Nanoseconds())
+	}
 
 	ownerName := "Thruqe"
 	ownerJIDStr := ""

@@ -765,7 +765,12 @@ func handlePing(ctx *Context) error {
 	}
 
 	elapsed := time.Since(start)
-	respText := Sprintf("%d ms", elapsed.Milliseconds())
+	var respText string
+	if ms := elapsed.Milliseconds(); ms > 0 {
+		respText = Sprintf("%d ms", ms)
+	} else {
+		respText = Sprintf("%d ns", elapsed.Nanoseconds())
+	}
 
 	if _, editErr := ctx.Edit(msgID, respText); editErr != nil {
 		_ = ctx.Reply(respText)
