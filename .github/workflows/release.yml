@@ -51,6 +51,12 @@ jobs:
           - os: linux
             arch: arm64
             ext: ""
+          - os: android
+            arch: arm64
+            ext: ""
+          - os: android
+            arch: arm
+            ext: ""
           - os: windows
             arch: amd64
             ext: ".exe"
@@ -68,7 +74,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          # Disable the shared actions/setup-go cache. With 5 matrix legs
+          # Disable the shared actions/setup-go cache. With matrix legs
           # building concurrently from the same repo, a cache key collision
           # (or a race populating GOCACHE) can let one target's linked
           # binary get replaced by another target's cached-but-unlinked
@@ -118,7 +124,7 @@ jobs:
                   ;;
               esac
               ;;
-            linux)
+            linux|android)
               # Expect ELF magic (7f 45 4c 46 = "\x7fELF")
               HEADER=$(head -c 4 "$BIN_NAME" | xxd -p)
               if [ "$HEADER" != "7f454c46" ]; then
