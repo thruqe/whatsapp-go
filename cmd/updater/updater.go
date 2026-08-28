@@ -27,10 +27,10 @@ import (
 )
 
 const (
-	DefaultRepoOwner   = "Thruqe"
+	DefaultRepoOwner   = "ThruqeLabs"
 	DefaultRepoName    = "whatsrook"
 	DefaultVersionFile = "version.txt"
-	DefaultVersionURL  = "https://raw.githubusercontent.com/Thruqe/whatsrook/refs/heads/master/version.txt"
+	DefaultVersionURL  = "https://raw.githubusercontent.com/ThruqeLabs/whatsrook/refs/heads/master/version.txt"
 	ChannelKey         = "update_channel" // "stable" or "beta"
 )
 

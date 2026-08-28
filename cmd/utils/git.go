@@ -228,7 +228,7 @@ func newGitHTTPClient() *http.Client {
 }
 
 func setGitHeaders(req *http.Request, token string) {
-	req.Header.Set("User-Agent", "WhatsRook-Bot/1.0 (+https://github.com/Thruqe/whatsrook)")
+	req.Header.Set("User-Agent", "WhatsRook-Bot/1.0 (+https://github.com/ThruqeLabs/whatsrook)")
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	if token != "" {
 		if strings.HasPrefix(token, "ghp_") || strings.HasPrefix(token, "github_pat_") || strings.HasPrefix(token, "gho_") {
