@@ -29,7 +29,7 @@ curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/what
 ### Android (Termux)
 
 ```bash
-pkg install -y curl tar && curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-android-arm64.tar.gz | tar -xz -C $PREFIX/bin && chmod +x $PREFIX/bin/whatsrook && whatsrook -i
+pkg install -y curl tar && curl -fsSL https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-android-arm64.tar.gz -o wr.tar.gz && tar -xzf wr.tar.gz -C $PREFIX/bin && rm -f wr.tar.gz && chmod +x $PREFIX/bin/whatsrook && whatsrook -i
 ```
 
 ### Windows
