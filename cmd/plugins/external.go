@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -287,7 +288,8 @@ func installExternalPlugin(ctx context.Context, name, source string) error {
 		return WrapError("install plugin", err)
 	}
 
-	manifest := externalPluginManifest{Name: name}
+	isPub := isOfficialExternalPlugin(name)
+	manifest := externalPluginManifest{Name: name, IsPublic: isPub}
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		_ = os.Remove(target)
@@ -734,9 +736,17 @@ func isExternalPluginInstalled(name string) bool {
 	return err == nil && !info.IsDir() && info.Mode().Perm()&0o111 != 0
 }
 
-// isExternalPluginPublic checks the plugin manifest for IsPublic setting.
-// If no manifest or field absent, defaults to false (sudoers only).
+// isOfficialExternalPlugin returns true if the plugin is one of the 13 official plugins.
+func isOfficialExternalPlugin(name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	return slices.Contains(officialExternalPlugins, name)
+}
+
+// isExternalPluginPublic checks if the plugin is public (official plugins or manifest is_public: true).
 func isExternalPluginPublic(name string) bool {
+	if isOfficialExternalPlugin(name) {
+		return true
+	}
 	path, err := externalPluginPath(name)
 	if err != nil {
 		return false
