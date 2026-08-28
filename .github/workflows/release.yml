@@ -54,9 +54,6 @@ jobs:
           - os: android
             arch: arm64
             ext: ""
-          - os: android
-            arch: arm
-            ext: ""
           - os: windows
             arch: amd64
             ext: ".exe"
