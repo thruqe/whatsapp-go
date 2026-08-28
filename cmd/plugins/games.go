@@ -746,7 +746,7 @@ func handleUnscramble(ctx *Context) error {
 				if playerCount == 0 {
 					return ctx.Reply("No players in lobby yet! Type `join` to join first.")
 				}
-				
+
 				existingGame.StopTimers()
 				startUnscrambleGame(ctx, existingGame)
 				return nil
