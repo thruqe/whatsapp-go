@@ -28,6 +28,7 @@ const (
 	stateNewPhoneInput
 	stateNewClient
 	stateNewLogLevel
+	stateNewSaveOption
 )
 
 // SessionResult contains the final configured session parameters to launch.
@@ -59,7 +60,7 @@ type model struct {
 	quitting        bool
 }
 
-// Run launches the modern Bubble Tea standby TUI with dot-based navigation.
+// Run launches the modern Bubble Tea standby TUI with dot-based navigation and .env integration.
 func Run(ctx context.Context, defaultDB string, boundPort int) (SessionResult, bool, error) {
 	ti := textinput.New()
 	ti.Placeholder = "+2348062795602"
@@ -136,6 +137,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateNewClient(msg)
 		case stateNewLogLevel:
 			return m.updateNewLogLevel(msg)
+		case stateNewSaveOption:
+			return m.updateNewSaveOption(msg)
 		}
 	}
 
@@ -208,7 +211,7 @@ func (m model) selectMainOption() (tea.Model, tea.Cmd) {
 }
 
 func (m model) updateSessionsList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	maxIdx := len(m.sessions) // 0 to len(m.sessions)-1, plus Back
+	maxIdx := len(m.sessions)
 	switch msg.String() {
 	case "up", "k":
 		if m.cursor > 0 {
@@ -262,7 +265,7 @@ func (m model) updateSessionActions(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor--
 		}
 	case "down", "j":
-		if m.cursor < 3 {
+		if m.cursor < 4 {
 			m.cursor++
 		}
 	case "1":
@@ -273,6 +276,9 @@ func (m model) updateSessionActions(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.selectSessionAction()
 	case "3":
 		m.cursor = 2
+		return m.selectSessionAction()
+	case "4":
+		m.cursor = 3
 		return m.selectSessionAction()
 	case "0", "esc", "b", "q":
 		m.state = stateSessionsList
@@ -289,15 +295,32 @@ func (m model) selectSessionAction() (tea.Model, tea.Cmd) {
 	case 0: // Run session
 		m.result.ShouldRun = true
 		return m, tea.Quit
-	case 1: // Edit variables
+	case 1: // Save to .env
+		clientStr := "default"
+		if m.result.ClientType == whatsrook.ClientAndroid {
+			clientStr = "android"
+		} else if m.result.ClientType == whatsrook.ClientIos {
+			clientStr = "ios"
+		}
+		if err := SaveDotEnv(m.result.Session, clientStr, m.result.Verbose, m.result.Database); err != nil {
+			m.statusMsg = fmt.Sprintf("Failed to save .env: %v", err)
+			m.isErrorStatus = true
+		} else {
+			m.statusMsg = "Saved to .env. To see this menu again in the future, run with -i."
+			m.isErrorStatus = false
+		}
+	case 2: // Edit variables
 		m.state = stateEditVariables
 		m.cursor = 0
-	case 2: // Delete session
+		m.statusMsg = ""
+	case 3: // Delete session
 		m.state = stateDeleteConfirm
 		m.cursor = 0
-	case 3: // Back
+		m.statusMsg = ""
+	case 4: // Back
 		m.state = stateSessionsList
 		m.cursor = 0
+		m.statusMsg = ""
 	}
 	return m, nil
 }
@@ -309,7 +332,7 @@ func (m model) updateEditVariables(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor--
 		}
 	case "down", "j":
-		if m.cursor < 4 {
+		if m.cursor < 5 {
 			m.cursor++
 		}
 	case "1":
@@ -324,11 +347,13 @@ func (m model) updateEditVariables(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.input.Focus()
 		return m, textinput.Blink
 	case "4":
+		m.saveCurrentToEnv()
+	case "5":
 		m.result.ShouldRun = true
 		return m, tea.Quit
 	case "0", "esc", "b", "q":
 		m.state = stateSessionActions
-		m.cursor = 1
+		m.cursor = 2
 	case "enter":
 		switch m.cursor {
 		case 0: // Edit client profile
@@ -342,15 +367,33 @@ func (m model) updateEditVariables(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.input.SetValue(m.result.Database)
 			m.input.Focus()
 			return m, textinput.Blink
-		case 3: // Launch with updated variables
+		case 3: // Save to .env
+			m.saveCurrentToEnv()
+		case 4: // Launch with updated variables
 			m.result.ShouldRun = true
 			return m, tea.Quit
-		case 4: // Back
+		case 5: // Back
 			m.state = stateSessionActions
-			m.cursor = 1
+			m.cursor = 2
 		}
 	}
 	return m, nil
+}
+
+func (m *model) saveCurrentToEnv() {
+	clientStr := "default"
+	if m.result.ClientType == whatsrook.ClientAndroid {
+		clientStr = "android"
+	} else if m.result.ClientType == whatsrook.ClientIos {
+		clientStr = "ios"
+	}
+	if err := SaveDotEnv(m.result.Session, clientStr, m.result.Verbose, m.result.Database); err != nil {
+		m.statusMsg = fmt.Sprintf("Failed to save .env: %v", err)
+		m.isErrorStatus = true
+	} else {
+		m.statusMsg = "Saved to .env. To see this menu again in the future, run with -i."
+		m.isErrorStatus = false
+	}
 }
 
 func (m model) updateEditClient(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -463,7 +506,7 @@ func (m model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "n", "N", "esc", "b", "0":
 		m.state = stateSessionActions
-		m.cursor = 2
+		m.cursor = 3
 	}
 	return m, nil
 }
@@ -609,19 +652,56 @@ func (m model) updateNewLogLevel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "1":
 		m.result.Verbose = false
-		m.result.ShouldRun = true
-		return m, tea.Quit
+		m.state = stateNewSaveOption
+		m.cursor = 0
 	case "2":
 		m.result.Verbose = true
-		m.result.ShouldRun = true
-		return m, tea.Quit
+		m.state = stateNewSaveOption
+		m.cursor = 0
 	case "esc", "b", "0":
 		m.state = stateNewClient
 		m.cursor = 0
 	case "enter":
 		m.result.Verbose = m.cursor == 1
+		m.state = stateNewSaveOption
+		m.cursor = 0
+	}
+	return m, nil
+}
+
+func (m model) updateNewSaveOption(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "down", "j":
+		if m.cursor < 2 {
+			m.cursor++
+		}
+	case "1":
 		m.result.ShouldRun = true
 		return m, tea.Quit
+	case "2":
+		m.saveCurrentToEnv()
+		m.result.ShouldRun = true
+		return m, tea.Quit
+	case "esc", "b", "0":
+		m.state = stateNewLogLevel
+		m.cursor = 0
+	case "enter":
+		switch m.cursor {
+		case 0: // Launch session immediately
+			m.result.ShouldRun = true
+			return m, tea.Quit
+		case 1: // Save to .env and launch session
+			m.saveCurrentToEnv()
+			m.result.ShouldRun = true
+			return m, tea.Quit
+		case 2: // Back
+			m.state = stateNewLogLevel
+			m.cursor = 0
+		}
 	}
 	return m, nil
 }
@@ -672,6 +752,8 @@ func (m model) View() string {
 		s.WriteString(m.viewNewClient())
 	case stateNewLogLevel:
 		s.WriteString(m.viewNewLogLevel())
+	case stateNewSaveOption:
+		s.WriteString(m.viewNewSaveOption())
 	}
 
 	if m.statusMsg != "" {
@@ -746,6 +828,7 @@ func (m model) viewSessionActions() string {
 
 	options := []string{
 		"Run session",
+		"Save to .env as default",
 		"Edit session variables",
 		"Delete session",
 		"Back",
@@ -786,6 +869,7 @@ func (m model) viewEditVariables() string {
 		fmt.Sprintf("Client Profile: %s", clientName),
 		fmt.Sprintf("Logging Level: %s", logLevel),
 		fmt.Sprintf("Database: %s", dbName),
+		"Save configuration to .env",
 		"Launch session with updated variables",
 		"Back",
 	}
@@ -932,7 +1016,26 @@ func (m model) viewNewLogLevel() string {
 		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to launch session"))
+	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
+	return s.String()
+}
+
+func (m model) viewNewSaveOption() string {
+	var s strings.Builder
+	s.WriteString(titleStyle.Render("SAVE CONFIGURATION & LAUNCH"))
+	s.WriteString("\n\n")
+
+	options := []string{
+		"Launch session immediately",
+		"Save configuration to .env and launch",
+		"Back",
+	}
+
+	for i, opt := range options {
+		s.WriteString(renderDotItem(m.cursor == i, opt))
+	}
+
+	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
 	return s.String()
 }
 
