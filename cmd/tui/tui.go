@@ -84,12 +84,20 @@ func Run(ctx context.Context, defaultDB string, boundPort int) (SessionResult, b
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	finalModel, err := p.Run()
+
+	ClearScreen()
+
 	if err != nil {
 		return SessionResult{}, false, err
 	}
 
 	fm := finalModel.(model)
 	return fm.result, fm.result.ShouldRun, nil
+}
+
+// ClearScreen clears the terminal screen and scrollback buffer.
+func ClearScreen() {
+	fmt.Print("\033[H\033[2J\033[3J")
 }
 
 func (m model) Init() tea.Cmd {
