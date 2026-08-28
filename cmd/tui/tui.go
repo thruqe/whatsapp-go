@@ -400,10 +400,13 @@ func (m model) selectUpdateOption() (tea.Model, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("Update check failed: %v", err)
 			m.isErrorStatus = true
 		} else if res.HasNewVersion {
-			m.statusMsg = fmt.Sprintf("New version available: v%s (Current: v%s)", res.LatestVersion, res.CurrentVersion)
+			m.statusMsg = fmt.Sprintf("New version available: %s (Current: %s)",
+				updater.FormatVersionDisplay(res.LatestVersion),
+				updater.FormatVersionDisplay(res.CurrentVersion))
 			m.isErrorStatus = false
 		} else {
-			m.statusMsg = fmt.Sprintf("WhatsRook is up to date (v%s • %s)", res.CurrentVersion, currentChannel)
+			m.statusMsg = fmt.Sprintf("WhatsRook is up to date (%s • %s)",
+				updater.FormatVersionDisplay(res.CurrentVersion), currentChannel)
 			m.isErrorStatus = false
 		}
 		return m, nil
@@ -1188,13 +1191,13 @@ func (m model) viewUpdateProgress() string {
 			s.WriteString("\n\n")
 			s.WriteString(helpStyle.Render("Press [Enter] or [Esc] to return to updater menu"))
 		} else if m.updateResult != nil && m.updateResult.Updated {
-			s.WriteString(successStyle.Width(contentWidth).Render(fmt.Sprintf("✓ Upgrade successful! Version: v%s", m.updateResult.LatestVersion)))
+			s.WriteString(successStyle.Width(contentWidth).Render(fmt.Sprintf("✓ Upgrade successful! Version: %s", updater.FormatVersionDisplay(m.updateResult.LatestVersion))))
 			s.WriteString("\n\n")
 			s.WriteString(activeItemStyle.Width(contentWidth).Render("  Press [Enter] to restart WhatsRook with new version now."))
 			s.WriteString("\n\n")
 			s.WriteString(helpStyle.Render("Press [Enter] to restart • [Esc] to exit"))
 		} else if m.updateResult != nil {
-			s.WriteString(successStyle.Width(contentWidth).Render(fmt.Sprintf("✓ Already at the latest version (%s).", m.updateResult.CurrentVersion)))
+			s.WriteString(successStyle.Width(contentWidth).Render(fmt.Sprintf("✓ Already at the latest version (%s).", updater.FormatVersionDisplay(m.updateResult.CurrentVersion))))
 			s.WriteString("\n\n")
 			s.WriteString(helpStyle.Render("Press [Enter] or [Esc] to return to updater menu"))
 		}
