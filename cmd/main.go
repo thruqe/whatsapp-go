@@ -12,6 +12,7 @@ import (
 
 	"whatsrook"
 	"whatsrook/cmd/updater"
+	_ "whatsrook/src"
 	"whatsrook/src/cache"
 	Logger "whatsrook/src/logger"
 )
