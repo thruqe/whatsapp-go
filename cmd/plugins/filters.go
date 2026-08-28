@@ -92,9 +92,9 @@ func RenderFilterTemplate(ctx context.Context, client *whatsmeow.Client, evt *ev
 	elapsed := time.Since(startMeasure)
 	var latency string
 	if ms := elapsed.Milliseconds(); ms > 0 {
-		latency = Sprintf("%d ms", ms)
+		latency = Sprintf("%dms", ms)
 	} else {
-		latency = Sprintf("%d ns", elapsed.Nanoseconds())
+		latency = Sprintf("%dns", elapsed.Nanoseconds())
 	}
 
 	ownerName := "Thruqe"
