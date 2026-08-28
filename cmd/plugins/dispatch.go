@@ -457,7 +457,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	}
 	if !ok {
 		if isExternalPluginInstalled(name) {
-			if !utils.IsSudoRaw(ctx, client, evt.Info.Sender) {
+			if !utils.IsSudoRaw(ctx, client, evt.Info.Sender) && !isExternalPluginPublic(name) {
 				Logger.Warn("External plugin execution denied", "plugin", name, "sender", evt.Info.Sender.String())
 				return true
 			}
