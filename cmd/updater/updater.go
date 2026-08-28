@@ -155,6 +155,60 @@ func channelFilePath() string {
 	return ".update-channel"
 }
 
+func installedBetaFilePath() string {
+	if dir, err := os.UserConfigDir(); err == nil {
+		p := filepath.Join(dir, "whatsrook")
+		_ = os.MkdirAll(p, 0755)
+		return filepath.Join(p, ".installed-beta")
+	}
+	if exe, err := os.Executable(); err == nil {
+		return filepath.Join(filepath.Dir(exe), ".installed-beta")
+	}
+	return ".installed-beta"
+}
+
+// GetInstalledBetaVersion returns the persisted version identifier for alpha/beta builds.
+func GetInstalledBetaVersion() string {
+	data, err := os.ReadFile(installedBetaFilePath())
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// SetInstalledBetaVersion persists the installed alpha/beta build version identifier.
+func SetInstalledBetaVersion(v string) error {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		_ = os.Remove(installedBetaFilePath())
+		return nil
+	}
+	return os.WriteFile(installedBetaFilePath(), []byte(v+"\n"), 0644)
+}
+
+// FormatVersionDisplay formats versions cleanly without raw hash prefix collisions.
+// E.g. "sha256:d8860761..." -> "alpha-d886076", "21.8.26" -> "v21.8.26".
+func FormatVersionDisplay(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "unknown"
+	}
+	if after, ok := strings.CutPrefix(v, "sha256:"); ok {
+		hash := after
+		if len(hash) > 7 {
+			hash = hash[:7]
+		}
+		return "alpha-" + hash
+	}
+	if strings.HasPrefix(v, "alpha-") || strings.HasPrefix(v, "beta-") {
+		return v
+	}
+	if strings.HasPrefix(v, "v") {
+		return v
+	}
+	return "v" + v
+}
+
 // GetStoredChannel returns the persisted update channel ("stable" or "beta"),
 // defaulting to "stable" when no preference has been saved yet.
 func GetStoredChannel() string {
@@ -528,6 +582,11 @@ func (u *Updater) Check(ctx context.Context) (*UpdateResult, error) {
 	u.logf("==> Checking for updates (%s/%s, platform: %s)...", u.opts.RepoOwner, u.opts.RepoName, GetPlatform())
 
 	localStr := ReadEffectiveLocalVersion(u.opts.VersionFile)
+	if u.opts.Channel == "beta" {
+		if installedBeta := GetInstalledBetaVersion(); installedBeta != "" {
+			localStr = installedBeta
+		}
+	}
 	remoteStr, err := u.FetchRemoteVersion(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch remote version: %w", err)
@@ -553,9 +612,11 @@ func (u *Updater) Check(ctx context.Context) (*UpdateResult, error) {
 	}
 
 	if res.HasNewVersion {
-		u.logf("==> Update available! Installed: %s -> Latest: %s", localStr, remoteStr)
+		u.logf("==> Update available! Installed: %s -> Latest: %s",
+			FormatVersionDisplay(localStr), FormatVersionDisplay(remoteStr))
 	} else {
-		u.logf("==> %s is already at the latest version (%s).", u.opts.RepoName, localStr)
+		u.logf("==> %s is already at the latest version (%s).",
+			u.opts.RepoName, FormatVersionDisplay(localStr))
 	}
 
 	return res, nil
@@ -590,7 +651,7 @@ func (u *Updater) Upgrade(ctx context.Context, isBeta bool) (*UpdateResult, erro
 
 	if !check.HasNewVersion {
 		check.Updated = false
-		check.Message = fmt.Sprintf("%s is already up to date (%s).", u.opts.RepoName, check.CurrentVersion)
+		check.Message = fmt.Sprintf("%s is already up to date (%s).", u.opts.RepoName, FormatVersionDisplay(check.CurrentVersion))
 		return check, nil
 	}
 
@@ -605,10 +666,18 @@ func (u *Updater) Upgrade(ctx context.Context, isBeta bool) (*UpdateResult, erro
 	}
 
 	check.Updated = true
-	if newVer := ReadEffectiveLocalVersion(u.opts.VersionFile); newVer != "" {
-		check.LatestVersion = newVer
+	if isBeta {
+		_ = SetInstalledBetaVersion(check.LatestVersion)
+	} else {
+		_ = SetInstalledBetaVersion("")
+		if newVer := ReadEffectiveLocalVersion(u.opts.VersionFile); newVer != "" {
+			check.LatestVersion = newVer
+		}
 	}
-	check.Message = fmt.Sprintf("Successfully upgraded binary for %s (%s -> %s).", GetPlatform(), check.CurrentVersion, check.LatestVersion)
+	check.Message = fmt.Sprintf("Successfully upgraded binary for %s (%s -> %s).",
+		GetPlatform(),
+		FormatVersionDisplay(check.CurrentVersion),
+		FormatVersionDisplay(check.LatestVersion))
 	u.logf("==> Upgrade complete! %s", check.Message)
 	return check, nil
 }
