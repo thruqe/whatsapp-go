@@ -57,15 +57,17 @@ type model struct {
 	input           textinput.Model
 	statusMsg       string
 	isErrorStatus   bool
+	width           int
+	height          int
 	quitting        bool
 }
 
-// Run launches the modern Bubble Tea standby TUI with dot-based navigation and .env integration.
+// Run launches the modern Bubble Tea standby TUI with responsive layout.
 func Run(ctx context.Context, defaultDB string, boundPort int) (SessionResult, bool, error) {
 	ti := textinput.New()
 	ti.Placeholder = "+2348062795602"
 	ti.CharLimit = 32
-	ti.Width = 36
+	ti.Width = 32
 
 	m := model{
 		ctx:         ctx,
@@ -101,6 +103,18 @@ func tickCmd() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		inputWidth := msg.Width - 8
+		if inputWidth > 36 {
+			inputWidth = 36
+		} else if inputWidth < 18 {
+			inputWidth = 18
+		}
+		m.input.Width = inputWidth
+		return m, nil
+
 	case tickMsg:
 		m.currentTime = time.Time(msg)
 		return m, tickCmd()
@@ -188,7 +202,7 @@ func (m model) selectMainOption() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if len(sessions) == 0 {
-			m.statusMsg = "No saved sessions found in database. Please create a new session."
+			m.statusMsg = "No saved sessions found. Create a new session to begin."
 			m.isErrorStatus = true
 			return m, nil
 		}
@@ -306,7 +320,7 @@ func (m model) selectSessionAction() (tea.Model, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("Failed to save .env: %v", err)
 			m.isErrorStatus = true
 		} else {
-			m.statusMsg = "Saved to .env. To see this menu again in the future, run with -i."
+			m.statusMsg = "Saved to .env. Run with -i to view menu again."
 			m.isErrorStatus = false
 		}
 	case 2: // Edit variables
@@ -391,7 +405,7 @@ func (m *model) saveCurrentToEnv() {
 		m.statusMsg = fmt.Sprintf("Failed to save .env: %v", err)
 		m.isErrorStatus = true
 	} else {
-		m.statusMsg = "Saved to .env. To see this menu again in the future, run with -i."
+		m.statusMsg = "Saved to .env. Run with -i to view menu again."
 		m.isErrorStatus = false
 	}
 }
@@ -525,7 +539,7 @@ func (m model) updateNewAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.result.QRCode = true
 		m.result.Pair = false
 		m.state = stateNewPhoneInput
-		m.input.Placeholder = "session name or phone (optional)"
+		m.input.Placeholder = "session name / phone (optional)"
 		m.input.SetValue("")
 		m.input.Focus()
 		return m, textinput.Blink
@@ -546,7 +560,7 @@ func (m model) updateNewAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.result.QRCode = true
 			m.result.Pair = false
 			m.state = stateNewPhoneInput
-			m.input.Placeholder = "session name or phone (optional)"
+			m.input.Placeholder = "session name / phone (optional)"
 			m.input.SetValue("")
 			m.input.Focus()
 			return m, textinput.Blink
@@ -573,7 +587,7 @@ func (m model) updateNewPhoneInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.result.Pair {
 			clean := strings.TrimPrefix(val, "+")
 			if len(clean) < 7 || len(clean) > 15 || !isNumeric(clean) {
-				m.statusMsg = "Invalid phone number. Must include country code without spaces (e.g. +2348062795602)."
+				m.statusMsg = "Invalid phone number (e.g. +2348062795602)."
 				m.isErrorStatus = true
 				return m, nil
 			}
@@ -713,18 +727,46 @@ func (m model) View() string {
 
 	var s strings.Builder
 
-	// Top Dynamic Status Header
+	// Top Responsive Dynamic Header
 	portStr := strconv.Itoa(m.boundPort)
 	timeStr := m.currentTime.Format("15:04:05")
-	headerText := fmt.Sprintf(
-		"%s %s %s %s %s",
-		headerTitleStyle.Render("WHATSROOK STANDBY"),
-		headerMutedStyle.Render("• PORT :"+portStr),
-		headerMutedStyle.Render("• WAITING FOR SESSION"),
-		headerMutedStyle.Render("•"),
-		headerTimeStyle.Render(timeStr),
-	)
-	s.WriteString(headerBox.Render(headerText))
+
+	var headerText string
+	if m.width > 0 && m.width < 45 {
+		headerText = fmt.Sprintf(
+			"%s %s",
+			headerTitleStyle.Render("WHATSROOK"),
+			headerTimeStyle.Render(timeStr),
+		)
+	} else if m.width > 0 && m.width < 65 {
+		headerText = fmt.Sprintf(
+			"%s %s %s",
+			headerTitleStyle.Render("WHATSROOK STANDBY"),
+			headerMutedStyle.Render(":"+portStr),
+			headerTimeStyle.Render(timeStr),
+		)
+	} else {
+		headerText = fmt.Sprintf(
+			"%s %s %s %s %s",
+			headerTitleStyle.Render("WHATSROOK STANDBY"),
+			headerMutedStyle.Render("• PORT :"+portStr),
+			headerMutedStyle.Render("• WAITING FOR SESSION"),
+			headerMutedStyle.Render("•"),
+			headerTimeStyle.Render(timeStr),
+		)
+	}
+
+	if m.width > 0 {
+		boxWidth := m.width - 2
+		if boxWidth > 74 {
+			boxWidth = 74
+		} else if boxWidth < 20 {
+			boxWidth = 20
+		}
+		s.WriteString(headerBox.Width(boxWidth).Render(headerText))
+	} else {
+		s.WriteString(headerBox.Render(headerText))
+	}
 	s.WriteByte('\n')
 
 	switch m.state {
@@ -776,6 +818,19 @@ func renderDotItem(active bool, text string) string {
 	return "  " + inactiveDotStyle.Render("○") + " " + inactiveItemStyle.Render(text) + "\n"
 }
 
+func (m model) getHelpText(action string) string {
+	if m.width > 0 && m.width < 55 {
+		if action != "" {
+			return fmt.Sprintf("↑/↓ move • Enter %s • Esc back", action)
+		}
+		return "↑/↓ move • Enter select • Esc back"
+	}
+	if action != "" {
+		return fmt.Sprintf("Use ↑/↓ to navigate • Enter to %s • Esc to go back", action)
+	}
+	return "Use ↑/↓ to navigate • Enter to select • Esc/q to exit"
+}
+
 func (m model) viewMain() string {
 	var s strings.Builder
 	s.WriteString(titleStyle.Render("MAIN MENU"))
@@ -791,7 +846,7 @@ func (m model) viewMain() string {
 		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc/q to exit"))
+	s.WriteString(helpStyle.Render(m.getHelpText("select")))
 	return s.String()
 }
 
@@ -813,7 +868,7 @@ func (m model) viewSessionsList() string {
 	backIdx := len(m.sessions)
 	s.WriteString(renderDotItem(m.cursor == backIdx, "Back to main menu"))
 
-	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
+	s.WriteString(helpStyle.Render(m.getHelpText("select")))
 	return s.String()
 }
 
@@ -823,7 +878,8 @@ func (m model) viewSessionActions() string {
 	if name == "" {
 		name = "Personal"
 	}
-	s.WriteString(titleStyle.Render(fmt.Sprintf("SESSION: +%s (%s • %s)", m.selectedSession.User, name, m.selectedSession.Platform)))
+	title := fmt.Sprintf("SESSION: +%s (%s)", m.selectedSession.User, name)
+	s.WriteString(titleStyle.Render(title))
 	s.WriteString("\n\n")
 
 	options := []string{
@@ -838,13 +894,13 @@ func (m model) viewSessionActions() string {
 		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
+	s.WriteString(helpStyle.Render(m.getHelpText("select")))
 	return s.String()
 }
 
 func (m model) viewEditVariables() string {
 	var s strings.Builder
-	s.WriteString(titleStyle.Render(fmt.Sprintf("SESSION CONFIGURATION (+%s)", m.selectedSession.User)))
+	s.WriteString(titleStyle.Render(fmt.Sprintf("CONFIG (+%s)", m.selectedSession.User)))
 	s.WriteString("\n\n")
 
 	clientName := "Default (Chrome)"
@@ -878,13 +934,13 @@ func (m model) viewEditVariables() string {
 		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to modify • Esc to go back"))
+	s.WriteString(helpStyle.Render(m.getHelpText("modify")))
 	return s.String()
 }
 
 func (m model) viewEditClient() string {
 	var s strings.Builder
-	s.WriteString(titleStyle.Render("SELECT CLIENT PLATFORM PROFILE"))
+	s.WriteString(titleStyle.Render("SELECT CLIENT PROFILE"))
 	s.WriteString("\n\n")
 
 	options := []string{
@@ -897,7 +953,7 @@ func (m model) viewEditClient() string {
 		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to apply • Esc to go back"))
+	s.WriteString(helpStyle.Render(m.getHelpText("apply")))
 	return s.String()
 }
 
@@ -915,7 +971,7 @@ func (m model) viewEditLogLevel() string {
 		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to apply • Esc to go back"))
+	s.WriteString(helpStyle.Render(m.getHelpText("apply")))
 	return s.String()
 }
 
@@ -927,7 +983,7 @@ func (m model) viewEditDB() string {
 	s.WriteByte('\n')
 	s.WriteString("  " + m.input.View())
 	s.WriteString("\n\n")
-	s.WriteString(helpStyle.Render("Enter to apply • Esc to cancel"))
+	s.WriteString(helpStyle.Render(m.getHelpText("apply")))
 	return s.String()
 }
 
@@ -936,24 +992,24 @@ func (m model) viewDeleteConfirm() string {
 	s.WriteString(titleStyle.Render("CONFIRM SESSION DELETION"))
 	s.WriteString("\n\n")
 	s.WriteString(errorStyle.Render(
-		fmt.Sprintf("Are you sure you want to delete session +%s?", m.selectedSession.User),
+		fmt.Sprintf("Are you sure you want to delete +%s?", m.selectedSession.User),
 	))
 	s.WriteString("\n\n")
 	s.WriteString(renderDotItem(m.cursor == 0, "Cancel and return"))
 	s.WriteString(renderDotItem(m.cursor == 1, "Confirm deletion"))
 	s.WriteString("\n")
-	s.WriteString(helpStyle.Render("Use ↑/↓ to choose • Enter to confirm • Esc to cancel"))
+	s.WriteString(helpStyle.Render(m.getHelpText("confirm")))
 	return s.String()
 }
 
 func (m model) viewNewAuth() string {
 	var s strings.Builder
-	s.WriteString(titleStyle.Render("CREATE NEW SESSION • AUTHENTICATION METHOD"))
+	s.WriteString(titleStyle.Render("CREATE NEW SESSION"))
 	s.WriteString("\n\n")
 
 	options := []string{
-		"QR Code (scan with WhatsApp Linked Devices)",
-		"Pairing Code (enter phone number & receive 8-digit code)",
+		"QR Code (scan with WhatsApp)",
+		"Pairing Code (enter phone number)",
 		"Back to main menu",
 	}
 
@@ -961,31 +1017,31 @@ func (m model) viewNewAuth() string {
 		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
+	s.WriteString(helpStyle.Render(m.getHelpText("select")))
 	return s.String()
 }
 
 func (m model) viewNewPhoneInput() string {
 	var s strings.Builder
 	if m.result.Pair {
-		s.WriteString(titleStyle.Render("ENTER PHONE NUMBER FOR PAIRING CODE"))
+		s.WriteString(titleStyle.Render("ENTER PHONE FOR PAIRING CODE"))
 		s.WriteString("\n\n")
-		s.WriteString(inputPromptStyle.Render("Phone Number (with country code, e.g. +2348062795602):"))
+		s.WriteString(inputPromptStyle.Render("Phone Number (e.g. +2348062795602):"))
 	} else {
-		s.WriteString(titleStyle.Render("ENTER SESSION NAME OR PHONE (QR SCAN)"))
+		s.WriteString(titleStyle.Render("ENTER SESSION IDENTIFIER"))
 		s.WriteString("\n\n")
-		s.WriteString(inputPromptStyle.Render("Session Identifier [optional, leave blank for auto]:"))
+		s.WriteString(inputPromptStyle.Render("Session Name [leave blank for auto]:"))
 	}
 	s.WriteByte('\n')
 	s.WriteString("  " + m.input.View())
 	s.WriteString("\n\n")
-	s.WriteString(helpStyle.Render("Enter to continue • Esc to go back"))
+	s.WriteString(helpStyle.Render(m.getHelpText("continue")))
 	return s.String()
 }
 
 func (m model) viewNewClient() string {
 	var s strings.Builder
-	s.WriteString(titleStyle.Render("SELECT CLIENT PLATFORM PROFILE"))
+	s.WriteString(titleStyle.Render("SELECT CLIENT PROFILE"))
 	s.WriteString("\n\n")
 
 	options := []string{
@@ -998,7 +1054,7 @@ func (m model) viewNewClient() string {
 		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
+	s.WriteString(helpStyle.Render(m.getHelpText("select")))
 	return s.String()
 }
 
@@ -1016,7 +1072,7 @@ func (m model) viewNewLogLevel() string {
 		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
+	s.WriteString(helpStyle.Render(m.getHelpText("select")))
 	return s.String()
 }
 
@@ -1035,7 +1091,7 @@ func (m model) viewNewSaveOption() string {
 		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
 
-	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate • Enter to select • Esc to go back"))
+	s.WriteString(helpStyle.Render(m.getHelpText("select")))
 	return s.String()
 }
 
