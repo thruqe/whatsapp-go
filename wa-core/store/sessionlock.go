@@ -34,8 +34,8 @@ func (device *Device) LockSessions(addresses []string) func() {
 		locks[i].Lock()
 	}
 	return func() {
-		for i := len(locks) - 1; i >= 0; i-- {
-			locks[i].Unlock()
+		for _, lock := range slices.Backward(locks) {
+			lock.Unlock()
 		}
 	}
 }

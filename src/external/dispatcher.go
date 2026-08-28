@@ -81,7 +81,7 @@ func (d *Dispatcher) PluginDir() (string, error) {
 	return filepath.Join(baseDir, "plugins"), nil
 }
 
-// PluginPath returns the absolute filesystem path for a given plugin name.
+// PluginPath returns the absolute filesystem path for a given plugin name (checks .wasm and native).
 func (d *Dispatcher) PluginPath(name string) (string, error) {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if !validPluginNamePattern.MatchString(name) {
@@ -91,17 +91,29 @@ func (d *Dispatcher) PluginPath(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	wasmPath := filepath.Join(dir, name+".wasm")
+	if info, err := os.Stat(wasmPath); err == nil && !info.IsDir() {
+		return wasmPath, nil
+	}
+
 	return filepath.Join(dir, name), nil
 }
 
-// IsInstalled returns true if an executable plugin binary exists for the given name.
+// IsInstalled returns true if an executable native binary or WASM module exists for the given name.
 func (d *Dispatcher) IsInstalled(name string) bool {
 	path, err := d.PluginPath(name)
 	if err != nil {
 		return false
 	}
 	info, err := os.Stat(path)
-	return err == nil && !info.IsDir() && info.Mode().Perm()&0o111 != 0
+	if err != nil || info.IsDir() {
+		return false
+	}
+	if isWASMFile(path) {
+		return true
+	}
+	return info.Mode().Perm()&0o111 != 0
 }
 
 // IsOfficial returns true if name is one of the 13 official WhatsRook external plugins.
@@ -249,7 +261,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 			MentionedJIDs:   mentionStrs,
 		}
 
-		d.runProcess(plugCtx, path, name, req)
+		if isWASMFile(path) {
+			d.runWASMModule(plugCtx, path, name, req)
+		} else {
+			d.runProcess(plugCtx, path, name, req)
+		}
 	}()
 
 	return true
@@ -270,7 +286,12 @@ func (d *Dispatcher) Install(ctx context.Context, name string, source string) er
 		return fmt.Errorf("create plugin dir: %w", err)
 	}
 
+	isWASM := strings.HasSuffix(strings.ToLower(source), ".wasm")
 	target := filepath.Join(dir, name)
+	if isWASM {
+		target = filepath.Join(dir, name+".wasm")
+	}
+
 	tmpPath := target + ".tmp"
 	tmp, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o700)
 	if err != nil {
@@ -322,6 +343,12 @@ func (d *Dispatcher) Install(ctx context.Context, name string, source string) er
 	if err := os.Chmod(tmpPath, 0o700); err != nil {
 		return fmt.Errorf("chmod plugin: %w", err)
 	}
+
+	// Detect if binary is WASM even if source URL lacked .wasm extension
+	if !isWASM && isWASMFile(tmpPath) {
+		target = filepath.Join(dir, name+".wasm")
+	}
+
 	if err := os.Rename(tmpPath, target); err != nil {
 		return fmt.Errorf("install plugin binary: %w", err)
 	}
@@ -333,7 +360,8 @@ func (d *Dispatcher) Install(ctx context.Context, name string, source string) er
 		_ = os.Remove(target)
 		return fmt.Errorf("marshal manifest: %w", err)
 	}
-	if err := os.WriteFile(target+".json", append(data, '\n'), 0o600); err != nil {
+	manifestPath := filepath.Join(dir, name+".json")
+	if err := os.WriteFile(manifestPath, append(data, '\n'), 0o600); err != nil {
 		_ = os.Remove(target)
 		return fmt.Errorf("write manifest: %w", err)
 	}
@@ -391,8 +419,11 @@ func (d *Dispatcher) Uninstall(name string) error {
 	if !d.IsInstalled(name) {
 		return fmt.Errorf("plugin %q is not installed", name)
 	}
-	_ = os.Remove(path + ".json")
-	return os.Remove(path)
+	dir, _ := d.PluginDir()
+	_ = os.Remove(path)
+	_ = os.Remove(filepath.Join(dir, name+".wasm"))
+	_ = os.Remove(filepath.Join(dir, name+".json"))
+	return nil
 }
 
 // UninstallAll removes all currently installed external plugins.
@@ -425,21 +456,36 @@ func (d *Dispatcher) List() ([]PluginInfo, error) {
 	}
 
 	var list []PluginInfo
+	seen := make(map[string]bool)
+
 	for _, entry := range entries {
 		if entry.IsDir() || strings.HasSuffix(entry.Name(), ".json") || strings.HasSuffix(entry.Name(), ".tmp") {
 			continue
 		}
+		cleanName := strings.TrimSuffix(entry.Name(), ".wasm")
+		if seen[cleanName] {
+			continue
+		}
+		seen[cleanName] = true
+
 		fullPath := filepath.Join(dir, entry.Name())
 		info, err := entry.Info()
-		if err != nil || info.Mode().Perm()&0o111 == 0 {
+		if err != nil {
+			continue
+		}
+		isWasm := isWASMFile(fullPath)
+		if !isWasm && info.Mode().Perm()&0o111 == 0 {
 			continue
 		}
 		manifest := d.readManifest(fullPath)
+		if manifest.Name == "" {
+			manifest = d.readManifest(filepath.Join(dir, cleanName))
+		}
 		list = append(list, PluginInfo{
-			Name:        entry.Name(),
+			Name:        cleanName,
 			Path:        fullPath,
 			Description: manifest.Description,
-			IsPublic:    d.IsOfficial(entry.Name()) || manifest.IsPublic,
+			IsPublic:    d.IsOfficial(cleanName) || manifest.IsPublic,
 			Size:        info.Size(),
 			ModTime:     info.ModTime(),
 		})
