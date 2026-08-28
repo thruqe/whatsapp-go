@@ -1,283 +1,289 @@
 # External Plugins
 
-External plugins allow you to extend whatsrook with independently developed executable programs. A plugin can be written in any language, compiled into a binary, installed into whatsrook, and used as a WhatsApp command.
+External plugins allow you to extend whatsrook with independently developed executable programs. A plugin can be written in any language (Rust, Go, Python, C, etc.), compiled into a standalone binary, installed into whatsrook, and used directly as a WhatsApp command.
 
-External plugins run as separate processes. They do not need to be compiled together with whatsrook, and they do not require a Go import or a change to the whatsrook source code.
+External plugins run as isolated child processes. They do not need to be compiled together with whatsrook, and they do not require changes to the whatsrook Go source code.
+
+---
 
 ## How It Works
 
-The external plugin flow is:
+The external plugin lifecycle:
 
 1. Create a plugin program.
 2. Build an executable for the operating system and CPU architecture running whatsrook.
-3. Install the executable with the `install` command.
-4. Run the plugin by sending its installed name as a command.
-5. The plugin reads a JSON request from standard input and writes its WhatsApp reply to standard output.
+3. Install the executable with the `.install` command.
+4. Run the plugin by sending its installed command name in WhatsApp.
+5. The plugin reads a JSON request from standard input and either:
+   - **Simple Mode**: Writes a single text reply to standard output.
+   - **Live Streaming Mode**: Writes newline-delimited JSON action frames to standard output to send messages, receive message IDs, and perform live in-place edits (e.g. real-time ticker prices, live progress updates).
 
-For example:
+Example:
 
 ```text
-.install weather /home/user/weather-plugin
+.install weather
 .weather London
 ```
 
-The `install`, `uninstall`, and `plist` commands are in the `Plugins` command category. They are restricted to the bot owner and configured sudoers.
+The `.install`, `.uninstall`, and `.plist` management commands are restricted to the bot owner and configured sudoers.
+
+---
 
 ## Plugin Commands
 
 ### Install
 
-Install a local executable:
+Install from official registry (automatically detects host OS & architecture, including Android Termux):
 
 ```text
-.install <name> <path>
+.install <name>
 ```
 
-Example:
+Install all official plugins at once:
 
 ```text
-.install weather /home/user/weather-plugin
+.install all
 ```
 
-Install an executable from an HTTP or HTTPS URL:
+Install from a custom HTTP/HTTPS URL or clean URL (whatsrook automatically appends host platform suffix if missing):
 
 ```text
-.install weather https://example.com/releases/weather-plugin-linux-amd64
+.install weather https://example.com/releases/latest/download/weather
 ```
 
-The source must be a local file or an HTTP(S) URL. The downloaded or copied file is stored in the managed plugin directory, made executable, and registered under the supplied name.
+Install a local server binary:
+
+```text
+.install weather /opt/plugins/weather
+```
 
 Plugin names must:
-
 - Contain between 1 and 64 characters.
-- Start with a letter or number.
+- Start with an alphanumeric character.
 - Contain only letters, numbers, underscores (`_`), and hyphens (`-`).
 
-Names are normalized to lowercase during installation and removal.
-
 ### List Installed Plugins
-
-List all installed external plugins:
 
 ```text
 .plist
 ```
 
-`pluginlist` is also accepted as an alias:
-
-```text
-.pluginlist
-```
-
-The list contains the installed plugin names in alphabetical order.
+(`pluginlist` is also accepted as an alias).
 
 ### Uninstall
 
-Remove an installed plugin:
-
 ```text
 .uninstall <name>
+.uninstall all
 ```
 
-Example:
-
-```text
-.uninstall weather
-```
-
-Uninstall only removes the executable and metadata managed by whatsrook. It does not remove the original local source file or any remote release.
+---
 
 ## Plugin Protocol
 
-The executable is started with the command arguments passed after the plugin name. For this message:
+### Inbound Request Payload (Standard Input)
 
-```text
-.weather London tomorrow
-```
-
-whatsrook starts the executable approximately as:
-
-```text
-weather London tomorrow
-```
-
-The plugin also receives a JSON request on standard input:
+When a command is triggered, whatsrook sends a JSON request line on `stdin`:
 
 ```json
 {
-  "command": "weather",
-  "args": ["London", "tomorrow"],
-  "raw_args": "London tomorrow",
+  "command": "btc",
+  "args": ["stop"],
+  "raw_args": "stop",
   "chat": "1234567890@s.whatsapp.net",
-  "sender": "1234567890@s.whatsapp.net"
+  "sender": "9876543210@s.whatsapp.net",
+  "prefix": ".",
+  "bot_name": "WhatsRook",
+  "push_name": "Alice",
+  "is_group": true,
+  "is_sudo": true,
+  "live_session": false,
+  "is_cancel_request": true
 }
 ```
 
-The request fields are:
+#### Request Fields:
 
-| Field | Description |
-| --- | --- |
-| `command` | The installed plugin name. |
-| `args` | Arguments split on whitespace. |
-| `raw_args` | The complete argument text after the command name. |
-| `chat` | JID of the WhatsApp chat where the command was sent. |
-| `sender` | JID of the person who sent the command. |
+| Field | Type | Description |
+|---|---|---|
+| `command` | `string` | The installed plugin name. |
+| `args` | `[]string` | Arguments split on whitespace. |
+| `raw_args` | `string` | The complete unparsed argument string following the command. |
+| `chat` | `string` | WhatsApp JID of the chat where the command was executed. |
+| `sender` | `string` | WhatsApp JID of the sender. |
+| `prefix` | `string` | Active command prefix from bot settings (e.g. `.` or `/`). |
+| `bot_name` | `string` | Configured display name of the bot. |
+| `push_name` | `string` | WhatsApp push display name of the sender. |
+| `is_group` | `bool` | `true` if invoked inside a WhatsApp group. |
+| `is_sudo` | `bool` | `true` if sender is bot owner or in `sudoers`. |
+| `live_session` | `bool` | `true` if a live streaming session is currently active for this chat & command. |
+| `is_cancel_request` | `bool` | `true` if the argument is a stop keyword (`stop`, `cancel`, `end`, `off`). |
 
-The plugin must write the reply to standard output. whatsrook trims the output and sends it as a text reply to the current WhatsApp chat.
+---
 
-For example:
+### Response Modes
+
+#### 1. Simple Mode (Plain Text)
+
+For standard one-shot commands, write the reply directly to `stdout`. whatsrook trims the text and sends it as a WhatsApp reply.
 
 ```text
-Weather for London: 18°C, cloudy.
+Weather for London: 18°C, Partly Cloudy ⛅
 ```
 
-Only standard output is used as the reply. Diagnostic messages should be written to standard error. Standard error is logged by whatsrook and is not sent to the chat.
+#### 2. Live Streaming & In-Place Editing Mode
+
+For live tickers (like `.btc`), countdowns, progress loaders, or multi-step tasks, external plugins can stream newline-delimited JSON action frames to `stdout`.
+
+##### Action Frames (Plugin → WhatsRook via `stdout`):
+
+1. **Send Initial Message & Obtain Message ID:**
+   ```json
+   {"action":"reply","text":"₿ *Bitcoin Price:* $88,240.50\n\n_Updating every 1.5s..._"}
+   ```
+   WhatsRook responds on `stdin` with an Acknowledgment frame containing the sent WhatsApp `msg_id`:
+   ```json
+   {"ok":true,"msg_id":"3EB0ABC12345"}
+   ```
+
+2. **Live Edit Message:**
+   ```json
+   {"action":"edit","msg_id":"3EB0ABC12345","text":"₿ *Bitcoin Price:* $88,295.10\n\n_Updating every 1.5s..._"}
+   ```
+
+3. **Conclude Live Session:**
+   ```json
+   {"action":"done"}
+   ```
+
+---
+
+## Live Session Management & Cancellation
+
+When a streaming plugin is running:
+- WhatsRook tracks the active session keyed by `chat_jid:command_name`.
+- Users in the chat can send `.<command> stop` (e.g. `.btc stop`, `.btc cancel`, `.btc off`) at any time to instantly terminate the live process and clean up resources.
+- Live sessions are automatically capped at a 5-minute safety timeout window.
+
+---
+
+## Manifest & Access Permissions
+
+Each installed plugin stores a `<name>.json` manifest file adjacent to its executable. Plugins can configure public access:
+
+```json
+{
+  "name": "btc",
+  "description": "Live Bitcoin ticker",
+  "is_public": true
+}
+```
+
+- When `"is_public": true`, any participant in a chat or group can run the command.
+- When omitted or `false`, only the bot owner and configured `sudoers` can invoke the command.
+
+---
+
+## Rust Example with `whatsrook-sdk`
+
+```rust
+use std::thread;
+use std::time::{Duration, Instant};
+use whatsrook_sdk::{create_http_client, send_done, send_edit_live, send_reply_live, Request};
+
+fn main() {
+    let req = Request::load_streaming();
+    let prefix = req.prefix();
+
+    let initial_msg = format!("⏳ Starting live countdown...\nUse {}countdown stop to cancel.", prefix);
+    let msg_id = match send_reply_live(&initial_msg) {
+        Some(id) => id,
+        None => return,
+    };
+
+    for i in (1..=10).rev() {
+        thread::sleep(Duration::from_millis(1500));
+        send_edit_live(&msg_id, &format!("⏳ T-minus {} seconds...", i));
+    }
+
+    send_edit_live(&msg_id, "🚀 Blast off!");
+    send_done();
+}
+```
+
+---
 
 ## Complete Go Example
-
-Create a directory for the plugin:
-
-```bash
-mkdir weather-plugin
-cd weather-plugin
-```
-
-Create `main.go`:
 
 ```go
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type Request struct {
-	Command string   `json:"command"`
-	Args    []string `json:"args"`
-	RawArgs string   `json:"raw_args"`
-	Chat    string   `json:"chat"`
-	Sender  string   `json:"sender"`
+	Command string `json:"command"`
+	Prefix  string `json:"prefix"`
+	RawArgs string `json:"raw_args"`
+}
+
+type Action struct {
+	Action string `json:"action"`
+	Text   string `json:"text,omitempty"`
+	MsgID  string `json:"msg_id,omitempty"`
+}
+
+type Ack struct {
+	OK    bool   `json:"ok"`
+	MsgID string `json:"msg_id"`
 }
 
 func main() {
-	var request Request
-	if err := json.NewDecoder(os.Stdin).Decode(&request); err != nil {
-		fmt.Fprintln(os.Stderr, "invalid whatsrook request:", err)
-		os.Exit(1)
+	reader := bufio.NewReader(os.Stdin)
+	line, _ := reader.ReadString('\n')
+
+	var req Request
+	_ = json.Unmarshal([]byte(strings.TrimSpace(line)), &req)
+
+	// Send initial message
+	action, _ := json.Marshal(Action{Action: "reply", Text: "Loading live status..."})
+	fmt.Println(string(action))
+
+	// Read Ack
+	ackLine, _ := reader.ReadString('\n')
+	var ack Ack
+	_ = json.Unmarshal([]byte(strings.TrimSpace(ackLine)), &ack)
+
+	// Live edit loop
+	for i := 1; i <= 5; i++ {
+		time.Sleep(1500 * time.Millisecond)
+		edit, _ := json.Marshal(Action{
+			Action: "edit",
+			MsgID:  ack.MsgID,
+			Text:   fmt.Sprintf("Live Status Update #%d/5", i),
+		})
+		fmt.Println(string(edit))
 	}
 
-	city := strings.TrimSpace(request.RawArgs)
-	if city == "" {
-		fmt.Fprintln(os.Stdout, "Usage: .weather <city>")
-		return
-	}
-
-	// Replace this with a real weather API request.
-	fmt.Fprintf(os.Stdout, "Weather lookup requested for %s.", city)
+	done, _ := json.Marshal(Action{Action: "done"})
+	fmt.Println(string(done))
 }
 ```
 
-Build it:
+---
 
-```bash
-go build -o weather-plugin .
-```
+## Building for Multiple Platforms
 
-Install it from WhatsApp:
+WhatsRook uses static MUSL compilation on Linux to support both standard servers and Android (Termux) environments seamlessly:
 
-```text
-.install weather /absolute/path/to/weather-plugin
-```
-
-Use it:
-
-```text
-.weather London
-```
-
-The example replies:
-
-```text
-Weather lookup requested for London.
-```
-
-## Building for Another Platform
-
-Build the plugin for the platform where whatsrook runs. A binary built for the wrong operating system or architecture cannot be executed.
-
-Linux AMD64:
-
-```bash
-GOOS=linux GOARCH=amd64 go build -o weather-plugin .
-```
-
-Linux ARM64:
-
-```bash
-GOOS=linux GOARCH=arm64 go build -o weather-plugin .
-```
-
-macOS Apple Silicon:
-
-```bash
-GOOS=darwin GOARCH=arm64 go build -o weather-plugin .
-```
-
-Windows AMD64:
-
-```bash
-GOOS=windows GOARCH=amd64 go build -o weather-plugin.exe .
-```
-
-## Storage Location
-
-By default, plugins are stored in a `plugins` directory inside the whatsrook data directory:
-
-```text
-<whatsrook-data-directory>/plugins/
-```
-
-Set `WHATSROOK_PLUGIN_DIR` to use a different directory:
-
-```bash
-WHATSROOK_PLUGIN_DIR=/opt/whatsrook/plugins whatsrook
-```
-
-The directory is created with restricted permissions when the first plugin is installed. Each installed plugin has a corresponding metadata file with a `.json` suffix.
-
-## Runtime Limits and Security
-
-External plugins run with the same operating-system permissions as the whatsrook process. Only install binaries you trust.
-
-The plugin system applies these protections and limits:
-
-- Installation and execution are restricted to the bot owner and sudoers.
-- Plugin names are validated and cannot contain path separators.
-- Remote downloads support only HTTP and HTTPS.
-- A plugin is limited to 64 MiB during installation.
-- A plugin process is stopped after 30 seconds.
-- Existing built-in commands take precedence over external plugins with the same name.
-- External plugins are started as separate processes and do not receive direct access to the WhatsApp client or whatsrook internals.
-
-External plugins can execute arbitrary code available to the operating-system user running whatsrook. Review source code and release artifacts before installing them.
-
-## Limitations
-
-The current protocol is intentionally small. An external plugin can:
-
-- Receive command arguments and basic chat metadata.
-- Read a JSON request from standard input.
-- Return a text reply through standard output.
-
-An external plugin cannot currently:
-
-- Register multiple native whatsrook commands.
-- Receive arbitrary WhatsApp events.
-- Use the native `Context` or `WARook` APIs.
-- Send images, audio, documents, polls, reactions, or other rich messages directly.
-- Persist settings through the whatsrook database.
-
-Use an in-tree Go plugin when deeper integration with whatsrook APIs is required.
+- **Linux AMD64 (Static MUSL)**: `x86_64-unknown-linux-musl`
+- **Linux ARM64 / Android Termux (Static MUSL)**: `aarch64-unknown-linux-musl`
+- **macOS Apple Silicon**: `aarch64-apple-darwin`
+- **macOS Intel**: `x86_64-apple-darwin`
+- **Windows x64**: `x86_64-pc-windows-msvc`
