@@ -1,6 +1,7 @@
 package cliutils
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -142,7 +143,7 @@ func TestUnscrambleGame_StartAndGuessFlow(t *testing.T) {
 func TestDictionaryDB_SQLiteLookup(t *testing.T) {
 	if !IsDictionaryDBReady() {
 		t.Log("Dictionary.db not found locally; downloading for test...")
-		if err := DownloadDictionaryDB(nil); err != nil {
+		if err := DownloadDictionaryDB(context.Background()); err != nil {
 			t.Fatalf("DownloadDictionaryDB failed: %v", err)
 		}
 	}
