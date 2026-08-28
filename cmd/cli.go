@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -38,6 +39,7 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		dbURL     = fs.String("db-url", "", "Database URL: default | postgres connection string")
 		logout    = fs.Bool("logout", false, "Remove session credentials and terminate")
 		updateVal = fs.String("update", "__unset__", "Update operation: check | stable | beta | (empty for direct)")
+		standby   = fs.Bool("standby", false, "Enter interactive standby mode")
 		verbose   = fs.Bool("verbose", false, "Enable verbose debug logging")
 	)
 
@@ -48,11 +50,13 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 	fs.StringVar(dbURL, "db", "", "Database URL (alias)")
 	fs.BoolVar(logout, "l", false, "Remove session credentials (alias)")
 	fs.StringVar(updateVal, "u", "__unset__", "Update operation (alias)")
+	fs.BoolVar(standby, "i", false, "Enter interactive standby mode (alias)")
 	fs.BoolVar(verbose, "v", false, "Enable verbose debug logging (alias)")
 
 	fs.Usage = func() {
 		fmt.Print(`Usage: whatsrook [OPTIONS]
        whatsrook update [check | stable | beta]
+       whatsrook standby
 
 Options:
   -s, --session <phone>         Phone number used to identify the session
@@ -60,18 +64,35 @@ Options:
   -c, --client <type>           Client profile: default (chrome), android, ios (default: default)
   --db-url, -db <url>           Database: default (sqlite) or PostgreSQL connection URL
   -l, --logout                  Remove session credentials and exit
+  -i, --standby                 Force interactive standby session manager
   -u, --update [action]         Check or apply update (actions: check, stable, beta, or empty for direct)
   -v, --verbose                 Enable verbose debug logging
   -h, --help                    Show this help message
 `)
 	}
 
-	_ = fs.Parse(cmdArgs)
+	if err := fs.Parse(cmdArgs); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0)
+		}
+	}
+	if fs.NArg() > 0 && (fs.Arg(0) == "help" || fs.Arg(0) == "--help" || fs.Arg(0) == "-h") {
+		fs.Usage()
+		os.Exit(0)
+	}
 
 	explicitFlags := make(map[string]bool)
 	fs.Visit(func(f *flag.Flag) {
 		explicitFlags[f.Name] = true
 	})
+
+	isStandby := *standby || explicitFlags["standby"] || explicitFlags["i"]
+	if fs.NArg() > 0 {
+		sub := strings.ToLower(strings.TrimSpace(fs.Arg(0)))
+		if sub == "standby" || sub == "menu" || sub == "interactive" {
+			isStandby = true
+		}
+	}
 
 	// 1. Positional subcommand parsing (e.g., `whatsrook update check`)
 	isUpdate := false
@@ -98,19 +119,21 @@ Options:
 
 	// 3. Session resolution (Flag > Positional phone number > SESSION env)
 	sessionVal := ""
-	if explicitFlags["session"] || explicitFlags["s"] {
-		sessionVal = strings.TrimSpace(*session)
-	} else if fs.NArg() > 0 && !isUpdate {
-		for _, arg := range fs.Args() {
-			cleanArg := strings.TrimPrefix(strings.TrimSpace(arg), "+")
-			if len(cleanArg) >= 7 && len(cleanArg) <= 15 && isNumeric(cleanArg) {
-				sessionVal = arg
-				break
+	if !isStandby {
+		if explicitFlags["session"] || explicitFlags["s"] {
+			sessionVal = strings.TrimSpace(*session)
+		} else if fs.NArg() > 0 && !isUpdate {
+			for _, arg := range fs.Args() {
+				cleanArg := strings.TrimPrefix(strings.TrimSpace(arg), "+")
+				if len(cleanArg) >= 7 && len(cleanArg) <= 15 && isNumeric(cleanArg) {
+					sessionVal = arg
+					break
+				}
 			}
 		}
-	}
-	if sessionVal == "" {
-		sessionVal = os.Getenv("SESSION")
+		if sessionVal == "" {
+			sessionVal = os.Getenv("SESSION")
+		}
 	}
 
 	// 4. Auth resolution (Flag > AUTH env > default "qr")
