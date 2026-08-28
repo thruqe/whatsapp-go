@@ -1277,7 +1277,9 @@ func (cli *Client) preparePeerMessageNode(
 		}
 	}
 	start = time.Now()
+	unlockSession := cli.Store.LockSession(encryptionIdentity.SignalAddress().String())
 	encrypted, isPreKey, err := cli.encryptMessageForDevice(ctx, plaintext, encryptionIdentity, nil, nil, nil)
+	unlockSession()
 	timings.PeerEncrypt = time.Since(start)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt peer message for %s: %v", to, err)
@@ -1518,6 +1520,9 @@ func (cli *Client) encryptMessageForDevices(
 		sessionAddressToJID[addr] = jid
 	}
 
+	unlockSessions := cli.Store.LockSessions(sessionAddresses)
+	defer func() { unlockSessions() }()
+	baseCtx := ctx
 	startPrefetch := time.Now()
 	existingSessions, ctx, err := cli.Store.WithCachedSessions(ctx, sessionAddresses)
 	if t != nil {
@@ -1532,10 +1537,20 @@ func (cli *Client) encryptMessageForDevices(
 			retryDevices = append(retryDevices, sessionAddressToJID[addr])
 		}
 	}
-	startPrekeys := time.Now()
-	bundles := cli.fetchPreKeysNoError(ctx, retryDevices)
-	if t != nil {
-		t.FetchPreKeys = time.Since(startPrekeys)
+	var bundles map[types.JID]*prekey.Bundle
+	if len(retryDevices) > 0 {
+		unlockSessions()
+		unlockSessions = func() {}
+		startPrekeys := time.Now()
+		bundles = cli.fetchPreKeysNoError(ctx, retryDevices)
+		if t != nil {
+			t.FetchPreKeys = time.Since(startPrekeys)
+		}
+		unlockSessions = cli.Store.LockSessions(sessionAddresses)
+		existingSessions, ctx, err = cli.Store.WithCachedSessions(baseCtx, sessionAddresses)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to prefetch sessions: %w", err)
+		}
 	}
 
 	type encResult struct {

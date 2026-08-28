@@ -291,6 +291,7 @@ type Device struct {
 
 	l1SessionCache     any
 	l1SessionCacheLock sync.Mutex
+	sessionLocks       sync.Map
 
 	saveDeleteLockInit sync.Once
 	saveDeleteLock     chan struct{}
