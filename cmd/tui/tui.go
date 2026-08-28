@@ -136,20 +136,31 @@ func Run(ctx context.Context, defaultDB string, boundPort int) (SessionResult, b
 	return fm.result, fm.result.ShouldRun, nil
 }
 
-// ClearTerminal resets and clears the entire terminal display and scrollback buffer.
+// ClearTerminal resets terminal state, restores cursor visibility and echo, and clears the screen.
 func ClearTerminal() {
-	_, _ = os.Stdout.WriteString("\033c\033[H\033[2J\033[3J")
+	// 1. Show cursor, reset styling, exit alt-screen, disable mouse tracking, clear screen & scrollback
+	_, _ = os.Stdout.WriteString("\033[?25h\033[0m\033[?1049l\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[H\033[2J\033[3J")
 	_ = os.Stdout.Sync()
 
-	if runtime.GOOS == "windows" {
+	// 2. Restore standard terminal discipline (echo & sane mode) on Unix/Linux/Termux/macOS
+	if runtime.GOOS != "windows" {
+		cmd := exec.Command("stty", "sane")
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		_ = cmd.Run()
+
+		cmdClear := exec.Command("clear")
+		cmdClear.Stdout = os.Stdout
+		_ = cmdClear.Run()
+	} else {
 		cmd := exec.Command("cmd", "/c", "cls")
 		cmd.Stdout = os.Stdout
 		_ = cmd.Run()
-	} else {
-		cmd := exec.Command("clear")
-		cmd.Stdout = os.Stdout
-		_ = cmd.Run()
 	}
+
+	// 3. Ensure cursor is definitely visible and normal
+	_, _ = os.Stdout.WriteString("\033[?25h\033[0m")
+	_ = os.Stdout.Sync()
 }
 
 func (m model) Init() tea.Cmd {
