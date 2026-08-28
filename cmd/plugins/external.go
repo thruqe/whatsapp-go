@@ -83,14 +83,16 @@ func ResolvePlatformSuffix() (string, error) {
 	arch := runtime.GOARCH
 
 	switch osName {
-	case "linux":
+	case "linux", "android":
 		switch arch {
-		case "amd64":
-			return "linux-amd64", nil
-		case "arm64":
+		case "arm64", "aarch64":
 			return "linux-arm64", nil
+		case "amd64", "x86_64":
+			return "linux-amd64", nil
+		case "arm":
+			return "linux-arm", nil
 		default:
-			return "", fmt.Errorf("unsupported Linux architecture %q (supported: amd64, arm64)", arch)
+			return "", fmt.Errorf("unsupported Linux/Android architecture %q (supported: arm64, amd64)", arch)
 		}
 	case "darwin":
 		switch arch {
