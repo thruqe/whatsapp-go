@@ -844,4 +844,3 @@ func handleDownloadMessage(ctx *Context) error {
 		return ctx.SendDocument(mediaData, mimetype, "downloaded_media", "")
 	}
 }
-

@@ -25,10 +25,10 @@ import (
 )
 
 const (
-	externalPluginDirEnv       = "WHATSROOK_PLUGIN_DIR"
-	defaultExternalPluginRepo  = "https://github.com/Thruqe/whatsrook-externals/releases/latest/download"
-	maxExternalPluginSize      = 64 << 20
-	externalPluginTimeout      = 30 * time.Second
+	externalPluginDirEnv      = "WHATSROOK_PLUGIN_DIR"
+	defaultExternalPluginRepo = "https://github.com/Thruqe/whatsrook-externals/releases/latest/download"
+	maxExternalPluginSize     = 64 << 20
+	externalPluginTimeout     = 30 * time.Second
 )
 
 var officialExternalPlugins = []string{
@@ -534,4 +534,3 @@ func isExternalPluginPublic(name string) bool {
 	manifest := readExternalPluginManifest(path)
 	return manifest.IsPublic
 }
-
