@@ -21,6 +21,7 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
+	utils "whatsrook/src"
 )
 
 type UnscrambleState int
@@ -227,11 +228,19 @@ func (g *UnscrambleGame) AddPlayer(lid, mentionJID types.JID, tag string) bool {
 	return true
 }
 
-// FindPlayerIndex returns the index of a player by LID, or -1.
-func (g *UnscrambleGame) FindPlayerIndex(lid types.JID) int {
+// FindPlayerIndex returns the index of a player by LID, MentionJID, or matching user, or -1.
+func (g *UnscrambleGame) FindPlayerIndex(user types.JID) int {
+	u := user.ToNonAD()
 	for i, p := range g.Players {
-		if p.LID.User == lid.User {
+		pLID := p.LID.ToNonAD()
+		pMen := p.MentionJID.ToNonAD()
+		if pLID == u || pMen == u || (pLID.User != "" && pLID.User == u.User) || (pMen.User != "" && pMen.User == u.User) {
 			return i
+		}
+		if g.Client != nil {
+			if utils.IsSameUserRaw(context.Background(), g.Client, p.LID, u) || utils.IsSameUserRaw(context.Background(), g.Client, p.MentionJID, u) {
+				return i
+			}
 		}
 	}
 	return -1
@@ -323,7 +332,7 @@ func (g *UnscrambleGame) ProcessGuess(guess string, senderLID types.JID) (correc
 	}
 
 	currentPlayer = g.Players[g.CurrentTurnIdx]
-	if currentPlayer.LID.User != senderLID.User {
+	if pIdx != g.CurrentTurnIdx {
 		return false, false, nil, currentPlayer, 0
 	}
 

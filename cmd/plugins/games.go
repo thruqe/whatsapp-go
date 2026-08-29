@@ -586,8 +586,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 		return false
 	}
 
-	currentTurnPlayer := game.Players[game.CurrentTurnIdx]
-	if currentTurnPlayer.LID.User != senderLID.User {
+	if pIdx != game.CurrentTurnIdx {
 		Logger.Debug("[Unscramble] Ignored input from player whose turn it is not", "chat", chatKey, "sender", senderLID.String())
 		game.Mu.Unlock()
 		return false
@@ -843,11 +842,16 @@ func startUnscrambleTurn(ctx *Context, game *cliutils.UnscrambleGame) {
 			Chat:   game.ChatJID,
 		}
 
+		word := game.CurrentWord
 		gameOver, _ := game.EliminateCurrentPlayer()
+
+		timeoutMsg := Sprintf("⏰ Time's up for %s!\nThe correct word was: '%s'.\n%s has been eliminated from this match!",
+			currentPlayer.Tag, word, currentPlayer.Tag)
+		_ = cctx.ReplyWithMentions(timeoutMsg, []types.JID{currentPlayer.MentionJID})
+
 		if gameOver {
 			finishUnscrambleGame(cctx, game)
 		} else {
-			_ = cctx.Replyf("Time's up for @%s! Eliminating player...", currentPlayer.Tag)
 			startUnscrambleTurn(cctx, game)
 		}
 	})
@@ -859,18 +863,46 @@ func finishUnscrambleGame(ctx *Context, game *cliutils.UnscrambleGame) {
 	winner, standings := game.FinishGame()
 	saveUnscrambleStats(ctx, game, winner)
 
-	tb := NewText().Header("Unscramble Game Finished!")
+	tb := NewText().Header("UNSCRAMBLE MATCH OVER!")
 
-	if winner != nil {
-		tb.Linef("Winner: @%s (Score: %d)", winner.Tag, winner.Score).Blank()
+	var mentions []types.JID
+
+	isMultiplayer := len(game.Players) > 1
+
+	if isMultiplayer {
+		if winner != nil {
+			tb.Linef("🏆 Winner (Last Standing): %s\nTotal Score: %d pts | Correct Guesses: %d",
+				winner.Tag, winner.Score, winner.CorrectGuesses).Blank()
+			mentions = append(mentions, winner.MentionJID)
+		} else {
+			tb.Line("All players have been eliminated! No winner this round.").Blank()
+		}
 	} else {
-		tb.Line("No winner this round!").Blank()
+		// Single player game
+		if winner != nil {
+			tb.Linef("🏆 Congratulations %s! You completed all 16 levels with %d points!",
+				winner.Tag, winner.Score).Blank()
+			mentions = append(mentions, winner.MentionJID)
+		} else if len(standings) > 0 {
+			tb.Linef("Game Over for %s! Total Score: %d pts (%d correct guesses)",
+				standings[0].Tag, standings[0].Score, standings[0].CorrectGuesses).Blank()
+			mentions = append(mentions, standings[0].MentionJID)
+		} else {
+			tb.Line("Game Over!").Blank()
+		}
 	}
 
 	tb.Section("Final Standings:")
-	var mentions []types.JID
 	for idx, p := range standings {
-		tb.Numberedf(idx+1, "@%s - %d pts (%d correct)", p.Tag, p.Score, p.CorrectGuesses)
+		status := "Eliminated"
+		if winner != nil && p.LID.User == winner.LID.User {
+			if isMultiplayer {
+				status = "Last Standing"
+			} else {
+				status = "Winner"
+			}
+		}
+		tb.Numberedf(idx+1, "%s — %d pts (%d correct) [%s]", p.Tag, p.Score, p.CorrectGuesses, status)
 		if !p.MentionJID.IsEmpty() {
 			mentions = append(mentions, p.MentionJID)
 		}
@@ -1243,7 +1275,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 	}
 
 	currentTurnPlayer := game.Players[game.CurrentTurnIdx]
-	if currentTurnPlayer.LID.User != senderLID.User {
+	if pIdx != game.CurrentTurnIdx {
 		game.Mu.Unlock()
 		return false
 	}
