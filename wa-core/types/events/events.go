@@ -515,6 +515,11 @@ type GroupInfo struct {
 
 	MembershipApprovalMode *types.GroupMembershipApprovalMode // Membership approval mode change
 
+	MemberAddMode                 *types.GroupMemberAddMode          // Group member add mode change
+	MemberLinkMode                *types.GroupMemberLinkMode         // Group member link mode change
+	MemberShareHistoryMode        *types.GroupMemberShareHistoryMode // Group member share history mode change
+	AllowNonAdminSubGroupCreation *bool                              // Allow non-admin subgroup creation in community change
+
 	Delete *types.GroupDelete
 
 	Link   *types.GroupLinkChange

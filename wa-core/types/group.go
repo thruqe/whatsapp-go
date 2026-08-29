@@ -17,6 +17,22 @@ const (
 	GroupMemberAddModeAllMember GroupMemberAddMode = "all_member_add"
 )
 
+type GroupMemberLinkMode string
+
+const (
+	GroupMemberLinkModeAdmin     GroupMemberLinkMode = "admin_link"
+	GroupMemberLinkModeAllMember GroupMemberLinkMode = "all_member_link"
+)
+
+type GroupMemberShareHistoryMode string
+
+type GroupMemberShareGroupHistoryMode = GroupMemberShareHistoryMode
+
+const (
+	GroupMemberShareHistoryModeAdmin     GroupMemberShareHistoryMode = "admin_share"
+	GroupMemberShareHistoryModeAllMember GroupMemberShareHistoryMode = "all_member_share"
+)
+
 // GroupInfo contains basic information about a group chat on WhatsApp.
 type GroupInfo struct {
 	JID      JID
@@ -43,7 +59,9 @@ type GroupInfo struct {
 	Participants         []GroupParticipant
 	ParticipantCount     int
 
-	MemberAddMode GroupMemberAddMode
+	MemberAddMode          GroupMemberAddMode
+	MemberLinkMode         GroupMemberLinkMode
+	MemberShareHistoryMode GroupMemberShareHistoryMode
 
 	// Suspended indicates whether the group is currently paused/suspended.
 	Suspended bool
@@ -56,6 +74,7 @@ type GroupMembershipApprovalMode struct {
 type GroupParent struct {
 	IsParent                      bool
 	DefaultMembershipApprovalMode string // request_required
+	AllowNonAdminSubGroupCreation bool
 }
 
 type GroupLinkedParent struct {

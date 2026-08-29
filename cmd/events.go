@@ -560,6 +560,54 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, []types.JID{resolvedJID})
 		}
 	}
+
+	// 7. Member Add Mode
+	if g.MemberAddMode != nil {
+		Logger.Debug("handleGroupEventsNotification: member add mode changed", "group", chatKey, "mode", *g.MemberAddMode, "actor", actorTag)
+		var msgText string
+		if *g.MemberAddMode == types.GroupMemberAddModeAdmin {
+			msgText = fmt.Sprintf("*Group Event*: Group settings updated%s. Only admins can add members.", actorTag)
+		} else {
+			msgText = fmt.Sprintf("*Group Event*: Group settings updated%s. All members can add members.", actorTag)
+		}
+		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
+	}
+
+	// 8. Member Link Mode
+	if g.MemberLinkMode != nil {
+		Logger.Debug("handleGroupEventsNotification: member link mode changed", "group", chatKey, "mode", *g.MemberLinkMode, "actor", actorTag)
+		var msgText string
+		if *g.MemberLinkMode == types.GroupMemberLinkModeAdmin {
+			msgText = fmt.Sprintf("*Group Event*: Group settings updated%s. Only admins can manage invite links.", actorTag)
+		} else {
+			msgText = fmt.Sprintf("*Group Event*: Group settings updated%s. All members can manage invite links.", actorTag)
+		}
+		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
+	}
+
+	// 9. Member Share History Mode
+	if g.MemberShareHistoryMode != nil {
+		Logger.Debug("handleGroupEventsNotification: member share history mode changed", "group", chatKey, "mode", *g.MemberShareHistoryMode, "actor", actorTag)
+		var msgText string
+		if *g.MemberShareHistoryMode == types.GroupMemberShareHistoryModeAdmin {
+			msgText = fmt.Sprintf("*Group Event*: Group history sharing updated%s. Only admins can share group history.", actorTag)
+		} else {
+			msgText = fmt.Sprintf("*Group Event*: Group history sharing updated%s. Recent history is shared with new members.", actorTag)
+		}
+		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
+	}
+
+	// 10. Allow Non-Admin Subgroup Creation (Community)
+	if g.AllowNonAdminSubGroupCreation != nil {
+		Logger.Debug("handleGroupEventsNotification: allow non-admin subgroup creation changed", "group", chatKey, "allow", *g.AllowNonAdminSubGroupCreation, "actor", actorTag)
+		var msgText string
+		if *g.AllowNonAdminSubGroupCreation {
+			msgText = fmt.Sprintf("*Group Event*: Community settings updated%s. All members can create sub-groups now.", actorTag)
+		} else {
+			msgText = fmt.Sprintf("*Group Event*: Community settings updated%s. Only admins can create sub-groups now.", actorTag)
+		}
+		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
+	}
 }
 
 func (b *Bot) sendGroupEventMessage(ctx context.Context, chatJID types.JID, text string, actor *types.JID) {

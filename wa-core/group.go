@@ -40,7 +40,9 @@ type ReqCreateGroup struct {
 	types.GroupAnnounce
 	types.GroupLocked
 	types.GroupMembershipApprovalMode
-	MemberAddMode types.GroupMemberAddMode
+	MemberAddMode          types.GroupMemberAddMode
+	MemberLinkMode         types.GroupMemberLinkMode
+	MemberShareHistoryMode types.GroupMemberShareHistoryMode
 	// Set IsParent to true to create a community instead of a normal group.
 	// When creating a community, the linked announcement group will be created automatically by the server.
 	types.GroupParent
@@ -52,8 +54,24 @@ type ReqCreateGroup struct {
 //
 // See ReqCreateGroup for parameters.
 func (cli *Client) CreateGroup(ctx context.Context, req ReqCreateGroup) (*types.GroupInfo, error) {
-	participantNodes := make([]waBinary.Node, len(req.Participants), len(req.Participants)+1)
-	// TODO member_share_group_history_mode
+	participantNodes := make([]waBinary.Node, len(req.Participants), len(req.Participants)+3)
+	if req.MemberShareHistoryMode != "" {
+		participantNodes = append(participantNodes, waBinary.Node{
+			Tag:     "member_share_group_history_mode",
+			Content: string(req.MemberShareHistoryMode),
+		})
+	}
+	if req.MemberLinkMode != "" {
+		participantNodes = append(participantNodes, waBinary.Node{
+			Tag:     "member_link_mode",
+			Content: string(req.MemberLinkMode),
+		})
+	}
+	if req.AllowNonAdminSubGroupCreation {
+		participantNodes = append(participantNodes, waBinary.Node{
+			Tag: "allow_non_admin_sub_group_creation",
+		})
+	}
 	participantNodes = append(participantNodes, waBinary.Node{
 		Tag:     "member_add_mode",
 		Content: string(cmp.Or(req.MemberAddMode, types.GroupMemberAddModeAllMember)),
@@ -829,6 +847,12 @@ func (cli *Client) parseGroupNode(groupNode *waBinary.Node) (*types.GroupInfo, e
 		case "member_add_mode":
 			modeBytes, _ := child.Content.([]byte)
 			group.MemberAddMode = types.GroupMemberAddMode(modeBytes)
+		case "member_link_mode":
+			modeBytes, _ := child.Content.([]byte)
+			group.MemberLinkMode = types.GroupMemberLinkMode(modeBytes)
+		case "member_share_group_history_mode":
+			modeBytes, _ := child.Content.([]byte)
+			group.MemberShareHistoryMode = types.GroupMemberShareHistoryMode(modeBytes)
 		case "linked_parent":
 			group.LinkedParentJID = childAG.JID("jid")
 		case "default_sub_group":
@@ -836,6 +860,8 @@ func (cli *Client) parseGroupNode(groupNode *waBinary.Node) (*types.GroupInfo, e
 		case "parent":
 			group.IsParent = true
 			group.DefaultMembershipApprovalMode = childAG.OptionalString("default_membership_approval_mode")
+		case "allow_non_admin_sub_group_creation":
+			group.AllowNonAdminSubGroupCreation = true
 		case "incognito":
 			group.IsIncognito = true
 		case "membership_approval_mode":
@@ -843,7 +869,7 @@ func (cli *Client) parseGroupNode(groupNode *waBinary.Node) (*types.GroupInfo, e
 		case "suspended":
 			group.Suspended = true
 		default:
-			cli.Log.Debugf("Unknown element in group node %s: %s", group.JID.String(), &child)
+			cli.Log.Warnf("Unknown element in group node %s: %s", group.JID.String(), &child)
 		}
 		if !childAG.OK() {
 			cli.Log.Warnf("Possibly failed to parse %s element in group node: %+v", child.Tag, childAG.Errors)
@@ -1054,6 +1080,24 @@ func (cli *Client) parseGroupChangeWithUsernames(node *waBinary.Node) (*events.G
 			evt.MembershipApprovalMode = &types.GroupMembershipApprovalMode{
 				IsJoinApprovalRequired: true,
 			}
+		case "member_add_mode":
+			modeBytes, _ := child.Content.([]byte)
+			mode := types.GroupMemberAddMode(modeBytes)
+			evt.MemberAddMode = &mode
+		case "member_link_mode":
+			modeBytes, _ := child.Content.([]byte)
+			mode := types.GroupMemberLinkMode(modeBytes)
+			evt.MemberLinkMode = &mode
+		case "member_share_group_history_mode":
+			modeBytes, _ := child.Content.([]byte)
+			mode := types.GroupMemberShareHistoryMode(modeBytes)
+			evt.MemberShareHistoryMode = &mode
+		case "allow_non_admin_sub_group_creation":
+			allow := true
+			evt.AllowNonAdminSubGroupCreation = &allow
+		case "not_allow_non_admin_sub_group_creation":
+			allow := false
+			evt.AllowNonAdminSubGroupCreation = &allow
 		case "suspended":
 			evt.Suspended = true
 		case "unsuspended":
@@ -1160,6 +1204,47 @@ func (cli *Client) SetGroupMemberAddMode(ctx context.Context, jid types.JID, mod
 	}
 
 	_, err := cli.sendGroupIQ(ctx, iqSet, jid, content)
+	return err
+}
+
+// SetGroupMemberLinkMode sets the group member link mode to 'admin_link' or 'all_member_link'.
+func (cli *Client) SetGroupMemberLinkMode(ctx context.Context, jid types.JID, mode types.GroupMemberLinkMode) error {
+	if mode != types.GroupMemberLinkModeAdmin && mode != types.GroupMemberLinkModeAllMember {
+		return errors.New("invalid mode, must be 'admin_link' or 'all_member_link'")
+	}
+
+	content := waBinary.Node{
+		Tag:     "member_link_mode",
+		Content: []byte(mode),
+	}
+
+	_, err := cli.sendGroupIQ(ctx, iqSet, jid, content)
+	return err
+}
+
+// SetGroupMemberShareHistoryMode sets the group member history sharing mode (e.g. 'all_member_share' or 'admin_share').
+func (cli *Client) SetGroupMemberShareHistoryMode(ctx context.Context, jid types.JID, mode types.GroupMemberShareHistoryMode) error {
+	content := waBinary.Node{
+		Tag:     "member_share_group_history_mode",
+		Content: []byte(mode),
+	}
+
+	_, err := cli.sendGroupIQ(ctx, iqSet, jid, content)
+	return err
+}
+
+// SetGroupMemberShareGroupHistoryMode is an alias for SetGroupMemberShareHistoryMode.
+func (cli *Client) SetGroupMemberShareGroupHistoryMode(ctx context.Context, jid types.JID, mode types.GroupMemberShareHistoryMode) error {
+	return cli.SetGroupMemberShareHistoryMode(ctx, jid, mode)
+}
+
+// SetSubGroupCreationMode changes whether non-admins can create subgroups in a community.
+func (cli *Client) SetSubGroupCreationMode(ctx context.Context, jid types.JID, allowNonAdmin bool) error {
+	tag := "allow_non_admin_sub_group_creation"
+	if !allowNonAdmin {
+		tag = "not_allow_non_admin_sub_group_creation"
+	}
+	_, err := cli.sendGroupIQ(ctx, iqSet, jid, waBinary.Node{Tag: tag})
 	return err
 }
 
