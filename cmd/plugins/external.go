@@ -4,7 +4,6 @@ import (
 	"runtime"
 	"strings"
 
-	utils "whatsrook/src"
 	"whatsrook/src/external"
 )
 
@@ -38,15 +37,16 @@ func init() {
 func handlePluginInstall(ctx *Context) error {
 	p := ctx.GetPrefix()
 	if len(ctx.Args) == 0 {
-		var b strings.Builder
-		b.WriteString("🔌 *WhatsRook External Plugin Installer*\n\n")
-		b.WriteString("*Usage:*\n")
-		b.WriteString(utils.Sprintf("• `%sinstall <name>` (automatically downloads for host OS/arch from official registry)\n", p))
-		b.WriteString(utils.Sprintf("• `%sinstall all` (installs all 13 official external plugins in parallel)\n", p))
-		b.WriteString(utils.Sprintf("• `%sinstall <name> <local-path-or-url>`\n\n", p))
-		b.WriteString("*Official Plugins:*\n")
-		b.WriteString("`" + strings.Join(external.OfficialPlugins, "`, `") + "`")
-		return ctx.Reply(b.String())
+		return ctx.Text().
+			Header("WhatsRook External Plugin Installer").
+			Section("Usage:").
+			Bulletf("%sinstall <name> (automatically downloads for host OS/arch from official registry)", p).
+			Bulletf("%sinstall all (installs all 13 official external plugins in parallel)", p).
+			Bulletf("%sinstall <name> <local-path-or-url>", p).
+			Blank().
+			Section("Official Plugins:").
+			Line(strings.Join(external.OfficialPlugins, ", ")).
+			Reply()
 	}
 
 	if len(ctx.Args) == 1 {
@@ -57,17 +57,19 @@ func handlePluginInstall(ctx *Context) error {
 
 			installed, failed := external.DefaultDispatcher.InstallAll(ctx.GetSendContext())
 
-			var b strings.Builder
+			tb := ctx.Text()
 			if len(installed) > 0 {
-				b.WriteString(utils.Sprintf("✅ *Installed %d external plugins:*\n• %s\n", len(installed), strings.Join(installed, ", ")))
+				tb.Headerf("Installed %d external plugins:", len(installed)).
+					Bullet(strings.Join(installed, ", ")).
+					Blank()
 			}
 			if len(failed) > 0 {
-				if b.Len() > 0 {
-					b.WriteByte('\n')
+				tb.Headerf("Failed to install (%d):", len(failed))
+				for _, f := range failed {
+					tb.Bullet(f)
 				}
-				b.WriteString(utils.Sprintf("❌ *Failed to install (%d):*\n• %s", len(failed), strings.Join(failed, "\n• ")))
 			}
-			return ctx.Reply(b.String())
+			return tb.Reply()
 		}
 
 		name := first
@@ -136,16 +138,13 @@ func handlePluginList(ctx *Context) error {
 		return ctx.Replyf("No external plugins installed.\n\nType `%sinstall <name>` or `%sinstall all` to install plugins (detected platform: %s/%s).", p, p, runtime.GOOS, runtime.GOARCH)
 	}
 
-	var b strings.Builder
-	b.WriteString(utils.Sprintf("🔌 *Installed External Plugins* (%s):\n", suffix))
+	tb := ctx.Text().Headerf("Installed External Plugins (%s):", suffix)
 	for _, plugin := range plugins {
-		b.WriteString("• *")
-		b.WriteString(plugin.Name)
-		b.WriteString("*")
 		if plugin.Description != "" {
-			b.WriteString(utils.Sprintf(" - %s", plugin.Description))
+			tb.Bulletf("%s - %s", Bold(plugin.Name), plugin.Description)
+		} else {
+			tb.Bullet(Bold(plugin.Name))
 		}
-		b.WriteByte('\n')
 	}
-	return ctx.Reply(strings.TrimSuffix(b.String(), "\n"))
+	return tb.Reply()
 }
