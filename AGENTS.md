@@ -12,7 +12,9 @@ Welcome to WhatsRook.
   - `whatsrook/src`: Core protocol & messaging abstractions over `wa-core`, media transcode engine (JPEG/Opus/FFmpeg), and helper utilities.
   - `whatsrook/cmd`: WhatsApp bot CLI application, plugin commands (`cli/plugins`), dedicated TUI package (`cli/tui`: interactive Bubbletea setup wizard and live agentic dashboard), and consolidated CLI feature utilities (`cli/utils`: media downloaders, font styling, URL validators, prompts, timezones, Meta AI parsers, games).
 
-## Development Management
+# IMPORTANT
+
+## Development Management & Must Use!
 
 Utilize the [Taskfile](./Taskfile.yml)
 
