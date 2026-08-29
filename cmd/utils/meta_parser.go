@@ -7,6 +7,8 @@ import (
 
 	stripmd "github.com/writeas/go-strip-markdown/v2"
 	"go.mau.fi/whatsmeow/types"
+
+	utils "whatsrook/src"
 )
 
 const metaAiSystemPrompt = `[SYSTEM CONTEXT:
@@ -60,25 +62,24 @@ func BuildRunCommandInstructionWithNameAndPrefix(cmds []CommandInfo, botName, pr
 	promptTmpl = strings.ReplaceAll(promptTmpl, "WhatsRook", botName)
 	promptTmpl = strings.ReplaceAll(promptTmpl, "{PREFIX}", prefix)
 
-	var cmdsBuf strings.Builder
+	cmdsTb := utils.NewText()
 	for _, c := range cmds {
-		fmt.Fprintf(&cmdsBuf, "- %s%s", prefix, c.Name)
+		aliasStr := ""
 		if c.Alias != "" {
-			fmt.Fprintf(&cmdsBuf, " (alias: %s%s)", prefix, c.Alias)
+			aliasStr = fmt.Sprintf(" (alias: %s%s)", prefix, c.Alias)
 		}
+		sudoStr := ""
 		if !c.IsPublic {
-			cmdsBuf.WriteString(" [sudo-only]")
+			sudoStr = " [sudo-only]"
 		}
 		desc := c.Description
 		if len(desc) > 80 {
 			desc = desc[:77] + "..."
 		}
-		cmdsBuf.WriteString(": ")
-		cmdsBuf.WriteString(desc)
-		cmdsBuf.WriteString("\n")
+		cmdsTb.Linef("- %s%s%s%s: %s", prefix, c.Name, aliasStr, sudoStr, desc)
 	}
 
-	res := strings.ReplaceAll(promptTmpl, "{{COMMANDS_LIST}}", strings.TrimRight(cmdsBuf.String(), "\n"))
+	res := strings.ReplaceAll(promptTmpl, "{{COMMANDS_LIST}}", cmdsTb.Trimmed())
 	return res + "\n\n"
 }
 
@@ -116,6 +117,29 @@ func ParseRunCommand(reply string) (cmdName string, rawArgs string, ok bool) {
 	return cmdName, rawArgs, true
 }
 
+// CleanAIReply removes internal tags and instruction leakage from AI output
+// before sending it to the user.
+func CleanAIReply(reply string) string {
+	lines := strings.Split(reply, "\n")
+	var out []string
+	for _, l := range lines {
+		trimmed := strings.TrimSpace(l)
+		if strings.HasPrefix(strings.ToUpper(trimmed), "RUN_COMMAND:") {
+			continue
+		}
+		if strings.HasPrefix(strings.ToUpper(trimmed), "[GROUP CONTEXT]") ||
+			strings.HasPrefix(strings.ToUpper(trimmed), "[/GROUP CONTEXT]") ||
+			strings.HasPrefix(strings.ToUpper(trimmed), "[USER & MESSAGE OBJECT CONTEXT]") ||
+			strings.HasPrefix(strings.ToUpper(trimmed), "[/USER & MESSAGE OBJECT CONTEXT]") ||
+			strings.HasPrefix(strings.ToUpper(trimmed), "[REPLYING TO A MESSAGE") ||
+			strings.HasPrefix(strings.ToUpper(trimmed), "[/REPLYING TO A MESSAGE") {
+			continue
+		}
+		out = append(out, l)
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
 // AnswerParserString converts an AI-generated response written in Markdown
 // into plain, unformatted text.
 //
@@ -142,16 +166,17 @@ func AnswerParserString(ai_response_string *string) {
 // live API call on every message (the caller is expected to have already
 // fetched/cached info via GetOrFetchGroupMeta).
 func RenderGroupContext(info types.GroupInfo) string {
-	var b strings.Builder
-	b.WriteString("[GROUP CONTEXT]\n")
-	fmt.Fprintf(&b, "Group name: %s\n", info.GroupName.Name)
+	tb := utils.NewText().
+		Line("[GROUP CONTEXT]").
+		Linef("Group name: %s", info.GroupName.Name)
+
 	if topic := strings.TrimSpace(info.GroupTopic.Topic); topic != "" {
 		if len(topic) > 150 {
 			topic = topic[:147] + "..."
 		}
-		fmt.Fprintf(&b, "Group description: %s\n", topic)
+		tb.Linef("Group description: %s", topic)
 	}
-	fmt.Fprintf(&b, "Participant count: %d\n", info.ParticipantCount)
+	tb.Linef("Participant count: %d", info.ParticipantCount)
 
 	var admins []string
 	for _, p := range info.Participants {
@@ -163,10 +188,10 @@ func RenderGroupContext(info types.GroupInfo) string {
 		}
 	}
 	if len(admins) > 0 {
-		fmt.Fprintf(&b, "Admins: %s\n", strings.Join(admins, ", "))
+		tb.Linef("Admins: %s", strings.Join(admins, ", "))
 	}
-	b.WriteString("[/GROUP CONTEXT]\n\n")
-	return b.String()
+	tb.Line("[/GROUP CONTEXT]").Blank()
+	return tb.String()
 }
 
 // RenderUserContext turns user info into a text block appended to the query sent to Meta AI.
@@ -174,22 +199,26 @@ func RenderUserContext(d Data) string {
 	if d.PushName == "" && d.User.User == "" && d.MessageID == "" {
 		return ""
 	}
-	var b strings.Builder
-	b.WriteString("[USER & MESSAGE OBJECT CONTEXT]\n")
 	displayName := d.PushName
 	if displayName == "" {
 		displayName = "User"
 	}
-	fmt.Fprintf(&b, "User name: %s\n", displayName)
+
+	tb := utils.NewText().
+		Line("[USER & MESSAGE OBJECT CONTEXT]").
+		Linef("User name: %s", displayName)
+
 	if d.MessageID != "" {
-		fmt.Fprintf(&b, "Message ID: %s\n", d.MessageID)
+		tb.Linef("Message ID: %s", d.MessageID)
 	}
 	if d.IsSudo {
-		b.WriteString("Status: Owner/Sudo\n")
+		tb.Line("Status: Owner/Sudo")
 	}
-	b.WriteString("Instruction: Address the user in conversation using their User name above. Do not output or address them using technical IDs, phone numbers, JIDs, or LIDs.\n")
-	b.WriteString("[/USER & MESSAGE OBJECT CONTEXT]\n\n")
-	return b.String()
+	tb.Line("Instruction: Address the user in conversation using their User name above. Do not output or address them using technical IDs, phone numbers, JIDs, or LIDs.").
+		Line("[/USER & MESSAGE OBJECT CONTEXT]").
+		Blank()
+
+	return tb.String()
 }
 
 // RenderQuotedContext turns quoted-message info on Data into a text block
@@ -199,31 +228,33 @@ func RenderQuotedContext(d Data) string {
 	if d.QuotedMessageOfQuestion == "" && d.QuotedImageBase64 == "" && d.QuotedMessageType == "" && d.QuotedMessageID == "" {
 		return ""
 	}
-	var b strings.Builder
-	b.WriteString("[REPLYING TO A MESSAGE — EXTRACTED CONTEXT]\n")
+
+	tb := utils.NewText().
+		Line("[REPLYING TO A MESSAGE — EXTRACTED CONTEXT]")
+
 	if d.QuotedMessageID != "" {
-		fmt.Fprintf(&b, "Quoted Message ID: %s\n", d.QuotedMessageID)
+		tb.Linef("Quoted Message ID: %s", d.QuotedMessageID)
 	}
 	if d.UserOfQuotedMessage != "" {
-		fmt.Fprintf(&b, "From: %s", d.UserOfQuotedMessage)
 		if d.QuotedMessageParticipantRole != "" {
-			b.WriteString(fmt.Sprintf(" (%s)", d.QuotedMessageParticipantRole))
+			tb.Linef("From: %s (%s)", d.UserOfQuotedMessage, d.QuotedMessageParticipantRole)
+		} else {
+			tb.Linef("From: %s", d.UserOfQuotedMessage)
 		}
-		b.WriteString("\n")
 	}
 	if d.QuotedMessageType != "" {
-		fmt.Fprintf(&b, "Message Type: %s\n", d.QuotedMessageType)
+		tb.Linef("Message Type: %s", d.QuotedMessageType)
 	}
 	if d.QuotedMessageOfQuestion != "" {
 		msgContent := d.QuotedMessageOfQuestion
 		if len(msgContent) > 500 {
 			msgContent = msgContent[:497] + "..."
 		}
-		fmt.Fprintf(&b, "Message Content: %s\n", msgContent)
+		tb.Linef("Message Content: %s", msgContent)
 	}
 	if d.QuotedImageBase64 != "" && len(d.QuotedImageBase64) <= 2048 {
-		fmt.Fprintf(&b, "Image Base64: data:%s;base64,%s\n", d.QuotedImageMimeType, d.QuotedImageBase64)
+		tb.Linef("Image Base64: data:%s;base64,%s", d.QuotedImageMimeType, d.QuotedImageBase64)
 	}
-	b.WriteString("[/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]\n\n")
-	return b.String()
+	tb.Line("[/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]").Blank()
+	return tb.String()
 }

@@ -222,7 +222,7 @@ func (cli *Client) tryHandleRetryReceipt(ctx context.Context, receipt *events.Re
 	}
 	err := cli.handleRetryReceipt(ctx, receipt, node)
 	if err != nil {
-		cli.Log.Errorf("Failed to handle retry receipt for %s/%s from %s: %v", receipt.Chat, receipt.MessageIDs[0], receipt.Sender, err)
+		cli.Log.Warnf("Failed to handle retry receipt for %s/%s from %s: %v", receipt.Chat, receipt.MessageIDs[0], receipt.Sender, err)
 		cancelled = errors.Is(err, context.Canceled) || errors.Is(err, ErrNotConnected)
 	}
 }
