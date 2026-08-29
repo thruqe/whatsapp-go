@@ -13,7 +13,6 @@ import (
 
 	"whatsrook"
 	"whatsrook/cmd/updater"
-	"whatsrook/src/qr"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -33,11 +32,13 @@ const (
 	stateDeleteConfirm
 	stateNewAuth
 	stateNewPhoneInput
+	stateNewBusinessAccount
 	stateNewClient
 	stateNewLogLevel
 	stateNewSaveOption
 	stateUpdateMenu
 	stateUpdateProgress
+	stateDonate
 )
 
 // SessionResult contains the final configured session parameters to launch.
@@ -97,6 +98,7 @@ type model struct {
 	width           int
 	height          int
 	quitting        bool
+	isBusinessAcct  bool
 
 	// Updater state
 	updateIsBeta  bool
@@ -264,6 +266,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateNewAuth(msg)
 		case stateNewPhoneInput:
 			return m.updateNewPhoneInput(msg)
+		case stateNewBusinessAccount:
+			return m.updateNewBusinessAccount(msg)
 		case stateNewClient:
 			return m.updateNewClient(msg)
 		case stateNewLogLevel:
@@ -274,6 +278,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateUpdateMenu(msg)
 		case stateUpdateProgress:
 			return m.updateUpdateProgress(msg)
+		case stateDonate:
+			return m.updateDonate(msg)
 		}
 	}
 
@@ -355,14 +361,8 @@ func (m model) selectMainOption() (tea.Model, tea.Cmd) {
 		_ = updater.RestartProcess()
 		os.Exit(0)
 	case 4: // Donate
-		if err := qr.OpenBrowser("https://github.com/Thruqe#support-this-project"); err != nil {
-			m.statusMsg = fmt.Sprintf("Unable to open browser: %v. Visit: https://github.com/Thruqe#support-this-project", err)
-			m.isErrorStatus = true
-		} else {
-			m.statusMsg = "Opening donation page in your browser..."
-			m.isErrorStatus = false
-		}
-		return m, nil
+		m.cursor = 0
+		m.state = stateDonate
 	case 5: // Exit
 		m.quitting = true
 		return m, tea.Quit
@@ -900,7 +900,7 @@ func (m model) updateNewPhoneInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.result.Session = val
 		}
 		m.statusMsg = ""
-		m.state = stateNewClient
+		m.state = stateNewBusinessAccount
 		m.cursor = 0
 		return m, nil
 	case "esc":
@@ -914,6 +914,36 @@ func (m model) updateNewPhoneInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m model) updateNewBusinessAccount(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "down", "j":
+		if m.cursor < 1 {
+			m.cursor++
+		}
+	case "1":
+		m.isBusinessAcct = false
+		m.state = stateNewClient
+		m.cursor = 0
+	case "2":
+		m.isBusinessAcct = true
+		m.state = stateNewClient
+		m.cursor = 0
+	case "esc", "b", "0":
+		m.state = stateNewPhoneInput
+		m.input.Focus()
+		return m, textinput.Blink
+	case "enter":
+		m.isBusinessAcct = m.cursor == 1
+		m.state = stateNewClient
+		m.cursor = 0
+	}
+	return m, nil
+}
+
 func (m model) updateNewClient(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
@@ -921,7 +951,11 @@ func (m model) updateNewClient(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor--
 		}
 	case "down", "j":
-		if m.cursor < 2 {
+		maxCursor := 2
+		if m.isBusinessAcct {
+			maxCursor = 0
+		}
+		if m.cursor < maxCursor {
 			m.cursor++
 		}
 	case "1":
@@ -929,25 +963,32 @@ func (m model) updateNewClient(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state = stateNewLogLevel
 		m.cursor = 0
 	case "2":
-		m.result.ClientType = whatsrook.ClientAndroid
-		m.state = stateNewLogLevel
-		m.cursor = 0
+		if !m.isBusinessAcct {
+			m.result.ClientType = whatsrook.ClientAndroid
+			m.state = stateNewLogLevel
+			m.cursor = 0
+		}
 	case "3":
-		m.result.ClientType = whatsrook.ClientIos
-		m.state = stateNewLogLevel
-		m.cursor = 0
+		if !m.isBusinessAcct {
+			m.result.ClientType = whatsrook.ClientIos
+			m.state = stateNewLogLevel
+			m.cursor = 0
+		}
 	case "esc", "b", "0":
-		m.state = stateNewPhoneInput
-		m.input.Focus()
-		return m, textinput.Blink
+		m.state = stateNewBusinessAccount
+		m.cursor = 0
 	case "enter":
 		switch m.cursor {
 		case 0:
 			m.result.ClientType = whatsrook.ClientChrome
 		case 1:
-			m.result.ClientType = whatsrook.ClientAndroid
+			if !m.isBusinessAcct {
+				m.result.ClientType = whatsrook.ClientAndroid
+			}
 		case 2:
-			m.result.ClientType = whatsrook.ClientIos
+			if !m.isBusinessAcct {
+				m.result.ClientType = whatsrook.ClientIos
+			}
 		}
 		m.state = stateNewLogLevel
 		m.cursor = 0
@@ -1091,6 +1132,8 @@ func (m model) View() string {
 		s.WriteString(m.viewNewAuth())
 	case stateNewPhoneInput:
 		s.WriteString(m.viewNewPhoneInput())
+	case stateNewBusinessAccount:
+		s.WriteString(m.viewNewBusinessAccount())
 	case stateNewClient:
 		s.WriteString(m.viewNewClient())
 	case stateNewLogLevel:
@@ -1101,6 +1144,8 @@ func (m model) View() string {
 		s.WriteString(m.viewUpdateMenu())
 	case stateUpdateProgress:
 		s.WriteString(m.viewUpdateProgress())
+	case stateDonate:
+		s.WriteString(m.viewDonate())
 	}
 
 	if m.statusMsg != "" {
@@ -1435,19 +1480,47 @@ func (m model) viewNewPhoneInput() string {
 	return s.String()
 }
 
+func (m model) viewNewBusinessAccount() string {
+	var s strings.Builder
+	s.WriteString(titleStyle.Render("ACCOUNT TYPE"))
+	s.WriteString("\n\n")
+
+	options := []string{
+		"Regular WhatsApp Account",
+		"WhatsApp Business Account",
+	}
+
+	for i, opt := range options {
+		s.WriteString(renderDotItem(m.cursor == i, opt))
+	}
+
+	s.WriteString(helpStyle.Render(m.getHelpText("select")))
+	return s.String()
+}
+
 func (m model) viewNewClient() string {
 	var s strings.Builder
 	s.WriteString(titleStyle.Render("SELECT CLIENT PROFILE"))
 	s.WriteString("\n\n")
 
-	options := []string{
-		"Default (Desktop / Chrome)",
-		"Android Phone",
-		"iPhone (iOS)",
-	}
-
-	for i, opt := range options {
-		s.WriteString(renderDotItem(m.cursor == i, opt))
+	if m.isBusinessAcct {
+		s.WriteString(titleStyle.Render("BUSINESS ACCOUNT: CHROME ONLY"))
+		s.WriteString("\n\n")
+		options := []string{
+			"Default (Desktop / Chrome)",
+		}
+		for i, opt := range options {
+			s.WriteString(renderDotItem(m.cursor == i, opt))
+		}
+	} else {
+		options := []string{
+			"Default (Desktop / Chrome)",
+			"Android Phone",
+			"iPhone (iOS)",
+		}
+		for i, opt := range options {
+			s.WriteString(renderDotItem(m.cursor == i, opt))
+		}
 	}
 
 	s.WriteString(helpStyle.Render(m.getHelpText("select")))
@@ -1488,6 +1561,36 @@ func (m model) viewNewSaveOption() string {
 	}
 
 	s.WriteString(helpStyle.Render(m.getHelpText("select")))
+	return s.String()
+}
+
+func (m model) updateDonate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "b", "0", "q":
+		m.state = stateMain
+		m.cursor = 4
+	case "enter":
+		m.state = stateMain
+		m.cursor = 4
+	}
+	return m, nil
+}
+
+func (m model) viewDonate() string {
+	var s strings.Builder
+	s.WriteString(titleStyle.Render("SUPPORT THIS PROJECT"))
+	s.WriteString("\n\n")
+
+	donateURL := "https://github.com/Thruqe#support-this-project"
+	s.WriteString("Thank you for using WhatsRook!\n")
+	s.WriteString("If you find this project useful, please consider supporting it:\n\n")
+	s.WriteString("  " + activeItemStyle.Render(donateURL) + "\n\n")
+	s.WriteString("You can:\n")
+	s.WriteString("  • Star the project on GitHub\n")
+	s.WriteString("  • Become a sponsor\n")
+	s.WriteString("  • Make a donation\n\n")
+
+	s.WriteString(helpStyle.Render("Press [Esc] to go back"))
 	return s.String()
 }
 
