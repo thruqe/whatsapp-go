@@ -492,7 +492,7 @@ func handleGroup(ctx *Context) error {
 
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Replyf("Usage:\n- %sgroup open\n- %sgroup close\n- %sgroup lock\n- %sgroup unlock", p, p, p, p)
+		return ctx.Replyf("Usage:\n- %sgroup open\n- %sgroup close\n- %sgroup lock\n- %sgroup unlock\n- %sgroup linkmode <admin|all>\n- %sgroup history <admin|all>\n- %sgroup addmode <admin|all>", p, p, p, p, p, p, p)
 	}
 
 	action := strings.ToLower(ctx.Args[0])
@@ -521,8 +521,77 @@ func handleGroup(ctx *Context) error {
 			return ctx.Replyf("Failed to unlock group: %v", err)
 		}
 		return ctx.Reply("Group unlocked. Everyone can edit group settings.")
+	case "linkmode", "memberlink":
+		if len(ctx.Args) < 2 {
+			p := ctx.GetPrefix()
+			return ctx.Replyf("Usage: %sgroup linkmode <admin|all>", p)
+		}
+		modeArg := strings.ToLower(ctx.Args[1])
+		var mode types.GroupMemberLinkMode
+		switch modeArg {
+		case "admin", "admin_link", "admins":
+			mode = types.GroupMemberLinkModeAdmin
+		case "all", "all_member_link", "everyone", "members":
+			mode = types.GroupMemberLinkModeAllMember
+		default:
+			return ctx.Reply("Invalid mode. Options: admin, all")
+		}
+		err = ctx.Client.SetGroupMemberLinkMode(ctx.Ctx, ctx.Chat, mode)
+		if err != nil {
+			return ctx.Replyf("Failed to set group member link mode: %v", err)
+		}
+		if mode == types.GroupMemberLinkModeAdmin {
+			return ctx.Reply("Member link mode updated: Only admins can manage/share invite links.")
+		}
+		return ctx.Reply("Member link mode updated: All members can manage/share invite links.")
+	case "history", "sharehistory", "historymode":
+		if len(ctx.Args) < 2 {
+			p := ctx.GetPrefix()
+			return ctx.Replyf("Usage: %sgroup history <admin|all>", p)
+		}
+		modeArg := strings.ToLower(ctx.Args[1])
+		var mode types.GroupMemberShareHistoryMode
+		switch modeArg {
+		case "admin", "admin_share", "admins":
+			mode = types.GroupMemberShareHistoryModeAdmin
+		case "all", "all_member_share", "everyone", "members":
+			mode = types.GroupMemberShareHistoryModeAllMember
+		default:
+			return ctx.Reply("Invalid mode. Options: admin, all")
+		}
+		err = ctx.Client.SetGroupMemberShareHistoryMode(ctx.Ctx, ctx.Chat, mode)
+		if err != nil {
+			return ctx.Replyf("Failed to set group history mode: %v", err)
+		}
+		if mode == types.GroupMemberShareHistoryModeAdmin {
+			return ctx.Reply("Group history sharing mode set to ADMIN only.")
+		}
+		return ctx.Reply("Group history sharing mode set to ALL members (new members can read recent history).")
+	case "addmode", "memberadd":
+		if len(ctx.Args) < 2 {
+			p := ctx.GetPrefix()
+			return ctx.Replyf("Usage: %sgroup addmode <admin|all>", p)
+		}
+		modeArg := strings.ToLower(ctx.Args[1])
+		var mode types.GroupMemberAddMode
+		switch modeArg {
+		case "admin", "admin_add", "admins":
+			mode = types.GroupMemberAddModeAdmin
+		case "all", "all_member_add", "everyone", "members":
+			mode = types.GroupMemberAddModeAllMember
+		default:
+			return ctx.Reply("Invalid mode. Options: admin, all")
+		}
+		err = ctx.Client.SetGroupMemberAddMode(ctx.Ctx, ctx.Chat, mode)
+		if err != nil {
+			return ctx.Replyf("Failed to set group member add mode: %v", err)
+		}
+		if mode == types.GroupMemberAddModeAdmin {
+			return ctx.Reply("Member add mode updated: Only admins can add members.")
+		}
+		return ctx.Reply("Member add mode updated: All members can add members.")
 	default:
-		return ctx.Reply("Invalid action. Usage: group <open|close|lock|unlock>")
+		return ctx.Reply("Invalid action. Usage: group <open|close|lock|unlock|linkmode|history|addmode>")
 	}
 }
 
