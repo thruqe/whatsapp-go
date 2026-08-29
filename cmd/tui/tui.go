@@ -13,6 +13,7 @@ import (
 
 	"whatsrook"
 	"whatsrook/cmd/updater"
+	"whatsrook/src/qr"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -292,7 +293,7 @@ func (m model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor--
 		}
 	case "down", "j":
-		if m.cursor < 4 {
+		if m.cursor < 5 {
 			m.cursor++
 		}
 	case "1":
@@ -307,7 +308,10 @@ func (m model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "4":
 		m.cursor = 3
 		return m.selectMainOption()
-	case "5", "q", "esc":
+	case "5":
+		m.cursor = 4
+		return m.selectMainOption()
+	case "6", "q", "esc":
 		m.quitting = true
 		return m, tea.Quit
 	case "enter":
@@ -350,7 +354,16 @@ func (m model) selectMainOption() (tea.Model, tea.Cmd) {
 		ClearTerminal()
 		_ = updater.RestartProcess()
 		os.Exit(0)
-	case 4: // Exit
+	case 4: // Donate
+		if err := qr.OpenBrowser("https://github.com/Thruqe#support-this-project"); err != nil {
+			m.statusMsg = fmt.Sprintf("Unable to open browser: %v. Visit: https://github.com/Thruqe#support-this-project", err)
+			m.isErrorStatus = true
+		} else {
+			m.statusMsg = "Opening donation page in your browser..."
+			m.isErrorStatus = false
+		}
+		return m, nil
+	case 5: // Exit
 		m.quitting = true
 		return m, tea.Quit
 	}
@@ -1133,6 +1146,7 @@ func (m model) viewMain() string {
 		"Create a new session",
 		"Check & install updates",
 		"Restart WhatsRook",
+		"Donate to support this project",
 		"Exit",
 	}
 
