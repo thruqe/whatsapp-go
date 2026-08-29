@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
+
+	utils "whatsrook/src"
 )
 
 // BTCPredictionsResponse matches the response of https://api.watcher.guru/bitcoinhalving/predictions
@@ -102,13 +103,10 @@ func FormatBTCMessage(data *BTCPredictionsResponse, statusLine string) string {
 		return "Bitcoin data unavailable."
 	}
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Bitcoin Price: %s", FormatPriceUSD(data.BitcoinPrice.PriceUSD))
-
+	tb := utils.NewText().Linef("Bitcoin Price: %s", FormatPriceUSD(data.BitcoinPrice.PriceUSD))
 	if statusLine != "" {
-		sb.WriteString("\n\n")
-		sb.WriteString(statusLine)
+		tb.Blank().Line(statusLine)
 	}
 
-	return sb.String()
+	return tb.Trimmed()
 }
