@@ -18,7 +18,7 @@ import (
 
 func runStandby(ctx context.Context, defaultDB string) error {
 	if isTerminalInteractive() {
-		return runInteractiveStandby(ctx, defaultDB)
+		return runInteractiveStandby(defaultDB)
 	}
 	return runHeadlessStandby(ctx)
 }
@@ -74,7 +74,7 @@ func startStandbyHTTPServer() (net.Listener, *http.Server, int, error) {
 	return listener, server, boundPort, nil
 }
 
-func runInteractiveStandby(ctx context.Context, defaultDB string) error {
+func runInteractiveStandby(defaultDB string) error {
 	for {
 		listener, server, boundPort, err := startStandbyHTTPServer()
 		if err != nil {
