@@ -38,6 +38,8 @@ const (
 	stateNewSaveOption
 	stateUpdateMenu
 	stateUpdateProgress
+	stateDependenciesMenu
+	stateDependenciesProgress
 	stateDonate
 )
 
@@ -278,6 +280,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateUpdateMenu(msg)
 		case stateUpdateProgress:
 			return m.updateUpdateProgress(msg)
+		case stateDependenciesMenu:
+			return m.updateDependenciesMenu(msg)
+		case stateDependenciesProgress:
+			return m.updateDependenciesProgress(msg)
 		case stateDonate:
 			return m.updateDonate(msg)
 		}
@@ -299,7 +305,7 @@ func (m model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor--
 		}
 	case "down", "j":
-		if m.cursor < 5 {
+		if m.cursor < 6 {
 			m.cursor++
 		}
 	case "1":
@@ -317,7 +323,10 @@ func (m model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "5":
 		m.cursor = 4
 		return m.selectMainOption()
-	case "6", "q", "esc":
+	case "6":
+		m.cursor = 5
+		return m.selectMainOption()
+	case "7", "q", "esc":
 		m.quitting = true
 		return m, tea.Quit
 	case "enter":
@@ -356,14 +365,17 @@ func (m model) selectMainOption() (tea.Model, tea.Cmd) {
 	case 2: // Check & install updates
 		m.cursor = 0
 		m.state = stateUpdateMenu
-	case 3: // Restart WhatsRook
+	case 3: // Install dependencies
+		m.cursor = 0
+		m.state = stateDependenciesMenu
+	case 4: // Restart WhatsRook
 		ClearTerminal()
 		_ = updater.RestartProcess()
 		os.Exit(0)
-	case 4: // Donate
+	case 5: // Donate
 		m.cursor = 0
 		m.state = stateDonate
-	case 5: // Exit
+	case 6: // Exit
 		m.quitting = true
 		return m, tea.Quit
 	}
@@ -491,6 +503,122 @@ func (m model) updateUpdateProgress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	} else if msg.String() == "esc" {
 		m.state = stateUpdateMenu
 		m.cursor = 0
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m model) updateDependenciesMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "down", "j":
+		if m.cursor < 2 {
+			m.cursor++
+		}
+	case "1":
+		m.cursor = 0
+		return m.selectDependencyOption()
+	case "2":
+		m.cursor = 1
+		return m.selectDependencyOption()
+	case "3", "esc", "b", "0":
+		m.state = stateMain
+		m.cursor = 3
+		m.statusMsg = ""
+	case "enter":
+		return m.selectDependencyOption()
+	}
+	return m, nil
+}
+
+func (m model) selectDependencyOption() (tea.Model, tea.Cmd) {
+	switch m.cursor {
+	case 0:
+		if missing, ok := missingDependencies(); !ok {
+			m.statusMsg = "Unable to determine dependency status."
+			m.isErrorStatus = true
+		} else if len(missing) == 0 {
+			m.statusMsg = "All required dependencies are already installed."
+			m.isErrorStatus = false
+		} else {
+			m.statusMsg = fmt.Sprintf("Missing dependencies: %s", strings.Join(missing, ", "))
+			m.isErrorStatus = true
+		}
+		return m, nil
+	case 1:
+		return m.startDependencyInstall()
+	case 2:
+		m.state = stateMain
+		m.cursor = 3
+		m.statusMsg = ""
+	}
+	return m, nil
+}
+
+func (m model) startDependencyInstall() (tea.Model, tea.Cmd) {
+	m.state = stateDependenciesProgress
+	m.updateLogs = []string{"Checking required system dependencies..."}
+	m.updateDone = false
+	m.updateResult = nil
+	m.updateErr = nil
+
+	logChan := make(chan string, 100)
+	doneChan := make(chan updateFinishedMsg, 1)
+	m.updateLogChan = logChan
+	m.updateFinChan = doneChan
+
+	go func() {
+		writer := &chanWriter{ch: logChan}
+		deps, _ := missingDependencies()
+		if len(deps) == 0 {
+			writer.Write([]byte("[OK] No missing dependencies detected.\n"))
+			doneChan <- updateFinishedMsg{}
+			close(logChan)
+			return
+		}
+		for _, dep := range deps {
+			writer.Write([]byte(fmt.Sprintf("[MISSING] %s not found on PATH.\n", dep)))
+		}
+		writer.Write([]byte("Preparing installation for this system...\n"))
+		cmd := dependencyInstallCommand("ffmpeg")
+		if cmd == nil {
+			writer.Write([]byte("[ERROR] No supported installer available for this operating system.\n"))
+			doneChan <- updateFinishedMsg{err: fmt.Errorf("no supported package manager available")}
+			close(logChan)
+			return
+		}
+		cmd.Stdout = writer
+		cmd.Stderr = writer
+		if err := cmd.Run(); err != nil {
+			writer.Write([]byte("[ERROR] Dependency installation failed.\n"))
+			doneChan <- updateFinishedMsg{err: err}
+			close(logChan)
+			return
+		}
+		writer.Write([]byte("[OK] Required dependencies installed successfully.\n"))
+		doneChan <- updateFinishedMsg{}
+		close(logChan)
+	}()
+
+	return m, waitForLog(logChan, doneChan)
+}
+
+func (m model) updateDependenciesProgress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.updateDone {
+		switch msg.String() {
+		case "enter", "esc", "b", "q":
+			m.state = stateDependenciesMenu
+			m.cursor = 0
+			m.statusMsg = ""
+			return m, nil
+		}
+	} else if msg.String() == "esc" || msg.String() == "b" || msg.String() == "q" {
+		m.state = stateDependenciesMenu
+		m.cursor = 0
+		m.statusMsg = ""
 		return m, nil
 	}
 	return m, nil
@@ -1144,6 +1272,10 @@ func (m model) View() string {
 		s.WriteString(m.viewUpdateMenu())
 	case stateUpdateProgress:
 		s.WriteString(m.viewUpdateProgress())
+	case stateDependenciesMenu:
+		s.WriteString(m.viewDependenciesMenu())
+	case stateDependenciesProgress:
+		s.WriteString(m.viewDependenciesProgress())
 	case stateDonate:
 		s.WriteString(m.viewDonate())
 	}
@@ -1190,6 +1322,7 @@ func (m model) viewMain() string {
 		"Connect to an existing session",
 		"Create a new session",
 		"Check & install updates",
+		"Install system dependencies",
 		"Restart WhatsRook",
 		"Donate to support this project",
 		"Exit",
@@ -1216,6 +1349,33 @@ func (m model) viewUpdateMenu() string {
 		"Back to main menu",
 	}
 
+	for i, opt := range options {
+		s.WriteString(renderDotItem(m.cursor == i, opt))
+	}
+
+	s.WriteString(helpStyle.Render(m.getHelpText("select")))
+	return s.String()
+}
+
+func (m model) viewDependenciesMenu() string {
+	var s strings.Builder
+	s.WriteString(titleStyle.Render("SYSTEM DEPENDENCIES"))
+	s.WriteString("\n\n")
+	missing, ok := missingDependencies()
+	statusText := "All required dependencies are installed."
+	if !ok {
+		statusText = "Dependency status could not be checked."
+	} else if len(missing) > 0 {
+		statusText = fmt.Sprintf("Missing: %s", strings.Join(missing, ", "))
+	}
+	s.WriteString(activeItemStyle.Render(statusText))
+	s.WriteString("\n\n")
+
+	options := []string{
+		"Check required dependencies",
+		"Install missing dependencies",
+		"Back to main menu",
+	}
 	for i, opt := range options {
 		s.WriteString(renderDotItem(m.cursor == i, opt))
 	}
@@ -1280,6 +1440,60 @@ func (m model) viewUpdateProgress() string {
 			visibleLogs = visibleLogs[len(visibleLogs)-maxLines:]
 		}
 
+		for _, logLine := range visibleLogs {
+			s.WriteString("  " + logLineStyle.Render(logLine))
+			s.WriteByte('\n')
+		}
+		s.WriteByte('\n')
+		s.WriteString(helpStyle.Render(m.getHelpText("")))
+	}
+
+	return s.String()
+}
+
+func (m model) viewDependenciesProgress() string {
+	var s strings.Builder
+	s.WriteString(titleStyle.Render("INSTALLING DEPENDENCIES"))
+	s.WriteString("\n\n")
+
+	contentWidth := m.width - 4
+	if contentWidth > 74 {
+		contentWidth = 74
+	} else if contentWidth < 20 {
+		contentWidth = 20
+	}
+
+	logLineStyle := lipgloss.NewStyle().
+		Foreground(mutedColor).
+		Width(contentWidth)
+
+	if m.updateDone {
+		if m.updateErr != nil {
+			s.WriteString(errorStyle.Width(contentWidth).Render(fmt.Sprintf("! Dependency install failed: %v", m.updateErr)))
+			s.WriteString("\n\n")
+			s.WriteString(helpStyle.Render("Press [Enter] or [Esc] to return to dependencies menu"))
+		} else {
+			s.WriteString(successStyle.Width(contentWidth).Render("✓ Dependency installation completed."))
+			s.WriteString("\n\n")
+			s.WriteString(helpStyle.Render("Press [Enter] or [Esc] to return to dependencies menu"))
+		}
+	} else {
+		s.WriteString(activeItemStyle.Render("  ● Dependency install in progress..."))
+		s.WriteString("\n\n")
+		s.WriteString(headerMutedStyle.Render("  Live Output:"))
+		s.WriteByte('\n')
+
+		maxLines := 8
+		if m.height > 0 && m.height < 24 {
+			maxLines = 4
+		} else if m.height >= 35 {
+			maxLines = 14
+		}
+
+		visibleLogs := m.updateLogs
+		if len(visibleLogs) > maxLines {
+			visibleLogs = visibleLogs[len(visibleLogs)-maxLines:]
+		}
 		for _, logLine := range visibleLogs {
 			s.WriteString("  " + logLineStyle.Render(logLine))
 			s.WriteByte('\n')
@@ -1568,10 +1782,10 @@ func (m model) updateDonate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "b", "0", "q":
 		m.state = stateMain
-		m.cursor = 4
+		m.cursor = 5
 	case "enter":
 		m.state = stateMain
-		m.cursor = 4
+		m.cursor = 5
 	}
 	return m, nil
 }
@@ -1592,6 +1806,72 @@ func (m model) viewDonate() string {
 
 	s.WriteString(helpStyle.Render("Press [Esc] to go back"))
 	return s.String()
+}
+
+func missingDependencies() ([]string, bool) {
+	deps := []string{"ffmpeg"}
+	missing := make([]string, 0, len(deps))
+	for _, dep := range deps {
+		if _, err := exec.LookPath(dep); err != nil {
+			missing = append(missing, dep)
+		}
+	}
+	return missing, true
+}
+
+func dependencyInstallCommand(dep string) *exec.Cmd {
+	if dep != "ffmpeg" {
+		return nil
+	}
+
+	switch runtime.GOOS {
+	case "windows":
+		switch {
+		case commandExists("winget"):
+			return exec.Command("winget", "install", "--id", "Gyan.Dev.FFmpeg", "-e", "--accept-source-agreements", "--accept-package-agreements")
+		case commandExists("choco"):
+			return exec.Command("choco", "install", "ffmpeg", "-y")
+		case commandExists("scoop"):
+			return exec.Command("scoop", "install", "ffmpeg")
+		default:
+			return exec.Command("cmd", "/c", "echo FFmpeg installer not found. Please install ffmpeg manually. && exit 1")
+		}
+	case "darwin":
+		if commandExists("brew") {
+			return exec.Command("brew", "install", "ffmpeg")
+		}
+		return exec.Command("bash", "-lc", "if command -v port >/dev/null 2>&1; then sudo port install ffmpeg; else echo 'No supported installer found for macOS. Install Homebrew or MacPorts first.'; exit 1; fi")
+	case "linux":
+		switch {
+		case commandExists("apt-get"):
+			return exec.Command("bash", "-lc", "sudo apt-get update && sudo apt-get install -y ffmpeg")
+		case commandExists("dnf"):
+			return exec.Command("bash", "-lc", "sudo dnf install -y ffmpeg")
+		case commandExists("yum"):
+			return exec.Command("bash", "-lc", "sudo yum install -y ffmpeg")
+		case commandExists("pacman"):
+			return exec.Command("bash", "-lc", "sudo pacman -Sy --noconfirm ffmpeg")
+		case commandExists("apk"):
+			return exec.Command("bash", "-lc", "sudo apk add --no-cache ffmpeg")
+		default:
+			return exec.Command("bash", "-lc", "echo 'No supported linux package manager found for ffmpeg installation.'; exit 1")
+		}
+	case "android":
+		if commandExists("pkg") {
+			return exec.Command("pkg", "install", "-y", "ffmpeg")
+		}
+		if commandExists("apt-get") {
+			return exec.Command("bash", "-lc", "apt-get update && apt-get install -y ffmpeg")
+		}
+		return exec.Command("bash", "-lc", "echo 'No supported Android package manager found for ffmpeg installation.'; exit 1")
+	default:
+		return exec.Command("bash", "-lc", "echo 'Unsupported platform for automatic dependency installation.'; exit 1")
+	}
+}
+
+func commandExists(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
 }
 
 func isNumeric(s string) bool {
