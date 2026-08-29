@@ -538,32 +538,34 @@ func (b *Bot) WAEventHandler(evt any) {
 
 	case *events.Message:
 		Logger.Debug("incoming message received", "event", v)
-		if v.Info.Chat.Server == "broadcast" || v.Info.Chat.String() == "status@broadcast" {
-			go b.handleLikeStatus(context.Background(), v)
-		}
+		go func(v *events.Message) {
+			if v.Info.Chat.Server == "broadcast" || v.Info.Chat.String() == "status@broadcast" {
+				b.handleLikeStatus(context.Background(), v)
+			}
 
-		if commands.HandlePendingAudioReply(context.Background(), cli, v) {
-			return
-		}
-		if commands.HandlePendingMenuMediaReply(context.Background(), cli, v) {
-			return
-		}
-		if commands.HandlePendingBotCustomizationReply(context.Background(), cli, v) {
-			return
-		}
-		if commands.HandlePendingCaptchaReply(context.Background(), cli, v) {
-			return
-		}
+			if commands.HandlePendingAudioReply(context.Background(), cli, v) {
+				return
+			}
+			if commands.HandlePendingMenuMediaReply(context.Background(), cli, v) {
+				return
+			}
+			if commands.HandlePendingBotCustomizationReply(context.Background(), cli, v) {
+				return
+			}
+			if commands.HandlePendingCaptchaReply(context.Background(), cli, v) {
+				return
+			}
 
-		if commands.Dispatch(context.Background(), cli, v) {
-			return
-		}
+			if commands.Dispatch(context.Background(), cli, v) {
+				return
+			}
 
-		payload := buildIncomingMessagePayload(v)
-		b.hub.Broadcast(EventMessage{
-			Kind:    EventIncomingMessage,
-			Payload: payload,
-		})
+			payload := buildIncomingMessagePayload(v)
+			b.hub.Broadcast(EventMessage{
+				Kind:    EventIncomingMessage,
+				Payload: payload,
+			})
+		}(v)
 
 	case *events.Presence:
 		Logger.Debug("presence update received", "event", v)
