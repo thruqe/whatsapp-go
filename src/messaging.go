@@ -697,24 +697,25 @@ func (ctx *PluginContext) ResolvePN(jid types.JID) types.JID {
 // GetQuotedSender returns the quoted message sender JID if available.
 func (ctx *PluginContext) GetQuotedSender() (types.JID, bool) {
 	ci := ctx.getContextInfo()
-	if ci != nil {
-		if ci.Participant != nil && *ci.Participant != "" {
-			pj, err := types.ParseJID(*ci.Participant)
-			if err == nil && !pj.IsEmpty() {
-				return ctx.ResolvePN(pj), true
-			}
+	if ci == nil || (ci.QuotedMessage == nil && ci.StanzaID == nil) {
+		return types.EmptyJID, false
+	}
+	if ci.Participant != nil && *ci.Participant != "" {
+		pj, err := types.ParseJID(*ci.Participant)
+		if err == nil && !pj.IsEmpty() {
+			return ctx.ResolvePN(pj), true
 		}
-		if ci.RemoteJID != nil && *ci.RemoteJID != "" {
-			pj, err := types.ParseJID(*ci.RemoteJID)
-			if err == nil && !pj.IsEmpty() {
-				return ctx.ResolvePN(pj), true
-			}
+	}
+	if ci.RemoteJID != nil && *ci.RemoteJID != "" {
+		pj, err := types.ParseJID(*ci.RemoteJID)
+		if err == nil && !pj.IsEmpty() {
+			return ctx.ResolvePN(pj), true
 		}
 	}
 	if !ctx.Chat.IsEmpty() && ctx.Chat.Server != "g.us" {
 		return ctx.ResolvePN(ctx.Chat), true
 	}
-	return types.JID{}, false
+	return types.EmptyJID, false
 }
 
 // GetMentionedJIDs returns JIDs that were tagged/mentioned in the message.
@@ -812,6 +813,11 @@ func (ctx *PluginContext) GetArgsJIDs() []types.JID {
 			out = append(out, ctx.ResolvePN(j))
 		}
 	}
+	if len(out) == 0 && ctx.RawArgs != "" {
+		if j, err := ParseUserJID(ctx.RawArgs); err == nil && !j.IsEmpty() {
+			out = append(out, ctx.ResolvePN(j))
+		}
+	}
 	return out
 }
 
@@ -869,9 +875,11 @@ func (ctx *PluginContext) IsSameUser(a, b types.JID) bool {
 	return res
 }
 
-// GetTargets resolves targets from reply, mentions, or arguments.
-// If in a P2P chat and no other target is provided (or if the provided target/send is ours),
-// we fall back to the chat JID (as long as it isn't ours).
+// GetTargets resolves targets with the following priority:
+// 1. Quoted message sender (if replying to a message)
+// 2. Mentioned JIDs (if @mentioned)
+// 3. Arguments JIDs (if user/phone arguments provided, taking precedence over DM chat ID)
+// 4. In a P2P chat (DM), fall back to chat JID only if NO reply, mentions, or arguments were provided.
 func (ctx *PluginContext) GetTargets() []types.JID {
 	if ctx.Client.Store.ID == nil {
 		return nil
@@ -898,7 +906,7 @@ func (ctx *PluginContext) GetTargets() []types.JID {
 		}
 	}
 
-	// 3. Arguments JIDs (excluding ours)
+	// 3. Arguments JIDs (excluding ours) - Takes priority over DM chat ID
 	if argsJIDs := ctx.GetArgsJIDs(); len(argsJIDs) > 0 {
 		var filtered []types.JID
 		for _, j := range argsJIDs {
@@ -911,7 +919,13 @@ func (ctx *PluginContext) GetTargets() []types.JID {
 		}
 	}
 
-	// 4. In a P2P chat (chat server is not g.us) and the chat JID is not ours
+	// If the user explicitly passed arguments in DM or group, but none matched a valid target JID,
+	// do NOT fall back to the DM chat ID to prevent operating on the wrong chat.
+	if len(ctx.Args) > 0 {
+		return nil
+	}
+
+	// 4. In a P2P chat (DM) and no reply, mentions, or arguments were provided: fall back to the chat JID (as long as it isn't ours)
 	if ctx.Chat.Server != "g.us" {
 		if !ctx.IsSameUser(ctx.Chat, ourJID) {
 			return []types.JID{ctx.ResolvePN(ctx.Chat)}

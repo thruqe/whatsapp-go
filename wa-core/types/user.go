@@ -201,9 +201,9 @@ type SetStatusEmoji struct {
 }
 
 type SetStatusInput struct {
-	Text     *string          `json:"text"`
-	Emoji    *SetStatusEmoji  `json:"emoji,omitempty"`
-	Duration jsontime.Seconds `json:"ephemeral_duration_sec"`
+	Text     *string           `json:"text,omitempty"`
+	Emoji    *SetStatusEmoji   `json:"emoji,omitempty"`
+	Duration *jsontime.Seconds `json:"ephemeral_duration_sec,omitempty"`
 }
 
 // Blocklist contains the user's current list of blocked users.
