@@ -243,7 +243,11 @@ func mapOptionToCommandArgs(cmdName, option string) string {
 	case "keep default":
 		return "setbot setup_ignore"
 	case "skip":
-		return "setbot 0"
+		return "setbot skip"
+	case "done", "i'm done", "finish":
+		return "setbot done"
+	case "start over", "restart", "redo":
+		return "setbot startover"
 	case "continue":
 		return "continue"
 	default:

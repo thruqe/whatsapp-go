@@ -1037,8 +1037,29 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	}
 
 	if inWizard && text != "" {
-		for _, pref := range prefixes {
-			if pref != "" && strings.HasPrefix(text, pref) {
+		// Build the full set of prefixes to check against, always including the default "."
+		// so that e.g. ".menu" is caught even when the configured prefix is "!" or similar.
+		prefixSet := make([]string, 0, len(prefixes)+1)
+		prefixSet = append(prefixSet, prefixes...)
+		hasDot := false
+		for _, p := range prefixes {
+			if p == cliutils.DefaultPrefix {
+				hasDot = true
+				break
+			}
+		}
+		if !hasDot {
+			prefixSet = append(prefixSet, cliutils.DefaultPrefix)
+		}
+
+		for _, pref := range prefixSet {
+			if pref == "" {
+				continue
+			}
+			// Use a length-aware check: if the candidate text is strictly longer than the
+			// prefix itself, it looks like a command invocation (e.g. ".menu"), not a bare
+			// prefix entry (e.g. "."). Cancel the wizard in that case.
+			if len(text) > len(pref) && strings.HasPrefix(text, pref) {
 				cliutils.BotWizardMu.Lock()
 				delete(cliutils.PendingWizardState, key)
 				cliutils.BotWizardMu.Unlock()
@@ -1078,17 +1099,22 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "thumb", UpdatedAt: time.Now()}
 		cliutils.BotWizardMu.Unlock()
 
-		msg := Sprintf("Bot name set to %q.\n\nBot Customization Wizard (Step 2/4)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.", newName)
-		_ = fakeCtx.Reply(msg)
+		bodyText := Sprintf("Bot name set to %q.\n\nBot Customization Wizard (Step 2/4)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip below to keep the default thumbnail.", newName)
+		_ = sendPollReply(fakeCtx, bodyText, []string{"Skip"})
 		return true
 
 	case "thumb":
+		// Poll-vote events (e.g. the user clicking "Skip") arrive as PollUpdateMessages
+		// with no media. We must NOT intercept them here — let Dispatch handle the callback.
+		if evt.Message.GetPollUpdateMessage() != nil {
+			return false
+		}
 		downloadable, isVideo, mime := ExtractMediaFromEvent(evt)
 		Logger.Info("Wizard Step 2/4 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
 
 		if downloadable == nil {
 			Logger.Warn("Wizard Step 2/4 (thumb): No image/video/document media found in message", "chat", key)
-			_ = fakeCtx.Reply("Please upload or reply with an image (.jpg/.png) or video (.mp4) for the bot thumbnail.")
+			_ = fakeCtx.Reply("Upload a video or image to use as thumbnail.")
 			return true
 		}
 
@@ -1120,9 +1146,8 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "prefix", UpdatedAt: time.Now()}
 		cliutils.BotWizardMu.Unlock()
 
-		bodyText := "Bot menu thumbnail updated successfully.\n\nBot Customization Wizard (Step 3/4)\n\nPlease send the symbol or prefix you want to use (e.g. ., !, / or 'none').\n\nOr select Skip below to keep current prefix."
+		bodyText := "Bot menu thumbnail updated successfully.\n\nBot Customization Wizard (Step 3/4)\n\nPlease type the symbol or prefix you want to use (e.g. ., !, / or 'none') and send it as a message.\n\nOr select Skip below to keep current prefix."
 		options := []string{
-			"Set Prefix",
 			"Skip",
 		}
 		_ = sendPollReply(fakeCtx, bodyText, options)
@@ -1133,6 +1158,10 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 			return false
 		}
 		newPrefix := strings.TrimSpace(text)
+		if _, err := validateBotPrefixInput(newPrefix); err != nil {
+			_ = fakeCtx.Reply("Invalid prefix. Use a single symbol or short word only (for example: !, /, . or bot). Sentences like 'hello there' are not allowed.")
+			return true
+		}
 		if strings.EqualFold(newPrefix, "none") || strings.EqualFold(newPrefix, "empty") {
 			newPrefix = "empty"
 		}
@@ -1144,9 +1173,8 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "bio", UpdatedAt: time.Now()}
 		cliutils.BotWizardMu.Unlock()
 
-		bodyText := Sprintf("Prefix set to %q.\n\nBot Customization Wizard (Step 4/4)\n\nPlease send the text for your bot's WhatsApp status bio.\n\nOr select Skip to finish wizard.", newPrefix)
+		bodyText := Sprintf("Prefix set to %q.\n\nBot Customization Wizard (Step 4/4)\n\nPlease type the text for your bot's WhatsApp status bio and send it as a message.\n\nOr select Skip to finish.", newPrefix)
 		bioOptions := []string{
-			"Set Bio",
 			"Skip",
 		}
 		_ = sendPollReply(fakeCtx, bodyText, bioOptions)
@@ -1195,6 +1223,21 @@ func handleSetBot(ctx *Context) error {
 			cliutils.BotWizardMu.Unlock()
 			return ctx.Reply("Bot Customization Wizard (Step 1/4)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):")
 
+		case "done", "finish":
+			// User clicked "Done" on the wizard summary poll — just silently dismiss.
+			DismissBotNamePrompt(ctx.Ctx, s)
+			cliutils.BotWizardMu.Lock()
+			delete(cliutils.PendingWizardState, key)
+			cliutils.BotWizardMu.Unlock()
+			return nil
+
+		case "startover", "restart", "redo":
+			// User clicked "Start Over" on the wizard summary poll — restart from step 1.
+			cliutils.BotWizardMu.Lock()
+			cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "name", UpdatedAt: time.Now()}
+			cliutils.BotWizardMu.Unlock()
+			return ctx.Reply("Restarting wizard.\n\nBot Customization Wizard (Step 1/4)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):")
+
 		case "prompt_name", "name_prompt":
 			cliutils.BotWizardMu.Lock()
 			cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "name", UpdatedAt: time.Now()}
@@ -1219,34 +1262,65 @@ func handleSetBot(ctx *Context) error {
 			cliutils.BotWizardMu.Unlock()
 			return ctx.Reply("Please send the text for your bot's WhatsApp status bio:")
 
-		case "skip":
+		case "0", "skip":
 			stepNum := 0
 			if len(args) > 1 {
 				stepNum, _ = strconv.Atoi(args[1])
 			}
 
+			// If no explicit step number, check current wizard state to determine which step to skip
+			if stepNum == 0 {
+				cliutils.BotWizardMu.RLock()
+				ws, hasWizard := cliutils.PendingWizardState[key]
+				cliutils.BotWizardMu.RUnlock()
+				if hasWizard {
+					switch ws.Step {
+					case "thumb":
+						stepNum = 2
+					case "prefix":
+						stepNum = 3
+					case "bio":
+						stepNum = 4
+					}
+				}
+			}
+
+			if stepNum == 2 {
+				// Skip thumbnail step, advance to prefix step
+				cliutils.BotWizardMu.Lock()
+				cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "prefix", UpdatedAt: time.Now()}
+				cliutils.BotWizardMu.Unlock()
+
+				bodyText := "Thumbnail step skipped.\n\nBot Customization Wizard (Step 3/4)\n\nPlease type the symbol or prefix you want to use (e.g. ., !, / or 'none') and send it as a message.\n\nOr select Skip to keep the current prefix."
+				return sendPollReply(ctx, bodyText, []string{"Skip"})
+			}
+
 			if stepNum == 3 {
+				// Skip prefix step, advance to bio step
 				cliutils.BotWizardMu.Lock()
 				cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "bio", UpdatedAt: time.Now()}
 				cliutils.BotWizardMu.Unlock()
 
-				bodyText := "Bot Customization Wizard (Step 4/4)\n\nPlease send the text for your bot's WhatsApp status bio.\n\nOr select Skip to finish."
-				options := []string{
-					"Set Bio",
-					"Skip",
-				}
-				return sendPollReply(ctx, bodyText, options)
+				bodyText := "Bot Customization Wizard (Step 4/4)\n\nPlease type the text for your bot's WhatsApp status bio and send it as a message.\n\nOr select Skip to finish."
+				return sendPollReply(ctx, bodyText, []string{"Skip"})
 			}
 
-			if stepNum == 4 || stepNum == 0 {
-				cliutils.BotWizardMu.Lock()
-				delete(cliutils.PendingWizardState, key)
-				cliutils.BotWizardMu.Unlock()
-				DismissBotNamePrompt(ctx.Ctx, s)
-				return sendWizardSummaryCard(ctx)
-			}
+			// stepNum == 4 or fallback: finish wizard
+			cliutils.BotWizardMu.Lock()
+			delete(cliutils.PendingWizardState, key)
+			cliutils.BotWizardMu.Unlock()
+			DismissBotNamePrompt(ctx.Ctx, s)
+			return sendWizardSummaryCard(ctx)
 
 		case "page":
+			// Ignore stale poll navigation callbacks that fire after the wizard is already
+			// completed/dismissed — checking for an active wizard session guards this.
+			cliutils.BotWizardMu.RLock()
+			_, hasActiveWizard := cliutils.PendingWizardState[key]
+			cliutils.BotWizardMu.RUnlock()
+			if !hasActiveWizard {
+				return nil
+			}
 			pageNum := 1
 			if len(args) > 1 {
 				pageNum, _ = strconv.Atoi(args[1])
@@ -1268,7 +1342,10 @@ func handleSetBot(ctx *Context) error {
 			if len(args) < 2 {
 				return ctx.Replyf("Usage: %ssetprefix <symbol>", p)
 			}
-			newPrefix := args[1]
+			newPrefix := strings.Join(args[1:], " ")
+			if _, err := validateBotPrefixInput(newPrefix); err != nil {
+				return ctx.Reply("Invalid prefix. Use a single symbol or short word only (for example: !, /, . or bot). Sentences like 'hello there' are not allowed.")
+			}
 			if strings.EqualFold(newPrefix, "none") || strings.EqualFold(newPrefix, "empty") {
 				newPrefix = "empty"
 			}
@@ -1318,7 +1395,17 @@ func handleSetBot(ctx *Context) error {
 			DismissBotNamePrompt(ctx.Ctx, s)
 			_ = s.PutSetting(ctx.Ctx, cliutils.BotNameAwaitingInputPrefix+senderUser, "")
 			return ctx.Replyf("Kept default bot name. Change anytime using %sreconfigure or %ssetbot", p, p)
+
+		default:
+			return ctx.Replyf("Unknown setbot option. Usage: %ssetbot or %sreconfigure", p, p)
 		}
+	}
+
+	cliutils.BotWizardMu.RLock()
+	_, inActiveWizard := cliutils.PendingWizardState[key]
+	cliutils.BotWizardMu.RUnlock()
+	if inActiveWizard {
+		return nil
 	}
 
 	return sendSetBotPage(ctx, 1)
@@ -1391,15 +1478,17 @@ func sendWizardSummaryCard(ctx *Context) error {
 		}
 	}
 
-	return ctx.Text().
+	summaryText := ctx.Text().
 		Header("Bot Customization Completed!").
 		Section("BOT CONFIGURATION").
 		Field("Name", botName).
 		Field("Thumbnail", thumbStatus).
 		Field("Prefix", curPrefix).
 		Blank().
-		Linef("Type %smenu anytime to view your updated bot commands menu! (Or %sreconfigure to adjust settings)", p, p).
-		Reply()
+		Linef("Type %smenu anytime to view your updated bot commands menu!", p).
+		Trimmed()
+
+	return sendPollReply(ctx, summaryText, []string{"Done", "Start Over"})
 }
 
 func handleLikeStatusCmd(ctx *Context) error {
@@ -1486,6 +1575,37 @@ func sendLikeStatusCustomizeGuide(ctx *Context) error {
 		Reply()
 }
 
+func validateBotPrefixInput(raw string) ([]string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, errors.New("prefix is required")
+	}
+
+	parts := strings.Fields(trimmed)
+	if len(parts) == 0 {
+		return nil, errors.New("prefix is required")
+	}
+
+	wordCount := 0
+	for _, part := range parts {
+		if strings.EqualFold(part, "none") || strings.EqualFold(part, "empty") {
+			continue
+		}
+		if strings.ContainsAny(part, " \t\r\n") {
+			return nil, errors.New("prefixes cannot contain spaces")
+		}
+		if isWordPrefix(part) {
+			wordCount++
+		}
+	}
+
+	if len(parts) > 1 && wordCount > 1 {
+		return nil, errors.New("prefix must be a single symbol or short word, not a full sentence")
+	}
+
+	return parts, nil
+}
+
 func handlePrefix(ctx *Context) error {
 	s, ok := getStore(ctx)
 	if !ok {
@@ -1503,9 +1623,9 @@ func handlePrefix(ctx *Context) error {
 		return ctx.SendTextf("Prefix(es): %s", raw)
 	}
 
-	parts := strings.Fields(ctx.RawArgs)
-	if len(parts) == 0 {
-		return sendText(ctx, "Usage: prefix <symbol or word...> (use 'empty' or 'none' for no prefix required)")
+	parts, err := validateBotPrefixInput(ctx.RawArgs)
+	if err != nil {
+		return sendText(ctx, "Invalid prefix. Use a single symbol or short word only (for example: !, /, . or bot). Sentences like 'hello there' are not allowed.")
 	}
 
 	var parsedParts []string

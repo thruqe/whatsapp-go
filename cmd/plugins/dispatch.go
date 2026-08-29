@@ -570,6 +570,9 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 
 		if okSetting {
 			botMode, _ := s.GetSetting(ctx, "mode")
+			if botMode == "" {
+				botMode = "private"
+			}
 			if botMode == "private" && !cctx.IsSudo() {
 				Logger.Warn("Private mode check failed - silently ignoring non-sudoer", "command", name, "sender", cctx.Sender.String())
 				return
