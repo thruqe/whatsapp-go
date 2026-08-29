@@ -780,9 +780,14 @@ func handlePing(ctx *Context) error {
 
 func handleRepo(ctx *Context) error {
 	repoURL := "https://github.com/ThruqeLabs/whatsrook"
-	text := Sprintf("WhatsRook Repository\n\n%s\n\nPlease star the repository if you like the project, it helps support and motivate me.\n\nPowered by %s", repoURL, ctx.GetBotName())
-
-	return ctx.Reply(text)
+	return ctx.Text().
+		Header("WhatsRook Repository").
+		Line(repoURL).
+		Blank().
+		Line("Please star the repository if you like the project, it helps support and motivate me.").
+		Blank().
+		Field("Powered by", ctx.GetBotName()).
+		Reply()
 }
 
 func handleUptime(ctx *Context) error {

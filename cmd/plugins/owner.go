@@ -1021,11 +1021,18 @@ func showUpdateStatus(ctx *Context, channel string) error {
 	platform := updater.GetPlatform()
 	p := ctx.GetPrefix()
 
-	msg := Sprintf(
-		"WhatsRook Updater Status\nSystem: %s\nCurrent Version: %s\nChannel: %s\n\nSubcommands:\n- %supdate check: Check for new release\n- %supdate stable: Switch to stable channel\n- %supdate beta: Switch to beta channel\n- %supdate now: Apply update and restart",
-		platform, currentVer, channel, p, p, p, p,
-	)
-	return ctx.Reply(msg)
+	return ctx.Text().
+		Header("WhatsRook Updater Status").
+		Field("System", platform).
+		Field("Current Version", currentVer).
+		Field("Channel", channel).
+		Blank().
+		Section("Subcommands:").
+		Bulletf("%supdate check: Check for new release", p).
+		Bulletf("%supdate stable: Switch to stable channel", p).
+		Bulletf("%supdate beta: Switch to beta channel", p).
+		Bulletf("%supdate now: Apply update and restart", p).
+		Reply()
 }
 
 func performCheck(ctx *Context) error {
@@ -1040,10 +1047,14 @@ func performCheck(ctx *Context) error {
 		return ctx.Replyf("WhatsRook is up to date (Version %s, Platform %s).", check.CurrentVersion, check.Platform)
 	}
 
-	return ctx.Replyf(
-		"Update available!\nCurrent Version: %s\nLatest Version: %s\nPlatform: %s\n\nRun %supdate now or %supgrade to install the new binary release.",
-		check.CurrentVersion, check.LatestVersion, check.Platform, p, p,
-	)
+	return ctx.Text().
+		Header("Update available!").
+		Field("Current Version", check.CurrentVersion).
+		Field("Latest Version", check.LatestVersion).
+		Field("Platform", check.Platform).
+		Blank().
+		Linef("Run %supdate now or %supgrade to install the new binary release.", p, p).
+		Reply()
 }
 
 func performUpgrade(ctx *Context, isBeta bool) error {
