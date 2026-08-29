@@ -7,6 +7,7 @@ import (
 	"errors"
 	"math/rand"
 	"net/url"
+	"slices"
 	"unicode"
 
 	"os"
@@ -1041,13 +1042,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		// so that e.g. ".menu" is caught even when the configured prefix is "!" or similar.
 		prefixSet := make([]string, 0, len(prefixes)+1)
 		prefixSet = append(prefixSet, prefixes...)
-		hasDot := false
-		for _, p := range prefixes {
-			if p == cliutils.DefaultPrefix {
-				hasDot = true
-				break
-			}
-		}
+		hasDot := slices.Contains(prefixes, cliutils.DefaultPrefix)
 		if !hasDot {
 			prefixSet = append(prefixSet, cliutils.DefaultPrefix)
 		}

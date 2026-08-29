@@ -581,7 +581,7 @@ func (b *Bot) WAEventHandler(evt any) {
 		}
 
 	case *events.CallOffer:
-		// Logger.Info("incoming call offer received", "event", v)
+		Logger.Debug("incoming call offer received", "event", v)
 		b.handleAntiCall(context.Background(), v)
 		b.hub.Broadcast(EventMessage{
 			Kind: EventIncomingCall,

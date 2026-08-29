@@ -327,10 +327,6 @@ func slogAttrToZapField(group string, a slog.Attr) zapcore.Field {
 	}
 }
 
-// ─────────────────────────────────────────────────────────────
-// whatsmeow waLog Adapter
-// ─────────────────────────────────────────────────────────────
-
 type zapWaLogger struct {
 	sugar *zap.SugaredLogger
 	raw   *zap.Logger
@@ -382,7 +378,8 @@ func (z *zapWaLogger) Debugf(msg string, args ...any) {
 	if len(args) == 0 {
 		z.sugar.Debug(msg)
 	} else {
-		z.sugar.Debugf(msg, args...)
+		formatted := fmt.Sprintf(msg, args...)
+		z.sugar.Debug(formatted)
 	}
 }
 
@@ -445,6 +442,10 @@ func (w *zerologToZapWriter) Write(p []byte) (int, error) {
 	delete(raw, zerolog.TimestampFieldName)
 	delete(raw, "timestamp")
 	delete(raw, "subsystem")
+
+	if lvl == zapcore.DebugLevel {
+		return n, nil
+	}
 
 	if ce := w.logger.Check(lvl, msg); ce != nil {
 		if len(raw) == 0 {

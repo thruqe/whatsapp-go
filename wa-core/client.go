@@ -916,7 +916,7 @@ func (cli *Client) handleFrame(ctx context.Context, data []byte) {
 			node = modified
 		}
 	}
-	cli.recvLog.Debugf("%s", node)
+	// cli.recvLog.Debugf("%s", node)
 	cli.handleOutOfBandNode(node)
 	// Signal-disabled handoff: parse and dispatch UndecryptedMessage
 	// synchronously from the recv goroutine, so the event interleaves
@@ -1060,7 +1060,7 @@ func (cli *Client) sendNodeAndGetData(ctx context.Context, node waBinary.Node) (
 		return nil, fmt.Errorf("failed to marshal node: %w", err)
 	}
 
-	cli.sendLog.Debugf("%s", &node)
+	// cli.sendLog.Debugf("%s", &node)
 	return payload, sock.SendFrame(ctx, payload)
 }
 
