@@ -167,7 +167,25 @@ func (cli *Client) SetStatusMessage(ctx context.Context, status types.SetStatusI
 	_, err := cli.sendMexIQ(ctx, mutationUpdateTextStatus, map[string]any{
 		"input": &status,
 	})
-	// TODO check output result?
+	if err == nil {
+		return nil
+	}
+
+	// Fallback to legacy status IQ if Mex mutation fails and status text is provided
+	if status.Text != nil {
+		_, legacyErr := cli.sendIQ(ctx, infoQuery{
+			Namespace: "status",
+			Type:      iqSet,
+			To:        types.ServerJID,
+			Content: []waBinary.Node{{
+				Tag:     "status",
+				Content: []byte(*status.Text),
+			}},
+		})
+		if legacyErr == nil {
+			return nil
+		}
+	}
 	return err
 }
 

@@ -1,6 +1,8 @@
 package whatsmeow
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	waBinary "go.mau.fi/whatsmeow/binary"
@@ -97,5 +99,19 @@ func TestParseGroupChange_MemberLinkAndShareHistoryMode(t *testing.T) {
 	}
 	if evt.AllowNonAdminSubGroupCreation == nil || !*evt.AllowNonAdminSubGroupCreation {
 		t.Errorf("expected evt.AllowNonAdminSubGroupCreation true, got %+v", evt.AllowNonAdminSubGroupCreation)
+	}
+}
+
+func TestSetStatusInput_JSONMarshal(t *testing.T) {
+	text := "Status Message"
+	input := types.SetStatusInput{
+		Text: &text,
+	}
+	data, err := json.Marshal(input)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if strings.Contains(string(data), "ephemeral_duration_sec") {
+		t.Errorf("expected ephemeral_duration_sec to be omitted when 0, got: %s", string(data))
 	}
 }
