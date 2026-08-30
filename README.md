@@ -12,6 +12,21 @@ For questions about whatsrook use cases (like how to do stuff or seek more help)
 
 If you want to install on your system automatically, see the [Installation Guide](./INSTALLATION.md) for simple one-line copy-and-paste commands for Linux, macOS, Android (Termux), and Windows.
 
+## Binaries
+
+Pre-built binaries for each platform are available on the [Releases Page](https://github.com/ThruqeLabs/whatsrook/releases):
+
+| Platform         | Architecture          | Latest Stable                                                                                               | Latest Alpha                                                                                               |
+| ---------------- | --------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Linux            | x86_64                | [Download](https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-linux-amd64.tar.gz)   | [Download](https://github.com/ThruqeLabs/whatsrook/releases/download/alpha/whatsrook-linux-amd64.tar.gz)   |
+| Linux            | arm64                 | [Download](https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-linux-arm64.tar.gz)   | [Download](https://github.com/ThruqeLabs/whatsrook/releases/download/alpha/whatsrook-linux-arm64.tar.gz)   |
+| macOS            | x86_64                | [Download](https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-darwin-amd64.tar.gz)  | [Download](https://github.com/ThruqeLabs/whatsrook/releases/download/alpha/whatsrook-darwin-amd64.tar.gz)  |
+| macOS            | arm64 (Apple Silicon) | [Download](https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-darwin-arm64.tar.gz)  | [Download](https://github.com/ThruqeLabs/whatsrook/releases/download/alpha/whatsrook-darwin-arm64.tar.gz)  |
+| Windows          | x86_64                | [Download](https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-windows-amd64.tar.gz) | [Download](https://github.com/ThruqeLabs/whatsrook/releases/download/alpha/whatsrook-windows-amd64.tar.gz) |
+| Android (Termux) | arm64                 | [Download](https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-android-arm64.tar.gz) | [Download](https://github.com/ThruqeLabs/whatsrook/releases/download/alpha/whatsrook-android-arm64.tar.gz) |
+
+Each release includes the binary, assets, LICENSE, README, and version information in a `.tar.gz` archive.
+
 ## Usage
 
 The configuration [doc](./CONFIGURATION.md) contains info about all the environment variables needed to run whatsrook.
