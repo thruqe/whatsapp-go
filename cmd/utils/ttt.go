@@ -2,20 +2,19 @@ package cliutils
 
 import (
 	"math/rand"
-	"net/http"
 	"sync"
 	"time"
 
 	"go.mau.fi/whatsmeow/types"
+
+	utils "whatsrook/src"
 )
 
 var (
 	BotJID         = types.NewJID("whatsrook_bot", "s.whatsapp.net")
 	WcgRng         = rand.New(rand.NewSource(time.Now().UnixNano()))
 	GameRng        = rand.New(rand.NewSource(time.Now().UnixNano()))
-	GameHTTPClient = &http.Client{
-		Timeout: 4 * time.Second,
-	}
+	GameHTTPClient = utils.NewHTTPClient(4 * time.Second)
 
 	TTTMu    sync.Mutex
 	TTTGames = make(map[string]*TTTGame)

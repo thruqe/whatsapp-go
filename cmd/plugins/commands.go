@@ -44,6 +44,7 @@ type Command struct {
 	HideFromMenu bool
 	GroupOnly    bool
 	IsPublic     bool
+	NoLoader     bool
 	Handler      Handler
 }
 

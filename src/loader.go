@@ -100,6 +100,7 @@ func (l *Loader) run() {
 		case <-l.stopChan:
 			return
 		case <-l.ctx.Ctx.Done():
+			l.Delete()
 			return
 		case <-ticker.C:
 			l.mu.Lock()

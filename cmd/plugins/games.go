@@ -15,6 +15,7 @@ import (
 
 	"go.mau.fi/whatsmeow/types"
 
+	"whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
 	Logger "whatsrook/src/logger"
 )
@@ -26,6 +27,7 @@ func init() {
 		Description: "Play Tic-Tac-Toe against the bot AI or another user",
 		Category:    "games",
 		IsPublic:    true,
+		NoLoader:    true,
 		Handler:     handleTicTacToe,
 	})
 
@@ -44,6 +46,7 @@ func init() {
 		Description: "Unscramble word game with 30s lobby, dynamic time limits, performance ratings & XP",
 		Category:    "games",
 		IsPublic:    true,
+		NoLoader:    true,
 		Handler:     handleUnscramble,
 	})
 
@@ -53,6 +56,7 @@ func init() {
 		Description: "Word Chain Game – submit valid English words matching the required starting letter",
 		Category:    "games",
 		IsPublic:    true,
+		NoLoader:    true,
 		Handler:     handleWCGChain,
 	})
 }
@@ -62,6 +66,7 @@ func IsTTTGameActive(chatJID string) bool {
 }
 
 func handleTicTacToe(ctx *Context) error {
+	ctx.StopAutoLoader()
 	cliutils.TTTMu.Lock()
 	defer cliutils.TTTMu.Unlock()
 
@@ -272,10 +277,6 @@ func awardTTTXP(ctx *Context, userJID types.JID, amount int, resultType string) 
 	if !ok {
 		return
 	}
-	db := s.GetDB()
-	if db == nil {
-		return
-	}
 
 	winInc, lossInc, drawInc := 0, 0, 0
 	switch resultType {
@@ -287,22 +288,11 @@ func awardTTTXP(ctx *Context, userJID types.JID, amount int, resultType string) 
 		drawInc = 1
 	}
 
-	ourJID := ""
-	if s != nil {
-		ourJID = s.JID
-	}
 	groupJID := ctx.Chat.ToNonAD().String()
 	normJID := NormalizeUserJID(ctx.Ctx, ctx.Client, userJID)
 	cleanJID := normJID.String()
 
-	_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (our_jid, group_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT(our_jid, group_jid, user_jid) DO UPDATE SET
-			xp = CASE WHEN bot_group_user_xp.xp + EXCLUDED.xp < 0 THEN 0 ELSE bot_group_user_xp.xp + EXCLUDED.xp END,
-			ttt_wins = bot_group_user_xp.ttt_wins + EXCLUDED.ttt_wins,
-			ttt_losses = bot_group_user_xp.ttt_losses + EXCLUDED.ttt_losses,
-			ttt_draws = bot_group_user_xp.ttt_draws + EXCLUDED.ttt_draws`,
-		ourJID, groupJID, cleanJID, amount, winInc, lossInc, drawInc)
+	_ = store.AddGroupUserTTTXP(ctx.Ctx, s.SQLStore, groupJID, cleanJID, amount, winInc, lossInc, drawInc)
 }
 
 func handleLeaderboard(ctx *Context) error {
@@ -314,12 +304,7 @@ func handleLeaderboard(ctx *Context) error {
 	if !ok {
 		return ctx.Reply("Leaderboard store unavailable.")
 	}
-	db := s.GetDB()
-	if db == nil {
-		return ctx.Reply("Database connection unavailable.")
-	}
 
-	ourJID := s.JID
 	groupJID := ctx.Chat.ToNonAD().String()
 
 	groupName := "Group"
@@ -331,13 +316,10 @@ func handleLeaderboard(ctx *Context) error {
 		}
 	}
 
-	rows, err := db.Query(ctx.Ctx, `SELECT user_jid, xp, ttt_wins, ttt_losses, ttt_draws, COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000) 
-		FROM bot_group_user_xp 
-		WHERE our_jid = $1 AND group_jid = $2`, ourJID, groupJID)
+	groupLeaderboard, err := store.GetGroupLeaderboard(ctx.Ctx, s.SQLStore, groupJID)
 	if err != nil {
 		return ctx.Reply("Failed to fetch group leaderboard.")
 	}
-	defer rows.Close()
 
 	type lbEntry struct {
 		jid       types.JID
@@ -355,46 +337,43 @@ func handleLeaderboard(ctx *Context) error {
 	mergedMap := make(map[string]*lbEntry)
 	var mapKeys []string
 
-	for rows.Next() {
-		var jidStr string
-		var xp, tWins, tLosses, tDraws, wWins, wGames, rating int
-		if err := rows.Scan(&jidStr, &xp, &tWins, &tLosses, &tDraws, &wWins, &wGames, &rating); err == nil {
-			if rating == 0 {
-				rating = 1000
-			}
-			parsed, pErr := types.ParseJID(jidStr)
-			if pErr != nil {
-				continue
-			}
-			normJID := NormalizeUserJID(ctx.Ctx, ctx.Client, parsed)
-			key := normJID.String()
+	for _, row := range groupLeaderboard {
+		rating := row.WCGRating
+		if rating == 0 {
+			rating = 1000
+		}
+		parsed, pErr := types.ParseJID(row.UserJID)
+		if pErr != nil {
+			continue
+		}
+		normJID := NormalizeUserJID(ctx.Ctx, ctx.Client, parsed)
+		key := normJID.String()
 
-			existing, found := mergedMap[key]
-			if !found {
-				tag, resolved := ctx.FormatMention(normJID)
-				entry := &lbEntry{
-					jid:       resolved,
-					tag:       tag,
-					xp:        xp,
-					tttWins:   tWins,
-					tttLosses: tLosses,
-					tttDraws:  tDraws,
-					wcgWins:   wWins,
-					wcgGames:  wGames,
-					rating:    rating,
-				}
-				mergedMap[key] = entry
-				mapKeys = append(mapKeys, key)
-			} else {
-				existing.xp += xp
-				existing.tttWins += tWins
-				existing.tttLosses += tLosses
-				existing.tttDraws += tDraws
-				existing.wcgWins += wWins
-				existing.wcgGames += wGames
-				if rating > existing.rating {
-					existing.rating = rating
-				}
+		existing, found := mergedMap[key]
+		if !found {
+			tag, resolved := ctx.FormatMention(normJID)
+			entry := &lbEntry{
+				jid:       resolved,
+				tag:       tag,
+				xp:        int(row.XP),
+				tttWins:   row.TTTWins,
+				tttLosses: row.TTTLosses,
+				tttDraws:  row.TTTDraws,
+				wcgWins:   row.WCGWins,
+				wcgGames:  row.WCGGames,
+				rating:    rating,
+			}
+			mergedMap[key] = entry
+			mapKeys = append(mapKeys, key)
+		} else {
+			existing.xp += int(row.XP)
+			existing.tttWins += row.TTTWins
+			existing.tttLosses += row.TTTLosses
+			existing.tttDraws += row.TTTDraws
+			existing.wcgWins += row.WCGWins
+			existing.wcgGames += row.WCGGames
+			if rating > existing.rating {
+				existing.rating = rating
 			}
 		}
 	}
@@ -573,6 +552,36 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 		return true
 	}
 
+	trimmed := strings.ToLower(strings.TrimSpace(text))
+	clean := strings.Trim(trimmed, ".!/#$%^&*()_+-=`~")
+	if clean == "cancel" || clean == "stop" || clean == "end" || clean == "kill" || clean == "unscramble end" || clean == "unscramble cancel" {
+		game.Mu.Unlock()
+		isOwner := ctx.IsOwner()
+		isSudo := ctx.IsSudo()
+		isHost := game.IsHost(ctx.Sender)
+		isBotOwner := isOwner || isSudo
+
+		Logger.Debug("[Unscramble Input] Cancel/End authorization check",
+			"chat", chatKey,
+			"sender", ctx.Sender.String(),
+			"hostLID", game.HostLID.String(),
+			"hostMention", game.HostMention.String(),
+			"isOwner", isOwner,
+			"isSudo", isSudo,
+			"isHost", isHost,
+			"allowed", isBotOwner || isHost,
+		)
+
+		if !isBotOwner && !isHost {
+			_ = ctx.Reply("Only the game initiator, a sudo, or the bot owner can end this match.")
+			return true
+		}
+		game.StopTimers()
+		cliutils.DeleteUnscrambleGame(chatKey)
+		_ = ctx.Reply("Unscramble game cancelled.")
+		return true
+	}
+
 	pIdx := game.FindPlayerIndex(senderLID)
 	if pIdx == -1 {
 		Logger.Debug("[Unscramble] Ignored input from non-player", "chat", chatKey, "sender", senderLID.String())
@@ -626,6 +635,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 }
 
 func handleUnscramble(ctx *Context) error {
+	ctx.StopAutoLoader()
 	chatKey := ctx.Chat.String()
 
 	existingGame := cliutils.GetUnscrambleGame(chatKey)
@@ -643,12 +653,24 @@ func handleUnscramble(ctx *Context) error {
 			return ctx.Reply("No active Unscramble game to end.")
 		}
 
-		senderLID := ctx.Sender.ToNonAD()
-		isBotOwner := ctx.IsSudo()
-		isHost := existingGame.IsHost(senderLID)
+		isOwner := ctx.IsOwner()
+		isSudo := ctx.IsSudo()
+		isHost := existingGame.IsHost(ctx.Sender)
+		isBotOwner := isOwner || isSudo
+
+		Logger.Debug("[Unscramble] Cancel/End authorization check",
+			"chat", chatKey,
+			"sender", ctx.Sender.String(),
+			"hostLID", existingGame.HostLID.String(),
+			"hostMention", existingGame.HostMention.String(),
+			"isOwner", isOwner,
+			"isSudo", isSudo,
+			"isHost", isHost,
+			"allowed", isBotOwner || isHost,
+		)
 
 		if !isBotOwner && !isHost {
-			return ctx.Reply("Only the game host or bot owner can end this match.")
+			return ctx.Reply("Only the game initiator, a sudo, or the bot owner can end this match.")
 		}
 
 		existingGame.StopTimers()
@@ -657,43 +679,18 @@ func handleUnscramble(ctx *Context) error {
 	}
 
 	if !cliutils.IsDictionaryDBReady() {
-		ctx.StopAutoLoader()
 		resp, err := ctx.Send("Downloading game resources (Dictionary DB)...")
 		var msgID types.MessageID
 		if err == nil {
 			msgID = resp.ID
 		}
-
-		lastUpdate := time.Now()
-		onProgress := func(downloaded, total int64) {
-			if msgID == "" {
-				return
-			}
-			if time.Since(lastUpdate) < 1200*time.Millisecond {
-				return
-			}
-			lastUpdate = time.Now()
-			if total > 0 {
-				pct := float64(downloaded) / float64(total) * 100
-				mbDownloaded := float64(downloaded) / (1024 * 1024)
-				mbTotal := float64(total) / (1024 * 1024)
-				_, _ = ctx.Edit(msgID, Sprintf("Downloading game resources... %.1f%% (%.1f/%.1f MB)", pct, mbDownloaded, mbTotal))
-			} else {
-				mbDownloaded := float64(downloaded) / (1024 * 1024)
-				_, _ = ctx.Edit(msgID, Sprintf("Downloading game resources... %.1f MB", mbDownloaded))
-			}
-		}
-
-		err = cliutils.DownloadDictionaryDBWithProgress(ctx.GetSendContext(), onProgress)
-		if err != nil {
+		if errDL := cliutils.DownloadDictionaryDB(ctx.Ctx); errDL != nil {
 			if msgID != "" {
-				_, _ = ctx.Edit(msgID, Sprintf("Failed to download game resources: %v", err))
+				_, _ = ctx.Delete(msgID)
 			}
-			return ctx.Replyf("Failed to download game resources: %v", err)
+			return ctx.Replyf("Failed to download Dictionary DB: %v. Please try again later.", errDL)
 		}
 		if msgID != "" {
-			_, _ = ctx.Edit(msgID, "Game resources ready! Initializing...")
-			time.Sleep(400 * time.Millisecond)
 			_, _ = ctx.Delete(msgID)
 		}
 	}
@@ -710,9 +707,7 @@ func handleUnscramble(ctx *Context) error {
 		senderLID := ctx.Sender.ToNonAD()
 		if existingGame.FindPlayerIndex(senderLID) != -1 {
 			existingGame.Mu.Unlock()
-			mentionJID, username := ctx.ResolveMention(senderLID)
-			tag := "@" + username
-			return ctx.ReplyWithMentions(Sprintf("%s you have already joined the Unscramble match!", tag), []types.JID{mentionJID})
+			return ctx.Reply("You have already joined the Unscramble match!")
 		}
 		existingGame.Mu.Unlock()
 
@@ -734,12 +729,25 @@ func handleUnscramble(ctx *Context) error {
 			existingGame.Mu.Unlock()
 
 			if state == cliutils.UnscrambleStateLobby {
-				senderLID := ctx.Sender.ToNonAD()
-				isBotOwner := ctx.IsSudo()
-				isHost := existingGame.IsHost(senderLID)
+				isOwner := ctx.IsOwner()
+				isSudo := ctx.IsSudo()
+				isHost := existingGame.IsHost(ctx.Sender)
+				isBotOwner := isOwner || isSudo
+
+				Logger.Debug("[Unscramble] Start request authorization check",
+					"chat", chatKey,
+					"sender", ctx.Sender.String(),
+					"hostLID", existingGame.HostLID.String(),
+					"hostMention", existingGame.HostMention.String(),
+					"isOwner", isOwner,
+					"isSudo", isSudo,
+					"isHost", isHost,
+					"allowed", isBotOwner || isHost,
+					"playersCount", playerCount,
+				)
 
 				if !isBotOwner && !isHost {
-					return ctx.Reply("Only the game host or bot owner can start the match!")
+					return ctx.Reply("Only the game initiator, a sudo, or the bot owner can start the match!")
 				}
 
 				if playerCount == 0 {
@@ -760,8 +768,9 @@ func handleUnscramble(ctx *Context) error {
 		state := existingGame.State
 		playerCount := len(existingGame.Players)
 		existingGame.Mu.Unlock()
+
 		if state == cliutils.UnscrambleStateLobby {
-			return ctx.Replyf("Unscramble Lobby Open! (%d players)\nType `join` to join or %sunscramble start to begin!", playerCount, ctx.GetPrefix())
+			return ctx.Replyf("Unscramble Lobby Open! (%d players)\nType `join` to join or .unscramble start to begin!", playerCount)
 		}
 		return ctx.Reply("An Unscramble game is already in progress in this chat!")
 	}
@@ -781,7 +790,7 @@ func handleUnscramble(ctx *Context) error {
 		newGame.Mu.Unlock()
 
 		cctx := &Context{
-			Ctx:    ctx.Ctx,
+			Ctx:    context.Background(),
 			Client: ctx.Client,
 			Chat:   ctx.Chat,
 			Sender: ctx.Sender,
@@ -801,6 +810,7 @@ func handleUnscramble(ctx *Context) error {
 }
 
 func startUnscrambleGame(ctx *Context, game *cliutils.UnscrambleGame) {
+	ctx.StopAutoLoader()
 	if !game.StartGame() {
 		_ = ctx.Reply("Cannot start game: Need at least 1 player!")
 		return
@@ -837,7 +847,7 @@ func startUnscrambleTurn(ctx *Context, game *cliutils.UnscrambleGame) {
 
 		Logger.Info("Unscramble turn timed out for player", "chat", game.ChatKey, "player", currentPlayer.Tag)
 		cctx := &Context{
-			Ctx:    ctx.Ctx,
+			Ctx:    context.Background(),
 			Client: ctx.Client,
 			Chat:   game.ChatJID,
 		}
@@ -966,21 +976,10 @@ func saveUnscrambleStats(ctx *Context, game *cliutils.UnscrambleGame, winner *cl
 			}
 		}
 
-		ourJID := ""
-		if game.Client != nil && game.Client.Store != nil && game.Client.Store.ID != nil {
-			ourJID = game.Client.Store.ID.String()
-		}
 		normJID := NormalizeUserJID(ctx.Ctx, game.Client, p.MentionJID)
 		cleanJID := normJID.String()
 
-		_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (our_jid, group_jid, user_jid, xp, wcg_wins, wcg_games, wcg_rating)
-			VALUES ($1, $2, $3, $4, $5, 1, $6)
-			ON CONFLICT(our_jid, group_jid, user_jid) DO UPDATE SET
-				xp = CASE WHEN bot_group_user_xp.xp + EXCLUDED.xp < 0 THEN 0 ELSE bot_group_user_xp.xp + EXCLUDED.xp END,
-				wcg_wins = bot_group_user_xp.wcg_wins + EXCLUDED.wcg_wins,
-				wcg_games = bot_group_user_xp.wcg_games + 1,
-				wcg_rating = CASE WHEN bot_group_user_xp.wcg_rating + $7 < 100 THEN 100 ELSE bot_group_user_xp.wcg_rating + $7 END`,
-			ourJID, groupJID, cleanJID, xpEarned, winInc, 1000+ratingDelta, ratingDelta)
+		_ = store.AddGroupUserWCGXP(ctx.Ctx, s.SQLStore, groupJID, cleanJID, xpEarned, winInc, 1, ratingDelta)
 	}
 }
 
@@ -1081,11 +1080,73 @@ func HandleUnscrambleLobbyInput(ctx *Context, text string) bool {
 	game.Mu.Unlock()
 
 	trimmed := strings.ToLower(strings.TrimSpace(text))
-	isJoinCmd := trimmed == "join" || trimmed == "unscramble join"
-	if !isJoinCmd {
-		clean := strings.Trim(trimmed, ".!/#$%^&*()_+-=`~")
-		isJoinCmd = clean == "join" || clean == "unscramble join" || strings.HasSuffix(clean, "unscramble join")
+	clean := strings.Trim(trimmed, ".!/#$%^&*()_+-=`~")
+
+	// 1. Check start/begin
+	if clean == "start" || clean == "begin" || clean == "unscramble start" || clean == "unscramble begin" {
+		isOwner := ctx.IsOwner()
+		isSudo := ctx.IsSudo()
+		isHost := game.IsHost(ctx.Sender)
+		isBotOwner := isOwner || isSudo
+
+		Logger.Debug("[Unscramble Lobby Input] Start request authorization check",
+			"chat", chatKey,
+			"sender", ctx.Sender.String(),
+			"hostLID", game.HostLID.String(),
+			"hostMention", game.HostMention.String(),
+			"isOwner", isOwner,
+			"isSudo", isSudo,
+			"isHost", isHost,
+			"allowed", isBotOwner || isHost,
+			"playersCount", len(game.Players),
+		)
+
+		if !isBotOwner && !isHost {
+			_ = ctx.Reply("Only the game initiator, a sudo, or the bot owner can start the match!")
+			return true
+		}
+		game.Mu.Lock()
+		if len(game.Players) == 0 {
+			game.Mu.Unlock()
+			_ = ctx.Reply("No players in lobby yet! Type `join` to join first.")
+			return true
+		}
+		game.StopTimers()
+		game.Mu.Unlock()
+		startUnscrambleGame(ctx, game)
+		return true
 	}
+
+	// 2. Check cancel/stop/end
+	if clean == "cancel" || clean == "stop" || clean == "end" || clean == "kill" || clean == "unscramble end" || clean == "unscramble cancel" {
+		isOwner := ctx.IsOwner()
+		isSudo := ctx.IsSudo()
+		isHost := game.IsHost(ctx.Sender)
+		isBotOwner := isOwner || isSudo
+
+		Logger.Debug("[Unscramble Lobby Input] Cancel/End authorization check",
+			"chat", chatKey,
+			"sender", ctx.Sender.String(),
+			"hostLID", game.HostLID.String(),
+			"hostMention", game.HostMention.String(),
+			"isOwner", isOwner,
+			"isSudo", isSudo,
+			"isHost", isHost,
+			"allowed", isBotOwner || isHost,
+		)
+
+		if !isBotOwner && !isHost {
+			_ = ctx.Reply("Only the game initiator, a sudo, or the bot owner can end this match.")
+			return true
+		}
+		game.StopTimers()
+		cliutils.DeleteUnscrambleGame(chatKey)
+		_ = ctx.Reply("Unscramble game cancelled.")
+		return true
+	}
+
+	// 3. Check join
+	isJoinCmd := clean == "join" || clean == "unscramble join" || strings.HasSuffix(clean, "unscramble join")
 	if !isJoinCmd {
 		return false
 	}
@@ -1262,6 +1323,37 @@ func HandleWCGInput(ctx *Context, text string) bool {
 		return true
 	}
 
+	trimmed := strings.ToLower(strings.TrimSpace(text))
+	clean := strings.Trim(trimmed, ".!/#$%^&*()_+-=`~")
+	if clean == "cancel" || clean == "stop" || clean == "end" || clean == "kill" || clean == "wcg end" || clean == "wcg cancel" {
+		game.Mu.Unlock()
+		isOwner := ctx.IsOwner()
+		isSudo := ctx.IsSudo()
+		isHost := game.IsHost(ctx.Sender)
+		isBotOwner := isOwner || isSudo
+
+		Logger.Debug("[WCG Input] Cancel/End authorization check",
+			"chat", chatKey,
+			"sender", ctx.Sender.String(),
+			"hostLID", game.HostLID.String(),
+			"hostMention", game.HostMention.String(),
+			"isOwner", isOwner,
+			"isSudo", isSudo,
+			"isHost", isHost,
+			"allowed", isBotOwner || isHost,
+			"gameState", game.State,
+		)
+
+		if !isBotOwner && !isHost {
+			_ = ctx.Reply("Only the game initiator, a sudo, or the bot owner can end this match.")
+			return true
+		}
+		game.StopTimers()
+		cliutils.DeleteWCGGame(chatKey)
+		_ = ctx.Reply("Word Chain Game (WCG) ended.")
+		return true
+	}
+
 	pIdx := game.FindPlayerIndex(senderLID)
 	if pIdx == -1 {
 		game.Mu.Unlock()
@@ -1320,9 +1412,11 @@ func HandleWCGInput(ctx *Context, text string) bool {
 
 	if correct {
 		_ = ctx.React("✅")
-		nextChar := unicode.ToUpper(rune(guess[len(guess)-1]))
+		game.Mu.Lock()
+		nextReqChar := unicode.ToUpper(game.RequiredChar)
+		game.Mu.Unlock()
 		msg := Sprintf("Correct! %s submitted '%s' (%d letters) in %.1fs! (+%d pts)\n\nNext Required Letter: '%c' | Round %d Min Length: %d",
-			currentPlayer.Tag, guess, len(guess), elapsed.Seconds(), len(guess)*10, nextChar, game.RoundCount, game.MinLength)
+			currentPlayer.Tag, guess, len(guess), elapsed.Seconds(), len(guess)*10, nextReqChar, game.RoundCount, game.MinLength)
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
 		if gameOver {
@@ -1338,6 +1432,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 }
 
 func handleWCGChain(ctx *Context) error {
+	ctx.StopAutoLoader()
 	chatKey := ctx.Chat.String()
 
 	existingGame := cliutils.GetWCGGame(chatKey)
@@ -1356,16 +1451,29 @@ func handleWCGChain(ctx *Context) error {
 			return ctx.Reply("No active WCG game to end.")
 		}
 
-		senderLID := ctx.Sender.ToNonAD()
-		isBotOwner := ctx.IsSudo()
-		isHost := ctx.IsSameUser(existingGame.HostLID, senderLID)
+		isOwner := ctx.IsOwner()
+		isSudo := ctx.IsSudo()
+		isHost := existingGame.IsHost(ctx.Sender)
+		isBotOwner := isOwner || isSudo
+
+		Logger.Debug("[WCG] Cancel/End authorization check",
+			"chat", existingGame.ChatKey,
+			"sender", ctx.Sender.String(),
+			"hostLID", existingGame.HostLID.String(),
+			"hostMention", existingGame.HostMention.String(),
+			"isOwner", isOwner,
+			"isSudo", isSudo,
+			"isHost", isHost,
+			"allowed", isBotOwner || isHost,
+			"gameState", existingGame.State,
+		)
 
 		if !isBotOwner && !isHost {
-			return ctx.Reply("Only the bot owner or the game initiator can end this match.")
+			return ctx.Reply("Only the game initiator, a sudo, or the bot owner can end this match.")
 		}
 
 		if isHost && !isBotOwner {
-			if existingGame.State == cliutils.WCGStateInProgress && existingGame.IsPlayerEliminated(senderLID) {
+			if existingGame.State == cliutils.WCGStateInProgress && existingGame.IsPlayerEliminated(ctx.Sender) {
 				return ctx.Reply("You cannot end the match because you have been eliminated! Only the bot owner can end an active match after host elimination.")
 			}
 		}
@@ -1401,17 +1509,30 @@ func handleWCGChain(ctx *Context) error {
 		return ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
 	}
 
-	if arg0 == "start" || arg0 == "create" {
+	if arg0 == "start" || arg0 == "create" || arg0 == "begin" {
 		if existingGame != nil {
 			existingGame.Mu.Lock()
 			if existingGame.State == cliutils.WCGStateLobby {
-				senderLID := ctx.Sender.ToNonAD()
-				isBotOwner := ctx.IsSudo()
-				isHost := ctx.IsSameUser(existingGame.HostLID, senderLID)
+				isOwner := ctx.IsOwner()
+				isSudo := ctx.IsSudo()
+				isHost := existingGame.IsHost(ctx.Sender)
+				isBotOwner := isOwner || isSudo
+
+				Logger.Debug("[WCG] Start request authorization check",
+					"chat", existingGame.ChatKey,
+					"sender", ctx.Sender.String(),
+					"hostLID", existingGame.HostLID.String(),
+					"hostMention", existingGame.HostMention.String(),
+					"isOwner", isOwner,
+					"isSudo", isSudo,
+					"isHost", isHost,
+					"allowed", isBotOwner || isHost,
+					"playersCount", len(existingGame.Players),
+				)
 
 				if !isBotOwner && !isHost {
 					existingGame.Mu.Unlock()
-					return ctx.Reply("Only the game initiator or bot owner can start the match!")
+					return ctx.Reply("Only the game initiator, a sudo, or the bot owner can start the match!")
 				}
 
 				if len(existingGame.Players) == 0 {
@@ -1428,6 +1549,7 @@ func handleWCGChain(ctx *Context) error {
 			existingGame.Mu.Unlock()
 			return ctx.Reply("WCG game is already in progress!")
 		}
+		return ctx.Replyf("No active WCG lobby in this chat. Start one with %swcg", ctx.GetPrefix())
 	}
 
 	if existingGame != nil {
@@ -1454,7 +1576,7 @@ func handleWCGChain(ctx *Context) error {
 		newGame.Mu.Unlock()
 
 		cctx := &Context{
-			Ctx:    ctx.Ctx,
+			Ctx:    context.Background(),
 			Client: ctx.Client,
 			Chat:   ctx.Chat,
 			Sender: ctx.Sender,
@@ -1473,6 +1595,7 @@ func handleWCGChain(ctx *Context) error {
 }
 
 func startWCGChainGame(ctx *Context, game *cliutils.WCGGame) {
+	ctx.StopAutoLoader()
 	if !game.StartGame() {
 		_ = ctx.Reply("WCG Match cancelled — no players joined the lobby.")
 		return
@@ -1537,7 +1660,7 @@ func startWCGChainTurn(ctx *Context, game *cliutils.WCGGame) {
 		Logger.Debug("[WCG] Turn timed out", "player", currentPlayer.Tag)
 
 		cctx := &Context{
-			Ctx:    ctx.Ctx,
+			Ctx:    context.Background(),
 			Client: game.Client,
 			Chat:   game.ChatJID,
 			Sender: ctx.Sender,
@@ -1678,21 +1801,10 @@ func saveWCGChainStats(ctx *Context, game *cliutils.WCGGame, winner *cliutils.WC
 			}
 		}
 
-		ourJID := ""
-		if game.Client != nil && game.Client.Store != nil && game.Client.Store.ID != nil {
-			ourJID = game.Client.Store.ID.String()
-		}
 		normJID := NormalizeUserJID(ctx.Ctx, game.Client, p.MentionJID)
 		cleanJID := normJID.String()
 
-		_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (our_jid, group_jid, user_jid, xp, wcg_wins, wcg_games, wcg_rating)
-			VALUES ($1, $2, $3, $4, $5, 1, $6)
-			ON CONFLICT(our_jid, group_jid, user_jid) DO UPDATE SET
-				xp = CASE WHEN bot_group_user_xp.xp + EXCLUDED.xp < 0 THEN 0 ELSE bot_group_user_xp.xp + EXCLUDED.xp END,
-				wcg_wins = bot_group_user_xp.wcg_wins + EXCLUDED.wcg_wins,
-				wcg_games = bot_group_user_xp.wcg_games + 1,
-				wcg_rating = CASE WHEN bot_group_user_xp.wcg_rating + $7 < 100 THEN 100 ELSE bot_group_user_xp.wcg_rating + $7 END`,
-			ourJID, groupJID, cleanJID, xpEarned, winInc, 1000+ratingDelta, ratingDelta)
+		_ = store.AddGroupUserWCGXP(ctx.Ctx, s.SQLStore, groupJID, cleanJID, xpEarned, winInc, 1, ratingDelta)
 	}
 }
 
@@ -1763,11 +1875,73 @@ func HandleWCGLobbyInput(ctx *Context, text string) bool {
 	game.Mu.Unlock()
 
 	trimmed := strings.ToLower(strings.TrimSpace(text))
-	isJoinCmd := trimmed == "join" || trimmed == "wcg join"
-	if !isJoinCmd {
-		clean := strings.Trim(trimmed, ".!/#$%^&*()_+-=`~")
-		isJoinCmd = clean == "join" || clean == "wcg join" || strings.HasSuffix(clean, "wcg join")
+	clean := strings.Trim(trimmed, ".!/#$%^&*()_+-=`~")
+
+	// 1. Check start/begin
+	if clean == "start" || clean == "begin" || clean == "wcg start" || clean == "wcg begin" {
+		isOwner := ctx.IsOwner()
+		isSudo := ctx.IsSudo()
+		isHost := game.IsHost(ctx.Sender)
+		isBotOwner := isOwner || isSudo
+
+		Logger.Debug("[WCG Lobby Input] Start request authorization check",
+			"chat", chatKey,
+			"sender", ctx.Sender.String(),
+			"hostLID", game.HostLID.String(),
+			"hostMention", game.HostMention.String(),
+			"isOwner", isOwner,
+			"isSudo", isSudo,
+			"isHost", isHost,
+			"allowed", isBotOwner || isHost,
+			"playersCount", len(game.Players),
+		)
+
+		if !isBotOwner && !isHost {
+			_ = ctx.Reply("Only the game initiator, a sudo, or the bot owner can start the match!")
+			return true
+		}
+		game.Mu.Lock()
+		if len(game.Players) == 0 {
+			game.Mu.Unlock()
+			_ = ctx.Reply("No players in lobby yet! Type `join` to join first.")
+			return true
+		}
+		game.StopTimers()
+		game.Mu.Unlock()
+		startWCGChainGame(ctx, game)
+		return true
 	}
+
+	// 2. Check cancel/stop/end
+	if clean == "cancel" || clean == "stop" || clean == "end" || clean == "kill" || clean == "wcg end" || clean == "wcg cancel" {
+		isOwner := ctx.IsOwner()
+		isSudo := ctx.IsSudo()
+		isHost := game.IsHost(ctx.Sender)
+		isBotOwner := isOwner || isSudo
+
+		Logger.Debug("[WCG Lobby Input] Cancel/End authorization check",
+			"chat", chatKey,
+			"sender", ctx.Sender.String(),
+			"hostLID", game.HostLID.String(),
+			"hostMention", game.HostMention.String(),
+			"isOwner", isOwner,
+			"isSudo", isSudo,
+			"isHost", isHost,
+			"allowed", isBotOwner || isHost,
+		)
+
+		if !isBotOwner && !isHost {
+			_ = ctx.Reply("Only the game initiator, a sudo, or the bot owner can end this match.")
+			return true
+		}
+		game.StopTimers()
+		cliutils.DeleteWCGGame(chatKey)
+		_ = ctx.Reply("Word Chain Game (WCG) ended.")
+		return true
+	}
+
+	// 3. Check join
+	isJoinCmd := clean == "join" || clean == "wcg join" || strings.HasSuffix(clean, "wcg join")
 	if !isJoinCmd {
 		return false
 	}
