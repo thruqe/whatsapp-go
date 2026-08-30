@@ -13,14 +13,15 @@ import (
 // PollBuilder builds and sends a WhatsApp poll (with optional quoted reply)
 // and registers a reactive callback for votes with automatic expiration and deletion.
 type PollBuilder struct {
-	rook       *WARook
-	question   string
-	options    []string
-	single     bool // true = single-choice, false = multi-choice
-	mentions   []types.JID
-	asReply    bool
-	autoDelete bool          // auto-delete poll message upon vote or timeout (default: true)
-	timeout    time.Duration // timeout duration before auto-delete (default: 25s)
+	rook           *WARook
+	question       string
+	options        []string
+	single         bool // true = single-choice, false = multi-choice
+	mentions       []types.JID
+	allowedSenders []types.JID
+	asReply        bool
+	autoDelete     bool          // auto-delete poll message upon vote or timeout (default: true)
+	timeout        time.Duration // timeout duration before auto-delete (default: 25s)
 }
 
 // NewPoll initializes a new PollBuilder for the given question (single-choice & 25s auto-delete by default).
@@ -111,6 +112,27 @@ func (p *PollBuilder) Timeout(d time.Duration) *PollBuilder {
 	return p
 }
 
+// AllowedSenders explicitly restricts poll votes to the specified user JIDs.
+func (p *PollBuilder) AllowedSenders(jids ...types.JID) *PollBuilder {
+	for _, j := range jids {
+		if !j.IsEmpty() {
+			p.allowedSenders = append(p.allowedSenders, j)
+		}
+	}
+	Logger.Debug("PollBuilder: allowedSenders attached", "allowedCount", len(p.allowedSenders))
+	return p
+}
+
+func (p *PollBuilder) getAllowedSenders() []types.JID {
+	if len(p.allowedSenders) > 0 {
+		return p.allowedSenders
+	}
+	if len(p.mentions) > 0 {
+		return p.mentions
+	}
+	return nil
+}
+
 // Send sends the poll to the given JID and optionally registers fn to receive votes.
 func (p *PollBuilder) Send(to types.JID, fn ...func(req PollRequest, res *Response)) error {
 	_, err := p.SendWithID(to, fn...)
@@ -136,6 +158,7 @@ func (p *PollBuilder) SendWithID(to types.JID, fn ...func(req PollRequest, res *
 		Chat:           to,
 		Client:         p.rook.ctx.Client,
 		Options:        p.options,
+		AllowedSenders: p.getAllowedSenders(),
 		Once:           false,
 		AutoDelete:     p.autoDelete,
 		Timeout:        p.timeout,
@@ -170,6 +193,7 @@ func (p *PollBuilder) ReplyWithID(fn ...func(req PollRequest, res *Response)) (t
 		Chat:           chat,
 		Client:         p.rook.ctx.Client,
 		Options:        p.options,
+		AllowedSenders: p.getAllowedSenders(),
 		Once:           false,
 		AutoDelete:     p.autoDelete,
 		Timeout:        p.timeout,
@@ -203,6 +227,7 @@ func (p *PollBuilder) OnceWithID(to types.JID, fn ...func(req PollRequest, res *
 		Chat:           to,
 		Client:         p.rook.ctx.Client,
 		Options:        p.options,
+		AllowedSenders: p.getAllowedSenders(),
 		Once:           true,
 		AutoDelete:     p.autoDelete,
 		Timeout:        p.timeout,
@@ -237,6 +262,7 @@ func (p *PollBuilder) OnceReplyWithID(fn ...func(req PollRequest, res *Response)
 		Chat:           chat,
 		Client:         p.rook.ctx.Client,
 		Options:        p.options,
+		AllowedSenders: p.getAllowedSenders(),
 		Once:           true,
 		AutoDelete:     p.autoDelete,
 		Timeout:        p.timeout,
