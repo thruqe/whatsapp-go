@@ -116,30 +116,6 @@ func EnsureCustomColumnExists(ctx context.Context, db *dbutil.Database, table, c
 	return nil
 }
 
-// EnsureIndex creates an index if it does not already exist.
-func EnsureIndex(ctx context.Context, db *dbutil.Database, indexName, table, columns string, unique bool) error {
-	if db == nil {
-		return fmt.Errorf("nil database")
-	}
-	uniqueClause := ""
-	if unique {
-		uniqueClause = "UNIQUE "
-	}
-	query := fmt.Sprintf("CREATE %sINDEX IF NOT EXISTS %s ON %s (%s)", uniqueClause, indexName, table, columns)
-	_, err := db.Exec(ctx, query)
-	return err
-}
-
-// MigrateTableRemovingFK migrates legacy tables to remove blocking foreign key constraints (backward compatibility wrapper).
-func MigrateTableRemovingFK(ctx context.Context, db *dbutil.Database, tableName, createSchema, selectCols string) {
-	if db == nil {
-		return
-	}
-	if db.Dialect == dbutil.SQLite {
-		_ = MigrateSQLiteTableRemovingFK(ctx, db, tableName, createSchema, selectCols)
-	}
-}
-
 // MigrateSQLiteTableRemovingFK decouples SQLite tables from foreign key constraints safely.
 func MigrateSQLiteTableRemovingFK(ctx context.Context, db *dbutil.Database, tableName, createSchema, selectCols string) error {
 	if db == nil || db.Dialect != dbutil.SQLite {

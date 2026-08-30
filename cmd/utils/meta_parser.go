@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	stripmd "github.com/writeas/go-strip-markdown/v2"
 	"go.mau.fi/whatsmeow/types"
 
 	utils "whatsrook/src"
@@ -41,14 +40,6 @@ type CommandInfo struct {
 // Meta AI can both (a) decide to invoke one via RUN_COMMAND, and (b)
 // answer questions about how to use a command, using real data instead
 // of guessing.
-func BuildRunCommandInstruction(cmds []CommandInfo) string {
-	return BuildRunCommandInstructionWithNameAndPrefix(cmds, "WhatsRook", "!")
-}
-
-func BuildRunCommandInstructionWithName(cmds []CommandInfo, botName string) string {
-	return BuildRunCommandInstructionWithNameAndPrefix(cmds, botName, "!")
-}
-
 func BuildRunCommandInstructionWithNameAndPrefix(cmds []CommandInfo, botName, prefix string) string {
 	if botName == "" {
 		botName = "WhatsRook"
@@ -115,50 +106,6 @@ func ParseRunCommand(reply string) (cmdName string, rawArgs string, ok bool) {
 	cmdName = strings.ToLower(fields[0])
 	rawArgs = strings.TrimSpace(cmdLine[len(fields[0]):])
 	return cmdName, rawArgs, true
-}
-
-// CleanAIReply removes internal tags and instruction leakage from AI output
-// before sending it to the user.
-func CleanAIReply(reply string) string {
-	lines := strings.Split(reply, "\n")
-	var out []string
-	for _, l := range lines {
-		trimmed := strings.TrimSpace(l)
-		if strings.HasPrefix(strings.ToUpper(trimmed), "RUN_COMMAND:") {
-			continue
-		}
-		if strings.HasPrefix(strings.ToUpper(trimmed), "[GROUP CONTEXT]") ||
-			strings.HasPrefix(strings.ToUpper(trimmed), "[/GROUP CONTEXT]") ||
-			strings.HasPrefix(strings.ToUpper(trimmed), "[USER & MESSAGE OBJECT CONTEXT]") ||
-			strings.HasPrefix(strings.ToUpper(trimmed), "[/USER & MESSAGE OBJECT CONTEXT]") ||
-			strings.HasPrefix(strings.ToUpper(trimmed), "[REPLYING TO A MESSAGE") ||
-			strings.HasPrefix(strings.ToUpper(trimmed), "[/REPLYING TO A MESSAGE") {
-			continue
-		}
-		out = append(out, l)
-	}
-	return strings.TrimSpace(strings.Join(out, "\n"))
-}
-
-// AnswerParserString converts an AI-generated response written in Markdown
-// into plain, unformatted text.
-//
-// It strips common Markdown syntax — headers, emphasis (bold/italic),
-// strikethrough, inline and fenced code blocks, links (keeping the link
-// text, dropping the URL), images (keeping alt text), blockquotes, and
-// list markers — leaving only the underlying human-readable text.
-//
-// The input pointer is mutated in place: *ai_response_string is replaced
-// with its plain-text form.
-func AnswerParserString(ai_response_string *string) {
-	if ai_response_string == nil {
-		return
-	}
-
-	plain := stripmd.Strip(*ai_response_string)
-	plain = strings.TrimSpace(plain)
-
-	*ai_response_string = plain
 }
 
 // RenderGroupContext turns GroupInfo into a text block appended to the

@@ -235,10 +235,6 @@ func extractTextFromUnifiedJSON(raw []byte) string {
 	return sb.String()
 }
 
-func ExtractMetaAiGeneratedImage(msg *waE2E.Message) (mediaURL string, mimeType string, text string) {
-	return ExtractMetaAiGeneratedMedia(msg)
-}
-
 func searchMediaInJSON(val any) (mediaURL, mimeType, text string) {
 	switch v := val.(type) {
 	case map[string]any:

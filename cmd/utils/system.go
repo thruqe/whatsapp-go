@@ -3,9 +3,7 @@ package cliutils
 import (
 	"bufio"
 	"fmt"
-	"math"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -212,43 +210,4 @@ func FormatDuration(d time.Duration) string {
 		parts = append(parts, fmt.Sprintf("%ds", seconds))
 	}
 	return strings.Join(parts, " ")
-}
-
-func MenuRuntime(seconds float64) string {
-	if seconds < 0 {
-		seconds = 0
-	}
-
-	totalSeconds := int(math.Round(seconds))
-	days := totalSeconds / 86400
-	hours := (totalSeconds % 86400) / 3600
-	minutes := (totalSeconds % 3600) / 60
-	secs := totalSeconds % 60
-
-	var parts []string
-	if days > 0 {
-		parts = append(parts, fmt.Sprintf("%d day%s", days, pluralSuffix(days)))
-	}
-	if hours > 0 {
-		parts = append(parts, fmt.Sprintf("%d hr%s", hours, pluralSuffix(hours)))
-	}
-	if minutes > 0 {
-		parts = append(parts, fmt.Sprintf("%d min%s", minutes, pluralSuffix(minutes)))
-	}
-	if secs > 0 || len(parts) == 0 {
-		parts = append(parts, fmt.Sprintf("%d sec%s", secs, pluralSuffix(secs)))
-	}
-
-	return strings.Join(parts, ", ")
-}
-
-func pluralSuffix(n int) string {
-	if n == 1 {
-		return ""
-	}
-	return "s"
-}
-
-func GetNumCPU() int {
-	return runtime.NumCPU()
 }

@@ -146,14 +146,6 @@ var wordList = map[int][]string{
 	},
 }
 
-// IsUnscrambleGameActive returns true if there is an active Unscramble game (lobby or in-progress) in the chat.
-func IsUnscrambleGameActive(chatKey string) bool {
-	unscrambleMu.Lock()
-	defer unscrambleMu.Unlock()
-	_, exists := unscrambleGames[chatKey]
-	return exists
-}
-
 // GetUnscrambleGame returns the active game for a chat key, or nil.
 func GetUnscrambleGame(chatKey string) *UnscrambleGame {
 	unscrambleMu.Lock()
@@ -414,13 +406,6 @@ func (g *UnscrambleGame) advanceTurnUnsafe() {
 	}
 }
 
-// AdvanceTurn moves to the next player.
-func (g *UnscrambleGame) AdvanceTurn() {
-	g.Mu.Lock()
-	defer g.Mu.Unlock()
-	g.advanceTurnUnsafe()
-}
-
 // EliminateCurrentPlayer eliminates the current turn player and advances.
 func (g *UnscrambleGame) EliminateCurrentPlayer() (gameOver bool, winner *UnscramblePlayer) {
 	g.Mu.Lock()
@@ -555,12 +540,6 @@ func GetRandomWordWithHint(length int) (original string, scrambled string, hint 
 		hint = fmt.Sprintf("A %d-letter English word", length)
 	}
 	return original, scrambled, hint
-}
-
-// GetRandomWord returns a random word of the given length and its scrambled version.
-func GetRandomWord(length int) (original string, scrambled string) {
-	original, scrambled, _ = GetRandomWordWithHint(length)
-	return original, scrambled
 }
 
 // DictionaryDBURL points to the pre-built SQLite English dictionary database.

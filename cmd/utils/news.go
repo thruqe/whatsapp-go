@@ -1,17 +1,11 @@
 package cliutils
 
 import (
-	"context"
 	"fmt"
 	"html"
-	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
-
-	utils "whatsrook/src"
 )
 
 var (
@@ -57,37 +51,6 @@ type APNewsArticleDetail struct {
 	ImageURL string
 	Content  string
 	URL      string
-}
-
-type NewsSession struct {
-	Country   string
-	Articles  []NewsArticle
-	UpdatedAt time.Time
-}
-
-var (
-	recentNewsSessionsMu sync.RWMutex
-	recentNewsSessions   = make(map[string]NewsSession)
-)
-
-func SetRecentNewsSession(chat string, country string, articles []NewsArticle) {
-	recentNewsSessionsMu.Lock()
-	defer recentNewsSessionsMu.Unlock()
-	recentNewsSessions[chat] = NewsSession{
-		Country:   country,
-		Articles:  articles,
-		UpdatedAt: time.Now(),
-	}
-}
-
-func GetRecentNewsSession(chat string) (NewsSession, bool) {
-	recentNewsSessionsMu.RLock()
-	defer recentNewsSessionsMu.RUnlock()
-	sess, ok := recentNewsSessions[chat]
-	if !ok || time.Since(sess.UpdatedAt) > 1*time.Hour {
-		return NewsSession{}, false
-	}
-	return sess, true
 }
 
 func CleanHTMLText(input string) string {
@@ -138,34 +101,6 @@ func ParseAPNewsHTML(htmlContent string) []NewsArticle {
 	}
 
 	return articles
-}
-
-func FetchAPNews(ctx context.Context, country string) ([]NewsArticle, error) {
-	hubURL := fmt.Sprintf("https://apnews.com/hub/%s", country)
-	bodyBytes, err := utils.FetchURLBytes(ctx, hubURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch news: %w", err)
-	}
-
-	articles := ParseAPNewsHTML(string(bodyBytes))
-	return articles, nil
-}
-
-func FetchNewsImage(ctx context.Context, imageURL string) ([]byte, string, error) {
-	if imageURL == "" {
-		return nil, "", fmt.Errorf("empty image url")
-	}
-
-	imgData, err := utils.FetchURLBytes(ctx, imageURL)
-	if err != nil {
-		return nil, "", err
-	}
-	if len(imgData) == 0 {
-		return nil, "", fmt.Errorf("empty image response")
-	}
-
-	mimetype := http.DetectContentType(imgData)
-	return imgData, mimetype, nil
 }
 
 // ParseAPNewsArticle extracts title, lead image URL, and formatted body paragraphs from AP News article HTML.
@@ -331,20 +266,6 @@ func isAPNoiseParagraph(txt string) bool {
 		return true
 	}
 	return false
-}
-
-// FetchAPNewsArticle fetches and parses the full story for an AP News article URL.
-func FetchAPNewsArticle(ctx context.Context, articleURL string) (*APNewsArticleDetail, error) {
-	if articleURL == "" {
-		return nil, fmt.Errorf("empty article url")
-	}
-
-	bodyBytes, err := utils.FetchURLBytes(ctx, articleURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch article: %w", err)
-	}
-
-	return ParseAPNewsArticle(string(bodyBytes), articleURL)
 }
 
 // ExtractAPNewsArticleURLs extracts all unique AP News article URLs from a message text in the order they appear.
@@ -681,26 +602,4 @@ func isWABetaStopWord(w string) bool {
 	default:
 		return false
 	}
-}
-
-// FetchWABetaLatest fetches the wabetainfo.com homepage, extracts the latest article URL, and parses the article.
-func FetchWABetaLatest(ctx context.Context) (*WABetaArticle, error) {
-	// 1. Fetch homepage
-	bodyHome, err := utils.FetchURLBytes(ctx, "https://wabetainfo.com/")
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch wabetainfo.com homepage: %w", err)
-	}
-
-	articleURL := ParseRecentWABetaLink(string(bodyHome))
-	if articleURL == "" {
-		return nil, fmt.Errorf("failed to find latest article link on wabetainfo.com")
-	}
-
-	// 2. Fetch article page
-	bodyArt, err := utils.FetchURLBytes(ctx, articleURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch article page: %w", err)
-	}
-
-	return ParseWABetaArticle(string(bodyArt), articleURL)
 }

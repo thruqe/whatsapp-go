@@ -225,20 +225,3 @@ func PutCallMediaConfig(ctx context.Context, s *sqlstore.SQLStore, jid types.JID
 		DoUpdates: clause.AssignmentColumns([]string{"file_path", "updated_at"}),
 	}).Create(&cfg).Error
 }
-
-// DeleteCallMediaConfig removes call media configuration for a user JID and media kind, scoped to our_jid.
-func DeleteCallMediaConfig(ctx context.Context, s *sqlstore.SQLStore, jid types.JID, kind CallMediaKind) error {
-	if s == nil {
-		return nil
-	}
-	gdb, err := GetORM(ctx, s)
-	if err != nil {
-		return err
-	}
-
-	ourJID := ourJIDStr(s)
-	jidStr := jid.ToNonAD().String()
-	return gdb.WithContext(ctx).
-		Where("(our_jid = ? OR our_jid = ? OR our_jid = '' OR our_jid IS NULL) AND jid = ? AND kind = ?", ourJID, s.JID, jidStr, string(kind)).
-		Delete(&CallMediaConfig{}).Error
-}

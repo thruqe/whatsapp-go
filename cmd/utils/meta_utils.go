@@ -3,13 +3,9 @@ package cliutils
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
-
-	"go.mau.fi/whatsmeow/types"
-	"golang.org/x/term"
 )
 
 // RunCmd runs an arbitrary shell command and returns its combined
@@ -66,58 +62,4 @@ func RunCmd(input string) (string, error) {
 
 	output, err := cmd.CombinedOutput()
 	return string(output), err
-}
-
-// GetChatType returns the chat type based on the JID's server suffix.
-func (d *Data) GetChatType() string {
-	jid, err := types.ParseJID(d.ChatID)
-	if err != nil {
-		return "Unknown"
-	}
-	switch jid.Server {
-	case types.GroupServer:
-		return "Group"
-	case types.DefaultUserServer, types.LegacyUserServer:
-		return "User"
-	case types.NewsletterServer:
-		return "Newsletter"
-	case types.BroadcastServer:
-		return "Broadcast"
-	default:
-		return "Unknown"
-	}
-}
-
-// GetTerminalType returns a best-effort identifier for the terminal our
-// process is currently running under.
-//
-// Resolution order:
-//  1. If stdout is not attached to a terminal at all (e.g. output is piped
-//     or redirected to a file), it returns "not a terminal".
-//  2. If the TERM_PROGRAM environment variable is set (commonly populated
-//     by terminal emulators such as iTerm2, Apple Terminal, VS Code's
-//     integrated terminal, etc.), that value is returned as it's usually
-//     the most human-readable identifier.
-//  3. Otherwise it falls back to the TERM environment variable (e.g.
-//     "xterm-256color", "screen", "linux"), which is the POSIX-standard
-//     way terminals advertise their capabilities.
-//  4. If none of the above are set, it returns "unknown".
-//
-// Note: this is best-effort. TERM/TERM_PROGRAM are set by the terminal
-// emulator or shell and can be absent, spoofed, or inaccurate — this
-// function does not attempt to query terminal capabilities directly.
-func GetTerminalType() string {
-	if !term.IsTerminal(int(os.Stdout.Fd())) {
-		return "not a terminal"
-	}
-
-	if termProgram := os.Getenv("TERM_PROGRAM"); termProgram != "" {
-		return termProgram
-	}
-
-	if termType := os.Getenv("TERM"); termType != "" {
-		return termType
-	}
-
-	return "unknown"
 }

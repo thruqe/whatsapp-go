@@ -13,17 +13,6 @@ import (
 
 const cacheTTL = 10 * time.Minute
 
-// GetOrBuildInstruction returns the cached instruction block if it's still
-// within cacheTTL, otherwise rebuilds it via buildFn and caches the result.
-func GetOrBuildInstruction(buildFn func() string) string {
-	return GetOrBuildInstructionWithNameAndPrefix("", "!", buildFn)
-}
-
-// GetOrBuildInstructionWithName returns the cached instruction block for botName if still valid.
-func GetOrBuildInstructionWithName(botName string, buildFn func() string) string {
-	return GetOrBuildInstructionWithNameAndPrefix(botName, "!", buildFn)
-}
-
 // GetOrBuildInstructionWithNameAndPrefix returns the cached instruction block for botName and prefix if still valid.
 func GetOrBuildInstructionWithNameAndPrefix(botName, prefix string, buildFn func() string) string {
 	key := fmt.Sprintf("instruction:%s:%s", botName, prefix)

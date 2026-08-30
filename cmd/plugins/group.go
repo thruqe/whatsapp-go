@@ -3361,15 +3361,6 @@ func SetPendingCaptchaMsgID(groupJID, userJID types.JID, msgID types.MessageID) 
 	}
 }
 
-// GetPendingCaptcha retrieves the pending captcha for a group participant if active.
-func GetPendingCaptcha(groupJID, userJID types.JID) (*PendingCaptcha, bool) {
-	pendingCaptchaMu.RLock()
-	defer pendingCaptchaMu.RUnlock()
-
-	p, ok := pendingCaptchas[captchaKey(groupJID, userJID)]
-	return p, ok
-}
-
 // RemovePendingCaptcha cancels and removes any pending captcha for a group participant.
 func RemovePendingCaptcha(groupJID, userJID types.JID) (*PendingCaptcha, bool) {
 	pendingCaptchaMu.Lock()
