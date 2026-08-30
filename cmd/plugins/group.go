@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode"
 
+	"whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
 	utils "whatsrook/src"
 	Logger "whatsrook/src/logger"
@@ -2434,16 +2435,11 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 	if ctx.Err() != nil {
 		return
 	}
-	if client == nil || client.Store == nil || client.Store.ID == nil || !client.IsConnected() {
+	if client == nil || client.Store == nil || client.Store.ID == nil || !client.IsConnected() || !client.IsLoggedIn() {
 		return
 	}
 	s, ok := getSQLStore(client)
 	if !ok || s == nil {
-		return
-	}
-
-	db := s.GetDB()
-	if db == nil {
 		return
 	}
 
@@ -2457,12 +2453,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 	now := time.Now().In(loc)
 	currentTimeStr := Sprintf("%02d:%02d", now.Hour(), now.Minute())
 
-	ourJID := ""
-	// if s != nil {
-	// 	ourJID = s.JID
-	// }
-
-	rows, err := db.Query(ctx, `SELECT key, value FROM bot_settings WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND (key LIKE 'automute:%' OR key LIKE 'autounmute:%')`, ourJID)
+	settings, err := store.ListSettingsWithPrefixes(ctx, s.SQLStore, "automute:", "autounmute:")
 	if err != nil {
 		if errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || ctx.Err() != nil {
 			return
@@ -2470,17 +2461,10 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 		Logger.Error("automute: query failed", "err", err)
 		return
 	}
-	defer rows.Close()
 
-	rowCount := 0
-	for rows.Next() {
-		rowCount++
-		var key, targetTime string
-		if err := rows.Scan(&key, &targetTime); err != nil {
-			Logger.Error("automute: row scan failed", "err", err)
-			continue
-		}
-
+	for _, setting := range settings {
+		key := setting.Key
+		targetTime := setting.Value
 		if targetTime != currentTimeStr {
 			continue
 		}

@@ -2,11 +2,8 @@ package plugins
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
-
 	"net/url"
 	"os"
 	"os/exec"
@@ -451,26 +448,18 @@ func fetchWebsiteScreenshot(ctx context.Context, targetURL string) ([]byte, stri
 	}
 
 	microApiURL := "https://api.microlink.io/?url=" + url.QueryEscape(targetURL) + "&screenshot=true"
-	req, err := http.NewRequestWithContext(ctx, "GET", microApiURL, nil)
-	if err == nil {
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-		resp, err := cliutils.SSHTTPClient.Do(req)
-		if err == nil {
-			defer resp.Body.Close()
-			var res struct {
-				Status string `json:"status"`
-				Data   struct {
-					Screenshot struct {
-						URL string `json:"url"`
-					} `json:"screenshot"`
-				} `json:"data"`
-			}
-			if err := json.NewDecoder(resp.Body).Decode(&res); err == nil && res.Data.Screenshot.URL != "" {
-				sData, sMime, sErr := fetchImageBytes(ctx, res.Data.Screenshot.URL)
-				if sErr == nil && len(sData) > 5000 {
-					return sData, sMime, nil
-				}
-			}
+	var res struct {
+		Status string `json:"status"`
+		Data   struct {
+			Screenshot struct {
+				URL string `json:"url"`
+			} `json:"screenshot"`
+		} `json:"data"`
+	}
+	if err := utils.FetchJSON(ctx, microApiURL, &res); err == nil && res.Data.Screenshot.URL != "" {
+		sData, sMime, sErr := fetchImageBytes(ctx, res.Data.Screenshot.URL)
+		if sErr == nil && len(sData) > 5000 {
+			return sData, sMime, nil
 		}
 	}
 
@@ -484,23 +473,7 @@ func fetchWebsiteScreenshot(ctx context.Context, targetURL string) ([]byte, stri
 }
 
 func fetchImageBytes(ctx context.Context, imgURL string) ([]byte, string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", imgURL, nil)
-	if err != nil {
-		return nil, "", err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-
-	resp, err := cliutils.SSHTTPClient.Do(req)
-	if err != nil {
-		return nil, "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", errors.New(Sprintf("HTTP status %d", resp.StatusCode))
-	}
-
-	data, err := io.ReadAll(resp.Body)
+	data, err := utils.FetchURLBytes(ctx, imgURL)
 	if err != nil {
 		return nil, "", err
 	}
@@ -559,36 +532,7 @@ func handleTTS(ctx *Context) error {
 
 func fetchGoogleTTS(ctx context.Context, text string, lang string) ([]byte, error) {
 	apiURL := Sprintf("https://translate.google.com/translate_tts?ie=UTF-8&q=%s&tl=%s&client=tw-ob", url.QueryEscape(text), url.QueryEscape(lang))
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, errors.New("failed to create request: " + err.Error())
-	}
-
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-	req.Header.Set("Referer", "https://translate.google.com/")
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, errors.New("HTTP request failed: " + err.Error())
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(Sprintf("google TTS returned HTTP status %d", resp.StatusCode))
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, errors.New("failed to read audio response: " + err.Error())
-	}
-
-	if len(data) == 0 {
-		return nil, errors.New("received empty audio data")
-	}
-
-	return data, nil
+	return utils.FetchURLBytes(ctx, apiURL, utils.WithHeader("Referer", "https://translate.google.com/"))
 }
 
 func convertMP3ToOpus(ctx context.Context, mp3Bytes []byte) ([]byte, error) {
@@ -617,8 +561,10 @@ func handleUserInfo(ctx *Context) error {
 	var rawTarget types.JID
 	if len(targets) > 0 {
 		rawTarget = targets[0]
-	} else {
+	} else if len(ctx.Args) == 0 {
 		rawTarget = ctx.Sender
+	} else {
+		return ctx.Replyf("Could not find user. Usage:\n- %suserinfo @user\n- %suserinfo 1234567890\n- Reply to a user's message with %suserinfo", p, p, p)
 	}
 
 	// Resolve target JID from LID to Phone Number JID and clean it up (ToNonAD)
@@ -690,7 +636,7 @@ func handleUserInfo(ctx *Context) error {
 	}
 
 	if errPP == nil && ppInfo != nil && ppInfo.URL != "" {
-		Logger.Info("handleUserInfo: Downloading profile photo", "url", ppInfo.URL)
+		Logger.Debug("handleUserInfo: Downloading profile photo", "url", ppInfo.URL)
 		imgData, errDownload := utils.FetchURLBytes(ctx.Ctx, ppInfo.URL)
 		if errDownload == nil && len(imgData) > 0 {
 			return ctx.ReplyWithImage(imgData, "image/jpeg", infoText)

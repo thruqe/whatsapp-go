@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"whatsrook/cmd/store"
 	"whatsrook/cmd/updater"
 	cliutils "whatsrook/cmd/utils"
 	utils "whatsrook/src"
@@ -499,12 +500,7 @@ func handleFilter(ctx *Context) error {
 			return ctx.Replyf("Failed to encode filter message: %v", err)
 		}
 
-		_, err = db.Exec(ctx.Ctx, `
-			INSERT INTO bot_filters (our_jid, trigger_word, message_proto)
-			VALUES ($1, $2, $3)
-			ON CONFLICT(our_jid, trigger_word) DO UPDATE SET message_proto=excluded.message_proto
-		`, ourJID, trigger, encoded)
-		if err != nil {
+		if err := store.PutFilter(ctx.Ctx, s.SQLStore, trigger, encoded); err != nil {
 			return ctx.Reply("Failed to save filter: " + err.Error())
 		}
 
@@ -517,13 +513,8 @@ func handleFilter(ctx *Context) error {
 		}
 		trigger := strings.ToLower(ctx.Args[1])
 
-		res, err := db.Exec(ctx.Ctx, `DELETE FROM bot_filters WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND trigger_word=$2`, ourJID, trigger)
-		if err != nil {
+		if err := store.DeleteFilter(ctx.Ctx, s.SQLStore, trigger); err != nil {
 			return ctx.Reply("Failed to delete filter: " + err.Error())
-		}
-		rows, _ := res.RowsAffected()
-		if rows == 0 {
-			return ctx.Replyf("Filter for word %q not found.", trigger)
 		}
 		Logger.Debug("handleFilter: filter removed", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("Filter for word %q removed.", trigger)
@@ -560,12 +551,7 @@ func handleFilter(ctx *Context) error {
 			return ctx.Replyf("Failed to encode filter message: %v", err)
 		}
 
-		_, err = db.Exec(ctx.Ctx, `
-			INSERT INTO bot_filters (our_jid, trigger_word, message_proto)
-			VALUES ($1, $2, $3)
-			ON CONFLICT(our_jid, trigger_word) DO UPDATE SET message_proto=excluded.message_proto
-		`, ourJID, trigger, encoded)
-		if err != nil {
+		if err := store.PutFilter(ctx.Ctx, s.SQLStore, trigger, encoded); err != nil {
 			return ctx.Reply("Failed to save filter: " + err.Error())
 		}
 
@@ -578,10 +564,6 @@ func handleBGM(ctx *Context) error {
 	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
-	}
-	db := s.GetDB()
-	if db == nil {
-		return ctx.Reply("Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
@@ -619,34 +601,16 @@ func handleBGM(ctx *Context) error {
 		}
 		trigger = strings.ToLower(ctx.Args[1])
 
-		res, err := db.Exec(ctx.Ctx, `DELETE FROM bot_bgm WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND trigger_word=$2`, ourJID, trigger)
-		if err != nil {
+		if err := store.DeleteBGM(ctx.Ctx, s.SQLStore, trigger); err != nil {
 			return ctx.Reply("Failed to delete BGM: " + err.Error())
-		}
-		rows, _ := res.RowsAffected()
-		if rows == 0 {
-			return ctx.Replyf("BGM for word %q not found.", trigger)
 		}
 		Logger.Debug("handleBGM: BGM removed", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("BGM for word %q removed.", trigger)
 
 	case "list", "show", "all":
-		rows, err := db.Query(ctx.Ctx, `SELECT trigger_word FROM bot_bgm WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) ORDER BY trigger_word ASC`, ourJID)
+		triggers, err := store.ListBGMs(ctx.Ctx, s.SQLStore)
 		if err != nil {
 			return ctx.Reply("Failed to query BGMs: " + err.Error())
-		}
-		defer rows.Close()
-
-		var triggers []string
-		seen := make(map[string]bool)
-		for rows.Next() {
-			var t string
-			if err := rows.Scan(&t); err == nil && t != "" {
-				if !seen[t] {
-					seen[t] = true
-					triggers = append(triggers, t)
-				}
-			}
 		}
 
 		if len(triggers) == 0 {
@@ -683,12 +647,7 @@ func handleBGM(ctx *Context) error {
 			return ctx.Replyf("Failed to encode BGM message: %v", err)
 		}
 
-		_, err = db.Exec(ctx.Ctx, `
-			INSERT INTO bot_bgm (our_jid, trigger_word, message_proto)
-			VALUES ($1, $2, $3)
-			ON CONFLICT(our_jid, trigger_word) DO UPDATE SET message_proto=excluded.message_proto
-		`, ourJID, trigger, encoded)
-		if err != nil {
+		if err := store.PutBGM(ctx.Ctx, s.SQLStore, trigger, encoded); err != nil {
 			return ctx.Reply("Failed to save BGM: " + err.Error())
 		}
 
@@ -703,10 +662,6 @@ func handleMention(ctx *Context) error {
 	s, ok := getStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
-	}
-	db := s.GetDB()
-	if db == nil {
-		return ctx.Reply("Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
@@ -737,11 +692,7 @@ func handleMention(ctx *Context) error {
 			return ctx.Replyf("Failed to encode mention message: %v", err)
 		}
 
-		_, err = db.Exec(ctx.Ctx, `
-			INSERT INTO bot_settings (our_jid, key, value) VALUES ($1, 'mention_proto', $2)
-			ON CONFLICT(our_jid, key) DO UPDATE SET value=excluded.value
-		`, ourJID, encoded)
-		if err != nil {
+		if err := store.PutSetting(ctx.Ctx, s.SQLStore, "mention_proto", encoded); err != nil {
 			return ctx.Reply("Failed to save mention setting: " + err.Error())
 		}
 
@@ -749,16 +700,14 @@ func handleMention(ctx *Context) error {
 		return ctx.Reply("Tag auto-response configured with placeholder support.")
 
 	case "del", "remove", "clear", "-":
-		_, err := db.Exec(ctx.Ctx, `DELETE FROM bot_settings WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND key='mention_proto'`, ourJID)
-		if err != nil {
+		if err := store.DeleteSetting(ctx.Ctx, s.SQLStore, "mention_proto"); err != nil {
 			return ctx.Reply("Failed to delete mention setting: " + err.Error())
 		}
 		Logger.Debug("handleMention: tag auto-response removed", "our_jid", ourJID)
 		return ctx.Reply("Tag auto-response removed.")
 
 	case "list", "show", "get", "test":
-		var mentionProto string
-		err := db.QueryRow(ctx.Ctx, `SELECT value FROM bot_settings WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND key='mention_proto' ORDER BY (CASE WHEN our_jid=$1 THEN 1 ELSE 2 END) LIMIT 1`, ourJID).Scan(&mentionProto)
+		mentionProto, err := store.GetSetting(ctx.Ctx, s.SQLStore, "mention_proto")
 		if err != nil || mentionProto == "" {
 			return ctx.Reply("No tag auto-response configured.")
 		}
@@ -780,11 +729,7 @@ func handleMention(ctx *Context) error {
 			return ctx.Replyf("Failed to encode mention message: %v", err)
 		}
 
-		_, err = db.Exec(ctx.Ctx, `
-			INSERT INTO bot_settings (our_jid, key, value) VALUES ($1, 'mention_proto', $2)
-			ON CONFLICT(our_jid, key) DO UPDATE SET value=excluded.value
-		`, ourJID, encoded)
-		if err != nil {
+		if err := store.PutSetting(ctx.Ctx, s.SQLStore, "mention_proto", encoded); err != nil {
 			return ctx.Reply("Failed to save mention setting: " + err.Error())
 		}
 
@@ -806,12 +751,6 @@ func handleGetFilter(ctx *Context) error {
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
-	db := s.GetDB()
-	if db == nil {
-		return ctx.Reply("Database unavailable.")
-	}
-
-	ourJID := ctx.Client.Store.ID.ToNonAD().String()
 
 	if len(ctx.Args) == 0 {
 		return ctx.Replyf("Usage: `%sgetfilter <word>`", ctx.GetPrefix())
@@ -819,9 +758,8 @@ func handleGetFilter(ctx *Context) error {
 
 	trigger := strings.ToLower(ctx.Args[0])
 
-	var filterProto string
-	err := db.QueryRow(ctx.Ctx, `SELECT message_proto FROM bot_filters WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND trigger_word=$2 ORDER BY (CASE WHEN our_jid=$1 THEN 1 ELSE 2 END) LIMIT 1`, ourJID, trigger).Scan(&filterProto)
-	if err != nil {
+	filterProto, err := store.GetFilter(ctx.Ctx, s.SQLStore, trigger)
+	if err != nil || filterProto == "" {
 		return ctx.Replyf("Filter for word %q not found.", trigger)
 	}
 
@@ -840,29 +778,10 @@ func handleListFilters(ctx *Context) error {
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
-	db := s.GetDB()
-	if db == nil {
-		return ctx.Reply("Database unavailable.")
-	}
 
-	ourJID := ctx.Client.Store.ID.ToNonAD().String()
-
-	rows, err := db.Query(ctx.Ctx, `SELECT trigger_word FROM bot_filters WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) ORDER BY trigger_word ASC`, ourJID)
+	triggers, err := store.ListFilters(ctx.Ctx, s.SQLStore)
 	if err != nil {
 		return ctx.Reply("Failed to query filters: " + err.Error())
-	}
-	defer rows.Close()
-
-	var triggers []string
-	seen := make(map[string]bool)
-	for rows.Next() {
-		var t string
-		if err := rows.Scan(&t); err == nil && t != "" {
-			if !seen[t] {
-				seen[t] = true
-				triggers = append(triggers, t)
-			}
-		}
 	}
 
 	p := ctx.GetPrefix()
@@ -897,11 +816,6 @@ func handleDelFilter(ctx *Context) error {
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
-	db := s.GetDB()
-	if db == nil {
-		return ctx.Reply("Database unavailable.")
-	}
-
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
 
 	if len(ctx.Args) == 0 {
@@ -910,13 +824,8 @@ func handleDelFilter(ctx *Context) error {
 
 	trigger := strings.ToLower(ctx.Args[0])
 
-	res, err := db.Exec(ctx.Ctx, `DELETE FROM bot_filters WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND trigger_word=$2`, ourJID, trigger)
-	if err != nil {
+	if err := store.DeleteFilter(ctx.Ctx, s.SQLStore, trigger); err != nil {
 		return ctx.Reply("Failed to delete filter: " + err.Error())
-	}
-	rows, _ := res.RowsAffected()
-	if rows == 0 {
-		return ctx.Replyf("Filter for word %q not found.", trigger)
 	}
 	Logger.Debug("handleDelFilter: filter removed", "trigger", trigger, "our_jid", ourJID)
 	return ctx.Replyf("Filter for word %q removed.", trigger)

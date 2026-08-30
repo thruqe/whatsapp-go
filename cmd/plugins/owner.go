@@ -457,6 +457,9 @@ func handleSh(ctx *Context) error {
 		var lastEditTime time.Time
 
 		doEdit := func() {
+			if ctx.Client == nil || !ctx.Client.IsConnected() || !ctx.Client.IsLoggedIn() {
+				return
+			}
 			session.Mu.Lock()
 			rawOutput := session.Buf.String()
 			session.Mu.Unlock()
@@ -969,25 +972,28 @@ func handleUpdateCommand(ctx *Context) error {
 	sub := strings.ToLower(ctx.Args[0])
 	switch sub {
 	case "check":
-		return performCheck(ctx)
+		return performCheck(ctx, channel)
 	case "stable":
-		if s != nil {
-			_ = updater.SetChannel(ctx.Ctx, s.SQLStore, "stable")
+		_ = updater.SetStoredChannel("stable")
+		if sqlS != nil {
+			_ = updater.SetChannel(ctx.Ctx, sqlS, "stable")
 		}
 		return ctx.Replyf("Update channel set to stable. Run %supdate check to verify available releases.", p)
 	case "beta":
-		if s != nil {
-			_ = updater.SetChannel(ctx.Ctx, s.SQLStore, "beta")
+		_ = updater.SetStoredChannel("beta")
+		if sqlS != nil {
+			_ = updater.SetChannel(ctx.Ctx, sqlS, "beta")
 		}
 		return ctx.Replyf("Update channel set to beta. Run %supdate check to verify available releases.", p)
 	case "channel":
 		if len(ctx.Args) > 1 {
 			ch := strings.ToLower(ctx.Args[1])
 			if ch == "stable" || ch == "beta" {
-				if s != nil {
-					_ = updater.SetChannel(ctx.Ctx, s.SQLStore, ch)
+				_ = updater.SetStoredChannel(ch)
+				if sqlS != nil {
+					_ = updater.SetChannel(ctx.Ctx, sqlS, ch)
 				}
-				return ctx.Replyf("Update channel set to %s.", ch)
+				return ctx.Replyf("Update channel set to %s. Run %supdate check to verify available releases.", ch, p)
 			}
 		}
 		return ctx.Replyf("Usage: %supdate channel stable | beta", p)
@@ -1013,9 +1019,11 @@ func handleUpgradeCommand(ctx *Context) error {
 }
 
 func showUpdateStatus(ctx *Context, channel string) error {
-	currentVer, err := updater.ReadLocalVersion(updater.VersionFile)
-	if err != nil {
-		currentVer = "unknown"
+	currentVer := updater.ReadEffectiveLocalVersion(updater.VersionFile)
+	if channel == "beta" {
+		if installedBeta := updater.GetInstalledBetaVersion(); installedBeta != "" {
+			currentVer = installedBeta
+		}
 	}
 
 	platform := updater.GetPlatform()
@@ -1024,7 +1032,7 @@ func showUpdateStatus(ctx *Context, channel string) error {
 	return ctx.Text().
 		Header("WhatsRook Updater Status").
 		Field("System", platform).
-		Field("Current Version", currentVer).
+		Field("Current Version", updater.FormatVersionDisplay(currentVer)).
 		Field("Channel", channel).
 		Blank().
 		Section("Subcommands:").
@@ -1035,8 +1043,11 @@ func showUpdateStatus(ctx *Context, channel string) error {
 		Reply()
 }
 
-func performCheck(ctx *Context) error {
-	check, err := updater.CheckUpdate()
+func performCheck(ctx *Context, channel string) error {
+	up := updater.New(updater.Options{
+		Channel: channel,
+	})
+	check, err := up.Check(ctx.GetSendContext())
 	if err != nil {
 		Logger.Error("update check failed", "err", err)
 		return ctx.Replyf("Update check failed: %v", err)
@@ -1044,16 +1055,20 @@ func performCheck(ctx *Context) error {
 
 	p := ctx.GetPrefix()
 	if !check.HasNewVersion {
-		return ctx.Replyf("WhatsRook is up to date (Version %s, Platform %s).", check.CurrentVersion, check.Platform)
+		return ctx.Replyf("WhatsRook is up to date (Version %s, Channel %s, Platform %s).",
+			updater.FormatVersionDisplay(check.CurrentVersion),
+			channel,
+			check.Platform)
 	}
 
 	return ctx.Text().
 		Header("Update available!").
-		Field("Current Version", check.CurrentVersion).
-		Field("Latest Version", check.LatestVersion).
+		Field("Current Version", updater.FormatVersionDisplay(check.CurrentVersion)).
+		Field("Latest Version", updater.FormatVersionDisplay(check.LatestVersion)).
+		Field("Channel", channel).
 		Field("Platform", check.Platform).
 		Blank().
-		Linef("Run %supdate now or %supgrade to install the new binary release.", p, p).
+		Linef("Run %supdate now or %supgrade to install the new %s binary release.", p, p, channel).
 		Reply()
 }
 
@@ -1064,9 +1079,39 @@ func performUpgrade(ctx *Context, isBeta bool) error {
 		return ctx.Replyf("Update failed: %v", err)
 	}
 
+	if !res.Updated {
+		return ctx.Replyf("WhatsRook is already up to date (%s).", updater.FormatVersionDisplay(res.CurrentVersion))
+	}
+
 	_ = ctx.Replyf("%s\nRestarting process now...", res.Message)
 
-	err = updater.RestartProcess()
+	// Allow pending message confirmation to flush to the network before process replacement
+	time.Sleep(1500 * time.Millisecond)
+
+	// Construct restart args ensuring the running session is preserved
+	cleanArgs := updater.CleanRestartArgs(os.Args)
+	hasSession := false
+	for i := 1; i < len(cleanArgs); i++ {
+		arg := cleanArgs[i]
+		if arg == "-s" || arg == "--session" || strings.HasPrefix(arg, "-s=") || strings.HasPrefix(arg, "--session=") {
+			hasSession = true
+			break
+		}
+	}
+
+	restartArgs := append([]string{}, cleanArgs...)
+	if !hasSession && ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
+		sessionPhone := ctx.Client.Store.ID.ToNonAD().User
+		if sessionPhone != "" {
+			restartArgs = append(restartArgs, "-s", sessionPhone)
+		}
+	}
+
+	err = updater.RestartProcess(restartArgs...)
+	if err == nil {
+		// Process spawned in background on Windows
+		os.Exit(0)
+	}
 	Logger.Error("failed to restart process after update", "err", err)
 	return ctx.Replyf("Updated binary successfully, but process restart failed: %v", err)
 }
