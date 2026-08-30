@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"go.mau.fi/whatsmeow/types/events"
 )
 
 // StoredSession describes an existing WhatsApp device session found in the store.
@@ -62,13 +65,62 @@ func ListStoredSessions(ctx context.Context, dataDir, database string) ([]Stored
 	return sessions, nil
 }
 
-// DeleteStoredSession removes a specific device session from the database store.
+// DeleteStoredSession initiates a server-side logout request to WhatsApp to unpair/revoke the companion device,
+// and deletes all local session keys and device records from the database.
 func DeleteStoredSession(ctx context.Context, dataDir, database, phone string) error {
 	if dataDir == "" {
 		dataDir = DefaultDataDir()
 	}
-	dbPath := filepath.Join(dataDir, "whatsrook.db")
 
+	client := NewClient(Config{
+		DataDir:    dataDir,
+		Database:   database,
+		Session:    phone,
+		ClientType: ClientChrome,
+	})
+	defer func() {
+		_ = client.Close()
+	}()
+
+	initCtx, initCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer initCancel()
+
+	if err := client.InitSession(initCtx); err != nil {
+		return fallbackDeleteDevice(ctx, dataDir, database, phone)
+	}
+
+	cli := client.WAClient()
+	if cli != nil && cli.Store != nil && cli.Store.ID != nil {
+		connected := make(chan struct{}, 1)
+		cli.AddEventHandler(func(evt any) {
+			if _, ok := evt.(*events.Connected); ok {
+				select {
+				case connected <- struct{}{}:
+				default:
+				}
+			}
+		})
+
+		if err := cli.Connect(); err == nil {
+			select {
+			case <-connected:
+			case <-time.After(3 * time.Second):
+			case <-initCtx.Done():
+			}
+
+			logoutCtx, logoutCancel := context.WithTimeout(ctx, 5*time.Second)
+			_ = cli.Logout(logoutCtx)
+			logoutCancel()
+			cli.Disconnect()
+		}
+	}
+
+	client.ClearSessionDB(ctx, "")
+	return nil
+}
+
+func fallbackDeleteDevice(ctx context.Context, dataDir, database, phone string) error {
+	dbPath := filepath.Join(dataDir, "whatsrook.db")
 	dummy := &Client{
 		Config: Config{
 			DataDir:  dataDir,
