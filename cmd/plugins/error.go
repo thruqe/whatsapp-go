@@ -26,10 +26,6 @@ func Failf(format string, a ...any) error {
 	return &PluginError{UserMessage: Sprintf(format, a...)}
 }
 
-func WrapError(userMsg string, cause error) error {
-	return &PluginError{UserMessage: userMsg, Cause: cause}
-}
-
 func ErrUsage(usage string) error {
 	return Failf("Usage: %s", usage)
 }
@@ -39,14 +35,6 @@ func ErrPermission(msg string) error {
 		msg = "This command is restricted to sudoers/owners only."
 	}
 	return Fail(msg)
-}
-
-func ErrMediaRequired() error {
-	return Fail("No media found in this message or the replied message.")
-}
-
-func ErrGroupOnly() error {
-	return Fail("This command can only be used in a group chat.")
 }
 
 func logHandlerErr(name string, err error) {

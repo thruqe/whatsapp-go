@@ -74,14 +74,6 @@ var (
 	wcgGames = make(map[string]*WCGGame) // chat key -> game
 )
 
-// IsWCGGameActive returns true if there is an active WCG game (lobby or in-progress) in the chat.
-func IsWCGGameActive(chatKey string) bool {
-	wcgMu.Lock()
-	defer wcgMu.Unlock()
-	_, exists := wcgGames[chatKey]
-	return exists
-}
-
 // GetWCGGame returns the active game for a chat key, or nil.
 func GetWCGGame(chatKey string) *WCGGame {
 	wcgMu.Lock()

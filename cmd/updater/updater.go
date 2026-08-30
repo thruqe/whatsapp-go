@@ -103,11 +103,6 @@ func New(opts Options) *Updater {
 	return &Updater{opts: opts}
 }
 
-// DefaultUpdater returns an Updater with default settings.
-func DefaultUpdater() *Updater {
-	return New(Options{})
-}
-
 // SetOutput sets the destination writer for progress logging.
 func (u *Updater) SetOutput(w io.Writer) {
 	u.opts.Out = w
@@ -589,12 +584,6 @@ func (u *Updater) fetchRemoteStableVersion(ctx context.Context) (string, error) 
 		return parseVersionFromTOML(clean)
 	}
 	return clean, nil
-}
-
-// CheckUpdate compares local and remote versions for current platform using DefaultUpdater.
-func CheckUpdate() (*UpdateResult, error) {
-	ch := GetStoredChannel()
-	return New(Options{Channel: ch}).Check(context.Background())
 }
 
 // Check compares local and remote versions for the configured repository and platform.

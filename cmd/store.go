@@ -35,11 +35,6 @@ type Store struct {
 	SQLStore *sqlstore.SQLStore
 }
 
-// NewStore creates a Store instance wrapping the underlying SQL store.
-func NewStore(sqlStore *sqlstore.SQLStore) *Store {
-	return &Store{SQLStore: sqlStore}
-}
-
 // Init ensures all custom tables and schema migrations are applied.
 func (s *Store) Init(ctx context.Context) {
 	if s != nil && s.SQLStore != nil {
