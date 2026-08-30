@@ -2,16 +2,19 @@ package cliutils
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"time"
 
 	utils "whatsrook/src"
 )
 
-// BTCPredictionsResponse matches the response of https://api.watcher.guru/bitcoinhalving/predictions
+// BTCPredictionItem holds individual target milestone prices and predicted dates.
+type BTCPredictionItem struct {
+	Price    string `json:"price"`
+	Date     string `json:"date"`
+	Accuracy string `json:"accuracy"`
+}
+
+// BTCPredictionsResponse mirrors the Watcher Guru prediction endpoint payload.
 type BTCPredictionsResponse struct {
 	Meta struct {
 		IsComplete                 bool    `json:"is_complete"`
@@ -27,6 +30,8 @@ type BTCPredictionsResponse struct {
 		BlockNumber        int64 `json:"block_number"`
 		PredictedTimestamp int64 `json:"predicted_timestamp"`
 	} `json:"target"`
+	Status       bool                `json:"status"`
+	Predictions  []BTCPredictionItem `json:"predictions"`
 	BitcoinPrice struct {
 		PriceUSD float64 `json:"price_usd"`
 		Time     int64   `json:"time"`
@@ -36,35 +41,11 @@ type BTCPredictionsResponse struct {
 // FetchBTCPredictions queries the Watcher Guru Bitcoin Halving and Price Predictions API.
 func FetchBTCPredictions(ctx context.Context) (*BTCPredictionsResponse, error) {
 	apiURL := "https://api.watcher.guru/bitcoinhalving/predictions"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create BTC API request: %w", err)
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
+	var res BTCPredictionsResponse
+	if err := utils.FetchJSON(ctx, apiURL, &res, utils.WithHeader("Accept", "application/json")); err != nil {
 		return nil, fmt.Errorf("failed to fetch BTC data: %w", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("BTC API returned http %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read BTC response: %w", err)
-	}
-
-	var data BTCPredictionsResponse
-	if err := json.Unmarshal(body, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse BTC JSON: %w", err)
-	}
-
-	return &data, nil
+	return &res, nil
 }
 
 // FormatNumberWithCommas formats an integer with thousands separator commas (e.g. 1050000 -> "1,050,000").

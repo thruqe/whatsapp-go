@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -21,13 +20,28 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
+// LogEntry encapsulates a structured log event dispatched to subscribers.
+type LogEntry struct {
+	Timestamp time.Time      `json:"timestamp"`
+	Level     string         `json:"level"`
+	Message   string         `json:"message"`
+	Caller    string         `json:"caller,omitempty"`
+	Fields    map[string]any `json:"fields,omitempty"`
+}
+
+// LogHook defines a callback receiving live structured log entries.
+type LogHook func(entry LogEntry)
+
 var (
 	mu          sync.RWMutex
 	atomicLevel zap.AtomicLevel
 	rawLogger   *zap.Logger
 	sugarLogger *zap.SugaredLogger
-	openFiles   []*os.File
 	isInit      atomic.Bool
+
+	hooksMu    sync.RWMutex
+	nextHookID uint32
+	hooks      = make(map[uint32]LogHook)
 )
 
 func init() {
@@ -70,19 +84,35 @@ func GetLevel() zapcore.Level {
 	return atomicLevel.Level()
 }
 
-// InitLogger initializes the global logger with stdout and per-level log files in sessionDir/logs.
-func InitLogger(sessionDir string, verbose bool) error {
+// AddHook registers a callback that receives structured log entries in real-time.
+// It returns an unsubscribe closure to deregister the hook.
+func AddHook(fn LogHook) (unsubscribe func()) {
+	if fn == nil {
+		return func() {}
+	}
+	id := atomic.AddUint32(&nextHookID, 1)
+	hooksMu.Lock()
+	hooks[id] = fn
+	hooksMu.Unlock()
+
+	return func() {
+		hooksMu.Lock()
+		delete(hooks, id)
+		hooksMu.Unlock()
+	}
+}
+
+// ClearHooks removes all currently registered log hooks.
+func ClearHooks() {
+	hooksMu.Lock()
+	hooks = make(map[uint32]LogHook)
+	hooksMu.Unlock()
+}
+
+// InitLogger initializes the global logger with console stdout and event hook streaming (no disk file creation).
+func InitLogger(_ string, verbose bool) error {
 	mu.Lock()
 	defer mu.Unlock()
-
-	// Close any previously opened file handles
-	for _, f := range openFiles {
-		if f != nil {
-			_ = f.Sync()
-			_ = f.Close()
-		}
-	}
-	openFiles = nil
 
 	if verbose {
 		atomicLevel.SetLevel(zapcore.DebugLevel)
@@ -90,65 +120,16 @@ func InitLogger(sessionDir string, verbose bool) error {
 		atomicLevel.SetLevel(zapcore.InfoLevel)
 	}
 
-	var cores []zapcore.Core
-
-	// 1. Stdout console core with colors and custom format
 	consoleEncoder := newConsoleEncoder(true)
 	stdoutCore := zapcore.NewCore(
 		consoleEncoder,
 		zapcore.Lock(os.Stdout),
 		atomicLevel,
 	)
-	cores = append(cores, stdoutCore)
 
-	// 2. File cores (if sessionDir provided)
-	if sessionDir != "" {
-		logDir := filepath.Join(sessionDir, "logs")
-		if err := os.MkdirAll(logDir, 0755); err != nil {
-			return fmt.Errorf("failed to create logs directory: %w", err)
-		}
+	hCore := newHookCore(atomicLevel)
 
-		fileEncoder := newConsoleEncoder(false)
-
-		fileConfigs := []struct {
-			name  string
-			level zapcore.Level
-		}{
-			{"debug.log", zapcore.DebugLevel},
-			{"info.log", zapcore.InfoLevel},
-			{"warn.log", zapcore.WarnLevel},
-			{"error.log", zapcore.ErrorLevel},
-		}
-
-		for _, fc := range fileConfigs {
-			filePath := filepath.Join(logDir, fc.name)
-			f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-			if err != nil {
-				// Cleanup already opened files
-				for _, opened := range openFiles {
-					_ = opened.Close()
-				}
-				openFiles = nil
-				return fmt.Errorf("failed to open log file %s: %w", fc.name, err)
-			}
-			openFiles = append(openFiles, f)
-
-			targetLevel := fc.level
-			// Level enabler for exact level matching / min level for this file
-			levelEnabler := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-				return lvl >= targetLevel
-			})
-
-			core := zapcore.NewCore(
-				fileEncoder,
-				zapcore.AddSync(f),
-				levelEnabler,
-			)
-			cores = append(cores, core)
-		}
-	}
-
-	teeCore := zapcore.NewTee(cores...)
+	teeCore := zapcore.NewTee(stdoutCore, hCore)
 	rawLogger = zap.New(teeCore, zap.AddCaller(), zap.AddCallerSkip(1))
 	sugarLogger = rawLogger.Sugar()
 	isInit.Store(true)
@@ -157,7 +138,7 @@ func InitLogger(sessionDir string, verbose bool) error {
 	return nil
 }
 
-// Close flushes and closes all open log file handles.
+// Close flushes buffered log entries and resets the logger.
 func Close() {
 	mu.Lock()
 	defer mu.Unlock()
@@ -166,13 +147,7 @@ func Close() {
 		_ = rawLogger.Sync()
 	}
 
-	for _, f := range openFiles {
-		if f != nil {
-			_ = f.Sync()
-			_ = f.Close()
-		}
-	}
-	openFiles = nil
+	ClearHooks()
 
 	rawLogger = newDefaultLogger(atomicLevel, os.Stdout)
 	sugarLogger = rawLogger.Sugar()
@@ -192,6 +167,103 @@ func Sync() error {
 	if rawLogger != nil {
 		return rawLogger.Sync()
 	}
+	return nil
+}
+
+// ─────────────────────────────────────────────────────────────
+// Stream & Hook Zap Core
+// ─────────────────────────────────────────────────────────────
+
+type hookCore struct {
+	zapcore.LevelEnabler
+	fields map[string]any
+}
+
+func newHookCore(enabler zapcore.LevelEnabler) *hookCore {
+	return &hookCore{
+		LevelEnabler: enabler,
+		fields:       make(map[string]any),
+	}
+}
+
+func (c *hookCore) With(fields []zapcore.Field) zapcore.Core {
+	clone := &hookCore{
+		LevelEnabler: c.LevelEnabler,
+		fields:       make(map[string]any, len(c.fields)+len(fields)),
+	}
+	for k, v := range c.fields {
+		clone.fields[k] = v
+	}
+	enc := zapcore.NewMapObjectEncoder()
+	for _, f := range fields {
+		f.AddTo(enc)
+	}
+	for k, v := range enc.Fields {
+		clone.fields[k] = v
+	}
+	return clone
+}
+
+func (c *hookCore) Check(entry zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
+	if c.Enabled(entry.Level) {
+		return ce.AddCore(entry, c)
+	}
+	return ce
+}
+
+func (c *hookCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
+	hooksMu.RLock()
+	count := len(hooks)
+	if count == 0 {
+		hooksMu.RUnlock()
+		return nil
+	}
+	activeHooks := make([]LogHook, 0, count)
+	for _, h := range hooks {
+		activeHooks = append(activeHooks, h)
+	}
+	hooksMu.RUnlock()
+
+	mergedFields := make(map[string]any, len(c.fields)+len(fields))
+	for k, v := range c.fields {
+		mergedFields[k] = v
+	}
+	if len(fields) > 0 {
+		enc := zapcore.NewMapObjectEncoder()
+		for _, f := range fields {
+			f.AddTo(enc)
+		}
+		for k, v := range enc.Fields {
+			mergedFields[k] = v
+		}
+	}
+
+	callerStr := ""
+	if entry.Caller.Defined {
+		callerStr = entry.Caller.TrimmedPath()
+	}
+
+	logEntry := LogEntry{
+		Timestamp: entry.Time,
+		Level:     entry.Level.CapitalString(),
+		Message:   entry.Message,
+		Caller:    callerStr,
+		Fields:    mergedFields,
+	}
+
+	for _, h := range activeHooks {
+		func() {
+			defer func() {
+				_ = recover()
+			}()
+			h(logEntry)
+		}()
+	}
+
+	return nil
+}
+
+func (c *hookCore) Sync() error {
 	return nil
 }
 
@@ -228,8 +300,10 @@ func customTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 
 func newDefaultLogger(lvl zapcore.LevelEnabler, w io.Writer) *zap.Logger {
 	encoder := newConsoleEncoder(true)
-	core := zapcore.NewCore(encoder, zapcore.Lock(zapcore.AddSync(w)), lvl)
-	return zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
+	stdoutCore := zapcore.NewCore(encoder, zapcore.Lock(zapcore.AddSync(w)), lvl)
+	hCore := newHookCore(lvl)
+	teeCore := zapcore.NewTee(stdoutCore, hCore)
+	return zap.New(teeCore, zap.AddCaller(), zap.AddCallerSkip(1))
 }
 
 // ─────────────────────────────────────────────────────────────

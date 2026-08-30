@@ -1,12 +1,11 @@
 package cliutils
 
 import (
-	"net/http"
 	"time"
+
+	utils "whatsrook/src"
 )
 
 var (
-	SSHTTPClient = &http.Client{
-		Timeout: 25 * time.Second,
-	}
+	SSHTTPClient = utils.NewHTTPClient(25 * time.Second)
 )

@@ -644,7 +644,20 @@ func (cli *Client) unlockedConnect(ctx context.Context) error {
 
 // IsLoggedIn returns true after the client is successfully connected and authenticated on WhatsApp.
 func (cli *Client) IsLoggedIn() bool {
-	return cli != nil && cli.isLoggedIn.Load()
+	return cli != nil && cli.IsConnected() && cli.isLoggedIn.Load()
+}
+
+func (cli *Client) clearHandlerQueue() {
+	if cli == nil || cli.handlerQueue == nil {
+		return
+	}
+	for {
+		select {
+		case <-cli.handlerQueue:
+		default:
+			return
+		}
+	}
 }
 
 func (cli *Client) onDisconnect(ctx context.Context, ns *socket.NoiseSocket, remote bool) {
@@ -653,7 +666,9 @@ func (cli *Client) onDisconnect(ctx context.Context, ns *socket.NoiseSocket, rem
 	defer cli.socketLock.Unlock()
 	if cli.socket == ns {
 		cli.socket = nil
+		cli.isLoggedIn.Store(false)
 		cli.clearResponseWaiters(xmlStreamEndNode)
+		cli.clearHandlerQueue()
 		if !cli.isExpectedDisconnect() && (cli.forceAutoReconnect.Swap(false) || remote) {
 			cli.Log.Debugf("Emitting Disconnected event")
 			go cli.dispatchEvent(&events.Disconnected{})
@@ -764,7 +779,9 @@ func (cli *Client) unlockedDisconnect() {
 	if cli.socket != nil {
 		cli.socket.Stop(true, false)
 		cli.socket = nil
+		cli.isLoggedIn.Store(false)
 		cli.clearResponseWaiters(xmlStreamEndNode)
+		cli.clearHandlerQueue()
 	}
 }
 
@@ -1051,7 +1068,7 @@ func (cli *Client) sendNodeAndGetData(ctx context.Context, node waBinary.Node) (
 	cli.socketLock.RLock()
 	sock := cli.socket
 	cli.socketLock.RUnlock()
-	if sock == nil {
+	if sock == nil || !sock.IsConnected() {
 		return nil, ErrNotConnected
 	}
 
@@ -1069,7 +1086,40 @@ func (cli *Client) sendNode(ctx context.Context, node waBinary.Node) error {
 	return err
 }
 
+func isLifecycleEvent(evt any) bool {
+	switch evt.(type) {
+	case *events.Disconnected,
+		*events.Connected,
+		*events.LoggedOut,
+		*events.StreamReplaced,
+		*events.StreamError,
+		*events.PairSuccess,
+		*events.PairError,
+		*events.QR,
+		*events.QRScannedWithoutMultidevice,
+		*events.ManualLoginReconnect,
+		*events.ConnectFailure,
+		*events.ClientOutdated,
+		*events.TemporaryBan,
+		*events.CATRefreshError,
+		*events.KeepAliveTimeout,
+		*events.KeepAliveRestored,
+		*events.PairPasskeyRequest,
+		*events.PairPasskeyConfirmation,
+		*events.PairPasskeyError:
+		return true
+	default:
+		return false
+	}
+}
+
 func (cli *Client) dispatchEvent(evt any) (handlerFailed bool) {
+	if cli == nil {
+		return false
+	}
+	if !cli.IsConnected() && !isLifecycleEvent(evt) {
+		return false
+	}
 	cli.eventHandlersLock.RLock()
 	defer func() {
 		cli.eventHandlersLock.RUnlock()

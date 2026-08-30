@@ -36,12 +36,21 @@ func TestLoggerFunctions(t *testing.T) {
 	Error("zap fields error", zap.Error(os.ErrPermission))
 }
 
-func TestInitAndFileLogging(t *testing.T) {
+func TestInitAndHookStreaming(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "logger_test_*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
+
+	var receivedEntries []LogEntry
+	var mu sync.Mutex
+
+	unsub := AddHook(func(entry LogEntry) {
+		mu.Lock()
+		receivedEntries = append(receivedEntries, entry)
+		mu.Unlock()
+	})
 
 	if err := InitLogger(tmpDir, true); err != nil {
 		t.Fatalf("InitLogger failed: %v", err)
@@ -52,23 +61,42 @@ func TestInitAndFileLogging(t *testing.T) {
 		t.Fatalf("expected DebugLevel, got %v", GetLevel())
 	}
 
-	Debug("file debug entry", "field", "d1")
-	Info("file info entry", "field", "i1")
-	Warn("file warn entry", "field", "w1")
-	Error("file error entry", "field", "e1")
+	Debug("stream debug entry", "field", "d1")
+	Info("stream info entry", "field", "i1")
+	Warn("stream warn entry", "field", "w1")
+	Error("stream error entry", "field", "e1")
 
 	_ = Sync()
 
-	logFiles := []string{"debug.log", "info.log", "warn.log", "error.log"}
-	for _, lf := range logFiles {
-		p := filepath.Join(tmpDir, "logs", lf)
-		content, err := os.ReadFile(p)
-		if err != nil {
-			t.Fatalf("failed to read log file %s: %v", lf, err)
-		}
-		if len(content) == 0 {
-			t.Fatalf("log file %s is empty", lf)
-		}
+	mu.Lock()
+	count := len(receivedEntries)
+	mu.Unlock()
+
+	if count < 4 {
+		t.Fatalf("expected at least 4 log entries received by hook, got %d", count)
+	}
+
+	// Verify no files or logs directory created in tmpDir
+	logDirPath := filepath.Join(tmpDir, "logs")
+	if _, err := os.Stat(logDirPath); !os.IsNotExist(err) {
+		t.Fatalf("expected logs directory NOT to exist, but it was found")
+	}
+
+	// Test unsubscribe
+	unsub()
+	mu.Lock()
+	beforeCount := len(receivedEntries)
+	mu.Unlock()
+
+	Info("after unsub message")
+	_ = Sync()
+
+	mu.Lock()
+	afterCount := len(receivedEntries)
+	mu.Unlock()
+
+	if afterCount != beforeCount {
+		t.Fatalf("expected hook not to receive logs after unsubscribe: before %d, after %d", beforeCount, afterCount)
 	}
 }
 

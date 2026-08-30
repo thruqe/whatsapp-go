@@ -131,11 +131,6 @@ func handleUpdate(op string) {
 	}
 
 	if res.Updated {
-		fmt.Println("==> Restarting process with upgraded binary...")
-		if err := updater.RestartProcess(); err != nil {
-			Logger.Error("failed to restart binary process", "err", err)
-			os.Exit(1)
-		}
-		os.Exit(0) // exit after handing off on Windows
+		fmt.Println("==> Upgrade complete!")
 	}
 }
