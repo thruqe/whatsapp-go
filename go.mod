@@ -3,8 +3,10 @@ module whatsrook
 go 1.27.0
 
 require (
+	github.com/glebarez/go-sqlite v1.23.0
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
+	github.com/quic-go/quic-go v0.62.0
 	github.com/rs/zerolog v1.35.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
@@ -12,7 +14,6 @@ require (
 	go.mau.fi/whatsmeow v0.0.0-20260821141805-33cfac511629
 	go.uber.org/zap v1.28.0
 	google.golang.org/protobuf v1.36.12
-	modernc.org/sqlite v1.57.0
 )
 
 require (
@@ -112,16 +113,16 @@ require (
 	github.com/pion/sctp v1.11.1 // indirect
 	github.com/pion/transport/v4 v4.1.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/polymorfa/libsignal-protocol-go v0.2.3-0.20260806162910-a2adef2e8a11 // indirect
 	github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
+	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sajari/fuzzy v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
+	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/u-root/u-root v0.16.0 // indirect
 	github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 // indirect
 	github.com/ulikunitz/xz v0.5.16 // indirect
@@ -138,7 +139,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.45.0 // indirect
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/exp v0.0.0-20260824195058-e88cd73687aa // indirect
 	golang.org/x/net v0.58.0 // indirect
@@ -153,10 +154,10 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260724162435-b2f20204f0df // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260807164820-c8921c73eeea // indirect
 	google.golang.org/grpc v1.83.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.75.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
+	modernc.org/sqlite v1.57.0 // indirect
 	mvdan.cc/sh/moreinterp v0.0.0-20260817215856-d6550df7ed8d // indirect
 	mvdan.cc/sh/v3 v3.13.2-0.20260817215856-d6550df7ed8d // indirect
 )
