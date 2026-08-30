@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"slices"
 	"unicode"
@@ -25,6 +26,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 
 	"whatsrook"
+	"whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
 	utils "whatsrook/src"
 	Logger "whatsrook/src/logger"
@@ -691,7 +693,7 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
-	if client == nil || client.Store == nil || client.Store.ID == nil || !client.IsConnected() {
+	if client == nil || client.Store == nil || client.Store.ID == nil || !client.IsConnected() || !client.IsLoggedIn() {
 		return "", nil
 	}
 
@@ -710,7 +712,7 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 
 	err = client.SetStatusMessage(ctx, types.SetStatusInput{Text: &bioText})
 	if err != nil {
-		if errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || ctx.Err() != nil {
+		if !client.IsConnected() || !client.IsLoggedIn() || errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || strings.Contains(err.Error(), "not connected") || strings.Contains(err.Error(), "disconnected") || strings.Contains(err.Error(), "timed out") || ctx.Err() != nil {
 			return "", nil
 		}
 		Logger.Error("[AutoBio] Failed to update WhatsApp status message", "err", err)
@@ -889,9 +891,27 @@ func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, i
 		authDir = filepath.Join("auth", "default")
 	}
 	_ = os.MkdirAll(authDir, 0755)
-	targetPath := filepath.Join(authDir, "custom_menu_thumbnail.mp4")
+
+	detectedMime := http.DetectContentType(data)
+	if strings.HasPrefix(detectedMime, "image/") {
+		isVideo = false
+	} else if strings.HasPrefix(detectedMime, "video/") {
+		isVideo = true
+	} else if len(data) >= 12 && string(data[4:8]) == "ftyp" { // MP4/MOV container magic bytes
+		isVideo = true
+	} else if len(data) >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF { // JPEG magic bytes
+		isVideo = false
+	} else if len(data) >= 8 && string(data[1:4]) == "PNG" { // PNG magic bytes
+		isVideo = false
+	}
 
 	if isVideo {
+		targetPath := filepath.Join(authDir, "custom_menu_thumbnail.mp4")
+		_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.jpg"))
+		_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.jpeg"))
+		_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.png"))
+		_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.webp"))
+
 		tempInput := filepath.Join(authDir, Sprintf("input_%d.mp4", time.Now().UnixNano()))
 		if err := os.WriteFile(tempInput, data, 0644); err != nil {
 			return "", errors.New("failed to save temp video: " + err.Error())
@@ -915,24 +935,17 @@ func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, i
 				return "", errors.New("video file too large (>10MB) and ffmpeg processing failed: " + err.Error())
 			}
 		}
-	} else {
-		tempImg := filepath.Join(authDir, Sprintf("thumb_%d.jpg", time.Now().UnixNano()))
-		if err := os.WriteFile(tempImg, data, 0644); err != nil {
-			return "", errors.New("failed to save temp image: " + err.Error())
-		}
-		defer os.Remove(tempImg)
-
-		cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-loop", "1", "-i", tempImg,
-			"-c:v", "libx264", "-t", "2", "-pix_fmt", "yuv420p",
-			"-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", targetPath)
-		if err := cmd.Run(); err != nil {
-			targetPath = filepath.Join(authDir, "custom_menu_thumbnail.jpg")
-			if errWrite := os.WriteFile(targetPath, data, 0644); errWrite != nil {
-				return "", errors.New("failed to save raw image fallback: " + errWrite.Error())
-			}
-		}
+		return targetPath, nil
 	}
 
+	// Save image directly as custom_menu_thumbnail.jpg without converting to video
+	targetPath := filepath.Join(authDir, "custom_menu_thumbnail.jpg")
+	_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.mp4"))
+	_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.png"))
+	_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.webp"))
+	if errWrite := os.WriteFile(targetPath, data, 0644); errWrite != nil {
+		return "", errors.New("failed to save raw image thumbnail: " + errWrite.Error())
+	}
 	return targetPath, nil
 }
 
@@ -1767,20 +1780,10 @@ func handleSetCmd(ctx *Context) error {
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
-	db := s.GetDB()
-	if db == nil {
-		return ctx.Reply("Database unavailable.")
-	}
 
-	ourJID := ctx.Client.Store.ID.ToNonAD().String()
 	shaHex := hex.EncodeToString(stk.FileSHA256)
 
-	_, err := db.Exec(ctx.Ctx, `
-		INSERT INTO bot_sticker_cmds (our_jid, sticker_sha256, command_name)
-		VALUES ($1, $2, $3)
-		ON CONFLICT(our_jid, sticker_sha256) DO UPDATE SET command_name=excluded.command_name
-	`, ourJID, shaHex, cmdName)
-	if err != nil {
+	if err := store.PutStickerCmd(ctx.Ctx, s.SQLStore, shaHex, cmdName); err != nil {
 		return ctx.Reply("Failed to link sticker command.")
 	}
 
@@ -1796,12 +1799,6 @@ func handleDelCmd(ctx *Context) error {
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
-	db := s.GetDB()
-	if db == nil {
-		return ctx.Reply("Database unavailable.")
-	}
-
-	ourJID := ctx.Client.Store.ID.ToNonAD().String()
 
 	quoted := ctx.GetQuotedMessage()
 	if quoted != nil && quoted.StickerMessage != nil {
@@ -1811,13 +1808,8 @@ func handleDelCmd(ctx *Context) error {
 		}
 		shaHex := hex.EncodeToString(stk.FileSHA256)
 
-		res, err := db.Exec(ctx.Ctx, `DELETE FROM bot_sticker_cmds WHERE our_jid=$1 AND sticker_sha256=$2`, ourJID, shaHex)
-		if err != nil {
+		if err := store.DeleteStickerCmdBySHA(ctx.Ctx, s.SQLStore, shaHex); err != nil {
 			return ctx.Reply("Failed to remove sticker command.")
-		}
-		rows, _ := res.RowsAffected()
-		if rows == 0 {
-			return ctx.Reply("Mapped sticker not found.")
 		}
 		return ctx.Reply("Sticker link removed.")
 	}
@@ -1827,13 +1819,8 @@ func handleDelCmd(ctx *Context) error {
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
-	res, err := db.Exec(ctx.Ctx, `DELETE FROM bot_sticker_cmds WHERE our_jid=$1 AND command_name=$2`, ourJID, cmdName)
-	if err != nil {
+	if err := store.DeleteStickerCmdByName(ctx.Ctx, s.SQLStore, cmdName); err != nil {
 		return ctx.Reply("Failed to remove sticker command.")
-	}
-	rows, _ := res.RowsAffected()
-	if rows == 0 {
-		return ctx.Replyf("No sticker linked to command %q.", cmdName)
 	}
 
 	return ctx.Replyf("Mapped sticker(s) for command %q removed.", cmdName)
@@ -1844,32 +1831,26 @@ func handleGetCmd(ctx *Context) error {
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
-	db := s.GetDB()
-	if db == nil {
-		return ctx.Reply("Database unavailable.")
-	}
 
-	ourJID := ctx.Client.Store.ID.ToNonAD().String()
-
-	rows, err := db.Query(ctx.Ctx, `SELECT sticker_sha256, command_name FROM bot_sticker_cmds WHERE our_jid=$1`, ourJID)
+	cmds, err := store.ListStickerCmds(ctx.Ctx, s.SQLStore)
 	if err != nil {
 		return ctx.Reply("Failed to query sticker commands.")
 	}
-	defer rows.Close()
 
 	tb := ctx.Text().Header("Sticker Command Mappings")
 
 	count := 0
-	for rows.Next() {
-		var sha, cmdName string
-		if err := rows.Scan(&sha, &cmdName); err == nil {
-			tb.Bulletf("%s -> %s", sha[:8]+"...", cmdName)
-			count++
+	for _, sc := range cmds {
+		sha := sc.StickerSHA256
+		if len(sha) >= 8 {
+			sha = sha[:8] + "..."
 		}
+		tb.Bulletf("%s -> %s", sha, sc.CommandName)
+		count++
 	}
 
 	if count == 0 {
-		return ctx.Reply("No sticker commands configured.")
+		return ctx.Reply("No sticker commands mapped yet.")
 	}
 
 	return tb.Reply()

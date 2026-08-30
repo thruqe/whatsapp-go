@@ -4,10 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -529,26 +526,7 @@ func processMP3(data []byte) ([]byte, error) {
 }
 
 func downloadFromURL(ctx context.Context, mediaURL string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, mediaURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status code %d", resp.StatusCode)
-	}
-
-	buf := &bytes.Buffer{}
-	if _, err := io.Copy(buf, resp.Body); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return utils.FetchURLBytes(ctx, mediaURL)
 }
 
 func processBlackVideo(data []byte) ([]byte, error) {
