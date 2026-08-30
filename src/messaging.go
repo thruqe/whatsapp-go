@@ -1465,7 +1465,7 @@ func ExtractViewOnceMessage(msg *waE2E.Message) *waE2E.Message {
 // quoteID is the stanza ID of the original ViewOnce message; when non-empty the forwarded message quotes it so the recipient can see whose VV was intercepted.
 func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client, msg *waE2E.Message, senderJID types.JID, pushName string, targetJID types.JID, quoteID string, sourceChat ...types.JID) error {
 	if msg == nil || client == nil {
-		Logger.Error("[AutoVV] UnwrapAndSendViewOnceMessage: invalid nil arguments", "msg_nil", msg == nil, "client_nil", client == nil)
+		Logger.Error("AutoReadViewonce: UnwrapAndSendViewOnceMessage: invalid nil arguments", "msg_nil", msg == nil, "client_nil", client == nil)
 		return fmt.Errorf("invalid arguments")
 	}
 
@@ -1474,7 +1474,7 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		srcChat = sourceChat[0]
 	}
 
-	Logger.Info("[AutoVV] UnwrapAndSendViewOnceMessage started",
+	Logger.Info("AutoReadViewonce: UnwrapAndSendViewOnceMessage started",
 		"sender_jid", senderJID.String(),
 		"sender_non_ad", senderJID.ToNonAD().String(),
 		"push_name", pushName,
@@ -1486,29 +1486,29 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 
 	unwrapped := ExtractViewOnceMessage(msg)
 	if unwrapped == nil {
-		Logger.Error("[AutoVV] Failed to extract inner ViewOnce message")
+		Logger.Error("AutoReadViewonce: Failed to extract inner ViewOnce message")
 		return fmt.Errorf("failed to extract inner ViewOnce message")
 	}
 
 	var mediaType string
 	if img := unwrapped.GetImageMessage(); img != nil {
 		mediaType = "image"
-		Logger.Debug("[AutoVV] Downloading ViewOnce image", "mimetype", img.GetMimetype(), "file_length", img.GetFileLength())
+		Logger.Debug("AutoReadViewonce: Downloading ViewOnce image", "mimetype", img.GetMimetype(), "file_length", img.GetFileLength())
 		data, err := client.Download(ctx, img)
 		if err != nil {
-			Logger.Error("[AutoVV] Failed to download viewonce image", "err", err)
+			Logger.Error("AutoReadViewonce: Failed to download viewonce image", "err", err)
 			return fmt.Errorf("failed to download viewonce image: %w", err)
 		}
 		if len(data) == 0 {
-			Logger.Error("[AutoVV] Downloaded viewonce image data is empty")
+			Logger.Error("AutoReadViewonce: Downloaded viewonce image data is empty")
 			return fmt.Errorf("downloaded viewonce image data is empty")
 		}
 		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaImage)
 		if errUp != nil {
-			Logger.Error("[AutoVV] Failed to upload unwrapped viewonce image", "err", errUp)
+			Logger.Error("AutoReadViewonce: Failed to upload unwrapped viewonce image", "err", errUp)
 			return fmt.Errorf("failed to upload unwrapped viewonce image: %w", errUp)
 		}
-		Logger.Debug("[AutoVV] Image uploaded successfully", "data_len", len(data), "url", uploaded.URL)
+		Logger.Debug("AutoReadViewonce: Image uploaded successfully", "data_len", len(data), "url", uploaded.URL)
 		img.URL = &uploaded.URL
 		img.DirectPath = &uploaded.DirectPath
 		img.MediaKey = uploaded.MediaKey
@@ -1518,22 +1518,22 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		img.ViewOnce = new(false)
 	} else if vid := unwrapped.GetVideoMessage(); vid != nil {
 		mediaType = "video"
-		Logger.Debug("[AutoVV] Downloading ViewOnce video", "mimetype", vid.GetMimetype(), "file_length", vid.GetFileLength())
+		Logger.Debug("AutoReadViewonce: Downloading ViewOnce video", "mimetype", vid.GetMimetype(), "file_length", vid.GetFileLength())
 		data, err := client.Download(ctx, vid)
 		if err != nil {
-			Logger.Error("[AutoVV] Failed to download viewonce video", "err", err)
+			Logger.Error("AutoReadViewonce: Failed to download viewonce video", "err", err)
 			return fmt.Errorf("failed to download viewonce video: %w", err)
 		}
 		if len(data) == 0 {
-			Logger.Error("[AutoVV] Downloaded viewonce video data is empty")
+			Logger.Error("AutoReadViewonce: Downloaded viewonce video data is empty")
 			return fmt.Errorf("downloaded viewonce video data is empty")
 		}
 		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaVideo)
 		if errUp != nil {
-			Logger.Error("[AutoVV] Failed to upload unwrapped viewonce video", "err", errUp)
+			Logger.Error("AutoReadViewonce: Failed to upload unwrapped viewonce video", "err", errUp)
 			return fmt.Errorf("failed to upload unwrapped viewonce video: %w", errUp)
 		}
-		Logger.Debug("[AutoVV] Video uploaded successfully", "data_len", len(data), "url", uploaded.URL)
+		Logger.Debug("AutoReadViewonce: Video uploaded successfully", "data_len", len(data), "url", uploaded.URL)
 		vid.URL = &uploaded.URL
 		vid.DirectPath = &uploaded.DirectPath
 		vid.MediaKey = uploaded.MediaKey
@@ -1543,14 +1543,14 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		vid.ViewOnce = new(false)
 	} else if aud := unwrapped.GetAudioMessage(); aud != nil {
 		mediaType = "audio"
-		Logger.Debug("[AutoVV] Downloading ViewOnce audio", "mimetype", aud.GetMimetype(), "file_length", aud.GetFileLength())
+		Logger.Debug("AutoReadViewonce: Downloading ViewOnce audio", "mimetype", aud.GetMimetype(), "file_length", aud.GetFileLength())
 		data, err := client.Download(ctx, aud)
 		if err != nil {
-			Logger.Error("[AutoVV] Failed to download viewonce audio", "err", err)
+			Logger.Error("AutoReadViewonce: Failed to download viewonce audio", "err", err)
 			return fmt.Errorf("failed to download viewonce audio: %w", err)
 		}
 		if len(data) == 0 {
-			Logger.Error("[AutoVV] Downloaded viewonce audio data is empty")
+			Logger.Error("AutoReadViewonce: Downloaded viewonce audio data is empty")
 			return fmt.Errorf("downloaded viewonce audio data is empty")
 		}
 		meta, cErr := EnsureOpusPTT(ctx, data)
@@ -1565,10 +1565,10 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		}
 		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaAudio)
 		if errUp != nil {
-			Logger.Error("[AutoVV] Failed to upload unwrapped viewonce audio", "err", errUp)
+			Logger.Error("AutoReadViewonce: Failed to upload unwrapped viewonce audio", "err", errUp)
 			return fmt.Errorf("failed to upload unwrapped viewonce audio: %w", errUp)
 		}
-		Logger.Debug("[AutoVV] Audio uploaded successfully", "data_len", len(data), "url", uploaded.URL)
+		Logger.Debug("AutoReadViewonce: Audio uploaded successfully", "data_len", len(data), "url", uploaded.URL)
 		aud.URL = &uploaded.URL
 		aud.DirectPath = &uploaded.DirectPath
 		aud.MediaKey = uploaded.MediaKey
@@ -1611,7 +1611,7 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 			remoteJIDStr = *ci.RemoteJID
 		}
 
-		Logger.Info("[AutoVV] Quoted ContextInfo prepared",
+		Logger.Info("AutoReadViewonce: Quoted ContextInfo prepared",
 			"stanza_id", quoteID,
 			"participant", participant,
 			"remote_jid", remoteJIDStr,
@@ -1627,15 +1627,15 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 			aud.ContextInfo = ci
 		}
 	} else {
-		Logger.Warn("[AutoVV] quoteID is empty; forwarding without quote")
+		Logger.Warn("AutoReadViewonce: quoteID is empty; forwarding without quote")
 	}
 
 	resp, err := client.SendMessage(ctx, targetJID, unwrapped)
 	if err != nil {
-		Logger.Error("[AutoVV] SendMessage failed", "target_jid", targetJID.String(), "err", err)
+		Logger.Error("AutoReadViewonce: SendMessage failed", "target_jid", targetJID.String(), "err", err)
 		return err
 	}
-	Logger.Debug("[AutoVV] Forwarded message sent successfully", "target_jid", targetJID.String(), "resp_id", resp.ID, "timestamp", resp.Timestamp)
+	Logger.Debug("AutoReadViewonce: Forwarded message sent successfully", "target_jid", targetJID.String(), "resp_id", resp.ID, "timestamp", resp.Timestamp)
 	return nil
 }
 

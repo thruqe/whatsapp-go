@@ -21,6 +21,11 @@ import (
 func main() {
 	args := parseCLIArgs()
 
+	if args.Version {
+		fmt.Println(Version)
+		return
+	}
+
 	if args.Verbose {
 		Logger.SetVerbose(true)
 	}
