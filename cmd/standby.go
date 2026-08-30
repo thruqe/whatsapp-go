@@ -13,6 +13,7 @@ import (
 
 	"whatsrook"
 	"whatsrook/cmd/tui"
+	"whatsrook/cmd/updater"
 	Logger "whatsrook/src/logger"
 )
 
@@ -92,6 +93,10 @@ func runInteractiveStandby(defaultDB string) error {
 
 		if err != nil {
 			return err
+		}
+		if res.ShouldRestart {
+			tui.ClearTerminal()
+			return updater.RestartProcess()
 		}
 		if !shouldRun {
 			tui.ClearTerminal()

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -45,13 +47,14 @@ const (
 
 // SessionResult contains the final configured session parameters to launch.
 type SessionResult struct {
-	Session    string
-	Pair       bool
-	QRCode     bool
-	ClientType whatsrook.ClientType
-	Database   string
-	Verbose    bool
-	ShouldRun  bool
+	Session       string
+	Pair          bool
+	QRCode        bool
+	ClientType    whatsrook.ClientType
+	Database      string
+	Verbose       bool
+	ShouldRun     bool
+	ShouldRestart bool
 }
 
 type tickMsg time.Time
@@ -100,6 +103,7 @@ type model struct {
 	width           int
 	height          int
 	quitting        bool
+	shouldRestart   bool
 	isBusinessAcct  bool
 
 	// Updater state
@@ -138,6 +142,10 @@ func Run(ctx context.Context, defaultDB string, boundPort int) (SessionResult, b
 	}
 
 	fm := finalModel.(model)
+	if fm.shouldRestart {
+		fm.result.ShouldRestart = true
+		return fm.result, false, nil
+	}
 	return fm.result, fm.result.ShouldRun, nil
 }
 
@@ -369,9 +377,9 @@ func (m model) selectMainOption() (tea.Model, tea.Cmd) {
 		m.cursor = 0
 		m.state = stateDependenciesMenu
 	case 4: // Restart WhatsRook
-		ClearTerminal()
-		_ = updater.RestartProcess()
-		os.Exit(0)
+		m.shouldRestart = true
+		m.quitting = true
+		return m, tea.Quit
 	case 5: // Donate
 		m.cursor = 0
 		m.state = stateDonate
@@ -488,9 +496,9 @@ func (m model) updateUpdateProgress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "enter":
 			if m.updateResult != nil && m.updateResult.Updated {
-				ClearTerminal()
-				_ = updater.RestartProcess()
-				os.Exit(0)
+				m.shouldRestart = true
+				m.quitting = true
+				return m, tea.Quit
 			}
 			m.state = stateUpdateMenu
 			m.cursor = 0
@@ -583,23 +591,22 @@ func (m model) startDependencyInstall() (tea.Model, tea.Cmd) {
 			writer.Write([]byte(fmt.Sprintf("[MISSING] %s not found on PATH.\n", dep)))
 		}
 		writer.Write([]byte("Preparing installation for this system...\n"))
-		cmd := dependencyInstallCommand("ffmpeg")
-		if cmd == nil {
-			writer.Write([]byte("[ERROR] No supported installer available for this operating system.\n"))
-			doneChan <- updateFinishedMsg{err: fmt.Errorf("no supported package manager available")}
-			close(logChan)
-			return
+		for _, dep := range deps {
+			if err := runDependencyInstall(dep, writer); err != nil {
+				writer.Write([]byte(fmt.Sprintf("[ERROR] %s installation failed: %v\n", dep, err)))
+				doneChan <- updateFinishedMsg{err: err}
+				close(logChan)
+				return
+			}
 		}
-		cmd.Stdout = writer
-		cmd.Stderr = writer
-		if err := cmd.Run(); err != nil {
-			writer.Write([]byte("[ERROR] Dependency installation failed.\n"))
-			doneChan <- updateFinishedMsg{err: err}
-			close(logChan)
-			return
+		refreshWindowsPath()
+		if missing, _ := missingDependencies(); len(missing) == 0 {
+			writer.Write([]byte("[OK] Required dependencies installed successfully.\n"))
+			doneChan <- updateFinishedMsg{}
+		} else {
+			writer.Write([]byte(fmt.Sprintf("[WARN] Installation completed, but %s is still not detected on PATH.\n", strings.Join(missing, ", "))))
+			doneChan <- updateFinishedMsg{}
 		}
-		writer.Write([]byte("[OK] Required dependencies installed successfully.\n"))
-		doneChan <- updateFinishedMsg{}
 		close(logChan)
 	}()
 
@@ -1809,7 +1816,60 @@ func (m model) viewDonate() string {
 	return s.String()
 }
 
+func refreshWindowsPath() {
+	if runtime.GOOS != "windows" {
+		return
+	}
+	var extraPaths []string
+	if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+		extraPaths = append(extraPaths,
+			filepath.Join(localAppData, "Microsoft", "WinGet", "Links"),
+			filepath.Join(localAppData, "Programs", "ffmpeg", "bin"),
+			filepath.Join(localAppData, "whatsrook", "bin"),
+		)
+	}
+	if userProfile := os.Getenv("USERPROFILE"); userProfile != "" {
+		extraPaths = append(extraPaths,
+			filepath.Join(userProfile, "scoop", "shims"),
+			filepath.Join(userProfile, "scoop", "apps", "ffmpeg", "current", "bin"),
+		)
+	}
+	if progData := os.Getenv("ProgramData"); progData != "" {
+		extraPaths = append(extraPaths,
+			filepath.Join(progData, "chocolatey", "bin"),
+		)
+	}
+	if progFiles := os.Getenv("ProgramFiles"); progFiles != "" {
+		extraPaths = append(extraPaths,
+			filepath.Join(progFiles, "ffmpeg", "bin"),
+		)
+	}
+
+	curPath := os.Getenv("PATH")
+	pathList := filepath.SplitList(curPath)
+	pathSet := make(map[string]bool, len(pathList))
+	for _, p := range pathList {
+		pathSet[filepath.Clean(p)] = true
+	}
+
+	changed := false
+	for _, extra := range extraPaths {
+		clean := filepath.Clean(extra)
+		if !pathSet[clean] {
+			if fi, err := os.Stat(clean); err == nil && fi.IsDir() {
+				curPath = clean + string(os.PathListSeparator) + curPath
+				pathSet[clean] = true
+				changed = true
+			}
+		}
+	}
+	if changed {
+		_ = os.Setenv("PATH", curPath)
+	}
+}
+
 func missingDependencies() ([]string, bool) {
+	refreshWindowsPath()
 	deps := []string{"ffmpeg"}
 	missing := make([]string, 0, len(deps))
 	for _, dep := range deps {
@@ -1820,53 +1880,168 @@ func missingDependencies() ([]string, bool) {
 	return missing, true
 }
 
-func dependencyInstallCommand(dep string) *exec.Cmd {
+func runDependencyInstall(dep string, writer io.Writer) error {
 	if dep != "ffmpeg" {
-		return nil
+		return fmt.Errorf("unsupported dependency: %s", dep)
 	}
 
 	switch runtime.GOOS {
 	case "windows":
-		switch {
-		case commandExists("winget"):
-			return exec.Command("winget", "install", "--id", "Gyan.Dev.FFmpeg", "-e", "--accept-source-agreements", "--accept-package-agreements")
-		case commandExists("choco"):
-			return exec.Command("choco", "install", "ffmpeg", "-y")
-		case commandExists("scoop"):
-			return exec.Command("scoop", "install", "ffmpeg")
-		default:
-			return exec.Command("cmd", "/c", "echo FFmpeg installer not found. Please install ffmpeg manually. && exit 1")
+		var attempts []struct {
+			name string
+			cmd  *exec.Cmd
 		}
+
+		if commandExists("winget") {
+			attempts = append(attempts,
+				struct {
+					name string
+					cmd  *exec.Cmd
+				}{
+					name: "WinGet (Gyan.FFmpeg)",
+					cmd:  exec.Command("winget", "install", "--id", "Gyan.FFmpeg", "-e", "--accept-source-agreements", "--accept-package-agreements"),
+				},
+				struct {
+					name string
+					cmd  *exec.Cmd
+				}{
+					name: "WinGet (ffmpeg)",
+					cmd:  exec.Command("winget", "install", "ffmpeg", "--accept-source-agreements", "--accept-package-agreements"),
+				},
+			)
+		}
+		if commandExists("choco") {
+			attempts = append(attempts, struct {
+				name string
+				cmd  *exec.Cmd
+			}{
+				name: "Chocolatey (choco install ffmpeg)",
+				cmd:  exec.Command("choco", "install", "ffmpeg", "-y"),
+			})
+		}
+		if commandExists("scoop") {
+			attempts = append(attempts, struct {
+				name string
+				cmd  *exec.Cmd
+			}{
+				name: "Scoop (scoop install ffmpeg)",
+				cmd:  exec.Command("scoop", "install", "ffmpeg"),
+			})
+		}
+
+		var lastErr error
+		for _, attempt := range attempts {
+			_, _ = fmt.Fprintf(writer, "==> Attempting installation via %s...\n", attempt.name)
+			attempt.cmd.Stdout = writer
+			attempt.cmd.Stderr = writer
+			if err := attempt.cmd.Run(); err == nil {
+				refreshWindowsPath()
+				if _, ok := exec.LookPath("ffmpeg"); ok == nil {
+					return nil
+				}
+			} else {
+				lastErr = err
+				_, _ = fmt.Fprintf(writer, "[WARN] %s failed: %v\n", attempt.name, err)
+			}
+		}
+
+		// Fallback: automated PowerShell direct download and installation for Windows
+		if commandExists("powershell") {
+			_, _ = fmt.Fprintln(writer, "==> Attempting direct installation via PowerShell...")
+			psScript := `$dest = Join-Path $env:LOCALAPPDATA 'whatsrook\bin'; ` +
+				`if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }; ` +
+				`$zip = Join-Path $env:TEMP 'ffmpeg-release-essentials.zip'; ` +
+				`Write-Host 'Downloading FFmpeg binary...'; ` +
+				`Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -OutFile $zip -UseBasicParsing; ` +
+				`Write-Host 'Extracting archive...'; ` +
+				`$tmpExtract = Join-Path $env:TEMP 'ffmpeg-extract'; ` +
+				`if (Test-Path $tmpExtract) { Remove-Item -Recurse -Force $tmpExtract }; ` +
+				`Expand-Archive -Path $zip -DestinationPath $tmpExtract -Force; ` +
+				`$exe = Get-ChildItem -Path $tmpExtract -Filter 'ffmpeg.exe' -Recurse | Select-Object -First 1; ` +
+				`if ($exe) { Copy-Item -Path $exe.FullName -Destination (Join-Path $dest 'ffmpeg.exe') -Force; Write-Host 'FFmpeg installed to' $dest } ` +
+				`else { throw 'ffmpeg.exe not found in downloaded package' }; ` +
+				`Remove-Item -Force $zip -ErrorAction SilentlyContinue; ` +
+				`Remove-Item -Recurse -Force $tmpExtract -ErrorAction SilentlyContinue; ` +
+				`$userPath = [Environment]::GetEnvironmentVariable('Path', 'User'); ` +
+				`if ($userPath -notlike ('*' + $dest + '*')) { [Environment]::SetEnvironmentVariable('Path', $dest + ';' + $userPath, 'User') }`
+
+			psCmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psScript)
+			psCmd.Stdout = writer
+			psCmd.Stderr = writer
+			if err := psCmd.Run(); err == nil {
+				refreshWindowsPath()
+				if _, ok := exec.LookPath("ffmpeg"); ok == nil {
+					return nil
+				}
+			} else {
+				lastErr = err
+				_, _ = fmt.Fprintf(writer, "[WARN] PowerShell installer failed: %v\n", err)
+			}
+		}
+
+		if lastErr != nil {
+			return lastErr
+		}
+		return fmt.Errorf("no supported Windows installer (winget, choco, scoop, powershell) succeeded")
+
 	case "darwin":
 		if commandExists("brew") {
-			return exec.Command("brew", "install", "ffmpeg")
+			_, _ = fmt.Fprintln(writer, "==> Installing FFmpeg via Homebrew...")
+			cmd := exec.Command("brew", "install", "ffmpeg")
+			cmd.Stdout = writer
+			cmd.Stderr = writer
+			return cmd.Run()
 		}
-		return exec.Command("bash", "-lc", "if command -v port >/dev/null 2>&1; then sudo port install ffmpeg; else echo 'No supported installer found for macOS. Install Homebrew or MacPorts first.'; exit 1; fi")
+		if commandExists("port") {
+			_, _ = fmt.Fprintln(writer, "==> Installing FFmpeg via MacPorts...")
+			cmd := exec.Command("sudo", "port", "install", "ffmpeg")
+			cmd.Stdout = writer
+			cmd.Stderr = writer
+			return cmd.Run()
+		}
+		return fmt.Errorf("no supported macOS package manager found (Homebrew or MacPorts required)")
+
 	case "linux":
-		switch {
-		case commandExists("apt-get"):
-			return exec.Command("bash", "-lc", "sudo apt-get update && sudo apt-get install -y ffmpeg")
-		case commandExists("dnf"):
-			return exec.Command("bash", "-lc", "sudo dnf install -y ffmpeg")
-		case commandExists("yum"):
-			return exec.Command("bash", "-lc", "sudo yum install -y ffmpeg")
-		case commandExists("pacman"):
-			return exec.Command("bash", "-lc", "sudo pacman -Sy --noconfirm ffmpeg")
-		case commandExists("apk"):
-			return exec.Command("bash", "-lc", "sudo apk add --no-cache ffmpeg")
-		default:
-			return exec.Command("bash", "-lc", "echo 'No supported linux package manager found for ffmpeg installation.'; exit 1")
+		candidates := []struct {
+			name string
+			cmd  *exec.Cmd
+		}{
+			{"apt-get", exec.Command("bash", "-lc", "sudo apt-get update && sudo apt-get install -y ffmpeg")},
+			{"dnf", exec.Command("bash", "-lc", "sudo dnf install -y ffmpeg")},
+			{"yum", exec.Command("bash", "-lc", "sudo yum install -y ffmpeg")},
+			{"pacman", exec.Command("bash", "-lc", "sudo pacman -Sy --noconfirm ffmpeg")},
+			{"apk", exec.Command("bash", "-lc", "sudo apk add --no-cache ffmpeg")},
+			{"zypper", exec.Command("bash", "-lc", "sudo zypper install -y ffmpeg")},
 		}
+		for _, c := range candidates {
+			if commandExists(c.name) {
+				_, _ = fmt.Fprintf(writer, "==> Installing FFmpeg via %s...\n", c.name)
+				c.cmd.Stdout = writer
+				c.cmd.Stderr = writer
+				return c.cmd.Run()
+			}
+		}
+		return fmt.Errorf("no supported Linux package manager found for FFmpeg installation")
+
 	case "android":
 		if commandExists("pkg") {
-			return exec.Command("pkg", "install", "-y", "ffmpeg")
+			_, _ = fmt.Fprintln(writer, "==> Installing FFmpeg via Termux pkg...")
+			cmd := exec.Command("pkg", "install", "-y", "ffmpeg")
+			cmd.Stdout = writer
+			cmd.Stderr = writer
+			return cmd.Run()
 		}
 		if commandExists("apt-get") {
-			return exec.Command("bash", "-lc", "apt-get update && apt-get install -y ffmpeg")
+			_, _ = fmt.Fprintln(writer, "==> Installing FFmpeg via apt-get...")
+			cmd := exec.Command("bash", "-lc", "apt-get update && apt-get install -y ffmpeg")
+			cmd.Stdout = writer
+			cmd.Stderr = writer
+			return cmd.Run()
 		}
-		return exec.Command("bash", "-lc", "echo 'No supported Android package manager found for ffmpeg installation.'; exit 1")
+		return fmt.Errorf("no supported Android package manager found for FFmpeg installation")
+
 	default:
-		return exec.Command("bash", "-lc", "echo 'Unsupported platform for automatic dependency installation.'; exit 1")
+		return fmt.Errorf("unsupported platform %s for automatic dependency installation", runtime.GOOS)
 	}
 }
 
