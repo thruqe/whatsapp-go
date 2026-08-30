@@ -7,6 +7,7 @@ import (
 
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/whatsmeow/types"
+	"gorm.io/gorm/clause"
 )
 
 // GroupParticipantMetadata contains details of a group participant.
@@ -59,304 +60,276 @@ type NewsletterMetadata struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-const (
-	upsertCachedGroupQuery = `
-		INSERT INTO cached_groups (
-			our_jid, jid, name, topic, topic_id, topic_set_at, topic_set_by,
-			owner_jid, created_at, is_locked, is_announce, is_ephemeral,
-			ephemeral_duration, membership_approval_mode, is_incognito,
-			is_community, parent_jid, linked_parent_jid, is_default_subgroup,
-			participant_count, admin_count, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
-		ON CONFLICT (our_jid, jid) DO UPDATE SET
-			name = EXCLUDED.name,
-			topic = EXCLUDED.topic,
-			topic_id = EXCLUDED.topic_id,
-			topic_set_at = EXCLUDED.topic_set_at,
-			topic_set_by = EXCLUDED.topic_set_by,
-			owner_jid = EXCLUDED.owner_jid,
-			created_at = EXCLUDED.created_at,
-			is_locked = EXCLUDED.is_locked,
-			is_announce = EXCLUDED.is_announce,
-			is_ephemeral = EXCLUDED.is_ephemeral,
-			ephemeral_duration = EXCLUDED.ephemeral_duration,
-			membership_approval_mode = EXCLUDED.membership_approval_mode,
-			is_incognito = EXCLUDED.is_incognito,
-			is_community = EXCLUDED.is_community,
-			parent_jid = EXCLUDED.parent_jid,
-			linked_parent_jid = EXCLUDED.linked_parent_jid,
-			is_default_subgroup = EXCLUDED.is_default_subgroup,
-			participant_count = EXCLUDED.participant_count,
-			admin_count = EXCLUDED.admin_count,
-			updated_at = EXCLUDED.updated_at
-	`
-
-	upsertCachedParticipantQuery = `
-		INSERT INTO cached_group_participants (
-			our_jid, group_jid, user_jid, lid, is_admin, is_super_admin, display_name
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (our_jid, group_jid, user_jid) DO UPDATE SET
-			lid = EXCLUDED.lid,
-			is_admin = EXCLUDED.is_admin,
-			is_super_admin = EXCLUDED.is_super_admin,
-			display_name = EXCLUDED.display_name
-	`
-
-	upsertCachedNewsletterQuery = `
-		INSERT INTO cached_newsletters (
-			our_jid, jid, name, description, invite_code, subscribers_count,
-			verification, role, mute_state, picture_url, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		ON CONFLICT (our_jid, jid) DO UPDATE SET
-			name = EXCLUDED.name,
-			description = EXCLUDED.description,
-			invite_code = EXCLUDED.invite_code,
-			subscribers_count = EXCLUDED.subscribers_count,
-			verification = EXCLUDED.verification,
-			role = EXCLUDED.role,
-			mute_state = EXCLUDED.mute_state,
-			picture_url = EXCLUDED.picture_url,
-			created_at = EXCLUDED.created_at,
-			updated_at = EXCLUDED.updated_at
-	`
-)
-
-// SaveCachedGroup persists a group's metadata into the database.
+// SaveCachedGroup persists a group's metadata into the database via GORM.
 func SaveCachedGroup(ctx context.Context, db *dbutil.Database, ourJID string, g *GroupMetadata) error {
 	if db == nil || g == nil {
 		return nil
 	}
+	gdb, err := GetORMFromDB(ctx, db)
+	if err != nil {
+		return err
+	}
+
 	now := time.Now().UTC()
 	g.UpdatedAt = now
 
-	_, err := db.Exec(ctx, upsertCachedGroupQuery,
-		ourJID,
-		g.JID.String(),
-		g.Name,
-		g.Topic,
-		g.TopicID,
-		g.TopicSetAt,
-		g.TopicSetBy.String(),
-		g.OwnerJID.String(),
-		g.CreatedAt,
-		g.IsLocked,
-		g.IsAnnounce,
-		g.IsEphemeral,
-		g.EphemeralDuration,
-		g.MembershipApprovalMode,
-		g.IsIncognito,
-		g.IsCommunity,
-		g.ParentJID.String(),
-		g.LinkedParentJID.String(),
-		g.IsDefaultSubgroup,
-		g.ParticipantCount,
-		g.AdminCount,
-		now,
-	)
-	if err != nil {
+	cg := CachedGroup{
+		OurJID:                 ourJID,
+		JID:                    g.JID.String(),
+		Name:                   g.Name,
+		Topic:                  g.Topic,
+		TopicID:                g.TopicID,
+		TopicSetAt:             g.TopicSetAt,
+		TopicSetBy:             g.TopicSetBy.String(),
+		OwnerJID:               g.OwnerJID.String(),
+		CreatedAt:              g.CreatedAt,
+		IsLocked:               g.IsLocked,
+		IsAnnounce:             g.IsAnnounce,
+		IsEphemeral:            g.IsEphemeral,
+		EphemeralDuration:      g.EphemeralDuration,
+		MembershipApprovalMode: g.MembershipApprovalMode,
+		IsIncognito:            g.IsIncognito,
+		IsCommunity:            g.IsCommunity,
+		ParentJID:              g.ParentJID.String(),
+		LinkedParentJID:        g.LinkedParentJID.String(),
+		IsDefaultSubgroup:      g.IsDefaultSubgroup,
+		ParticipantCount:       g.ParticipantCount,
+		AdminCount:             g.AdminCount,
+		UpdatedAt:              now,
+	}
+
+	if err := gdb.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "our_jid"}, {Name: "jid"}},
+		UpdateAll: true,
+	}).Create(&cg).Error; err != nil {
 		return fmt.Errorf("SaveCachedGroup failed for %s: %w", g.JID.String(), err)
 	}
 
 	if len(g.Participants) > 0 {
 		_ = SaveCachedGroupParticipants(ctx, db, ourJID, g.JID.String(), g.Participants)
 	}
-
 	return nil
 }
 
-// SaveCachedGroupParticipants replaces all participant records for a group.
+// SaveCachedGroupParticipants replaces all participant records for a group via GORM.
 func SaveCachedGroupParticipants(ctx context.Context, db *dbutil.Database, ourJID, groupJID string, participants []GroupParticipantMetadata) error {
 	if db == nil {
 		return nil
 	}
+	gdb, err := GetORMFromDB(ctx, db)
+	if err != nil {
+		return err
+	}
 
 	// Delete obsolete participant records for this group
-	_, _ = db.Exec(ctx, "DELETE FROM cached_group_participants WHERE our_jid = $1 AND group_jid = $2", ourJID, groupJID)
+	_ = gdb.WithContext(ctx).
+		Where("our_jid = ? AND group_jid = ?", ourJID, groupJID).
+		Delete(&CachedGroupParticipant{}).Error
 
-	for _, p := range participants {
-		_, err := db.Exec(ctx, upsertCachedParticipantQuery,
-			ourJID,
-			groupJID,
-			p.JID.String(),
-			p.LID.String(),
-			p.IsAdmin,
-			p.IsSuperAdmin,
-			p.DisplayName,
-		)
-		if err != nil {
-			return err
-		}
+	if len(participants) == 0 {
+		return nil
 	}
-	return nil
+
+	var records []CachedGroupParticipant
+	for _, p := range participants {
+		records = append(records, CachedGroupParticipant{
+			OurJID:       ourJID,
+			GroupJID:     groupJID,
+			UserJID:      p.JID.String(),
+			LID:          p.LID.String(),
+			IsAdmin:      p.IsAdmin,
+			IsSuperAdmin: p.IsSuperAdmin,
+			DisplayName:  p.DisplayName,
+		})
+	}
+
+	return gdb.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "our_jid"}, {Name: "group_jid"}, {Name: "user_jid"}},
+		UpdateAll: true,
+	}).Create(&records).Error
 }
 
-// SaveCachedNewsletter persists a newsletter/channel metadata into the database.
+// SaveCachedNewsletter persists a newsletter/channel metadata into the database via GORM.
 func SaveCachedNewsletter(ctx context.Context, db *dbutil.Database, ourJID string, n *NewsletterMetadata) error {
 	if db == nil || n == nil {
 		return nil
 	}
+	gdb, err := GetORMFromDB(ctx, db)
+	if err != nil {
+		return err
+	}
+
 	now := time.Now().UTC()
 	n.UpdatedAt = now
 
-	_, err := db.Exec(ctx, upsertCachedNewsletterQuery,
-		ourJID,
-		n.JID.String(),
-		n.Name,
-		n.Description,
-		n.InviteCode,
-		n.SubscribersCount,
-		n.Verification,
-		n.Role,
-		n.MuteState,
-		n.PictureURL,
-		n.CreatedAt,
-		now,
-	)
-	return err
+	cn := CachedNewsletter{
+		OurJID:           ourJID,
+		JID:              n.JID.String(),
+		Name:             n.Name,
+		Description:      n.Description,
+		InviteCode:       n.InviteCode,
+		SubscribersCount: n.SubscribersCount,
+		Verification:     n.Verification,
+		Role:             n.Role,
+		MuteState:        n.MuteState,
+		PictureURL:       n.PictureURL,
+		CreatedAt:        n.CreatedAt,
+		UpdatedAt:        now,
+	}
+
+	return gdb.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "our_jid"}, {Name: "jid"}},
+		UpdateAll: true,
+	}).Create(&cn).Error
 }
 
-// DeleteCachedGroup removes a group from the cached tables.
+// DeleteCachedGroup removes a group and its participants from cached tables.
 func DeleteCachedGroup(ctx context.Context, db *dbutil.Database, ourJID, groupJID string) error {
 	if db == nil {
 		return nil
 	}
-	_, _ = db.Exec(ctx, "DELETE FROM cached_group_participants WHERE our_jid = $1 AND group_jid = $2", ourJID, groupJID)
-	_, err := db.Exec(ctx, "DELETE FROM cached_groups WHERE our_jid = $1 AND jid = $2", ourJID, groupJID)
-	return err
+	gdb, err := GetORMFromDB(ctx, db)
+	if err != nil {
+		return err
+	}
+
+	_ = gdb.WithContext(ctx).
+		Where("our_jid = ? AND group_jid = ?", ourJID, groupJID).
+		Delete(&CachedGroupParticipant{}).Error
+
+	return gdb.WithContext(ctx).
+		Where("our_jid = ? AND jid = ?", ourJID, groupJID).
+		Delete(&CachedGroup{}).Error
 }
 
-// DeleteCachedNewsletter removes a newsletter from the cached tables.
+// DeleteCachedNewsletter removes a newsletter from cached tables.
 func DeleteCachedNewsletter(ctx context.Context, db *dbutil.Database, ourJID, newsletterJID string) error {
 	if db == nil {
 		return nil
 	}
-	_, err := db.Exec(ctx, "DELETE FROM cached_newsletters WHERE our_jid = $1 AND jid = $2", ourJID, newsletterJID)
-	return err
+	gdb, err := GetORMFromDB(ctx, db)
+	if err != nil {
+		return err
+	}
+
+	return gdb.WithContext(ctx).
+		Where("our_jid = ? AND jid = ?", ourJID, newsletterJID).
+		Delete(&CachedNewsletter{}).Error
 }
 
-// LoadAllCachedGroups loads all cached groups and their participants from the database.
+// LoadAllCachedGroups loads all cached groups and their participants from the database via GORM.
 func LoadAllCachedGroups(ctx context.Context, db *dbutil.Database, ourJID string) ([]*GroupMetadata, error) {
 	if db == nil {
 		return nil, nil
 	}
-
-	rows, err := db.Query(ctx, `
-		SELECT jid, name, topic, topic_id, topic_set_at, topic_set_by,
-		       owner_jid, created_at, is_locked, is_announce, is_ephemeral,
-		       ephemeral_duration, membership_approval_mode, is_incognito,
-		       is_community, parent_jid, linked_parent_jid, is_default_subgroup,
-		       participant_count, admin_count, updated_at
-		FROM cached_groups
-		WHERE our_jid = $1
-		ORDER BY name ASC
-	`, ourJID)
+	gdb, err := GetORMFromDB(ctx, db)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var groups []*GroupMetadata
-	for rows.Next() {
-		var g GroupMetadata
-		var jidStr, topicSetByStr, ownerStr, parentStr, linkedParentStr string
-		var topicSetAt, createdAt, updatedAt *time.Time
-
-		err := rows.Scan(
-			&jidStr, &g.Name, &g.Topic, &g.TopicID, &topicSetAt, &topicSetByStr,
-			&ownerStr, &createdAt, &g.IsLocked, &g.IsAnnounce, &g.IsEphemeral,
-			&g.EphemeralDuration, &g.MembershipApprovalMode, &g.IsIncognito,
-			&g.IsCommunity, &parentStr, &linkedParentStr, &g.IsDefaultSubgroup,
-			&g.ParticipantCount, &g.AdminCount, &updatedAt,
-		)
-		if err != nil {
-			continue
-		}
-
-		g.JID, _ = types.ParseJID(jidStr)
-		g.TopicSetBy, _ = types.ParseJID(topicSetByStr)
-		g.OwnerJID, _ = types.ParseJID(ownerStr)
-		g.ParentJID, _ = types.ParseJID(parentStr)
-		g.LinkedParentJID, _ = types.ParseJID(linkedParentStr)
-		if topicSetAt != nil {
-			g.TopicSetAt = *topicSetAt
-		}
-		if createdAt != nil {
-			g.CreatedAt = *createdAt
-		}
-		if updatedAt != nil {
-			g.UpdatedAt = *updatedAt
-		}
-
-		groups = append(groups, &g)
+	var cgs []CachedGroup
+	if err := gdb.WithContext(ctx).
+		Where("our_jid = ?", ourJID).
+		Order("name ASC").
+		Find(&cgs).Error; err != nil {
+		return nil, err
 	}
 
-	// Load participants for each group
-	for _, g := range groups {
-		pRows, errP := db.Query(ctx, `
-			SELECT user_jid, lid, is_admin, is_super_admin, display_name
-			FROM cached_group_participants
-			WHERE our_jid = $1 AND group_jid = $2
-		`, ourJID, g.JID.String())
-		if errP != nil {
-			continue
+	var allParticipants []CachedGroupParticipant
+	_ = gdb.WithContext(ctx).
+		Where("our_jid = ?", ourJID).
+		Find(&allParticipants).Error
+
+	partMap := make(map[string][]GroupParticipantMetadata)
+	for _, p := range allParticipants {
+		uJID, _ := types.ParseJID(p.UserJID)
+		lJID, _ := types.ParseJID(p.LID)
+		partMap[p.GroupJID] = append(partMap[p.GroupJID], GroupParticipantMetadata{
+			JID:          uJID,
+			LID:          lJID,
+			IsAdmin:      p.IsAdmin,
+			IsSuperAdmin: p.IsSuperAdmin,
+			DisplayName:  p.DisplayName,
+		})
+	}
+
+	var groups []*GroupMetadata
+	for _, cg := range cgs {
+		gJID, _ := types.ParseJID(cg.JID)
+		topicBy, _ := types.ParseJID(cg.TopicSetBy)
+		ownerJID, _ := types.ParseJID(cg.OwnerJID)
+		parentJID, _ := types.ParseJID(cg.ParentJID)
+		linkedParentJID, _ := types.ParseJID(cg.LinkedParentJID)
+
+		parts := partMap[cg.JID]
+		pCount := cg.ParticipantCount
+		if len(parts) > 0 {
+			pCount = len(parts)
 		}
-		for pRows.Next() {
-			var p GroupParticipantMetadata
-			var userStr, lidStr string
-			if errS := pRows.Scan(&userStr, &lidStr, &p.IsAdmin, &p.IsSuperAdmin, &p.DisplayName); errS == nil {
-				p.JID, _ = types.ParseJID(userStr)
-				p.LID, _ = types.ParseJID(lidStr)
-				g.Participants = append(g.Participants, p)
-			}
-		}
-		pRows.Close()
-		g.ParticipantCount = len(g.Participants)
+
+		groups = append(groups, &GroupMetadata{
+			JID:                    gJID,
+			Name:                   cg.Name,
+			Topic:                  cg.Topic,
+			TopicID:                cg.TopicID,
+			TopicSetAt:             cg.TopicSetAt,
+			TopicSetBy:             topicBy,
+			OwnerJID:               ownerJID,
+			CreatedAt:              cg.CreatedAt,
+			IsLocked:               cg.IsLocked,
+			IsAnnounce:             cg.IsAnnounce,
+			IsEphemeral:            cg.IsEphemeral,
+			EphemeralDuration:      cg.EphemeralDuration,
+			MembershipApprovalMode: cg.MembershipApprovalMode,
+			IsIncognito:            cg.IsIncognito,
+			IsCommunity:            cg.IsCommunity,
+			ParentJID:              parentJID,
+			LinkedParentJID:        linkedParentJID,
+			IsDefaultSubgroup:      cg.IsDefaultSubgroup,
+			Participants:           parts,
+			ParticipantCount:       pCount,
+			AdminCount:             cg.AdminCount,
+			UpdatedAt:              cg.UpdatedAt,
+		})
 	}
 
 	return groups, nil
 }
 
-// LoadAllCachedNewsletters loads all cached newsletters from the database.
+// LoadAllCachedNewsletters loads all cached newsletters from the database via GORM.
 func LoadAllCachedNewsletters(ctx context.Context, db *dbutil.Database, ourJID string) ([]*NewsletterMetadata, error) {
 	if db == nil {
 		return nil, nil
 	}
-
-	rows, err := db.Query(ctx, `
-		SELECT jid, name, description, invite_code, subscribers_count,
-		       verification, role, mute_state, picture_url, created_at, updated_at
-		FROM cached_newsletters
-		WHERE our_jid = $1
-		ORDER BY name ASC
-	`, ourJID)
+	gdb, err := GetORMFromDB(ctx, db)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+
+	var cns []CachedNewsletter
+	if err := gdb.WithContext(ctx).
+		Where("our_jid = ?", ourJID).
+		Order("name ASC").
+		Find(&cns).Error; err != nil {
+		return nil, err
+	}
 
 	var newsletters []*NewsletterMetadata
-	for rows.Next() {
-		var n NewsletterMetadata
-		var jidStr string
-		var createdAt, updatedAt *time.Time
-
-		err := rows.Scan(
-			&jidStr, &n.Name, &n.Description, &n.InviteCode, &n.SubscribersCount,
-			&n.Verification, &n.Role, &n.MuteState, &n.PictureURL, &createdAt, &updatedAt,
-		)
-		if err != nil {
-			continue
-		}
-
-		n.JID, _ = types.ParseJID(jidStr)
-		if createdAt != nil {
-			n.CreatedAt = *createdAt
-		}
-		if updatedAt != nil {
-			n.UpdatedAt = *updatedAt
-		}
-
-		newsletters = append(newsletters, &n)
+	for _, cn := range cns {
+		nJID, _ := types.ParseJID(cn.JID)
+		newsletters = append(newsletters, &NewsletterMetadata{
+			JID:              nJID,
+			Name:             cn.Name,
+			Description:      cn.Description,
+			InviteCode:       cn.InviteCode,
+			SubscribersCount: cn.SubscribersCount,
+			Verification:     cn.Verification,
+			Role:             cn.Role,
+			MuteState:        cn.MuteState,
+			PictureURL:       cn.PictureURL,
+			CreatedAt:        cn.CreatedAt,
+			UpdatedAt:        cn.UpdatedAt,
+		})
 	}
 
 	return newsletters, nil

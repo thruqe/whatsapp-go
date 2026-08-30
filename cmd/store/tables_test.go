@@ -9,7 +9,6 @@ import (
 	clistore "whatsrook/cmd/store"
 
 	"go.mau.fi/util/dbutil"
-	_ "modernc.org/sqlite"
 )
 
 func openTestDB(t *testing.T) *dbutil.Database {
@@ -268,5 +267,114 @@ func TestGroupStatsAndLeaderboardOperations(t *testing.T) {
 	}
 	if totalXP != 75 || tttWins != 2 {
 		t.Errorf("expected xp=75 and ttt_wins=2, got xp=%d, ttt_wins=%d", totalXP, tttWins)
+	}
+}
+
+func TestGORM_Settings_Filters_BGM_Stickers_XP(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	if err := clistore.RunMigrations(ctx, db); err != nil {
+		t.Fatalf("failed running migrations: %v", err)
+	}
+
+	gdb, err := clistore.GetORMFromDB(ctx, db)
+	if err != nil {
+		t.Fatalf("failed getting GORM instance: %v", err)
+	}
+	if gdb == nil {
+		t.Fatalf("expected non-nil GORM db")
+	}
+
+	// 1. Settings via GORM
+	setting := clistore.BotSetting{
+		OurJID: "sess1@s.whatsapp.net",
+		Key:    "prefix",
+		Value:  "!",
+	}
+	if err := gdb.Create(&setting).Error; err != nil {
+		t.Fatalf("failed creating BotSetting via GORM: %v", err)
+	}
+
+	var fetched clistore.BotSetting
+	if err := gdb.Where("our_jid = ? AND key = ?", "sess1@s.whatsapp.net", "prefix").First(&fetched).Error; err != nil {
+		t.Fatalf("failed fetching BotSetting via GORM: %v", err)
+	}
+	if fetched.Value != "!" {
+		t.Errorf("expected prefix '!', got %q", fetched.Value)
+	}
+
+	// 2. Filters via GORM
+	filter := clistore.BotFilter{
+		OurJID:       "sess1@s.whatsapp.net",
+		TriggerWord:  "ping",
+		MessageProto: "pong",
+	}
+	if err := gdb.Create(&filter).Error; err != nil {
+		t.Fatalf("failed creating BotFilter via GORM: %v", err)
+	}
+
+	var filterFetched clistore.BotFilter
+	if err := gdb.Where("our_jid = ? AND trigger_word = ?", "sess1@s.whatsapp.net", "ping").First(&filterFetched).Error; err != nil {
+		t.Fatalf("failed fetching BotFilter: %v", err)
+	}
+	if filterFetched.MessageProto != "pong" {
+		t.Errorf("expected filter response 'pong', got %q", filterFetched.MessageProto)
+	}
+
+	// 3. BGMs via GORM
+	bgm := clistore.BotBGM{
+		OurJID:       "sess1@s.whatsapp.net",
+		TriggerWord:  "theme",
+		MessageProto: "audio_data",
+	}
+	if err := gdb.Create(&bgm).Error; err != nil {
+		t.Fatalf("failed creating BotBGM via GORM: %v", err)
+	}
+
+	var bgmFetched clistore.BotBGM
+	if err := gdb.Where("our_jid = ? AND trigger_word = ?", "sess1@s.whatsapp.net", "theme").First(&bgmFetched).Error; err != nil {
+		t.Fatalf("failed fetching BotBGM: %v", err)
+	}
+	if bgmFetched.MessageProto != "audio_data" {
+		t.Errorf("expected bgm response 'audio_data', got %q", bgmFetched.MessageProto)
+	}
+
+	// 4. Sticker Commands via GORM
+	stk := clistore.BotStickerCmd{
+		OurJID:        "sess1@s.whatsapp.net",
+		StickerSHA256: "aabbccdd11223344",
+		CommandName:   "menu",
+	}
+	if err := gdb.Create(&stk).Error; err != nil {
+		t.Fatalf("failed creating BotStickerCmd: %v", err)
+	}
+
+	var stkFetched clistore.BotStickerCmd
+	if err := gdb.Where("our_jid = ? AND sticker_sha256 = ?", "sess1@s.whatsapp.net", "aabbccdd11223344").First(&stkFetched).Error; err != nil {
+		t.Fatalf("failed fetching BotStickerCmd: %v", err)
+	}
+	if stkFetched.CommandName != "menu" {
+		t.Errorf("expected command 'menu', got %q", stkFetched.CommandName)
+	}
+
+	// 5. XP & Leaderboard via GORM
+	userXP := clistore.BotUserXP{
+		OurJID:   "sess1@s.whatsapp.net",
+		UserJID:  "user_one@s.whatsapp.net",
+		XP:       150,
+		Level:    2,
+		Messages: 20,
+	}
+	if err := gdb.Create(&userXP).Error; err != nil {
+		t.Fatalf("failed creating BotUserXP: %v", err)
+	}
+
+	var xpFetched clistore.BotUserXP
+	if err := gdb.Where("our_jid = ? AND user_jid = ?", "sess1@s.whatsapp.net", "user_one@s.whatsapp.net").First(&xpFetched).Error; err != nil {
+		t.Fatalf("failed fetching BotUserXP: %v", err)
+	}
+	if xpFetched.XP != 150 || xpFetched.Level != 2 {
+		t.Errorf("expected XP 150 and level 2, got %d, %d", xpFetched.XP, xpFetched.Level)
 	}
 }

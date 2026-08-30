@@ -170,6 +170,11 @@ func migration1InitialSchema(ctx context.Context, db *dbutil.Database) error {
 			our_jid    TEXT NOT NULL DEFAULT '',
 			user_jid   TEXT NOT NULL,
 			xp         INTEGER NOT NULL DEFAULT 0,
+			level      INTEGER NOT NULL DEFAULT 1,
+			messages   INTEGER NOT NULL DEFAULT 0,
+			stickers   INTEGER NOT NULL DEFAULT 0,
+			commands   INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL DEFAULT 0,
 			ttt_wins   INTEGER NOT NULL DEFAULT 0,
 			ttt_losses INTEGER NOT NULL DEFAULT 0,
 			ttt_draws  INTEGER NOT NULL DEFAULT 0,
@@ -309,7 +314,7 @@ func migration5RepairCallMediaDefaults(ctx context.Context, db *dbutil.Database)
 func migration6CachedGroupsAndChannels(ctx context.Context, db *dbutil.Database) error {
 	schemas := []string{
 		`CREATE TABLE IF NOT EXISTS cached_groups (
-			our_jid                   TEXT DEFAULT '',
+			our_jid                   TEXT NOT NULL DEFAULT '',
 			jid                       TEXT NOT NULL,
 			name                      TEXT NOT NULL DEFAULT '',
 			topic                     TEXT NOT NULL DEFAULT '',
@@ -333,11 +338,12 @@ func migration6CachedGroupsAndChannels(ctx context.Context, db *dbutil.Database)
 			updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (our_jid, jid)
 		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS cached_groups_our_jid_jid_idx ON cached_groups (our_jid, jid)`,
 		`CREATE INDEX IF NOT EXISTS cached_groups_parent_idx ON cached_groups (our_jid, parent_jid)`,
 		`CREATE INDEX IF NOT EXISTS cached_groups_community_idx ON cached_groups (our_jid, is_community)`,
 
 		`CREATE TABLE IF NOT EXISTS cached_group_participants (
-			our_jid        TEXT DEFAULT '',
+			our_jid        TEXT NOT NULL DEFAULT '',
 			group_jid      TEXT NOT NULL,
 			user_jid       TEXT NOT NULL,
 			lid            TEXT DEFAULT '',
@@ -346,10 +352,11 @@ func migration6CachedGroupsAndChannels(ctx context.Context, db *dbutil.Database)
 			display_name   TEXT DEFAULT '',
 			PRIMARY KEY (our_jid, group_jid, user_jid)
 		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS cached_group_participants_pk_idx ON cached_group_participants (our_jid, group_jid, user_jid)`,
 		`CREATE INDEX IF NOT EXISTS cached_participants_user_idx ON cached_group_participants (our_jid, user_jid)`,
 
 		`CREATE TABLE IF NOT EXISTS cached_newsletters (
-			our_jid           TEXT DEFAULT '',
+			our_jid           TEXT NOT NULL DEFAULT '',
 			jid               TEXT NOT NULL,
 			name              TEXT NOT NULL DEFAULT '',
 			description       TEXT NOT NULL DEFAULT '',
@@ -363,6 +370,7 @@ func migration6CachedGroupsAndChannels(ctx context.Context, db *dbutil.Database)
 			updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (our_jid, jid)
 		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS cached_newsletters_our_jid_jid_idx ON cached_newsletters (our_jid, jid)`,
 	}
 
 	for _, s := range schemas {
@@ -391,6 +399,11 @@ func migration7SessionIsolation(ctx context.Context, db *dbutil.Database) error 
 
 	// 4. Add our_jid to bot_user_xp and ensure all columns exist
 	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "our_jid", "TEXT NOT NULL DEFAULT ''")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "level", "INTEGER DEFAULT 1")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "messages", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "stickers", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "commands", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "updated_at", "INTEGER DEFAULT 0")
 	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "ttt_wins", "INTEGER DEFAULT 0")
 	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "ttt_losses", "INTEGER DEFAULT 0")
 	_ = EnsureCustomColumnExists(ctx, db, "bot_user_xp", "ttt_draws", "INTEGER DEFAULT 0")
@@ -432,6 +445,11 @@ func migration7SessionIsolation(ctx context.Context, db *dbutil.Database) error 
 		_, _ = db.Exec(ctx, "ALTER TABLE group_stats ADD PRIMARY KEY (our_jid, group_jid, user_jid, date_str)")
 
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp ADD COLUMN IF NOT EXISTS our_jid TEXT NOT NULL DEFAULT ''")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp ADD COLUMN IF NOT EXISTS level INTEGER NOT NULL DEFAULT 1")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp ADD COLUMN IF NOT EXISTS messages BIGINT NOT NULL DEFAULT 0")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp ADD COLUMN IF NOT EXISTS stickers BIGINT NOT NULL DEFAULT 0")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp ADD COLUMN IF NOT EXISTS commands BIGINT NOT NULL DEFAULT 0")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp ADD COLUMN IF NOT EXISTS updated_at BIGINT NOT NULL DEFAULT 0")
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp DROP CONSTRAINT IF EXISTS bot_user_xp_pkey")
 		_, _ = db.Exec(ctx, "DELETE FROM bot_user_xp a USING bot_user_xp b WHERE a.ctid < b.ctid AND a.our_jid = b.our_jid AND a.user_jid = b.user_jid")
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp ADD PRIMARY KEY (our_jid, user_jid)")
@@ -472,7 +490,7 @@ func migration7SessionIsolation(ctx context.Context, db *dbutil.Database) error 
 			jid        TEXT NOT NULL,
 			kind       TEXT NOT NULL DEFAULT 'audio',
 			file_path  TEXT NOT NULL,
-			updated_at BIGINT DEFAULT 0,
+			updated_at INTEGER DEFAULT 0,
 			PRIMARY KEY (our_jid, jid, kind)
 		)`
 		_ = MigrateSQLiteTableToCompositePK(ctx, db, "call_media_config", callMediaSchema, "our_jid, jid, kind, file_path, updated_at", "COALESCE(our_jid, ''), jid, kind, file_path, COALESCE(updated_at, 0)")
@@ -491,6 +509,11 @@ func migration7SessionIsolation(ctx context.Context, db *dbutil.Database) error 
 			our_jid    TEXT NOT NULL DEFAULT '',
 			user_jid   TEXT NOT NULL,
 			xp         INTEGER NOT NULL DEFAULT 0,
+			level      INTEGER NOT NULL DEFAULT 1,
+			messages   INTEGER NOT NULL DEFAULT 0,
+			stickers   INTEGER NOT NULL DEFAULT 0,
+			commands   INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL DEFAULT 0,
 			ttt_wins   INTEGER NOT NULL DEFAULT 0,
 			ttt_losses INTEGER NOT NULL DEFAULT 0,
 			ttt_draws  INTEGER NOT NULL DEFAULT 0,
@@ -499,7 +522,7 @@ func migration7SessionIsolation(ctx context.Context, db *dbutil.Database) error 
 			wcg_rating INTEGER NOT NULL DEFAULT 1000,
 			PRIMARY KEY (our_jid, user_jid)
 		)`
-		_ = MigrateSQLiteTableToCompositePK(ctx, db, "bot_user_xp", botUserXPSchema, "our_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws, wcg_wins, wcg_games, wcg_rating", "COALESCE(our_jid, ''), user_jid, COALESCE(xp, 0), COALESCE(ttt_wins, 0), COALESCE(ttt_losses, 0), COALESCE(ttt_draws, 0), COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000)")
+		_ = MigrateSQLiteTableToCompositePK(ctx, db, "bot_user_xp", botUserXPSchema, "our_jid, user_jid, xp, level, messages, stickers, commands, updated_at, ttt_wins, ttt_losses, ttt_draws, wcg_wins, wcg_games, wcg_rating", "COALESCE(our_jid, ''), user_jid, COALESCE(xp, 0), COALESCE(level, 1), COALESCE(messages, 0), COALESCE(stickers, 0), COALESCE(commands, 0), COALESCE(updated_at, 0), COALESCE(ttt_wins, 0), COALESCE(ttt_losses, 0), COALESCE(ttt_draws, 0), COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000)")
 
 		botGroupUserXPSchema := `CREATE TABLE IF NOT EXISTS bot_group_user_xp (
 			our_jid    TEXT NOT NULL DEFAULT '',
