@@ -70,6 +70,18 @@ func TestCleanRestartArgs(t *testing.T) {
 			expected: []string{"whatsrook"},
 		},
 		{
+			input:    []string{"whatsrook", "update", "stable"},
+			expected: []string{"whatsrook"},
+		},
+		{
+			input:    []string{"whatsrook", "update", "beta"},
+			expected: []string{"whatsrook"},
+		},
+		{
+			input:    []string{"whatsrook", "--update=beta", "--session", "12345"},
+			expected: []string{"whatsrook", "--session", "12345"},
+		},
+		{
 			input:    []string{"whatsrook", "--update", "--session", "12345"},
 			expected: []string{"whatsrook", "--session", "12345"},
 		},
@@ -172,5 +184,42 @@ func TestBetaChannelComparison(t *testing.T) {
 	sameSha := "sha256:991c28f8153c04a9a09fe4250febe21885a89c9d989b807d18ebdd083373b65e"
 	if localSha != sameSha {
 		t.Errorf("expected identical SHAs to match")
+	}
+}
+
+func TestChannelStorage(t *testing.T) {
+	ctx := context.Background()
+
+	// Initial default should be valid (stable or beta)
+	ch := updater.GetStoredChannel()
+	if ch != "stable" && ch != "beta" {
+		t.Errorf("unexpected default stored channel: %q", ch)
+	}
+
+	// Set channel to beta
+	if err := updater.SetStoredChannel("beta"); err != nil {
+		t.Fatalf("failed to set stored channel: %v", err)
+	}
+	if got := updater.GetStoredChannel(); got != "beta" {
+		t.Errorf("GetStoredChannel() = %q, want beta", got)
+	}
+	if got := updater.GetChannel(ctx, nil); got != "beta" {
+		t.Errorf("GetChannel(nil) = %q, want beta", got)
+	}
+
+	// Set channel to stable
+	if err := updater.SetChannel(ctx, nil, "stable"); err != nil {
+		t.Fatalf("failed to set channel: %v", err)
+	}
+	if got := updater.GetStoredChannel(); got != "stable" {
+		t.Errorf("GetStoredChannel() = %q, want stable", got)
+	}
+	if got := updater.GetChannel(ctx, nil); got != "stable" {
+		t.Errorf("GetChannel(nil) = %q, want stable", got)
+	}
+
+	// Invalid channel rejection
+	if err := updater.SetStoredChannel("invalid"); err == nil {
+		t.Errorf("expected error for invalid channel, got nil")
 	}
 }

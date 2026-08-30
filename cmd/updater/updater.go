@@ -232,25 +232,29 @@ func SetStoredChannel(channel string) error {
 }
 
 // GetChannel gets configured update channel ("stable" or "beta").
+// It checks the SQLStore settings table first, falling back to the local file channel preference.
 func GetChannel(ctx context.Context, store *sqlstore.SQLStore) string {
-	if store == nil {
-		return "stable"
+	if store != nil {
+		ch, err := clistore.GetSetting(ctx, store, ChannelKey)
+		if err == nil && ch != "" {
+			chLower := strings.ToLower(strings.TrimSpace(ch))
+			if chLower == "stable" || chLower == "beta" {
+				return chLower
+			}
+		}
 	}
-	ch, err := clistore.GetSetting(ctx, store, ChannelKey)
-	if err != nil || ch == "" {
-		return "stable"
-	}
-	return strings.ToLower(ch)
+	return GetStoredChannel()
 }
 
-// SetChannel sets update channel ("stable" or "beta").
+// SetChannel sets update channel ("stable" or "beta") across both SQLStore and local file preference.
 func SetChannel(ctx context.Context, store *sqlstore.SQLStore, channel string) error {
-	if store == nil {
-		return fmt.Errorf("settings store unavailable")
-	}
-	channel = strings.ToLower(channel)
+	channel = strings.TrimSpace(strings.ToLower(channel))
 	if channel != "stable" && channel != "beta" {
-		return fmt.Errorf("invalid channel %q", channel)
+		return fmt.Errorf("invalid channel %q: must be \"stable\" or \"beta\"", channel)
+	}
+	_ = SetStoredChannel(channel)
+	if store == nil {
+		return nil
 	}
 	return clistore.PutSetting(ctx, store, ChannelKey, channel)
 }
@@ -628,6 +632,7 @@ func PerformUpdate(isBeta bool) (*UpdateResult, error) {
 	if isBeta {
 		ch = "beta"
 	}
+	_ = SetStoredChannel(ch)
 	return New(Options{Channel: ch}).Upgrade(context.Background(), isBeta)
 }
 
@@ -942,10 +947,11 @@ func CleanRestartArgs(args []string) []string {
 			clean = append(clean, a)
 			continue
 		}
-		if a == "update" || a == "upgrade" || a == "check" || a == "now" || a == "apply" {
+		low := strings.ToLower(a)
+		if low == "update" || low == "upgrade" || low == "check" || low == "now" || low == "apply" || low == "stable" || low == "beta" {
 			continue
 		}
-		if a == "--update" || a == "-u" {
+		if low == "--update" || low == "-u" || strings.HasPrefix(low, "--update=") || strings.HasPrefix(low, "-u=") {
 			continue
 		}
 		clean = append(clean, a)
@@ -962,12 +968,21 @@ func RestartProcess(customArgs ...string) error {
 		argv = CleanRestartArgs(os.Args)
 	}
 
-	execPath, err := exec.LookPath(argv[0])
+	execPath, err := os.Executable()
 	if err != nil {
-		execPath, err = os.Executable()
-		if err != nil {
-			return err
+		if len(argv) > 0 {
+			execPath, err = exec.LookPath(argv[0])
+			if err != nil {
+				execPath = argv[0]
+			}
+		} else {
+			execPath = "whatsrook"
 		}
+	}
+	if len(argv) > 0 {
+		argv[0] = execPath
+	} else {
+		argv = []string{execPath}
 	}
 
 	if runtime.GOOS == "windows" {
