@@ -187,26 +187,37 @@ func SetInstalledBetaVersion(v string) error {
 }
 
 // FormatVersionDisplay formats versions cleanly without raw hash prefix collisions.
-// E.g. "sha256:d8860761..." -> "alpha-d886076", "21.8.26" -> "v21.8.26".
+// E.g. "sha256:d8860761..." -> "beta-d8860", "sha:d8860761..." -> "beta-d8860", "21.8.26" -> "v21.8.26".
 func FormatVersionDisplay(v string) string {
 	v = strings.TrimSpace(v)
 	if v == "" {
 		return "unknown"
 	}
-	if after, ok := strings.CutPrefix(v, "sha256:"); ok {
-		hash := after
-		if len(hash) > 7 {
-			hash = hash[:7]
+	for _, prefix := range []string{"sha256:", "sha:", "beta-", "beta:", "alpha-", "alpha:"} {
+		if after, ok := strings.CutPrefix(v, prefix); ok {
+			after = strings.TrimSpace(after)
+			if len(after) > 5 {
+				after = after[:5]
+			}
+			return "beta-" + after
 		}
-		return "alpha-" + hash
-	}
-	if strings.HasPrefix(v, "alpha-") || strings.HasPrefix(v, "beta-") {
-		return v
 	}
 	if strings.HasPrefix(v, "v") {
 		return v
 	}
+	if len(v) >= 12 && isHex(v) {
+		return "beta-" + v[:5]
+	}
 	return "v" + v
+}
+
+func isHex(s string) bool {
+	for _, r := range s {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') && (r < 'A' || r > 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 // GetStoredChannel returns the persisted update channel ("stable" or "beta"),
@@ -309,9 +320,14 @@ func (v Version) Compare(other Version) int {
 	return 0
 }
 
-// GetAppVersion attempts to read version from local version.txt, falling back to whatsrook.GetVersion().
+// GetAppVersion attempts to read version from local version.txt or installed beta, falling back to whatsrook.GetVersion().
 func GetAppVersion() string {
-	return ReadEffectiveLocalVersion(DefaultVersionFile)
+	if GetStoredChannel() == "beta" {
+		if betaVer := GetInstalledBetaVersion(); betaVer != "" {
+			return FormatVersionDisplay(betaVer)
+		}
+	}
+	return FormatVersionDisplay(ReadEffectiveLocalVersion(DefaultVersionFile))
 }
 
 // ReadEffectiveLocalVersion checks cwd, executable directory, and fallback embedded version.
