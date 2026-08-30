@@ -223,3 +223,26 @@ func TestChannelStorage(t *testing.T) {
 		t.Errorf("expected error for invalid channel, got nil")
 	}
 }
+
+func TestFormatVersionDisplay(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"sha256:d886076136d80112c332c", "beta-d8860"},
+		{"sha:d886076136d80112c332c", "beta-d8860"},
+		{"beta-abcdef123456", "beta-abcde"},
+		{"beta:abcdef123456", "beta-abcde"},
+		{"alpha-12345678", "beta-12345"},
+		{"v4.2.0", "v4.2.0"},
+		{"4.2.0", "v4.2.0"},
+		{"", "unknown"},
+	}
+
+	for _, tc := range tests {
+		got := updater.FormatVersionDisplay(tc.input)
+		if got != tc.expected {
+			t.Errorf("FormatVersionDisplay(%q) = %q, want %q", tc.input, got, tc.expected)
+		}
+	}
+}
