@@ -47,6 +47,7 @@ const (
 	EventIncomingCall    EventType = "incoming_call"
 	EventAck             EventType = "ack"
 	EventStats           EventType = "stats"
+	EventLog             EventType = "log"
 )
 
 // ControlMessage encapsulates an inbound client directive containing an action identifier, correlation ID, and payload.

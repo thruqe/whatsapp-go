@@ -92,6 +92,14 @@ func (b *Bot) Start(ctx context.Context) error {
 	b.hub = hub
 	b.mu.Unlock()
 
+	unsubLog := Logger.AddHook(func(entry Logger.LogEntry) {
+		hub.Broadcast(EventMessage{
+			Kind:    EventLog,
+			Payload: entry,
+		})
+	})
+	defer unsubLog()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", hub.ServeWS(false))
 

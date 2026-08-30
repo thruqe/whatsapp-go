@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	utils "whatsrook/src"
 )
 
 const DefaultWhyAPIURL = "https://why.com/api/ultimate-search"
@@ -67,9 +69,7 @@ func QueryWhy(ctx context.Context, query string) (*WhyResponse, error) {
 	req.Header.Set("Referer", "https://why.com/")
 	req.Header.Set("Accept", "*/*")
 
-	client := &http.Client{
-		Timeout: 35 * time.Second,
-	}
+	client := utils.NewHTTPClient(35 * time.Second)
 
 	resp, err := client.Do(req)
 	if err != nil {

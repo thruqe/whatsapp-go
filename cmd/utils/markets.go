@@ -2,13 +2,11 @@ package cliutils
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"strings"
-	"time"
+
+	utils "whatsrook/src"
 )
 
 type FFInstrumentResponse struct {
@@ -141,35 +139,18 @@ func NormalizeMarketPair(queryArg string) string {
 }
 
 func FetchForexFactoryInstrumentList(ctx context.Context) ([]FFListItem, error) {
-	client := &http.Client{Timeout: 8 * time.Second}
 	var allItems []FFListItem
 
 	apiURL := "https://mds-api.forexfactory.com/instrument-list"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err == nil {
-		req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
-		if resp, err := client.Do(req); err == nil && resp.StatusCode == http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			var res FFListResponse
-			if err := json.Unmarshal(body, &res); err == nil {
-				allItems = append(allItems, res.Data...)
-			}
-		}
+	var res FFListResponse
+	if err := utils.FetchJSON(ctx, apiURL, &res); err == nil {
+		allItems = append(allItems, res.Data...)
 	}
 
 	synthURL := "https://mds-api.forexfactory.com/synthetic-instrument-list"
-	synthReq, err := http.NewRequestWithContext(ctx, http.MethodGet, synthURL, nil)
-	if err == nil {
-		synthReq.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
-		if resp, err := client.Do(synthReq); err == nil && resp.StatusCode == http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			var res FFListResponse
-			if err := json.Unmarshal(body, &res); err == nil {
-				allItems = append(allItems, res.Data...)
-			}
-		}
+	var synthRes FFListResponse
+	if err := utils.FetchJSON(ctx, synthURL, &synthRes); err == nil {
+		allItems = append(allItems, synthRes.Data...)
 	}
 
 	return allItems, nil
@@ -177,102 +158,30 @@ func FetchForexFactoryInstrumentList(ctx context.Context) ([]FFListItem, error) 
 
 func FetchMarketBars(ctx context.Context, pair string) (*FFBarsResponse, error) {
 	apiURL := fmt.Sprintf("https://mds-api.forexfactory.com/bars?instrument=%s&interval=M5&per_page=1", url.QueryEscape(pair))
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
-
-	client := &http.Client{Timeout: 8 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
 	var res FFBarsResponse
-	if err := json.Unmarshal(body, &res); err != nil {
+	if err := utils.FetchJSON(ctx, apiURL, &res); err != nil {
 		return nil, err
 	}
-
 	return &res, nil
 }
 
 func FetchSingleMarket(ctx context.Context, pair string) (*FFInstrumentData, error) {
 	apiURL := fmt.Sprintf("https://mds-api.forexfactory.com/instruments?instruments=%s", url.QueryEscape(pair))
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
-
-	client := &http.Client{Timeout: 8 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
 	var res FFInstrumentResponse
-	if err := json.Unmarshal(body, &res); err != nil {
+	if err := utils.FetchJSON(ctx, apiURL, &res); err != nil {
 		return nil, err
 	}
 	if len(res.Data) == 0 {
 		return nil, fmt.Errorf("no data returned")
 	}
-
 	return &res.Data[0], nil
 }
 
 func FetchAllMarkets(ctx context.Context, pairs []string) (*FFInstrumentResponse, error) {
 	apiURL := fmt.Sprintf("https://mds-api.forexfactory.com/instruments?instruments=%s", url.QueryEscape(strings.Join(pairs, ",")))
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
 	var res FFInstrumentResponse
-	if err := json.Unmarshal(body, &res); err != nil {
+	if err := utils.FetchJSON(ctx, apiURL, &res); err != nil {
 		return nil, err
 	}
-
 	return &res, nil
 }

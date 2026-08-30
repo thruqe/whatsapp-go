@@ -261,6 +261,10 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 		err = ErrClientIsNil
 		return
 	}
+	if !cli.IsConnected() {
+		err = ErrNotConnected
+		return
+	}
 	if to.Device > 0 && !req.Peer {
 		err = ErrRecipientADJID
 		return

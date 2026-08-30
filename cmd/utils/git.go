@@ -18,6 +18,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	utils "whatsrook/src"
 )
 
 // GitRepoTarget encapsulates target repository information.
@@ -222,9 +224,7 @@ func ParseGitTarget(raw string) (*GitRepoTarget, error) {
 }
 
 func newGitHTTPClient() *http.Client {
-	return &http.Client{
-		Timeout: 90 * time.Second,
-	}
+	return utils.NewHTTPClient(90 * time.Second)
 }
 
 func setGitHeaders(req *http.Request, token string) {
@@ -811,7 +811,7 @@ func DownloadRepoArchive(ctx context.Context, token string, target *GitRepoTarge
 		archiveURL := fmt.Sprintf("https://gitlab.com/%s/%s/-/archive/%s/%s-%s.%s", target.Owner, target.Repo, branch, target.Repo, branch, ext)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, archiveURL, nil)
 		if err == nil {
-			client := &http.Client{Timeout: 120 * time.Second}
+			client := utils.NewHTTPClient(120 * time.Second)
 			resp, err := client.Do(req)
 			if err == nil && resp.StatusCode == http.StatusOK {
 				defer resp.Body.Close()

@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	utils "whatsrook/src"
 )
 
-var funHTTPClient = &http.Client{Timeout: 4 * time.Second}
+var funHTTPClient = utils.NewHTTPClient(4 * time.Second)
 
 var fallbackFacts = []string{
 	"Honey never spoils; archaeologists have found 3,000-year-old edible honey in Egyptian tombs.",

@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"html"
-	"io"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	utils "whatsrook/src"
 )
 
 var (
@@ -141,29 +142,9 @@ func ParseAPNewsHTML(htmlContent string) []NewsArticle {
 
 func FetchAPNews(ctx context.Context, country string) ([]NewsArticle, error) {
 	hubURL := fmt.Sprintf("https://apnews.com/hub/%s", country)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, hubURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
+	bodyBytes, err := utils.FetchURLBytes(ctx, hubURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch news: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("not found")
-	} else if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http %d", resp.StatusCode)
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	articles := ParseAPNewsHTML(string(bodyBytes))
@@ -175,25 +156,11 @@ func FetchNewsImage(ctx context.Context, imageURL string) ([]byte, string, error
 		return nil, "", fmt.Errorf("empty image url")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
+	imgData, err := utils.FetchURLBytes(ctx, imageURL)
 	if err != nil {
 		return nil, "", err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("http %d", resp.StatusCode)
-	}
-
-	imgData, err := io.ReadAll(resp.Body)
-	if err != nil || len(imgData) == 0 {
+	if len(imgData) == 0 {
 		return nil, "", fmt.Errorf("empty image response")
 	}
 
@@ -372,28 +339,9 @@ func FetchAPNewsArticle(ctx context.Context, articleURL string) (*APNewsArticleD
 		return nil, fmt.Errorf("empty article url")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, articleURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create article request: %w", err)
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-
-	client := &http.Client{Timeout: 20 * time.Second}
-	resp, err := client.Do(req)
+	bodyBytes, err := utils.FetchURLBytes(ctx, articleURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch article: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("article not found")
-	} else if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http %d", resp.StatusCode)
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read article response: %w", err)
 	}
 
 	return ParseAPNewsArticle(string(bodyBytes), articleURL)
@@ -737,28 +685,10 @@ func isWABetaStopWord(w string) bool {
 
 // FetchWABetaLatest fetches the wabetainfo.com homepage, extracts the latest article URL, and parses the article.
 func FetchWABetaLatest(ctx context.Context) (*WABetaArticle, error) {
-	client := &http.Client{Timeout: 20 * time.Second}
-
 	// 1. Fetch homepage
-	reqHome, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://wabetainfo.com/", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create homepage request: %w", err)
-	}
-	reqHome.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-
-	respHome, err := client.Do(reqHome)
+	bodyHome, err := utils.FetchURLBytes(ctx, "https://wabetainfo.com/")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch wabetainfo.com homepage: %w", err)
-	}
-	defer respHome.Body.Close()
-
-	if respHome.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("homepage returned http %d", respHome.StatusCode)
-	}
-
-	bodyHome, err := io.ReadAll(respHome.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read homepage body: %w", err)
 	}
 
 	articleURL := ParseRecentWABetaLink(string(bodyHome))
@@ -767,25 +697,9 @@ func FetchWABetaLatest(ctx context.Context) (*WABetaArticle, error) {
 	}
 
 	// 2. Fetch article page
-	reqArt, err := http.NewRequestWithContext(ctx, http.MethodGet, articleURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create article request: %w", err)
-	}
-	reqArt.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-
-	respArt, err := client.Do(reqArt)
+	bodyArt, err := utils.FetchURLBytes(ctx, articleURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch article page: %w", err)
-	}
-	defer respArt.Body.Close()
-
-	if respArt.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("article page returned http %d", respArt.StatusCode)
-	}
-
-	bodyArt, err := io.ReadAll(respArt.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read article body: %w", err)
 	}
 
 	return ParseWABetaArticle(string(bodyArt), articleURL)
