@@ -3,10 +3,11 @@ package plugins
 import (
 	"context"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
-
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -52,6 +53,7 @@ func init() {
 
 	Register(&Command{
 		Name:        "menu",
+		Alias:       "help,list,panel",
 		Description: "Show all available commands grouped by category",
 		Category:    "info",
 		IsPublic:    true,
@@ -698,63 +700,110 @@ func handleMenu(ctx *Context) error {
 		}
 	}
 
-	tb := ctx.Text().
-		Header(toFancy(ctx.GetBotName())).
-		Field("User", toFancy(user)).
-		Field("OS", toFancy(platform)).
-		Field("Mem", toFancy(utils.FormatBytes(usedRAM))).
-		Field("Plugins", toFancy(strconv.Itoa(displayedCount))).
-		Field("Mode", toFancy(botMode)).
-		Field("Uptime", toFancy(uptime)).
-		Field("Version", toFancy(updater.GetAppVersion())).
-		Blank()
+	var matchedCat string
+	if len(args) > 0 {
+		sub := strings.ToLower(args[0])
+		for _, cat := range categoryOrder {
+			if strings.EqualFold(cat, sub) {
+				matchedCat = cat
+				break
+			}
+		}
+	}
+	if matchedCat != "" {
+		categoryOrder = []string{matchedCat}
+	}
+
+	introBuilder := ctx.Text().
+		Header(ctx.GetBotName()).
+		Field("User", user).
+		Field("OS", platform).
+		Field("Mem", utils.FormatBytes(usedRAM)).
+		Field("Plugins", strconv.Itoa(displayedCount)).
+		Field("Mode", botMode).
+		Field("Uptime", uptime).
+		Field("Version", updater.GetAppVersion())
+
+	tb := ctx.Text()
+	tb.Line("```\n" + introBuilder.Trimmed() + "\n```")
+	tb.Blank()
 
 	for _, cat := range categoryOrder {
 		cmds := categories[cat]
-		tb.Section(toFancy(strings.ToUpper(cat)))
+		sort.Slice(cmds, func(i, j int) bool {
+			return cmds[i].name < cmds[j].name
+		})
+		tb.Linef(" ╭─❏ %s ❏", cliutils.ToSmallCaps(cat))
 		for _, e := range cmds {
-			tb.Bullet(toFancy(e.name))
+			tb.Linef(" │ %s", cliutils.ToSmallCaps(e.name))
 		}
+		tb.Line(" ╰─────────────────")
 		tb.Blank()
 	}
 
 	menuText := tb.Trimmed()
 
 	authDir := GetSessionAuthDir(ctx.Client)
-	videoPath := filepath.Join(authDir, "custom_menu_thumbnail.mp4")
+	mediaPath := ""
 	if ok {
 		if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
-			videoPath = custom
+			if _, errStat := os.Stat(custom); errStat == nil {
+				mediaPath = custom
+			}
 		}
 	}
-	if _, err := os.Stat(videoPath); err != nil {
-		jpgPath := filepath.Join(authDir, "custom_menu_thumbnail.jpg")
-		if _, errJpg := os.Stat(jpgPath); errJpg == nil {
-			videoPath = jpgPath
-		} else {
-			videoPath = ""
+	if mediaPath == "" {
+		candidates := []string{
+			filepath.Join(authDir, "custom_menu_thumbnail.jpg"),
+			filepath.Join(authDir, "custom_menu_thumbnail.jpeg"),
+			filepath.Join(authDir, "custom_menu_thumbnail.png"),
+			filepath.Join(authDir, "custom_menu_thumbnail.webp"),
+			filepath.Join(authDir, "custom_menu_thumbnail.mp4"),
+		}
+		for _, c := range candidates {
+			if _, err := os.Stat(c); err == nil {
+				mediaPath = c
+				break
+			}
 		}
 	}
 
-	if videoPath != "" {
-		if videoData, err := os.ReadFile(videoPath); err == nil && len(videoData) > 0 {
-			mType := "video/mp4"
-			if strings.HasSuffix(videoPath, ".jpg") || strings.HasSuffix(videoPath, ".jpeg") {
-				return ctx.ReplyWithImage(videoData, "image/jpeg", menuText)
+	if mediaPath != "" {
+		if mediaData, err := os.ReadFile(mediaPath); err == nil && len(mediaData) > 0 {
+			detectedMime := http.DetectContentType(mediaData)
+			ext := strings.ToLower(filepath.Ext(mediaPath))
+
+			isImage := strings.HasPrefix(detectedMime, "image/") ||
+				ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp"
+
+			if isImage {
+				mimeType := detectedMime
+				if !strings.HasPrefix(mimeType, "image/") {
+					switch ext {
+					case ".png":
+						mimeType = "image/png"
+					case ".webp":
+						mimeType = "image/webp"
+					default:
+						mimeType = "image/jpeg"
+					}
+				}
+				if errSend := ctx.ReplyWithImage(mediaData, mimeType, menuText); errSend == nil {
+					return nil
+				}
+			} else {
+				mimeType := detectedMime
+				if !strings.HasPrefix(mimeType, "video/") {
+					mimeType = "video/mp4"
+				}
+				if errSend := ctx.ReplyWithVideoGif(mediaData, mimeType, menuText); errSend == nil {
+					return nil
+				}
 			}
-			errSend := ctx.ReplyWithVideoGif(videoData, mType, menuText)
-			if errSend != nil {
-				return sendText(ctx, menuText)
-			}
-			return nil
 		}
 	}
 
 	return sendText(ctx, menuText)
-}
-
-func toFancy(s string) string {
-	return cliutils.ConvertFontStyle(s)
 }
 
 func handlePing(ctx *Context) error {

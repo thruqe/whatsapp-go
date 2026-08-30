@@ -15,6 +15,11 @@ func FormatTextResponseRaw(text string) string {
 	return ConvertFontStyle(text)
 }
 
+// ToSmallCaps converts a string to Unicode small-caps formatting.
+func ToSmallCaps(s string) string {
+	return convertSegment(s, "small-caps")
+}
+
 var (
 	currentStyle = "normal"
 	mu           sync.RWMutex
