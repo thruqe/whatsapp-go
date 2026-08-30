@@ -382,23 +382,13 @@ func handleAI(ctx *Context) error {
 	if err != nil {
 		Logger.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
 		if strings.Contains(err.Error(), "488") {
-			errMsg := "Meta AI session initialization required.\n\nPlease make sure you have manually started a direct 1-on-1 chat/conversation with Meta AI on WhatsApp first before WhatsRook can interact with it."
+			errMsg := "This WA Account cannot use MetaAI"
 			if placeholderMsgID != "" {
 				_, _ = ctx.Edit(placeholderMsgID, errMsg)
 			} else {
 				_ = ctx.Reply(errMsg)
 			}
-
-			metaName := "Meta AI"
-			metaVcard := Sprintf("BEGIN:VCARD\nVERSION:3.0\nN:AI;Meta;;;\nFN:%s\nTEL;type=CELL;waid=%s:+%s\nEND:VCARD", metaName, cliutils.MetaAiBotJID.User, cliutils.MetaAiBotJID.User)
-			contactMsg := &waE2E.Message{
-				ContactMessage: &waE2E.ContactMessage{
-					DisplayName: &metaName,
-					Vcard:       &metaVcard,
-				},
-			}
-			_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, contactMsg)
-			return err
+			return nil
 		}
 
 		if placeholderMsgID != "" {

@@ -364,12 +364,28 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 
 	Logger.Debug("executeMetaAiQuery: sending request", "chat", chatKey, "request", request)
 
+	ackCh := make(chan error, 1)
 	sendResp, err := client.SendMessage(ctx, MetaAiBotJID, &waE2E.Message{
 		Conversation: new(request),
+	}, whatsmeow.SendRequestExtra{
+		OnAck: func(_ whatsmeow.SendResponse, ackErr error) {
+			ackCh <- ackErr
+		},
 	})
 	if err != nil {
 		Logger.Error("executeMetaAiQuery: failed to send request", "chat", chatKey, "err", err)
 		return MetaAiResult{}, fmt.Errorf("failed to send request to meta ai: %w", err)
+	}
+	if client.AsyncMessageAck {
+		select {
+		case ackErr := <-ackCh:
+			if ackErr != nil {
+				Logger.Error("executeMetaAiQuery: server rejected request", "chat", chatKey, "err", ackErr)
+				return MetaAiResult{}, fmt.Errorf("failed to send request to meta ai: %w", ackErr)
+			}
+		case <-ctx.Done():
+			return MetaAiResult{}, ctx.Err()
+		}
 	}
 	sentMsgID := sendResp.ID
 
