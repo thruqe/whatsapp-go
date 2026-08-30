@@ -148,7 +148,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 		}
 	}
 
-	Logger.Info("GroupManager: sync complete",
+	Logger.Debug("GroupManager: sync complete",
 		"total_groups", len(syncedGroups),
 		"communities", communityCount,
 		"newsletters", len(syncedNewsletters),
@@ -193,7 +193,7 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 		return
 	}
 
-	Logger.Info("GroupManager: warming up participant device cache...", "unique_participants", len(uniqueJIDs))
+	Logger.Debug("GroupManager: warming up participant device cache...", "unique_participants", len(uniqueJIDs))
 	start := time.Now()
 
 	// Chunk queries into batches of 150 to keep USync requests optimal

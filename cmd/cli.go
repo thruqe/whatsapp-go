@@ -6,8 +6,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 )
+
+// Version is the application version (set at build time).
+var Version = "dev"
 
 // CLIArgs holds parsed runtime arguments.
 type CLIArgs struct {
@@ -19,6 +23,7 @@ type CLIArgs struct {
 	Update   bool   // True if an update action was requested
 	UpdateOp string // "check", "stable", "beta", or "" (direct update)
 	Verbose  bool   // Enable verbose / debug logging
+	Version  bool   // Print version and exit
 }
 
 // parseCLIArgs resolves environment configuration and parses CLI flags.
@@ -29,6 +34,11 @@ func parseCLIArgs() CLIArgs {
 
 // parseCLIArgsFrom parses arguments from an explicit string slice.
 func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
+	// Handle --version early before other parsing
+	if slices.Contains(cmdArgs, "--version") {
+		return CLIArgs{Version: true}
+	}
+
 	fs := flag.NewFlagSet("whatsrook", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
@@ -41,6 +51,7 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		updateVal = fs.String("update", "__unset__", "Update operation: check | stable | beta | (empty for direct)")
 		standby   = fs.Bool("standby", false, "Enter interactive standby mode")
 		verbose   = fs.Bool("verbose", false, "Enable verbose debug logging")
+		version   = fs.Bool("version", false, "")
 	)
 
 	// Short flag aliases
@@ -67,6 +78,7 @@ Options:
   -i, --standby                 Force interactive standby session manager
   -u, --update [action]         Check or apply update (actions: check, stable, beta, or empty for direct)
   -v, --verbose                 Enable verbose debug logging
+  --version                     Print version and exit
   -h, --help                    Show this help message
 `)
 	}
@@ -196,6 +208,7 @@ Options:
 		Update:   isUpdate,
 		UpdateOp: updateOp,
 		Verbose:  verboseVal,
+		Version:  *version,
 	}
 }
 

@@ -715,11 +715,11 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 		if !client.IsConnected() || !client.IsLoggedIn() || errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || strings.Contains(err.Error(), "not connected") || strings.Contains(err.Error(), "disconnected") || strings.Contains(err.Error(), "timed out") || ctx.Err() != nil {
 			return "", nil
 		}
-		Logger.Error("[AutoBio] Failed to update WhatsApp status message", "err", err)
+		Logger.Error("AutoBio: Failed to update bio", "err", err)
 		return "", err
 	}
 
-	Logger.Debug("[AutoBio] Updated WhatsApp status bio", "bio", bioText, "timezone", tzStr)
+	Logger.Debug("AutoBio: Bio updated", "bio", bioText, "timezone", tzStr)
 	return bioText, nil
 }
 

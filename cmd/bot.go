@@ -238,7 +238,7 @@ func (b *Bot) runSession(ctx context.Context) error {
 			})
 
 			if err := cli.Connect(); err != nil {
-				Logger.Warn("socket connection failed prior to logout; purging local device state only", "err", err)
+				Logger.Warn("Socket connection failed prior to logout; purging local device state only", "err", err)
 			} else {
 				logoutCtx, logoutCancel := context.WithTimeout(sessionCtx, 10*time.Second)
 				select {
@@ -530,11 +530,11 @@ func (b *Bot) WAEventHandler(evt any) {
 		}
 
 	case *events.Disconnected:
-		Logger.Info("socket connection disconnected", "event", v)
+		Logger.Info("Socket connection disconnected", "event", v)
 		broadcast(simpleEvent(EventDisconnected))
 
 	case *events.Connected:
-		Logger.Info("socket connection established", "session", b.cfg.Session, "event", v)
+		Logger.Info("Socket connection established", "session", b.cfg.Session, "event", v)
 		broadcast(simpleEvent(EventConnected))
 		if cli != nil {
 			go func() {
@@ -652,9 +652,9 @@ func (b *Bot) WAEventHandler(evt any) {
 	case *events.HistorySync:
 		Logger.Info("history synchronization chunk received", "event", v)
 	case *events.OfflineSyncPreview:
-		Logger.Info("offline message sync preview", "event", v)
+		Logger.Info("Offline message sync preview", "event", v)
 	case *events.OfflineSyncCompleted:
-		Logger.Info("offline message sync completed", "event", v)
+		Logger.Info("Offline message sync completed", "event", v)
 	case *events.AppState:
 		Logger.Debug("app state sync mutation received", "event", v)
 	case *events.AppStateSyncComplete:

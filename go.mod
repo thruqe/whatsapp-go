@@ -11,7 +11,7 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	github.com/tetratelabs/wazero v1.12.0
-	go.mau.fi/whatsmeow v0.0.0-20260821141805-33cfac511629
+	go.mau.fi/whatsmeow v0.0.0-20260828224850-0fadda796019
 	go.uber.org/zap v1.28.0
 	google.golang.org/protobuf v1.36.12
 )
@@ -106,7 +106,7 @@ require (
 	github.com/petermattis/goid v0.0.0-20260820044319-269ab09b5261 // indirect
 	github.com/pierrec/lz4/v4 v4.1.27 // indirect
 	github.com/pion/datachannel v1.6.2 // indirect
-	github.com/pion/dtls/v3 v3.1.5 // indirect
+	github.com/pion/dtls/v3 v3.1.8 // indirect
 	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/opus v0.1.0 // indirect
 	github.com/pion/randutil v0.1.0 // indirect

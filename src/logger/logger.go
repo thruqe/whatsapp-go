@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"sort"
 	"strings"
@@ -40,7 +41,7 @@ var (
 	isInit      atomic.Bool
 
 	hooksMu    sync.RWMutex
-	nextHookID uint32
+	nextHookID atomic.Uint32
 	hooks      = make(map[uint32]LogHook)
 )
 
@@ -90,7 +91,7 @@ func AddHook(fn LogHook) (unsubscribe func()) {
 	if fn == nil {
 		return func() {}
 	}
-	id := atomic.AddUint32(&nextHookID, 1)
+	id := nextHookID.Add(1)
 	hooksMu.Lock()
 	hooks[id] = fn
 	hooksMu.Unlock()
@@ -191,16 +192,12 @@ func (c *hookCore) With(fields []zapcore.Field) zapcore.Core {
 		LevelEnabler: c.LevelEnabler,
 		fields:       make(map[string]any, len(c.fields)+len(fields)),
 	}
-	for k, v := range c.fields {
-		clone.fields[k] = v
-	}
+	maps.Copy(clone.fields, c.fields)
 	enc := zapcore.NewMapObjectEncoder()
 	for _, f := range fields {
 		f.AddTo(enc)
 	}
-	for k, v := range enc.Fields {
-		clone.fields[k] = v
-	}
+	maps.Copy(clone.fields, enc.Fields)
 	return clone
 }
 
@@ -225,17 +222,13 @@ func (c *hookCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	hooksMu.RUnlock()
 
 	mergedFields := make(map[string]any, len(c.fields)+len(fields))
-	for k, v := range c.fields {
-		mergedFields[k] = v
-	}
+	maps.Copy(mergedFields, c.fields)
 	if len(fields) > 0 {
 		enc := zapcore.NewMapObjectEncoder()
 		for _, f := range fields {
 			f.AddTo(enc)
 		}
-		for k, v := range enc.Fields {
-			mergedFields[k] = v
-		}
+		maps.Copy(mergedFields, enc.Fields)
 	}
 
 	callerStr := ""
