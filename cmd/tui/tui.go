@@ -936,10 +936,10 @@ func (m model) selectDeleteConfirm() (tea.Model, tea.Cmd) {
 	dataDir := whatsrook.DefaultDataDir()
 	phone := "+" + m.selectedSession.User
 	if err := whatsrook.DeleteStoredSession(m.ctx, dataDir, m.defaultDB, phone); err != nil {
-		m.statusMsg = fmt.Sprintf("Failed to delete session: %v", err)
+		m.statusMsg = fmt.Sprintf("Failed to logout and delete session: %v", err)
 		m.isErrorStatus = true
 	} else {
-		m.statusMsg = fmt.Sprintf("Session +%s removed successfully.", m.selectedSession.User)
+		m.statusMsg = fmt.Sprintf("Session +%s logged out and erased successfully.", m.selectedSession.User)
 		m.isErrorStatus = false
 	}
 	sessions, _ := whatsrook.ListStoredSessions(m.ctx, dataDir, m.defaultDB)
@@ -1541,7 +1541,7 @@ func (m model) viewSessionActions() string {
 		"Run session",
 		"Save to .env as default",
 		"Edit session variables",
-		"Delete session",
+		"Logout & delete session",
 		"Back",
 	}
 
@@ -1644,14 +1644,15 @@ func (m model) viewEditDB() string {
 
 func (m model) viewDeleteConfirm() string {
 	var s strings.Builder
-	s.WriteString(titleStyle.Render("CONFIRM SESSION DELETION"))
+	s.WriteString(titleStyle.Render("CONFIRM SESSION LOGOUT & DELETION"))
 	s.WriteString("\n\n")
 	s.WriteString(errorStyle.Render(
-		fmt.Sprintf("Are you sure you want to delete +%s?", m.selectedSession.User),
+		fmt.Sprintf("Are you sure you want to log out and erase +%s?", m.selectedSession.User),
 	))
 	s.WriteString("\n\n")
+	s.WriteString(headerMutedStyle.Render("  This unlinks the companion from WhatsApp servers and removes all local database records.\n\n"))
 	s.WriteString(renderDotItem(m.cursor == 0, "Cancel and return"))
-	s.WriteString(renderDotItem(m.cursor == 1, "Confirm deletion"))
+	s.WriteString(renderDotItem(m.cursor == 1, "Confirm logout & delete"))
 	s.WriteString("\n")
 	s.WriteString(helpStyle.Render(m.getHelpText("confirm")))
 	return s.String()

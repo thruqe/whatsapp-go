@@ -30,8 +30,8 @@ import (
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 
+	_ "github.com/glebarez/go-sqlite"
 	_ "github.com/lib/pq"
-	_ "modernc.org/sqlite"
 )
 
 // clienttype specifies the companion operating system and hardware profile to emulate during registration.
@@ -187,6 +187,7 @@ func (c *Client) InitSession(ctx context.Context) error {
 	clientLog := src.WhatsmeowStyle("Client", "INFO", true)
 	rawClient := whatsmeow.NewClient(deviceStore, clientLog)
 	rawClient.SetCallLogger(src.ZerologStyle("wacaller"))
+	rawClient.SetMediaHTTPClient(src.DefaultHTTPClient())
 	rawClient.AsyncMessageAck = c.Config.AsyncMessageAck
 
 	// configure companion platform registration headers and os version payloads
