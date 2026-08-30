@@ -995,9 +995,13 @@ func RestartProcess(customArgs ...string) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
-		if err := cmd.Start(); err != nil {
+		if err := cmd.Run(); err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				os.Exit(exitErr.ExitCode())
+			}
 			return err
 		}
+		os.Exit(0)
 		return nil
 	}
 
