@@ -38,7 +38,7 @@ func ResetBotNamePromptDismissed(ctx context.Context, s *StoreWrapper) {
 func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
 	RecordRecentMessage(evt)
 
-	if evt == nil || evt.Message == nil || client == nil || client.Store == nil {
+	if evt == nil || evt.Message == nil || client == nil || client.Store == nil || !client.IsConnected() || !client.IsLoggedIn() {
 		return false
 	}
 
@@ -604,8 +604,10 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		}
 
 		Logger.Debug("Executing command", "command", name, "chat", cctx.Chat.String(), "sender", cctx.Sender.String(), "args", cctx.Args)
-		cctx.StartAutoLoader()
-		defer cctx.StopAutoLoader()
+		if !cmd.NoLoader {
+			cctx.StartAutoLoader()
+			defer cctx.StopAutoLoader()
+		}
 
 		if err := cmd.Handler(cctx); err != nil {
 			LogHandlerErrWithContext(cctx, name, err)
@@ -754,16 +756,10 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 	if !ok {
 		return false
 	}
-	db := s.GetDB()
-	if db == nil {
-		return false
-	}
 
-	ourJID := client.Store.ID.ToNonAD().String()
 	trigger := strings.TrimSpace(strings.ToLower(text))
 
-	var bgmProto string
-	err := db.QueryRow(ctx, `SELECT message_proto FROM bot_bgm WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND trigger_word=$2 ORDER BY (CASE WHEN our_jid=$1 THEN 1 ELSE 2 END) LIMIT 1`, ourJID, trigger).Scan(&bgmProto)
+	bgmProto, err := clistore.GetBGM(ctx, s.SQLStore, trigger)
 	if err == nil && bgmProto != "" {
 		if msg, err := utils.DecodeProtoMessage(bgmProto); err == nil {
 			ApplyFilterPlaceholders(ctx, client, evt, msg)
@@ -773,8 +769,7 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 		}
 	}
 
-	var filterProto string
-	err = db.QueryRow(ctx, `SELECT message_proto FROM bot_filters WHERE (our_jid=$1 OR our_jid='' OR our_jid IS NULL) AND trigger_word=$2 ORDER BY (CASE WHEN our_jid=$1 THEN 1 ELSE 2 END) LIMIT 1`, ourJID, trigger).Scan(&filterProto)
+	filterProto, err := clistore.GetFilter(ctx, s.SQLStore, trigger)
 	if err == nil && filterProto != "" {
 		if msg, err := utils.DecodeProtoMessage(filterProto); err == nil {
 			ApplyFilterPlaceholders(ctx, client, evt, msg)
@@ -1094,16 +1089,10 @@ func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, evt *ev
 	if !ok {
 		return false
 	}
-	db := s.GetDB()
-	if db == nil {
-		return false
-	}
 
-	ourJID := client.Store.ID.ToNonAD().String()
 	shaHex := hex.EncodeToString(stk.FileSHA256)
 
-	var cmdName string
-	err := db.QueryRow(ctx, `SELECT command_name FROM bot_sticker_cmds WHERE our_jid=$1 AND sticker_sha256=$2`, ourJID, shaHex).Scan(&cmdName)
+	cmdName, err := clistore.GetStickerCmd(ctx, s.SQLStore, shaHex)
 	if err != nil || cmdName == "" {
 		return false
 	}

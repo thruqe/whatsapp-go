@@ -159,3 +159,35 @@ func TestDictionaryDB_SQLiteLookup(t *testing.T) {
 		}
 	}
 }
+
+func TestUnscramble_IsHost(t *testing.T) {
+	hostLID := types.NewJID("123456", types.DefaultUserServer)
+	playerLID := types.NewJID("789012", types.DefaultUserServer)
+	chatJID := types.NewJID("group1", types.GroupServer)
+
+	game := CreateUnscrambleGame("group1@g.us", hostLID, hostLID, "@host", chatJID, nil)
+	defer DeleteUnscrambleGame("group1@g.us")
+
+	if !game.IsHost(hostLID) {
+		t.Errorf("expected host to be recognized as host")
+	}
+	if game.IsHost(playerLID) {
+		t.Errorf("expected non-host player to NOT be recognized as host")
+	}
+}
+
+func TestWCG_IsHost(t *testing.T) {
+	hostLID := types.NewJID("123456", types.DefaultUserServer)
+	playerLID := types.NewJID("789012", types.DefaultUserServer)
+	chatJID := types.NewJID("group1", types.GroupServer)
+
+	game := CreateWCGGame("group1@g.us", hostLID, hostLID, "@host", chatJID, nil)
+	defer DeleteWCGGame("group1@g.us")
+
+	if !game.IsHost(hostLID) {
+		t.Errorf("expected host to be recognized as host")
+	}
+	if game.IsHost(playerLID) {
+		t.Errorf("expected non-host player to NOT be recognized as host")
+	}
+}

@@ -17,11 +17,10 @@ import (
 	"time"
 	"unicode"
 
-	_ "modernc.org/sqlite"
-
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 	utils "whatsrook/src"
+	Logger "whatsrook/src/logger"
 )
 
 type UnscrambleState int
@@ -190,14 +189,40 @@ func CreateUnscrambleGame(chatKey string, hostLID, hostMention types.JID, hostTa
 	return game
 }
 
-// IsHost returns true if the specified user JID is the game host.
+// IsHost returns true if the specified user JID is the game host/initiator.
 func (g *UnscrambleGame) IsHost(user types.JID) bool {
-	g.Mu.Lock()
-	defer g.Mu.Unlock()
 	u := user.ToNonAD()
 	hLID := g.HostLID.ToNonAD()
 	hMen := g.HostMention.ToNonAD()
-	return hLID == u || hMen == u || (hLID.User != "" && hLID.User == u.User) || (hMen.User != "" && hMen.User == u.User)
+
+	if !hLID.IsEmpty() && hLID == u {
+		Logger.Debug("[Unscramble IsHost] direct match on HostLID", "user", u.String(), "hostLID", hLID.String())
+		return true
+	}
+	if !hMen.IsEmpty() && hMen == u {
+		Logger.Debug("[Unscramble IsHost] direct match on HostMention", "user", u.String(), "hostMention", hMen.String())
+		return true
+	}
+	if !hLID.IsEmpty() && hLID.Server == u.Server && hLID.User == u.User {
+		Logger.Debug("[Unscramble IsHost] same-server match on HostLID", "user", u.String(), "hostLID", hLID.String())
+		return true
+	}
+	if !hMen.IsEmpty() && hMen.Server == u.Server && hMen.User == u.User {
+		Logger.Debug("[Unscramble IsHost] same-server match on HostMention", "user", u.String(), "hostMention", hMen.String())
+		return true
+	}
+	if g.Client != nil {
+		if !g.HostLID.IsEmpty() && utils.IsSameUserRaw(context.Background(), g.Client, g.HostLID, u) {
+			Logger.Debug("[Unscramble IsHost] IsSameUserRaw match on HostLID", "user", u.String(), "hostLID", g.HostLID.String())
+			return true
+		}
+		if !g.HostMention.IsEmpty() && utils.IsSameUserRaw(context.Background(), g.Client, g.HostMention, u) {
+			Logger.Debug("[Unscramble IsHost] IsSameUserRaw match on HostMention", "user", u.String(), "hostMention", g.HostMention.String())
+			return true
+		}
+	}
+	Logger.Debug("[Unscramble IsHost] check failed (not host)", "user", u.String(), "hostLID", hLID.String(), "hostMention", hMen.String())
+	return false
 }
 
 // DeleteUnscrambleGame removes a game from the active map.
@@ -547,9 +572,7 @@ var (
 )
 
 // ResourceDownloadClient is used for downloading larger game resource files.
-var ResourceDownloadClient = &http.Client{
-	Timeout: 5 * time.Minute,
-}
+var ResourceDownloadClient = utils.NewHTTPClient(5 * time.Minute)
 
 // IsDictionaryDBReady checks if the Dictionary.db file exists and is valid.
 func IsDictionaryDBReady() bool {
