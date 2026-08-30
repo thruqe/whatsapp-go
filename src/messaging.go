@@ -794,8 +794,8 @@ func ParseUserJID(raw string) (types.JID, error) {
 		}
 	}
 
-	if digits.Len() == 0 {
-		return types.EmptyJID, fmt.Errorf("no valid digits in JID string: %q", raw)
+	if digits.Len() < 5 {
+		return types.EmptyJID, fmt.Errorf("phone number or JID string too short: %q", raw)
 	}
 
 	parsed := types.NewJID(digits.String(), types.DefaultUserServer).ToNonAD()
@@ -807,6 +807,9 @@ func ParseUserJID(raw string) (types.JID, error) {
 
 // GetArgsJIDs parses any phone numbers or JID strings in command args.
 func (ctx *PluginContext) GetArgsJIDs() []types.JID {
+	if ctx == nil {
+		return nil
+	}
 	var out []types.JID
 	for _, arg := range ctx.Args {
 		if j, err := ParseUserJID(arg); err == nil && !j.IsEmpty() {
@@ -834,12 +837,12 @@ func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID
 	aPN := a
 	bPN := b
 
-	if a.Server == types.HiddenUserServer && client.Store.LIDs != nil {
+	if a.Server == types.HiddenUserServer && client != nil && client.Store != nil && client.Store.LIDs != nil {
 		if pn, err := client.Store.LIDs.GetPNForLID(ctx, a); err == nil && !pn.IsEmpty() {
 			aPN = pn.ToNonAD()
 		}
 	}
-	if b.Server == types.HiddenUserServer && client.Store.LIDs != nil {
+	if b.Server == types.HiddenUserServer && client != nil && client.Store != nil && client.Store.LIDs != nil {
 		if pn, err := client.Store.LIDs.GetPNForLID(ctx, b); err == nil && !pn.IsEmpty() {
 			bPN = pn.ToNonAD()
 		}
@@ -852,12 +855,12 @@ func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID
 
 	aLID := a
 	bLID := b
-	if a.Server == types.DefaultUserServer && client.Store.LIDs != nil {
+	if a.Server == types.DefaultUserServer && client != nil && client.Store != nil && client.Store.LIDs != nil {
 		if lid, err := client.Store.LIDs.GetLIDForPN(ctx, a); err == nil && !lid.IsEmpty() {
 			aLID = lid.ToNonAD()
 		}
 	}
-	if b.Server == types.DefaultUserServer && client.Store.LIDs != nil {
+	if b.Server == types.DefaultUserServer && client != nil && client.Store != nil && client.Store.LIDs != nil {
 		if lid, err := client.Store.LIDs.GetLIDForPN(ctx, b); err == nil && !lid.IsEmpty() {
 			bLID = lid.ToNonAD()
 		}
@@ -881,41 +884,38 @@ func (ctx *PluginContext) IsSameUser(a, b types.JID) bool {
 // 3. Arguments JIDs (if user/phone arguments provided, taking precedence over DM chat ID)
 // 4. In a P2P chat (DM), fall back to chat JID only if NO reply, mentions, or arguments were provided.
 func (ctx *PluginContext) GetTargets() []types.JID {
-	if ctx.Client.Store.ID == nil {
+	if ctx == nil {
 		return nil
 	}
-	ourJID := *ctx.Client.Store.ID
 
-	// 1. Quoted message sender (excluding ours)
-	if q, ok := ctx.GetQuotedSender(); ok {
-		if !ctx.IsSameUser(q, ourJID) {
-			return []types.JID{ctx.ResolvePN(q)}
-		}
+	// 1. Quoted message sender (if replying to a message)
+	if q, ok := ctx.GetQuotedSender(); ok && !q.IsEmpty() {
+		return []types.JID{ctx.ResolvePN(q)}
 	}
 
-	// 2. Mentioned JIDs (excluding ours)
+	// 2. Mentioned JIDs (if @mentioned)
 	if m := ctx.GetMentionedJIDs(); len(m) > 0 {
-		var filtered []types.JID
+		var resolved []types.JID
 		for _, j := range m {
-			if !ctx.IsSameUser(j, ourJID) {
-				filtered = append(filtered, ctx.ResolvePN(j))
+			if !j.IsEmpty() {
+				resolved = append(resolved, ctx.ResolvePN(j))
 			}
 		}
-		if len(filtered) > 0 {
-			return filtered
+		if len(resolved) > 0 {
+			return resolved
 		}
 	}
 
-	// 3. Arguments JIDs (excluding ours) - Takes priority over DM chat ID
+	// 3. Arguments JIDs (takes priority over DM chat ID)
 	if argsJIDs := ctx.GetArgsJIDs(); len(argsJIDs) > 0 {
-		var filtered []types.JID
+		var resolved []types.JID
 		for _, j := range argsJIDs {
-			if !ctx.IsSameUser(j, ourJID) {
-				filtered = append(filtered, ctx.ResolvePN(j))
+			if !j.IsEmpty() {
+				resolved = append(resolved, ctx.ResolvePN(j))
 			}
 		}
-		if len(filtered) > 0 {
-			return filtered
+		if len(resolved) > 0 {
+			return resolved
 		}
 	}
 
@@ -925,9 +925,14 @@ func (ctx *PluginContext) GetTargets() []types.JID {
 		return nil
 	}
 
-	// 4. In a P2P chat (DM) and no reply, mentions, or arguments were provided: fall back to the chat JID (as long as it isn't ours)
-	if ctx.Chat.Server != "g.us" {
-		if !ctx.IsSameUser(ctx.Chat, ourJID) {
+	// 4. In a P2P chat (DM) and no reply, mentions, or arguments were provided:
+	// fall back to the chat JID (as long as it isn't our own bot JID).
+	if !ctx.Chat.IsEmpty() && ctx.Chat.Server != "g.us" {
+		if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
+			if !ctx.IsSameUser(ctx.Chat, *ctx.Client.Store.ID) {
+				return []types.JID{ctx.ResolvePN(ctx.Chat)}
+			}
+		} else {
 			return []types.JID{ctx.ResolvePN(ctx.Chat)}
 		}
 	}

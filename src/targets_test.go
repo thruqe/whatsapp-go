@@ -109,4 +109,36 @@ func TestGetTargets_PriorityInDM(t *testing.T) {
 			t.Errorf("expected target to be chat %s, got %s", dmChatJID.User, targets[0].User)
 		}
 	})
+
+	t.Run("DM in self-chat/owner chat with phone number arg 2348062795602", func(t *testing.T) {
+		ownerJID := types.NewJID("2348060598064", types.DefaultUserServer)
+		customTarget := types.NewJID("2348062795602", types.DefaultUserServer)
+		ctx := &PluginContext{
+			Client: &whatsmeow.Client{
+				Store: &store.Device{
+					ID: &ownerJID,
+				},
+			},
+			Chat:    ownerJID,
+			Sender:  ownerJID,
+			Args:    []string{"2348062795602"},
+			RawArgs: "2348062795602",
+			Evt: &events.Message{
+				Info: types.MessageInfo{
+					Chat:    ownerJID,
+					Sender:  ownerJID,
+					IsGroup: false,
+				},
+				Message: &waE2E.Message{},
+			},
+		}
+
+		targets := ctx.GetTargets()
+		if len(targets) != 1 {
+			t.Fatalf("expected 1 target, got %d", len(targets))
+		}
+		if targets[0].User != customTarget.User {
+			t.Errorf("expected target to be %s, got %s", customTarget.User, targets[0].User)
+		}
+	})
 }
