@@ -980,6 +980,14 @@ func (ctx *PluginContext) IsSudo() bool {
 	return false
 }
 
+// IsOwnerRaw checks if a given sender is the bot owner (the connected account).
+func IsOwnerRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) bool {
+	if client == nil || client.Store == nil || client.Store.ID == nil {
+		return false
+	}
+	return IsSameUserRaw(ctx, client, *client.Store.ID, sender)
+}
+
 // IsSudoRaw checks if a given sender is a registered sudo user or the bot owner.
 func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) bool {
 	if client == nil {

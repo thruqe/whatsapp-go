@@ -113,6 +113,7 @@ type pollRoute struct {
 	pollMsgID      types.MessageID
 	precedingMsgID types.MessageID
 	options        []string
+	allowedSenders []types.JID
 	once           bool
 	autoDelete     bool
 	timer          *time.Timer
@@ -137,6 +138,7 @@ type PollRouteConfig struct {
 	Chat           types.JID
 	Client         *whatsmeow.Client
 	Options        []string
+	AllowedSenders []types.JID
 	Once           bool
 	AutoDelete     bool
 	Timeout        time.Duration
@@ -197,6 +199,7 @@ func RegisterPollRoute(cfg PollRouteConfig) {
 		pollMsgID:      cfg.PollMsgID,
 		precedingMsgID: cfg.PrecedingMsgID,
 		options:        cfg.Options,
+		allowedSenders: cfg.AllowedSenders,
 		once:           cfg.Once,
 		autoDelete:     cfg.AutoDelete,
 		timer:          timer,
@@ -290,6 +293,46 @@ func DispatchPollVoteEvent(ctx *PluginContext, evt *events.Message) bool {
 			"chat", ctx.Chat.String(),
 		)
 		return false
+	}
+
+	// Verify that the voter is authorized if the poll route is restricted to specific senders.
+	// Bot owner and sudoers are always authorized.
+	if len(route.allowedSenders) > 0 {
+		client := ctx.Client
+		if client == nil {
+			client = route.client
+		}
+		sender := ctx.Sender
+		isAllowed := false
+
+		for _, allowed := range route.allowedSenders {
+			if !allowed.IsEmpty() {
+				if allowed == sender || allowed.ToNonAD() == sender.ToNonAD() {
+					isAllowed = true
+					break
+				}
+				if client != nil && IsSameUserRaw(context.Background(), client, allowed, sender) {
+					isAllowed = true
+					break
+				}
+			}
+		}
+
+		if !isAllowed && client != nil {
+			if IsOwnerRaw(context.Background(), client, sender) || IsSudoRaw(context.Background(), client, sender) {
+				isAllowed = true
+			}
+		}
+
+		if !isAllowed {
+			Logger.Debug("WARook: ignoring poll vote from non-authorized sender (poll, timer, and route preserved)",
+				"targetPollMsgID", pollMsgID,
+				"sender", sender.String(),
+				"chat", ctx.Chat.String(),
+				"allowedSendersCount", len(route.allowedSenders),
+			)
+			return false
+		}
 	}
 
 	// Stop expiration timer immediately upon receiving vote
