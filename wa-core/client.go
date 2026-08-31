@@ -633,7 +633,7 @@ func (cli *Client) unlockedConnect(ctx context.Context) error {
 	if err := fs.Connect(ctx); err != nil {
 		fs.Close(0)
 		return err
-	} else if err = cli.doHandshake(ctx, fs, *keys.NewKeyPair()); err != nil {
+	} else if err = cli.doHandshake(fs, *keys.NewKeyPair()); err != nil {
 		fs.Close(0)
 		return fmt.Errorf("noise handshake failed: %w", err)
 	}
