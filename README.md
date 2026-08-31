@@ -4,13 +4,13 @@ whatsrook is a command-line, third-party, hybrid-automation whatsapp client.
 
 ## Support
 
-Join the Chat [@whatsook:public](https://t.me/whatsrookpublic)
+[Join the Chat](https://t.me/whatsrookpublic)
 
-For questions about whatsrook use cases (like how to do stuff or seek more help), you can also join the [Telegram Channel](https://t.me/whatsrook) for announcements and general updates.
+[Announcements](https://t.me/whatsrook)
 
 ## Installation
 
-If you want to install on your system automatically, see the [Installation Guide](./INSTALLATION.md) for simple one-line copy-and-paste commands for Linux, macOS, Android (Termux), and Windows.
+If you want to install on your system automatically, see the [Installation Guide](./INSTALLATION.md) to quickly install.
 
 ## Binaries
 
@@ -24,8 +24,6 @@ Pre-built binaries for each platform are available on the [Releases Page](https:
 | macOS            | arm64 (Apple Silicon) | [Download](https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-darwin-arm64.tar.gz)  | [Download](https://github.com/ThruqeLabs/whatsrook/releases/download/alpha/whatsrook-darwin-arm64.tar.gz)  |
 | Windows          | x86_64                | [Download](https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-windows-amd64.tar.gz) | [Download](https://github.com/ThruqeLabs/whatsrook/releases/download/alpha/whatsrook-windows-amd64.tar.gz) |
 | Android (Termux) | arm64                 | [Download](https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-android-arm64.tar.gz) | [Download](https://github.com/ThruqeLabs/whatsrook/releases/download/alpha/whatsrook-android-arm64.tar.gz) |
-
-Each release includes the binary, assets, LICENSE, README, and version information in a `.tar.gz` archive.
 
 ## Usage
 
@@ -65,6 +63,19 @@ This project is open source and licensed under the [MIT License](./LICENSE). Fee
 
 ## Support This Project
 
-If you find this project useful, consider sending a tip, I couldn't thank you enough for your support.
+If you find this project useful, consider sending a tip.
 
-[![Donate USDT](<https://img.shields.io/badge/Donate-USDT%20(TRC20)-26A17B?style=for-the-badge&logo=tether&logoColor=white>)](https://tronscan.org/#/address/TFDtgoQ5tCNUUSb4fjBgqXSR5vzUBjGFUw)
+<p align="left">
+  <a href="https://tronscan.org/#/address/TFDtgoQ5tCNUUSb4fjBgqXSR5vzUBjGFUw"><img src="https://cdn-icons-png.flaticon.com/512/12114/12114250.png" width="32" height="32" alt="Donate TRX" /></a>
+  <a href="https://www.blockchain.com/explorer/addresses/btc/bc1qzt5a6p9ggjgececau4vpqrx7ejxkdqvshmhdg6"><img src="https://cdn-icons-png.flaticon.com/512/5968/5968260.png" width="32" height="32" alt="Donate BTC" /></a>
+  <a href="https://etherscan.io/address/0xfA1617fC3aeA4B2BC6Fb3928aA2cAE2fB97ba0ED"><img src="https://cdn-icons-png.flaticon.com/128/15301/15301597.png" width="32" height="32" alt="Donate ETH" /></a>
+</p>
+
+<details>
+<summary>Wallet addresses</summary>
+
+- **TRX:** `TFDtgoQ5tCNUUSb4fjBgqXSR5vzUBjGFUw`
+- **BTC:** `bc1qzt5a6p9ggjgececau4vpqrx7ejxkdqvshmhdg6`
+- **ETH:** `0xfA1617fC3aeA4B2BC6Fb3928aA2cAE2fB97ba0ED`
+
+</details>
