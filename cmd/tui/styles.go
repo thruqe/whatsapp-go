@@ -3,13 +3,13 @@ package tui
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	// Color palette (no emojis, clean modern terminal palette)
-	primaryColor = lipgloss.Color("#00D7D7") // Cyan
-	accentColor  = lipgloss.Color("#A855F7") // Purple
-	successColor = lipgloss.Color("#10B981") // Emerald green
-	dangerColor  = lipgloss.Color("#F43F5E") // Rose/Red
-	textColor    = lipgloss.Color("#F8FAFC") // Off-white
-	mutedColor   = lipgloss.Color("#64748B") // Slate gray
+	// Terminal-aware grayscale palette so the TUI stays black/white while respecting light/dark themes.
+	primaryColor = lipgloss.AdaptiveColor{Light: "#111111", Dark: "#F5F5F5"}
+	accentColor  = lipgloss.AdaptiveColor{Light: "#333333", Dark: "#D4D4D4"}
+	successColor = lipgloss.AdaptiveColor{Light: "#171717", Dark: "#E5E5E5"}
+	dangerColor  = lipgloss.AdaptiveColor{Light: "#111111", Dark: "#FAFAFA"}
+	textColor    = lipgloss.AdaptiveColor{Light: "#111111", Dark: "#F5F5F5"}
+	mutedColor   = lipgloss.AdaptiveColor{Light: "#525252", Dark: "#A3A3A3"}
 
 	// Typography & Container Styles
 	titleStyle = lipgloss.NewStyle().

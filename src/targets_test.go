@@ -110,9 +110,9 @@ func TestGetTargets_PriorityInDM(t *testing.T) {
 		}
 	})
 
-	t.Run("DM in self-chat/owner chat with phone number arg 2348062795602", func(t *testing.T) {
-		ownerJID := types.NewJID("2348060598064", types.DefaultUserServer)
-		customTarget := types.NewJID("2348062795602", types.DefaultUserServer)
+	t.Run("DM in self-chat/owner chat with phone number arg 15551234567", func(t *testing.T) {
+		ownerJID := types.NewJID("15550000000", types.DefaultUserServer)
+		customTarget := types.NewJID("15551234567", types.DefaultUserServer)
 		ctx := &PluginContext{
 			Client: &whatsmeow.Client{
 				Store: &store.Device{
@@ -121,8 +121,8 @@ func TestGetTargets_PriorityInDM(t *testing.T) {
 			},
 			Chat:    ownerJID,
 			Sender:  ownerJID,
-			Args:    []string{"2348062795602"},
-			RawArgs: "2348062795602",
+			Args:    []string{"15551234567"},
+			RawArgs: "15551234567",
 			Evt: &events.Message{
 				Info: types.MessageInfo{
 					Chat:    ownerJID,
