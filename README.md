@@ -10,7 +10,7 @@ whatsrook is a command-line, third-party, hybrid-automation whatsapp client.
 
 ## Installation
 
-If you want to install on your system automatically, see the [Installation Guide](./INSTALLATION.md) to quickly install.
+If you want to install on your system automatically, see the [Installation Guide](./documentation/INSTALLATION.md) to quickly install.
 
 ## Binaries
 
@@ -27,9 +27,9 @@ Pre-built binaries for each platform are available on the [Releases Page](https:
 
 ## Usage
 
-The configuration [doc](./CONFIGURATION.md) contains info about all the environment variables needed to run whatsrook.
+The configuration [documentation](./documentation/CONFIGURATION.md) contains info about all the environment variables needed to run whatsrook.
 
-External plugins can be built independently and installed as executable commands. Read the [external plugin setup documentation](./EXTERNAL_PLUGIN.md) to learn how to create, build, install, and use them.
+External plugins can be built independently and installed as executable commands. Read the [external plugin setup documentation](./documentation/EXTERNAL_PLUGIN.md) to learn how to create, build, install, and use them.
 
 You can run a simple whatsrook instance on this [free host](https://wha-console.onrender.com/), this service not guaranteed to be alive at this moment, you can deploy own [wha-console](https://github.com/ThruqeLabs/wha-console) to run and manage whatsrook instance.
 
