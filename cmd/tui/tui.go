@@ -119,7 +119,7 @@ type model struct {
 // Run launches the modern Bubble Tea standby TUI with responsive layout.
 func Run(ctx context.Context, defaultDB string, boundPort int) (SessionResult, bool, error) {
 	ti := textinput.New()
-	ti.Placeholder = "+2348062795602"
+	ti.Placeholder = "+15551234567"
 	ti.CharLimit = 32
 	ti.Width = 32
 
@@ -588,12 +588,12 @@ func (m model) startDependencyInstall() (tea.Model, tea.Cmd) {
 			return
 		}
 		for _, dep := range deps {
-			writer.Write([]byte(fmt.Sprintf("[MISSING] %s not found on PATH.\n", dep)))
+			fmt.Fprintf(writer, "[MISSING] %s not found on PATH.\n", dep)
 		}
 		writer.Write([]byte("Preparing installation for this system...\n"))
 		for _, dep := range deps {
 			if err := runDependencyInstall(dep, writer); err != nil {
-				writer.Write([]byte(fmt.Sprintf("[ERROR] %s installation failed: %v\n", dep, err)))
+				fmt.Fprintf(writer, "[ERROR] %s installation failed: %v\n", dep, err)
 				doneChan <- updateFinishedMsg{err: err}
 				close(logChan)
 				return
@@ -604,7 +604,7 @@ func (m model) startDependencyInstall() (tea.Model, tea.Cmd) {
 			writer.Write([]byte("[OK] Required dependencies installed successfully.\n"))
 			doneChan <- updateFinishedMsg{}
 		} else {
-			writer.Write([]byte(fmt.Sprintf("[WARN] Installation completed, but %s is still not detected on PATH.\n", strings.Join(missing, ", "))))
+			fmt.Fprintf(writer, "[WARN] Installation completed, but %s is still not detected on PATH.\n", strings.Join(missing, ", "))
 			doneChan <- updateFinishedMsg{}
 		}
 		close(logChan)
@@ -718,9 +718,10 @@ func (m model) selectSessionAction() (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case 1: // Save to .env
 		clientStr := "default"
-		if m.result.ClientType == whatsrook.ClientAndroid {
+		switch m.result.ClientType {
+		case whatsrook.ClientAndroid:
 			clientStr = "android"
-		} else if m.result.ClientType == whatsrook.ClientIos {
+		case whatsrook.ClientIos:
 			clientStr = "ios"
 		}
 		if err := SaveDotEnv(m.result.Session, clientStr, m.result.Verbose, m.result.Database); err != nil {
@@ -803,9 +804,10 @@ func (m model) updateEditVariables(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) saveCurrentToEnv() {
 	clientStr := "default"
-	if m.result.ClientType == whatsrook.ClientAndroid {
+	switch m.result.ClientType {
+	case whatsrook.ClientAndroid:
 		clientStr = "android"
-	} else if m.result.ClientType == whatsrook.ClientIos {
+	case whatsrook.ClientIos:
 		clientStr = "ios"
 	}
 	if err := SaveDotEnv(m.result.Session, clientStr, m.result.Verbose, m.result.Database); err != nil {
@@ -975,7 +977,7 @@ func (m model) updateNewAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.result.QRCode = true
 		m.result.Pair = false
 		m.state = stateNewPhoneInput
-		m.input.Placeholder = "session name / phone (optional)"
+		m.input.Placeholder = "session phone"
 		m.input.SetValue("")
 		m.input.Focus()
 		return m, textinput.Blink
@@ -983,7 +985,7 @@ func (m model) updateNewAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.result.QRCode = false
 		m.result.Pair = true
 		m.state = stateNewPhoneInput
-		m.input.Placeholder = "+2348062795602"
+		m.input.Placeholder = "+15551234567"
 		m.input.SetValue("")
 		m.input.Focus()
 		return m, textinput.Blink
@@ -996,7 +998,7 @@ func (m model) updateNewAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.result.QRCode = true
 			m.result.Pair = false
 			m.state = stateNewPhoneInput
-			m.input.Placeholder = "session name / phone (optional)"
+			m.input.Placeholder = "session phone number"
 			m.input.SetValue("")
 			m.input.Focus()
 			return m, textinput.Blink
@@ -1004,7 +1006,7 @@ func (m model) updateNewAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.result.QRCode = false
 			m.result.Pair = true
 			m.state = stateNewPhoneInput
-			m.input.Placeholder = "+2348062795602"
+			m.input.Placeholder = "+15551234567"
 			m.input.SetValue("")
 			m.input.Focus()
 			return m, textinput.Blink
@@ -1021,11 +1023,19 @@ func (m model) updateNewPhoneInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		val := strings.TrimSpace(m.input.Value())
 		if m.result.Pair {
-			clean := strings.TrimPrefix(val, "+")
-			if len(clean) < 7 || len(clean) > 15 || !isNumeric(clean) {
-				m.statusMsg = "Invalid phone number (e.g. +2348062795602)."
+			if val == "" {
+				m.statusMsg = "Phone number is required. Use a valid international format (e.g. +15551234567)."
 				m.isErrorStatus = true
 				return m, nil
+			}
+			clean := strings.TrimPrefix(val, "+")
+			if len(clean) < 7 || len(clean) > 15 || !isNumeric(clean) {
+				m.statusMsg = "Invalid phone number. Use a valid international format (e.g. +15551234567)."
+				m.isErrorStatus = true
+				return m, nil
+			}
+			if !strings.HasPrefix(val, "+") {
+				val = "+" + val
 			}
 			m.result.Session = val
 		} else {
@@ -1448,7 +1458,8 @@ func (m model) viewUpdateProgress() string {
 		}
 
 		for _, logLine := range visibleLogs {
-			s.WriteString("  " + logLineStyle.Render(logLine))
+			s.WriteString("  ")
+			s.WriteString(logLineStyle.Render(logLine))
 			s.WriteByte('\n')
 		}
 		s.WriteByte('\n')
@@ -1502,7 +1513,8 @@ func (m model) viewDependenciesProgress() string {
 			visibleLogs = visibleLogs[len(visibleLogs)-maxLines:]
 		}
 		for _, logLine := range visibleLogs {
-			s.WriteString("  " + logLineStyle.Render(logLine))
+			s.WriteString("  ")
+			s.WriteString(logLineStyle.Render(logLine))
 			s.WriteByte('\n')
 		}
 		s.WriteByte('\n')
@@ -1643,7 +1655,8 @@ func (m model) viewEditDB() string {
 	s.WriteString("\n\n")
 	s.WriteString(inputPromptStyle.Render("Database URI (or 'default' for SQLite):"))
 	s.WriteByte('\n')
-	s.WriteString("  " + m.input.View())
+	s.WriteString("  ")
+	s.WriteString(m.input.View())
 	s.WriteString("\n\n")
 	s.WriteString(helpStyle.Render(m.getHelpText("apply")))
 	return s.String()
@@ -1689,14 +1702,15 @@ func (m model) viewNewPhoneInput() string {
 	if m.result.Pair {
 		s.WriteString(titleStyle.Render("ENTER PHONE FOR PAIRING CODE"))
 		s.WriteString("\n\n")
-		s.WriteString(inputPromptStyle.Render("Phone Number (e.g. +2348062795602):"))
+		s.WriteString(inputPromptStyle.Render("Phone Number (e.g. +15551234567):"))
 	} else {
 		s.WriteString(titleStyle.Render("ENTER SESSION IDENTIFIER"))
 		s.WriteString("\n\n")
-		s.WriteString(inputPromptStyle.Render("Session Name [leave blank for auto]:"))
+		s.WriteString(inputPromptStyle.Render("Session Name:"))
 	}
 	s.WriteByte('\n')
-	s.WriteString("  " + m.input.View())
+	s.WriteString("  ")
+	s.WriteString(m.input.View())
 	s.WriteString("\n\n")
 	s.WriteString(helpStyle.Render(m.getHelpText("continue")))
 	return s.String()
@@ -1806,7 +1820,9 @@ func (m model) viewDonate() string {
 	donateURL := "https://github.com/Thruqe#support-this-project"
 	s.WriteString("Thank you for using WhatsRook!\n")
 	s.WriteString("If you find this project useful, please consider supporting it:\n\n")
-	s.WriteString("  " + activeItemStyle.Render(donateURL) + "\n\n")
+	s.WriteString("  ")
+	s.WriteString(activeItemStyle.Render(donateURL))
+	s.WriteString("\n\n")
 	s.WriteString("You can:\n")
 	s.WriteString("  • Star the project on GitHub\n")
 	s.WriteString("  • Become a sponsor\n")
