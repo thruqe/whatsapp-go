@@ -33,10 +33,6 @@ External plugins can be built independently and installed as executable commands
 
 You can run a simple whatsrook instance on this [free host](https://wha-console.onrender.com/), this service not guaranteed to be alive at this moment, you can deploy own [wha-console](https://github.com/ThruqeLabs/wha-console) to run and manage whatsrook instance.
 
-If you want to run on your local machine, visit the [Downloads Page](https://github.com/ThruqeLabs/whatsrook/releases) and choose the appropriate for your operating system.
-
-[Releases](https://github.com/ThruqeLabs/whatsrook/releases) are of two types: `Stable` and `Alpha`. The stable release is mature and battle tested to handle your day-to-day tasks, while the alpha release may introduce breaking changes and unexpected runtime behavior, and isn't recommended for day-to-day tasks. Only use it if you want to test out the latest features, fixes, and improvements.
-
 ## Features
 
 - Messaging & Media
@@ -47,6 +43,7 @@ If you want to run on your local machine, visit the [Downloads Page](https://git
 - Plugin & Tools Engine
 - Dedicated WebSocket & JSON API
 - Incredibly low memory & CPU usage
+- External plugins support
 - Support for multiple platforms
 
 ## Contributions
