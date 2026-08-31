@@ -109,7 +109,7 @@ func (c *Container) Upgrade(ctx context.Context) error {
 		}
 	}
 
-	_, _ = c.db.Exec(ctx, "UPDATE whatsmeow_version SET version=18, compat=18 WHERE version > 18")
+	_, _ = c.db.Exec(ctx, "UPDATE whatsmeow_version SET version=19, compat=19 WHERE version > 19")
 
 	err := c.db.Upgrade(ctx)
 	if err != nil {
