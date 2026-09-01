@@ -7,8 +7,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
-	"whatsrook/src/logger"
+	Logger "whatsrook/logger"
 
 	"github.com/coder/websocket"
 	"go.mau.fi/whatsmeow"

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	utils "whatsrook/src"
+	utils "whatsrook"
 )
 
 var funHTTPClient = utils.NewHTTPClient(4 * time.Second)

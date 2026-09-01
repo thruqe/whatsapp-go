@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/whatsmeow/store/sqlstore"

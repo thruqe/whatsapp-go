@@ -12,10 +12,10 @@ import (
 	"time"
 	"unicode"
 
+	utils "whatsrook"
 	"whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
-	utils "whatsrook/src"
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -3407,12 +3407,13 @@ func parseCaptchaTime(raw string) (int, bool) {
 		num, err := strconv.Atoi(fields[0])
 		if err == nil {
 			unit := strings.TrimRight(fields[1], "s")
-			if unit == "min" || unit == "minute" || unit == "m" {
+			switch unit {
+			case "min", "minute", "m":
 				sec := num * 60
 				if sec >= 10 && sec <= 600 {
 					return sec, true
 				}
-			} else if unit == "sec" || unit == "second" || unit == "s" {
+			case "sec", "second", "s":
 				if num >= 10 && num <= 600 {
 					return num, true
 				}

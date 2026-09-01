@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	utils "whatsrook/src"
+	utils "whatsrook"
 )
 
 // GitRepoTarget encapsulates target repository information.

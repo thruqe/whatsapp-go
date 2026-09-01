@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"

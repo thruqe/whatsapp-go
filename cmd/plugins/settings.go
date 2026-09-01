@@ -27,9 +27,8 @@ import (
 
 	"whatsrook"
 	"whatsrook/cmd/store"
-	cliutils "whatsrook/cmd/utils"
-	utils "whatsrook/src"
-	Logger "whatsrook/src/logger"
+	"whatsrook/cmd/utils"
+	Logger "whatsrook/logger"
 )
 
 func resetAFKUserTracker() {
@@ -1033,7 +1032,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	if client != nil && client.Store != nil {
 		s, okStore = getSQLStore(client)
 	}
-	text := utils.ExtractMessageText(evt)
+	text := whatsrook.ExtractMessageText(evt)
 
 	fakeCtx := &Context{
 		Ctx:    ctx,
@@ -2191,9 +2190,10 @@ func handleAutoReactCmd(ctx *Context) error {
 		if len(args) < 2 {
 			currScope, _ := s.GetSetting(ctx.Ctx, "autoreact_scope")
 			nextScope := "group"
-			if currScope == "group" {
+			switch currScope {
+			case "group":
 				nextScope = "dm"
-			} else if currScope == "dm" {
+			case "dm":
 				nextScope = "all"
 			}
 			_ = s.PutSetting(ctx.Ctx, "autoreact_scope", nextScope)
@@ -2260,9 +2260,10 @@ func sendAutoReactMenu(ctx *Context, s *StoreWrapper) error {
 	}
 
 	nextScopeAction := "Scope: GROUP"
-	if scope == "group" {
+	switch scope {
+	case "group":
 		nextScopeAction = "Scope: DM"
-	} else if scope == "dm" {
+	case "dm":
 		nextScopeAction = "Scope: ALL"
 	}
 
@@ -2344,10 +2345,11 @@ func handleAutoReadCmd(ctx *Context) error {
 	case "status", "story", "stories":
 		if len(args) > 1 {
 			act := strings.ToLower(args[1])
-			if act == "on" || act == "enable" || act == "activate" {
+			switch act {
+			case "on", "enable", "activate":
 				_ = s.PutSetting(ctx.Ctx, "autoread_status_view", "on")
 				return ctx.Reply("Status auto-view/read ENABLED. Status broadcasts will automatically be marked as viewed.")
-			} else if act == "off" || act == "disable" || act == "deactivate" {
+			case "off", "disable", "deactivate":
 				_ = s.PutSetting(ctx.Ctx, "autoread_status_view", "off")
 				return ctx.Reply("Status auto-view/read DISABLED.")
 			}
@@ -2364,9 +2366,10 @@ func handleAutoReadCmd(ctx *Context) error {
 		if len(args) < 2 {
 			currScope, _ := s.GetSetting(ctx.Ctx, "autoread_scope")
 			nextScope := "group"
-			if currScope == "group" {
+			switch currScope {
+			case "group":
 				nextScope = "dm"
-			} else if currScope == "dm" {
+			case "dm":
 				nextScope = "all"
 			}
 			_ = s.PutSetting(ctx.Ctx, "autoread_scope", nextScope)
@@ -2427,9 +2430,10 @@ func sendAutoReadMenu(ctx *Context, s *StoreWrapper) error {
 	}
 
 	nextScopeAction := "Scope: GROUP"
-	if scope == "group" {
+	switch scope {
+	case "group":
 		nextScopeAction = "Scope: DM"
-	} else if scope == "dm" {
+	case "dm":
 		nextScopeAction = "Scope: ALL"
 	}
 

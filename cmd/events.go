@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
+	utils "whatsrook"
 	"whatsrook/cmd/captcha"
 	"whatsrook/cmd/plugins"
 	clistore "whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
-	utils "whatsrook/src"
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCommon"

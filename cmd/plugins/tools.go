@@ -18,9 +18,9 @@ import (
 	"go.mau.fi/whatsmeow/proto/waSyncAction"
 	"go.mau.fi/whatsmeow/types"
 
+	utils "whatsrook"
 	cliutils "whatsrook/cmd/utils"
-	utils "whatsrook/src"
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 )
 
 func init() {
