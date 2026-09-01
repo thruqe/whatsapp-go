@@ -246,3 +246,16 @@ func TestFormatVersionDisplay(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveExecutablePath(t *testing.T) {
+	p, err := updater.ResolveExecutablePath()
+	if err != nil {
+		t.Fatalf("ResolveExecutablePath failed: %v", err)
+	}
+	if p == "" {
+		t.Fatalf("expected non-empty path from ResolveExecutablePath")
+	}
+	if fi, err := os.Stat(p); err != nil || fi.IsDir() {
+		t.Errorf("expected resolved path %q to exist and not be a directory (err: %v)", p, err)
+	}
+}

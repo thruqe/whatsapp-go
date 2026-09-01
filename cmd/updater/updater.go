@@ -144,7 +144,7 @@ func channelFilePath() string {
 		_ = os.MkdirAll(p, 0755)
 		return filepath.Join(p, ".update-channel")
 	}
-	if exe, err := os.Executable(); err == nil {
+	if exe, err := ResolveExecutablePath(); err == nil {
 		return filepath.Join(filepath.Dir(exe), ".update-channel")
 	}
 	return ".update-channel"
@@ -156,7 +156,7 @@ func installedBetaFilePath() string {
 		_ = os.MkdirAll(p, 0755)
 		return filepath.Join(p, ".installed-beta")
 	}
-	if exe, err := os.Executable(); err == nil {
+	if exe, err := ResolveExecutablePath(); err == nil {
 		return filepath.Join(filepath.Dir(exe), ".installed-beta")
 	}
 	return ".installed-beta"
@@ -330,7 +330,7 @@ func ReadEffectiveLocalVersion(versionFile string) string {
 	if ver, err := ReadLocalVersion(versionFile); err == nil && strings.TrimSpace(ver) != "" {
 		return strings.TrimSpace(ver)
 	}
-	if exePath, err := os.Executable(); err == nil {
+	if exePath, err := ResolveExecutablePath(); err == nil {
 		exeDir := filepath.Dir(exePath)
 		if ver, err := ReadLocalVersion(filepath.Join(exeDir, versionFile)); err == nil && strings.TrimSpace(ver) != "" {
 			return strings.TrimSpace(ver)
@@ -766,7 +766,7 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 
 	calculatedSHA := fmt.Sprintf("sha256:%x", sha256.Sum256(payloadBytes))
 
-	exePath, err := os.Executable()
+	exePath, err := ResolveExecutablePath()
 	if err != nil {
 		exePath = os.Args[0]
 	}
@@ -964,6 +964,65 @@ func CleanRestartArgs(args []string) []string {
 	return clean
 }
 
+// ResolveExecutablePath reliably finds the current executable path, handling procfs (deleted) suffixes and binary renames.
+func ResolveExecutablePath() (string, error) {
+	// 1. Try os.Executable() and sanitize any procfs / rename artifacts
+	if exePath, err := os.Executable(); err == nil && exePath != "" {
+		candidates := []string{
+			strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(exePath, " (deleted)"), ".bak"), ".tmp"),
+			strings.TrimSuffix(exePath, " (deleted)"),
+			exePath,
+		}
+		for _, c := range candidates {
+			if fi, err := os.Stat(c); err == nil && !fi.IsDir() {
+				return filepath.Clean(c), nil
+			}
+		}
+	}
+
+	// 2. Try resolving os.Args[0] (either absolute, relative, or in PATH)
+	if len(os.Args) > 0 && os.Args[0] != "" {
+		arg0 := os.Args[0]
+		if fi, err := os.Stat(arg0); err == nil && !fi.IsDir() {
+			if abs, err := filepath.Abs(arg0); err == nil {
+				return abs, nil
+			}
+			return filepath.Clean(arg0), nil
+		}
+		if lookedUp, err := exec.LookPath(arg0); err == nil {
+			if fi, err := os.Stat(lookedUp); err == nil && !fi.IsDir() {
+				if abs, err := filepath.Abs(lookedUp); err == nil {
+					return abs, nil
+				}
+				return filepath.Clean(lookedUp), nil
+			}
+		}
+	}
+
+	// 3. Termux / Android standard environment location fallback
+	if prefix := os.Getenv("PREFIX"); prefix != "" {
+		termuxBin := filepath.Join(prefix, "bin", "whatsrook")
+		if fi, err := os.Stat(termuxBin); err == nil && !fi.IsDir() {
+			return termuxBin, nil
+		}
+	}
+
+	// 4. Check common binary names in PATH
+	for _, name := range []string{"whatsrook", "whatsrook.exe", "wha-console", "wha-console.exe"} {
+		if p, err := exec.LookPath(name); err == nil {
+			if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+				if abs, err := filepath.Abs(p); err == nil {
+					return abs, nil
+				}
+				return filepath.Clean(p), nil
+			}
+		}
+	}
+
+	// 5. Final fallback to os.Executable()
+	return os.Executable()
+}
+
 // RestartProcess replaces current process with the updated binary using sanitized arguments.
 func RestartProcess(customArgs ...string) error {
 	var argv []string
@@ -973,11 +1032,12 @@ func RestartProcess(customArgs ...string) error {
 		argv = CleanRestartArgs(os.Args)
 	}
 
-	execPath, err := os.Executable()
+	execPath, err := ResolveExecutablePath()
 	if err != nil {
 		if len(argv) > 0 {
-			execPath, err = exec.LookPath(argv[0])
-			if err != nil {
+			if lookedUp, lErr := exec.LookPath(argv[0]); lErr == nil {
+				execPath = lookedUp
+			} else {
 				execPath = argv[0]
 			}
 		} else {
@@ -1005,7 +1065,21 @@ func RestartProcess(customArgs ...string) error {
 		return nil
 	}
 
-	return syscall.Exec(execPath, argv, os.Environ())
+	execErr := syscall.Exec(execPath, argv, os.Environ())
+	if execErr != nil {
+		// Fallback to exec.Command if syscall.Exec fails (e.g. in some restricted environments)
+		cmd := exec.Command(execPath, argv[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		cmd.Env = os.Environ()
+		if spawnErr := cmd.Start(); spawnErr == nil {
+			os.Exit(0)
+			return nil
+		}
+	}
+
+	return execErr
 }
 
 // SanitizeExtractPath prevents Zip/Tar Slip vulnerabilities (arbitrary file writing outside target dir).
