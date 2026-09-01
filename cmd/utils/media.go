@@ -3,7 +3,7 @@ package cliutils
 import (
 	"sync"
 	"time"
-	utils "whatsrook/src"
+	utils "whatsrook"
 
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"

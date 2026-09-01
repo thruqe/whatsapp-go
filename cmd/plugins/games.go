@@ -17,7 +17,7 @@ import (
 
 	"whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 )
 
 func init() {

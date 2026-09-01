@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	utils "whatsrook/src"
+	utils "whatsrook"
 )
 
 const DefaultWhyAPIURL = "https://why.com/api/ultimate-search"

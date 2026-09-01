@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"whatsrook/src/cache"
+	"whatsrook/cache"
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"

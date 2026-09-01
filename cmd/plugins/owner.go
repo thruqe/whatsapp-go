@@ -19,10 +19,10 @@ import (
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 
+	utils "whatsrook"
 	"whatsrook/cmd/updater"
 	cliutils "whatsrook/cmd/utils"
-	utils "whatsrook/src"
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 )
 
 func init() {

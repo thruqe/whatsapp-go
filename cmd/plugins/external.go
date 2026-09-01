@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"strings"
 
-	"whatsrook/src/external"
+	"whatsrook/external"
 )
 
 func init() {

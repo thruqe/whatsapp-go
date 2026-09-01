@@ -11,11 +11,11 @@ import (
 	"syscall"
 
 	"whatsrook"
+	_ "whatsrook"
+	"whatsrook/cache"
 	"whatsrook/cmd/tui"
 	"whatsrook/cmd/updater"
-	_ "whatsrook/src"
-	"whatsrook/src/cache"
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 )
 
 func main() {

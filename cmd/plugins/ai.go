@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	cliutils "whatsrook/cmd/utils"
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"

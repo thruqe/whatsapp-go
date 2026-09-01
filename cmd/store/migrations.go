@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 
 	"go.mau.fi/util/dbutil"
 )

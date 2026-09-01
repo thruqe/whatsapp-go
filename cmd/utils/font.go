@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	utils "whatsrook/src"
+	utils "whatsrook"
 )
 
 // FormatTextResponseRaw formats a text response with monospace/active font format, removing asterisks and emojis.

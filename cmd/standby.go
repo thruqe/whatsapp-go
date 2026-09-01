@@ -14,7 +14,7 @@ import (
 	"whatsrook"
 	"whatsrook/cmd/tui"
 	"whatsrook/cmd/updater"
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 )
 
 func runStandby(ctx context.Context, defaultDB string) error {

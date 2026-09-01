@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
+	utils "whatsrook"
 	"whatsrook/cmd/updater"
 	cliutils "whatsrook/cmd/utils"
-	utils "whatsrook/src"
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"

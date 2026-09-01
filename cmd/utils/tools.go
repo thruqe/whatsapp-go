@@ -3,7 +3,7 @@ package cliutils
 import (
 	"time"
 
-	utils "whatsrook/src"
+	utils "whatsrook"
 )
 
 var (

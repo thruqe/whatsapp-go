@@ -11,16 +11,15 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	Logger "whatsrook/logger"
+
 	"whatsrook"
-
-	Logger "whatsrook/src/logger"
-
 	commands "whatsrook/cmd/plugins"
 	clistore "whatsrook/cmd/store"
 	"whatsrook/cmd/updater"
 	cliutils "whatsrook/cmd/utils"
-	utils "whatsrook/src"
-	"whatsrook/src/qr"
+	"whatsrook/qr"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -382,12 +381,12 @@ func (b *Bot) GetStatsPayload(ctx context.Context) StatsPayload {
 	}
 
 	uptimeSec := int64(time.Since(b.startupTime).Seconds())
-	uptimeFmt := utils.FormatUptime(float64(uptimeSec))
+	uptimeFmt := whatsrook.FormatUptime(float64(uptimeSec))
 
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
 	memUsed := ms.Alloc
-	memUsedFmt := utils.FormatBytes(memUsed)
+	memUsedFmt := whatsrook.FormatBytes(memUsed)
 
 	wsClients := uint32(0)
 	if b.hub != nil {
@@ -700,8 +699,8 @@ func (b *Bot) WAEventHandler(evt any) {
 }
 
 func buildIncomingMessagePayload(v *events.Message) IncomingMessagePayload {
-	text := utils.ExtractMessageText(v)
-	mediaType := utils.GetMediaType(v.Message)
+	text := whatsrook.ExtractMessageText(v)
+	mediaType := whatsrook.GetMediaType(v.Message)
 
 	var quotedID string
 	var quotedText string
@@ -710,7 +709,7 @@ func buildIncomingMessagePayload(v *events.Message) IncomingMessagePayload {
 		ci := ext.GetContextInfo()
 		quotedID = ci.GetStanzaID()
 		if ci.QuotedMessage != nil {
-			quotedText = utils.ExtractTextFromProto(ci.QuotedMessage)
+			quotedText = whatsrook.ExtractTextFromProto(ci.QuotedMessage)
 		}
 	}
 

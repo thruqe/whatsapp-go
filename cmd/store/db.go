@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 
 	"github.com/glebarez/sqlite"
 	"go.mau.fi/util/dbutil"

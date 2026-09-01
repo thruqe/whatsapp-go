@@ -17,10 +17,11 @@ import (
 	"time"
 	"unicode"
 
+	utils "whatsrook"
+	Logger "whatsrook/logger"
+
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
-	utils "whatsrook/src"
-	Logger "whatsrook/src/logger"
 )
 
 type UnscrambleState int

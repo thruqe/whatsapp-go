@@ -18,10 +18,9 @@ import (
 	"strings"
 	"sync"
 
-	"whatsrook/src"
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 
-	"whatsrook/src/cache"
+	"whatsrook/cache"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
@@ -159,7 +158,7 @@ func (c *Client) InitSession(ctx context.Context) error {
 	}
 
 	// initialize centralized logger writing to datadir/logs
-	if err := src.InitLogger(c.Config.DataDir, c.Config.Verbose); err != nil {
+	if err := InitLogger(c.Config.DataDir, c.Config.Verbose); err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
@@ -184,10 +183,10 @@ func (c *Client) InitSession(ctx context.Context) error {
 	}
 	deviceStore.ExternalCache = cache.Default()
 
-	clientLog := src.WhatsmeowStyle("Client", "INFO", true)
+	clientLog := WhatsmeowStyle("Client", "INFO", true)
 	rawClient := whatsmeow.NewClient(deviceStore, clientLog)
-	rawClient.SetCallLogger(src.ZerologStyle("wacaller"))
-	rawClient.SetMediaHTTPClient(src.DefaultHTTPClient())
+	rawClient.SetCallLogger(ZerologStyle("wacaller"))
+	rawClient.SetMediaHTTPClient(DefaultHTTPClient())
 	rawClient.AsyncMessageAck = c.Config.AsyncMessageAck
 
 	// configure companion platform registration headers and os version payloads
@@ -365,7 +364,7 @@ func ensureSSLDisabled(rawURL string) string {
 //
 // todo: consider adding connection pool tuning parameters (max open/idle connections) to config.
 func (c *Client) initStore(ctx context.Context, dbPath, waLevel string) (*sqlstore.Container, error) {
-	dbLog := src.WhatsmeowStyle("Database", waLevel, true)
+	dbLog := WhatsmeowStyle("Database", waLevel, true)
 
 	// resolve database connection uri with hierarchical environment variable overrides
 	dbConn := c.Config.Database

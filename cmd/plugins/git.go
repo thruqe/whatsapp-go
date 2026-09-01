@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	utils "whatsrook"
 	cliutils "whatsrook/cmd/utils"
-	utils "whatsrook/src"
-	Logger "whatsrook/src/logger"
+	Logger "whatsrook/logger"
 )
 
 func init() {
@@ -279,9 +279,10 @@ func handleGitDownload(ctx *Context, mode string) error {
 		}
 		if len(args) >= 4 {
 			f := strings.ToLower(args[3])
-			if f == "tar" || f == "tar.gz" || f == "tgz" {
+			switch f {
+			case "tar", "tar.gz", "tgz":
 				format = "tar.gz"
-			} else if f == "zip" {
+			case "zip":
 				format = "zip"
 			}
 		}

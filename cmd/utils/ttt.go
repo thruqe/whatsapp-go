@@ -7,7 +7,7 @@ import (
 
 	"go.mau.fi/whatsmeow/types"
 
-	utils "whatsrook/src"
+	utils "whatsrook"
 )
 
 var (

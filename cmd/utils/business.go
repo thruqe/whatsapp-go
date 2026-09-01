@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	utils "whatsrook/src"
+	utils "whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"

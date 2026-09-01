@@ -3,8 +3,8 @@ package plugins
 import (
 	"strings"
 
+	utils "whatsrook"
 	cliutils "whatsrook/cmd/utils"
-	utils "whatsrook/src"
 
 	"go.mau.fi/whatsmeow"
 )

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"whatsrook/src/cache"
+	"whatsrook/cache"
 
 	"go.mau.fi/whatsmeow/types"
 )
