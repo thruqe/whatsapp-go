@@ -52,7 +52,7 @@ func TestExtractWaveformForTest(t *testing.T) {
 
 	// Test non-silent synthetic waveform
 	pcm := make([]byte, 16000)
-	for i := 0; i < 8000; i++ {
+	for i := range 8000 {
 		// Sawtooth wave
 		val := int16(i * 4)
 		pcm[i*2] = byte(val & 0xFF)

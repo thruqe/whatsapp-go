@@ -132,22 +132,6 @@ func init() {
 		Handler:     handleKickAll,
 	})
 	Register(&Command{
-		Name:        "community",
-		Alias:       "groups",
-		Description: "List all joined groups, communities, and subgroups with invite links",
-		Category:    "group",
-		IsPublic:    true,
-		Handler:     handleCommunity,
-	})
-	Register(&Command{
-		Name:        "channels",
-		Alias:       "newsletters",
-		Description: "List all subscribed WhatsApp channels and newsletters with subscriber counts",
-		Category:    "group",
-		IsPublic:    true,
-		Handler:     handleChannels,
-	})
-	Register(&Command{
 		Name:        "leave",
 		Alias:       "left",
 		Description: "Leave the current group with interactive confirmation",
@@ -1475,77 +1459,6 @@ func handleKickAll(ctx *Context) error {
 	}
 
 	return ctx.Replyf("Kickall complete! Removed %d participants.", len(toKick))
-}
-
-func handleCommunity(ctx *Context) error {
-	groups, err := ctx.Client.GetJoinedGroups(ctx.Ctx)
-	if err != nil || len(groups) == 0 {
-		return ctx.Reply("Failed to fetch joined groups or no groups joined.")
-	}
-
-	tb := ctx.Text().Header("GROUPS & COMMUNITIES")
-
-	for i, g := range groups {
-		groupName := g.Name
-		if groupName == "" && g.GroupName.Name != "" {
-			groupName = g.GroupName.Name
-		}
-		if groupName == "" {
-			groupName = Sprintf("Group %d", i+1)
-		}
-
-		typeTag := "Group"
-		if g.GroupParent.IsParent {
-			typeTag = "Community (Parent)"
-		} else if !g.GroupLinkedParent.LinkedParentJID.IsEmpty() {
-			typeTag = "Community Subgroup"
-		}
-
-		memberCount := len(g.Participants)
-		link := "Invite link unavailable"
-		if code, errL := ctx.Client.GetGroupInviteLink(ctx.Ctx, g.JID, false); errL == nil && code != "" {
-			link = "https://chat.whatsapp.com/" + code
-		}
-
-		tb.Numbered(i+1, Sprintf("%s [%s]", Bold(groupName), typeTag)).
-			Indent(3, Sprintf("Members: %d", memberCount)).NewLine().
-			Indent(3, Sprintf("Link: %s", link)).NewLine().
-			Blank()
-	}
-
-	return tb.Reply()
-}
-
-func handleChannels(ctx *Context) error {
-	newsletters, err := ctx.Client.GetSubscribedNewsletters(ctx.Ctx)
-	if err != nil || len(newsletters) == 0 {
-		return ctx.Reply("No subscribed channels/newsletters found.")
-	}
-
-	tb := ctx.Text().Header("SUBSCRIBED CHANNELS")
-
-	for i, n := range newsletters {
-		name := n.ThreadMeta.Name.Text
-		if name == "" {
-			name = Sprintf("Channel %d", i+1)
-		}
-		subs := n.ThreadMeta.SubscriberCount
-		role := "SUBSCRIBER"
-		if n.ViewerMeta != nil && n.ViewerMeta.Role != "" {
-			role = string(n.ViewerMeta.Role)
-		}
-		link := "None"
-		if n.ThreadMeta.InviteCode != "" {
-			link = "https://whatsapp.com/channel/" + n.ThreadMeta.InviteCode
-		}
-
-		tb.Numbered(i+1, Bold(name)).
-			Indent(3, Sprintf("Role: %s | Followers: %d", role, subs)).NewLine().
-			Indent(3, Sprintf("Link: %s", link)).NewLine().
-			Blank()
-	}
-
-	return tb.Reply()
 }
 
 func handleLeave(ctx *Context) error {

@@ -354,11 +354,6 @@ func parseUnifiedMediaState(msg *waE2E.Message) (mediaURL, mimeType, text, imagi
 	return mediaURL, mimeType, text, imagineType, status
 }
 
-func ExtractMetaAiGeneratedMedia(msg *waE2E.Message) (mediaURL string, mimeType string, text string) {
-	mediaURL, mimeType, text, _, _ = parseUnifiedMediaState(msg)
-	return mediaURL, mimeType, text
-}
-
 func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat types.JID, request string, onUpdate func(text string) error) (MetaAiResult, error) {
 	chatKey := chat.String()
 
