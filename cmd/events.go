@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"whatsrook"
-	"whatsrook/cmd/plugins"
+	utils "whatsrook"
+	"whatsrook/cmd/calls"
+	"whatsrook/cmd/group"
 	"whatsrook/cmd/store"
-	"whatsrook/cmd/utils"
 	"whatsrook/external"
 	"whatsrook/logger"
 
@@ -52,7 +52,7 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 		return
 	}
 
-	voicemailStatus, _ := store.GetSetting(ctx, s, utils.VoicemailSettingKey)
+	voicemailStatus, _ := store.GetSetting(ctx, s, calls.VoicemailSettingKey)
 	if voicemailStatus == "" {
 		voicemailStatus, _ = store.GetSetting(ctx, s, "autoacceptcall_status")
 	}
@@ -276,7 +276,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := whatsrook.ResolveMentionRaw(ctx, cli, info.OwnerJID)
+					_, ownerName := utils.ResolveMentionRaw(ctx, cli, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -285,7 +285,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 			}
 
 			for _, participant := range g.Join {
-				resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, cli, participant)
+				resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -383,7 +383,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := whatsrook.ResolveMentionRaw(ctx, cli, info.OwnerJID)
+					_, ownerName := utils.ResolveMentionRaw(ctx, cli, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -397,7 +397,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					continue
 				}
 
-				resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, cli, participant)
+				resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -500,7 +500,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	var actorJID *types.JID
 	if g.Sender != nil && !g.Sender.IsEmpty() {
 		actorJID = g.Sender
-		_, actorName := whatsrook.ResolveMentionRaw(ctx, cli, *g.Sender)
+		_, actorName := utils.ResolveMentionRaw(ctx, cli, *g.Sender)
 		actorTag = " by @" + actorName
 	}
 
@@ -545,7 +545,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	// 5. Admin Promotions
 	if len(g.Promote) > 0 {
 		for _, userJID := range g.Promote {
-			resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, cli, userJID)
+			resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, userJID)
 			logger.Debug("handleGroupEventsNotification: participant promoted to admin", "group", chatKey, "user", username, "actor", actorTag)
 			msgText := fmt.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
 			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, []types.JID{resolvedJID})
@@ -555,7 +555,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	// 6. Admin Demotions
 	if len(g.Demote) > 0 {
 		for _, userJID := range g.Demote {
-			resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, cli, userJID)
+			resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, userJID)
 			logger.Debug("handleGroupEventsNotification: admin demoted to member", "group", chatKey, "user", username, "actor", actorTag)
 			msgText := fmt.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
 			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, []types.JID{resolvedJID})
@@ -689,7 +689,7 @@ func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
 	// Cancel pending captcha and delete verification message if participant left or was removed
 	if len(g.Leave) > 0 {
 		for _, participant := range g.Leave {
-			if pending, ok := plugins.RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
+			if pending, ok := group.RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
 				logger.Debug("handleGroupCaptcha: cancelled pending captcha for leaving participant", "group", g.JID.String(), "user", participant.String())
 				if cli != nil && pending.MsgID != "" {
 					_, _ = cli.SendMessage(ctx, g.JID, cli.BuildRevoke(g.JID, types.EmptyJID, pending.MsgID))
@@ -700,7 +700,7 @@ func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
 	// Cancel pending captcha and delete verification message if participant was promoted to admin
 	if len(g.Promote) > 0 {
 		for _, participant := range g.Promote {
-			if pending, ok := plugins.RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
+			if pending, ok := group.RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
 				logger.Debug("handleGroupCaptcha: cancelled pending captcha for promoted admin", "group", g.JID.String(), "user", participant.String())
 				if cli != nil && pending.MsgID != "" {
 					_, _ = cli.SendMessage(ctx, g.JID, cli.BuildRevoke(g.JID, types.EmptyJID, pending.MsgID))
@@ -745,7 +745,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 	}
 
 	// This plugin should only work if this bot is an admin
-	if cli.Store.ID == nil || !whatsrook.IsAdminRaw(ctx, cli, info, *cli.Store.ID) {
+	if cli.Store.ID == nil || !utils.IsAdminRaw(ctx, cli, info, *cli.Store.ID) {
 		logger.Warn("handleGroupCaptcha: bot is not an admin in group, skipping captcha verification", "group", chatKey)
 		return
 	}
@@ -776,12 +776,12 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 
 	for _, participant := range g.Join {
 		// Skip if participant is the bot itself
-		if whatsrook.IsSameUserRaw(ctx, cli, participant, *cli.Store.ID) {
+		if utils.IsSameUserRaw(ctx, cli, participant, *cli.Store.ID) {
 			logger.Debug("processGroupCaptchaJoins: skipping bot participant", "group", chatKey, "user", participant.String())
 			continue
 		}
 
-		resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, cli, participant)
+		resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, participant)
 
 		// Generate random 4-digit code
 		codeInt := rand.Intn(10000)
@@ -799,7 +799,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 		partCopy := participant
 		resolvedCopy := resolvedJID
 		userCopy := username
-		plugins.RegisterPendingCaptcha(
+		group.RegisterPendingCaptcha(
 			g.JID,
 			partCopy,
 			resolvedCopy,
@@ -814,12 +814,12 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 					logger.Warn("processGroupCaptchaJoins: failed to get group info during timeout kick", "group", g.JID.String(), "err", gErr)
 					return
 				}
-				if !whatsrook.IsAdminRaw(context.Background(), cli, currentInfo, *cli.Store.ID) {
+				if !utils.IsAdminRaw(context.Background(), cli, currentInfo, *cli.Store.ID) {
 					logger.Warn("handleGroupCaptcha: bot is no longer admin to kick unverified participant", "group", g.JID.String(), "user", partCopy.String())
 					return
 				}
 				// Don't attempt to kick admins/creators if they didn't verify
-				if whatsrook.IsAdminRaw(context.Background(), cli, currentInfo, partCopy) {
+				if utils.IsAdminRaw(context.Background(), cli, currentInfo, partCopy) {
 					logger.Warn("handleGroupCaptcha: unverified participant is an admin or creator, skipping kick", "group", g.JID.String(), "user", partCopy.String())
 					return
 				}
@@ -832,7 +832,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 
 				logger.Info("processGroupCaptchaJoins: unverified participant removed from group", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
 
-				kickTb := whatsrook.NewText()
+				kickTb := utils.NewText()
 				kickTb.Linef("@%s was removed from the group for failing to complete the captcha verification within %s.", userCopy, timeoutDisplay)
 				b.sendGroupEventMessageWithMentions(context.Background(), g.JID, kickTb.Trimmed(), []types.JID{resolvedCopy})
 			},
@@ -856,7 +856,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 			logger.Debug("handleGroupCaptcha: captcha video generation unavailable/failed", "err", errGen)
 		}
 
-		tbVid := whatsrook.NewText()
+		tbVid := utils.NewText()
 		tbVid.Linef("Welcome @%s! You are required to complete a verification code to join %s.", username, groupName)
 		tbVid.Linef("Please watch the video and reply with the 4-digit verification code within %s, otherwise you will be automatically removed.", timeoutDisplay)
 		formattedCaption := tbVid.Trimmed()
@@ -887,13 +887,13 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 			if errSend != nil {
 				logger.Error("handleGroupCaptcha: failed to send video verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
 			} else if resp.ID != "" {
-				plugins.SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
+				group.SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
 				logger.Debug("handleGroupCaptcha: video verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
 			}
 		} else {
 			// Fallback to text verification prompt if video generation/upload fails
 			logger.Warn("handleGroupCaptcha: falling back to text verification prompt", "group", g.JID.String(), "user", partCopy.String())
-			tbFallback := whatsrook.NewText()
+			tbFallback := utils.NewText()
 			tbFallback.Header("Verification Required")
 			tbFallback.Linef("Welcome @%s! You are required to complete a verification code to join %s.", username, groupName)
 			tbFallback.Blank()
@@ -913,7 +913,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 			if errSend != nil {
 				logger.Error("handleGroupCaptcha: failed to send fallback text verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
 			} else if resp.ID != "" {
-				plugins.SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
+				group.SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
 				logger.Debug("handleGroupCaptcha: fallback text verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
 			}
 		}

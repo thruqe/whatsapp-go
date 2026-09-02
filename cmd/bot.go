@@ -15,11 +15,24 @@ import (
 	"whatsrook/logger"
 
 	"whatsrook"
-	"whatsrook/cmd/plugins"
+	"whatsrook/cmd/calls"
+	"whatsrook/cmd/dispatch"
+	"whatsrook/cmd/group"
+	"whatsrook/cmd/info"
+	"whatsrook/cmd/settings"
 	"whatsrook/cmd/store"
 	"whatsrook/cmd/updater"
-	"whatsrook/cmd/utils"
 	"whatsrook/qr"
+	"whatsrook/system"
+
+	_ "whatsrook/cmd/ai"
+	_ "whatsrook/cmd/business"
+	_ "whatsrook/cmd/chats"
+	_ "whatsrook/cmd/extensions"
+	_ "whatsrook/cmd/filters"
+	_ "whatsrook/cmd/games"
+	_ "whatsrook/cmd/owner"
+	_ "whatsrook/cmd/tools"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -190,8 +203,8 @@ func (b *Bot) runSession(ctx context.Context) error {
 		b.mu.Lock()
 		b.onLoggedOut = nil
 		b.mu.Unlock()
-		plugins.StopAutoMuteScheduler()
-		plugins.StopAutoBioScheduler()
+		group.StopAutoMuteScheduler()
+		settings.StopAutoBioScheduler()
 		_ = b.client.Close()
 	}()
 
@@ -206,18 +219,18 @@ func (b *Bot) runSession(ctx context.Context) error {
 
 	if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok && s != nil {
 		store.InitTables(sessionCtx, s)
-		if val, err := store.GetSetting(sessionCtx, s, utils.BotNamePromptDismissedKey); err == nil && val == "true" {
-			utils.BotNamePromptDismissedCacheMu.Lock()
-			utils.BotNamePromptDismissedCache[s.JID] = true
+		if val, err := store.GetSetting(sessionCtx, s, settings.BotNamePromptDismissedKey); err == nil && val == "true" {
+			settings.BotNamePromptDismissedCacheMu.Lock()
+			settings.BotNamePromptDismissedCache[s.JID] = true
 			if cli.Store != nil && cli.Store.ID != nil {
-				utils.BotNamePromptDismissedCache[cli.Store.ID.ToNonAD().String()] = true
+				settings.BotNamePromptDismissedCache[cli.Store.ID.ToNonAD().String()] = true
 			}
-			utils.BotNamePromptDismissedCacheMu.Unlock()
+			settings.BotNamePromptDismissedCacheMu.Unlock()
 		}
 	}
 
 	_ = b.groupManager.LoadFromDB(sessionCtx, cli)
-	plugins.RegisterWACaller(cli)
+	calls.RegisterWACaller(cli)
 
 	// Explicit session logout routine
 	if b.cfg.Logout {
@@ -294,8 +307,8 @@ func (b *Bot) runSession(ctx context.Context) error {
 	}
 
 	if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok && s != nil {
-		plugins.StartAutoMuteScheduler(sessionCtx, cli)
-		plugins.StartAutoBioScheduler(sessionCtx, cli)
+		group.StartAutoMuteScheduler(sessionCtx, cli)
+		settings.StartAutoBioScheduler(sessionCtx, cli)
 	}
 
 	for {
@@ -325,7 +338,7 @@ func (b *Bot) GetStatsPayload(ctx context.Context) StatsPayload {
 	var jidStr *string
 	var pushName *string
 	var botName *string
-	defaultPrefix := utils.DefaultPrefix
+	defaultPrefix := "."
 	prefix := &defaultPrefix
 	var mode *string
 	var dbContactsCount uint32
@@ -356,10 +369,10 @@ func (b *Bot) GetStatsPayload(ctx context.Context) StatsPayload {
 				dbContactsCount = uint32(len(contacts))
 			}
 
-			if bn, err := store.GetSetting(ctx, s, utils.BotNameSettingKey); err == nil && bn != "" {
+			if bn, err := store.GetSetting(ctx, s, settings.BotNameSettingKey); err == nil && bn != "" {
 				botName = &bn
 			}
-			if p, err := store.GetSetting(ctx, s, utils.PrefixSettingKey); err == nil && p != "" {
+			if p, err := store.GetSetting(ctx, s, settings.PrefixSettingKey); err == nil && p != "" {
 				prefix = &p
 			}
 			if m, err := store.GetSetting(ctx, s, "mode"); err == nil && m != "" {
@@ -379,7 +392,7 @@ func (b *Bot) GetStatsPayload(ctx context.Context) StatsPayload {
 	}
 
 	uptimeSec := int64(time.Since(b.startupTime).Seconds())
-	uptimeFmt := whatsrook.FormatUptime(float64(uptimeSec))
+	uptimeFmt := system.FormatDuration(time.Duration(uptimeSec) * time.Second)
 
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
@@ -391,7 +404,7 @@ func (b *Bot) GetStatsPayload(ctx context.Context) StatsPayload {
 		wsClients = uint32(b.hub.ConnectedClientsCount())
 	}
 
-	activePlugins := uint32(len(plugins.Visible()))
+	activePlugins := uint32(dispatch.Count())
 
 	return StatsPayload{
 		Connected:           connected,
@@ -436,7 +449,7 @@ func (b *Bot) runPairCode(ctx context.Context) error {
 }
 
 func (b *Bot) runQR(ctx context.Context) error {
-	qrChan, err := b.client.GetQRChannel(ctx)
+	qrChan, err := b.client.QRChannel(ctx)
 	if err != nil {
 		return err
 	}
@@ -548,20 +561,20 @@ func (b *Bot) WAEventHandler(evt any) {
 				b.handleLikeStatus(context.Background(), v)
 			}
 
-			if plugins.HandlePendingAudioReply(context.Background(), cli, v) {
+			if calls.HandlePendingAudioReply(context.Background(), cli, v) {
 				return
 			}
-			if plugins.HandlePendingMenuMediaReply(context.Background(), cli, v) {
+			if info.HandlePendingMenuMediaReply(context.Background(), cli, v) {
 				return
 			}
-			if plugins.HandlePendingBotCustomizationReply(context.Background(), cli, v) {
+			if settings.HandlePendingBotCustomizationReply(context.Background(), cli, v) {
 				return
 			}
-			if plugins.HandlePendingCaptchaReply(context.Background(), cli, v) {
+			if group.HandlePendingCaptchaReply(context.Background(), cli, v) {
 				return
 			}
 
-			if plugins.Dispatch(context.Background(), cli, v) {
+			if dispatch.Dispatch(context.Background(), cli, v) {
 				return
 			}
 
@@ -574,15 +587,15 @@ func (b *Bot) WAEventHandler(evt any) {
 
 	case *events.Presence:
 		logger.Debug("presence update received", "event", v)
-		plugins.TrackPresence(v.From, !v.Unavailable)
+		group.TrackPresence(v.From, !v.Unavailable)
 
 	case *events.ChatPresence:
 		logger.Debug("chat presence update received", "event", v)
-		plugins.TrackPresence(v.Sender, true)
+		group.TrackPresence(v.Sender, true)
 
 	case *events.Receipt:
 		if !v.Sender.IsEmpty() {
-			plugins.TrackPresence(v.Sender, true)
+			group.TrackPresence(v.Sender, true)
 		}
 
 	case *events.CallOffer:

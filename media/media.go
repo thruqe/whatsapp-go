@@ -20,6 +20,11 @@ import (
 	"github.com/tcolgate/mp3"
 )
 
+// EnsureJPEG is an alias for JPEGConvert for backward compatibility.
+func EnsureJPEG(ctx context.Context, inputBytes []byte) ([]byte, error) {
+	return JPEGConvert(ctx, inputBytes)
+}
+
 // JPEGConvert decodes input image bytes (JPEG, PNG, GIF, WebP, etc.) and re-encodes to valid JPEG bytes.
 func JPEGConvert(ctx context.Context, inputBytes []byte) ([]byte, error) {
 	if len(inputBytes) == 0 {
@@ -126,8 +131,13 @@ func OpusPTTConvert(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, erro
 	return meta, nil
 }
 
-// OpusPTT is an alias for EnsureOpusPTT for concise caller ergonomics.
+// OpusPTT is an alias for OpusPTTConvert for concise caller ergonomics.
 func OpusPTT(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, error) {
+	return OpusPTTConvert(ctx, audioBytes)
+}
+
+// EnsureOpusPTT is an alias for OpusPTTConvert.
+func EnsureOpusPTT(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, error) {
 	return OpusPTTConvert(ctx, audioBytes)
 }
 

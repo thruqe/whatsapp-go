@@ -25,6 +25,7 @@ type Sender interface {
 	ReplyWithImage(data []byte, mimetype, caption string) error
 	ReplyWithImageWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error
 	ReplyWithVideo(data []byte, mimetype, caption string) error
+	ReplyWithVideoWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error
 	ReplyWithVideoGif(data []byte, mimetype, caption string) error
 	ReplyWithAudio(data []byte, mimetype string) error
 	ReplyWithDocument(data []byte, mimetype, filename, caption string) error
@@ -37,6 +38,7 @@ type Sender interface {
 	SendImage(data []byte, mimetype, caption string) error
 	SendImageWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error
 	SendVideo(data []byte, mimetype, caption string) error
+	SendVideoWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error
 	SendVideoGif(data []byte, mimetype, caption string) error
 	SendAudio(data []byte, mimetype string) error
 	SendDocument(data []byte, mimetype, filename, caption string) error
