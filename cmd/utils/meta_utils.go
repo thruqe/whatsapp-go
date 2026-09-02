@@ -1,5 +1,5 @@
 // Shell command execution helpers used internally by Meta AI tool invocations.
-package cliutils
+package utils
 
 import (
 	"fmt"

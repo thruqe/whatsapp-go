@@ -15,7 +15,7 @@ import (
 	"whatsrook/cache"
 	"whatsrook/cmd/tui"
 	"whatsrook/cmd/updater"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 )
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 	}
 
 	if args.Verbose {
-		Logger.SetVerbose(true)
+		logger.SetVerbose(true)
 	}
 
 	if args.Update {
@@ -45,7 +45,7 @@ func main() {
 
 	if args.Session == "" {
 		if err := runStandby(ctx, args.Database); err != nil {
-			Logger.Error("standby error", "err", err)
+			logger.Error("standby error", "err", err)
 			os.Exit(1)
 		}
 		return
@@ -75,9 +75,9 @@ func main() {
 			if ctx.Err() != nil {
 				return
 			}
-			Logger.Info("session was logged out and removed; switching to standby mode")
+			logger.Info("session was logged out and removed; switching to standby mode")
 			if err := runStandby(context.Background(), args.Database); err != nil {
-				Logger.Error("standby error", "err", err)
+				logger.Error("standby error", "err", err)
 				os.Exit(1)
 			}
 			return
@@ -85,12 +85,12 @@ func main() {
 		// If interrupted with Ctrl+C, clear and switch smoothly to interactive standby
 		if errors.Is(err, context.Canceled) {
 			if err := runStandby(context.Background(), args.Database); err != nil {
-				Logger.Error("standby error", "err", err)
+				logger.Error("standby error", "err", err)
 				os.Exit(1)
 			}
 			return
 		}
-		Logger.Error("bot execution failure", "err", err)
+		logger.Error("bot execution failure", "err", err)
 		os.Exit(1)
 	}
 }
@@ -105,7 +105,7 @@ func handleUpdate(op string) {
 			Channel: current,
 		})
 		if _, err := up.Check(ctx); err != nil {
-			Logger.Error("update check failed", "err", err)
+			logger.Error("update check failed", "err", err)
 			os.Exit(1)
 		}
 		return
@@ -115,7 +115,7 @@ func handleUpdate(op string) {
 		if op != current {
 			fmt.Printf("==> Switching release channel: %s -> %s\n", current, op)
 			if err := updater.SetStoredChannel(op); err != nil {
-				Logger.Error("failed to set release channel", "err", err)
+				logger.Error("failed to set release channel", "err", err)
 				os.Exit(1)
 			}
 			current = op
@@ -131,7 +131,7 @@ func handleUpdate(op string) {
 
 	res, err := up.Upgrade(ctx, current == "beta")
 	if err != nil {
-		Logger.Error("upgrade procedure failed", "err", err)
+		logger.Error("upgrade procedure failed", "err", err)
 		os.Exit(1)
 	}
 

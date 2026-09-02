@@ -23,7 +23,7 @@ var OfficialPlugins = []string{
 	"quotes", "joke", "rizz", "btc", "markets",
 	"news", "wabeta", "why", "ss", "tts",
 	"qrcode", "fancy", "font", "fonts", "git", "mp4url", "cpu",
-	"memory",
+	"memory", "captcha",
 }
 
 // Manifest represents the metadata stored alongside an installed external plugin executable (<name>.json).

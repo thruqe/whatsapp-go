@@ -1,4 +1,4 @@
-package cliutils
+package utils
 
 import (
 	"context"
@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	utils "whatsrook"
+	"whatsrook"
 )
 
-var funHTTPClient = utils.NewHTTPClient(4 * time.Second)
+var funHTTPClient = whatsrook.NewHTTPClient(4 * time.Second)
 
 var fallbackFacts = []string{
 	"Honey never spoils; archaeologists have found 3,000-year-old edible honey in Egyptian tombs.",

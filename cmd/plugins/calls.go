@@ -19,7 +19,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 
 	utils "whatsrook"
-	clistore "whatsrook/cmd/store"
+	"whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
 	Logger "whatsrook/logger"
 )
@@ -115,7 +115,7 @@ func resolveSavedCallAudio(client *whatsmeow.Client, sender types.JID) string {
 		if jid.IsEmpty() {
 			continue
 		}
-		if path, err := s.GetCallMediaConfig(ctx, jid, clistore.CallMediaAudio); err == nil && path != "" {
+		if path, err := s.GetCallMediaConfig(ctx, jid, store.CallMediaAudio); err == nil && path != "" {
 			if _, statErr := os.Stat(path); statErr == nil {
 				return path
 			}
@@ -155,7 +155,7 @@ func resolveSavedCallVideo(client *whatsmeow.Client, sender types.JID) string {
 		if jid.IsEmpty() {
 			continue
 		}
-		if path, err := s.GetCallMediaConfig(ctx, jid, clistore.CallMediaVideo); err == nil && path != "" {
+		if path, err := s.GetCallMediaConfig(ctx, jid, store.CallMediaVideo); err == nil && path != "" {
 			if _, statErr := os.Stat(path); statErr == nil {
 				return path
 			}
@@ -187,16 +187,16 @@ func saveAudio(ctx *Context, sender types.JID, path string) error {
 	if err != nil {
 		return err
 	}
-	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), clistore.CallMediaAudio, path)
+	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), store.CallMediaAudio, path)
 	if ctx.Client != nil && ctx.Client.Store != nil {
 		if jid := ctx.Client.Store.GetJID(); !jid.IsEmpty() {
-			_ = s.PutCallMediaConfig(ctx.Ctx, jid.ToNonAD(), clistore.CallMediaAudio, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, jid.ToNonAD(), store.CallMediaAudio, path)
 		}
 		if lid := ctx.Client.Store.GetLID(); !lid.IsEmpty() {
-			_ = s.PutCallMediaConfig(ctx.Ctx, lid.ToNonAD(), clistore.CallMediaAudio, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, lid.ToNonAD(), store.CallMediaAudio, path)
 		}
 		if ctx.Client.Store.ID != nil {
-			_ = s.PutCallMediaConfig(ctx.Ctx, ctx.Client.Store.ID.ToNonAD(), clistore.CallMediaAudio, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, ctx.Client.Store.ID.ToNonAD(), store.CallMediaAudio, path)
 		}
 	}
 	return nil
@@ -215,16 +215,16 @@ func saveVideo(ctx *Context, sender types.JID, path string) error {
 	if err != nil {
 		return err
 	}
-	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), clistore.CallMediaVideo, path)
+	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), store.CallMediaVideo, path)
 	if ctx.Client != nil && ctx.Client.Store != nil {
 		if jid := ctx.Client.Store.GetJID(); !jid.IsEmpty() {
-			_ = s.PutCallMediaConfig(ctx.Ctx, jid.ToNonAD(), clistore.CallMediaVideo, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, jid.ToNonAD(), store.CallMediaVideo, path)
 		}
 		if lid := ctx.Client.Store.GetLID(); !lid.IsEmpty() {
-			_ = s.PutCallMediaConfig(ctx.Ctx, lid.ToNonAD(), clistore.CallMediaVideo, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, lid.ToNonAD(), store.CallMediaVideo, path)
 		}
 		if ctx.Client.Store.ID != nil {
-			_ = s.PutCallMediaConfig(ctx.Ctx, ctx.Client.Store.ID.ToNonAD(), clistore.CallMediaVideo, path)
+			_ = s.PutCallMediaConfig(ctx.Ctx, ctx.Client.Store.ID.ToNonAD(), store.CallMediaVideo, path)
 		}
 	}
 	return nil
@@ -287,13 +287,12 @@ func handleCallAudio(ctx *Context) error {
 	}
 
 	target := targets[0].String()
-	_ = ctx.Reply("⚠️ Notice: Outgoing call commands are highly unstable on WhatsApp Web protocol and very unlikely to work reliably.")
 
 	if path, ok := getSavedAudio(ctx, ctx.Sender); ok {
 		return placeCallWithAudio(ctx, target, path)
 	}
 
-	setPending(ctx.Sender, &cliutils.PendingCall{Target: target, Kind: clistore.CallMediaAudio})
+	setPending(ctx.Sender, &cliutils.PendingCall{Target: target, Kind: store.CallMediaAudio})
 	return ctx.Reply("Reply to an audio file to use for the call.\n" +
 		"Reply \"save\" to that audio to make it your default for future calls.")
 }
@@ -388,7 +387,7 @@ func handleCallVideo(ctx *Context) error {
 		return placeVideoCallWithMedia(ctx, target, path)
 	}
 
-	setPending(ctx.Sender, &cliutils.PendingCall{Target: target, Kind: clistore.CallMediaVideo})
+	setPending(ctx.Sender, &cliutils.PendingCall{Target: target, Kind: store.CallMediaVideo})
 	return ctx.Reply("Reply to a video file to use for the video call.\n" +
 		"Reply \"save\" to that video to make it your default for future video calls.")
 }
@@ -916,7 +915,7 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 		return false
 	}
 
-	if p.Kind == clistore.CallMediaVideo {
+	if p.Kind == store.CallMediaVideo {
 		var videoMsg *waE2E.VideoMessage
 		saveRequested := false
 

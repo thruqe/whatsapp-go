@@ -28,17 +28,17 @@ import (
 	"whatsrook"
 	"whatsrook/cmd/store"
 	"whatsrook/cmd/utils"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 )
 
 func resetAFKUserTracker() {
-	cliutils.AfkUserTrackerLock.Lock()
-	cliutils.AfkUserTracker = make(map[string]*cliutils.UserAFKState)
-	cliutils.AfkUserTrackerLock.Unlock()
+	utils.AfkUserTrackerLock.Lock()
+	utils.AfkUserTracker = make(map[string]*utils.UserAFKState)
+	utils.AfkUserTrackerLock.Unlock()
 }
 
 func init() {
-	sort.Strings(cliutils.SupportedTimezones)
+	sort.Strings(utils.SupportedTimezones)
 
 	Register(&Command{
 		Name:        "afk",
@@ -167,25 +167,25 @@ func init() {
 
 func UpdateOwnerLastActive(ctx context.Context, s *StoreWrapper) {
 	now := time.Now()
-	cliutils.AFKMu.Lock()
-	cliutils.LastActiveCache = now
-	cliutils.AFKMu.Unlock()
+	utils.AFKMu.Lock()
+	utils.LastActiveCache = now
+	utils.AFKMu.Unlock()
 
 	if s != nil {
-		_ = s.PutSetting(ctx, cliutils.AFKLastActiveKey, now.Format(time.RFC3339))
+		_ = s.PutSetting(ctx, utils.AFKLastActiveKey, now.Format(time.RFC3339))
 	}
 }
 
 func GetOwnerLastActive(ctx context.Context, s *StoreWrapper) time.Time {
-	cliutils.AFKMu.RLock()
-	cached := cliutils.LastActiveCache
-	cliutils.AFKMu.RUnlock()
+	utils.AFKMu.RLock()
+	cached := utils.LastActiveCache
+	utils.AFKMu.RUnlock()
 	if !cached.IsZero() {
 		return cached
 	}
 
 	if s != nil {
-		if val, err := s.GetSetting(ctx, cliutils.AFKLastActiveKey); err == nil && val != "" {
+		if val, err := s.GetSetting(ctx, utils.AFKLastActiveKey); err == nil && val != "" {
 			if t, errParse := time.Parse(time.RFC3339, val); errParse == nil {
 				return t
 			}
@@ -214,9 +214,9 @@ func handleAFK(ctx *Context) error {
 		if !ctx.IsSudo() {
 			return ctx.Reply("Only sudoers/owners can turn off AFK status.")
 		}
-		_ = s.PutSetting(ctx.Ctx, cliutils.AFKStatusKey, "off")
-		_ = s.PutSetting(ctx.Ctx, cliutils.AFKReasonKey, "")
-		_ = s.PutSetting(ctx.Ctx, cliutils.AFKTimeKey, "")
+		_ = s.PutSetting(ctx.Ctx, utils.AFKStatusKey, "off")
+		_ = s.PutSetting(ctx.Ctx, utils.AFKReasonKey, "")
+		_ = s.PutSetting(ctx.Ctx, utils.AFKTimeKey, "")
 		resetAFKUserTracker()
 		UpdateOwnerLastActive(ctx.Ctx, s)
 		return ctx.Reply("Welcome back! AFK mode has been turned off.")
@@ -229,18 +229,18 @@ func handleAFK(ctx *Context) error {
 			return ctx.Reply("Only sudoers/owners can customize the AFK template.")
 		}
 		if len(args) < 2 {
-			curr, _ := s.GetSetting(ctx.Ctx, cliutils.AFKTemplateKey)
+			curr, _ := s.GetSetting(ctx.Ctx, utils.AFKTemplateKey)
 			if curr == "" {
-				curr = cliutils.DefaultAFKTemplate
+				curr = utils.DefaultAFKTemplate
 			}
 			return ctx.Reply("Current AFK Message Template:\n\n" + curr)
 		}
 		newTpl := strings.TrimSpace(ctx.RawArgs[len(args[0]):])
 		if strings.EqualFold(newTpl, "reset") || strings.EqualFold(newTpl, "clear") {
-			_ = s.PutSetting(ctx.Ctx, cliutils.AFKTemplateKey, "")
+			_ = s.PutSetting(ctx.Ctx, utils.AFKTemplateKey, "")
 			return ctx.Reply("AFK message template reset to default.")
 		}
-		if err := s.PutSetting(ctx.Ctx, cliutils.AFKTemplateKey, newTpl); err != nil {
+		if err := s.PutSetting(ctx.Ctx, utils.AFKTemplateKey, newTpl); err != nil {
 			return ctx.Reply("Failed to save AFK template: " + err.Error())
 		}
 		return ctx.Reply("Custom AFK message template updated successfully!\n\nUse `" + ctx.GetPrefix() + "afk msg reset` to restore default.")
@@ -250,7 +250,7 @@ func handleAFK(ctx *Context) error {
 			return ctx.Reply("Only sudoers/owners can set AFK media.")
 		}
 		if len(args) < 2 {
-			curr, _ := s.GetSetting(ctx.Ctx, cliutils.AFKMediaKey)
+			curr, _ := s.GetSetting(ctx.Ctx, utils.AFKMediaKey)
 			if curr == "" {
 				return ctx.Reply("No custom AFK media URL set.")
 			}
@@ -258,10 +258,10 @@ func handleAFK(ctx *Context) error {
 		}
 		urlVal := strings.TrimSpace(args[1])
 		if strings.EqualFold(urlVal, "clear") || strings.EqualFold(urlVal, "off") || strings.EqualFold(urlVal, "none") {
-			_ = s.PutSetting(ctx.Ctx, cliutils.AFKMediaKey, "")
+			_ = s.PutSetting(ctx.Ctx, utils.AFKMediaKey, "")
 			return ctx.Reply("AFK media URL cleared.")
 		}
-		if err := s.PutSetting(ctx.Ctx, cliutils.AFKMediaKey, urlVal); err != nil {
+		if err := s.PutSetting(ctx.Ctx, utils.AFKMediaKey, urlVal); err != nil {
 			return ctx.Reply("Failed to save AFK media URL: " + err.Error())
 		}
 		return ctx.Reply("AFK media URL updated successfully!")
@@ -280,10 +280,10 @@ func setAFKStatus(ctx *Context, s *StoreWrapper, reason string) error {
 	nowStr := time.Now().Format("2006-01-02 15:04:05 MST")
 	lastActiveStr := lastActive.Format("2006-01-02 15:04:05 MST")
 
-	_ = s.PutSetting(ctx.Ctx, cliutils.AFKStatusKey, "on")
-	_ = s.PutSetting(ctx.Ctx, cliutils.AFKReasonKey, reason)
-	_ = s.PutSetting(ctx.Ctx, cliutils.AFKTimeKey, nowStr)
-	_ = s.PutSetting(ctx.Ctx, cliutils.AFKLastActiveKey, lastActiveStr)
+	_ = s.PutSetting(ctx.Ctx, utils.AFKStatusKey, "on")
+	_ = s.PutSetting(ctx.Ctx, utils.AFKReasonKey, reason)
+	_ = s.PutSetting(ctx.Ctx, utils.AFKTimeKey, nowStr)
+	_ = s.PutSetting(ctx.Ctx, utils.AFKLastActiveKey, lastActiveStr)
 	resetAFKUserTracker()
 
 	p := ctx.GetPrefix()
@@ -331,10 +331,10 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 
 	if senderJID.User == ownerJID.User {
 		UpdateOwnerLastActive(ctx, s)
-		status, _ := s.GetSetting(ctx, cliutils.AFKStatusKey)
+		status, _ := s.GetSetting(ctx, utils.AFKStatusKey)
 		if status == "on" {
 			if !strings.HasPrefix(strings.TrimSpace(text), ".") && !strings.HasPrefix(strings.TrimSpace(text), "/") && !strings.HasPrefix(strings.TrimSpace(text), "!") && !strings.HasPrefix(strings.TrimSpace(text), "#") {
-				_ = s.PutSetting(ctx, cliutils.AFKStatusKey, "off")
+				_ = s.PutSetting(ctx, utils.AFKStatusKey, "off")
 				resetAFKUserTracker()
 				cctx := &Context{
 					Ctx:    ctx,
@@ -349,7 +349,7 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 		return false
 	}
 
-	status, _ := s.GetSetting(ctx, cliutils.AFKStatusKey)
+	status, _ := s.GetSetting(ctx, utils.AFKStatusKey)
 	if status != "on" {
 		return false
 	}
@@ -378,46 +378,46 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 		}
 	}
 
-	cliutils.AfkUserTrackerLock.Lock()
-	uState, okState := cliutils.AfkUserTracker[senderJID.User]
+	utils.AfkUserTrackerLock.Lock()
+	uState, okState := utils.AfkUserTracker[senderJID.User]
 	if !okState {
-		uState = &cliutils.UserAFKState{}
-		cliutils.AfkUserTracker[senderJID.User] = uState
+		uState = &utils.UserAFKState{}
+		utils.AfkUserTracker[senderJID.User] = uState
 	}
 	if time.Since(uState.LastSent) < 1*time.Minute {
-		cliutils.AfkUserTrackerLock.Unlock()
+		utils.AfkUserTrackerLock.Unlock()
 		return false
 	}
 	alreadySent := uState.HasSent
 	uState.LastSent = time.Now()
 	uState.HasSent = true
-	cliutils.AfkUserTrackerLock.Unlock()
+	utils.AfkUserTrackerLock.Unlock()
 
-	reason, _ := s.GetSetting(ctx, cliutils.AFKReasonKey)
+	reason, _ := s.GetSetting(ctx, utils.AFKReasonKey)
 	if reason == "" {
 		reason = "AFK (No reason specified)"
 	}
-	afkTime, _ := s.GetSetting(ctx, cliutils.AFKTimeKey)
+	afkTime, _ := s.GetSetting(ctx, utils.AFKTimeKey)
 	if afkTime == "" {
 		afkTime = time.Now().Format("2006-01-02 15:04:05 MST")
 	}
-	lastActiveStr, _ := s.GetSetting(ctx, cliutils.AFKLastActiveKey)
+	lastActiveStr, _ := s.GetSetting(ctx, utils.AFKLastActiveKey)
 	if lastActiveStr == "" {
 		lastActiveStr = GetOwnerLastActive(ctx, s).Format("2006-01-02 15:04:05 MST")
 	}
 
-	template, _ := s.GetSetting(ctx, cliutils.AFKTemplateKey)
+	template, _ := s.GetSetting(ctx, utils.AFKTemplateKey)
 	if template == "" {
-		template = cliutils.DefaultAFKTemplate
+		template = utils.DefaultAFKTemplate
 	}
 
 	userTag := "@" + senderJID.User
 	groupName := evt.Info.Chat.String()
 
-	randomFact := cliutils.GetRandomFact(ctx)
-	randomQuote := cliutils.GetRandomQuote(ctx)
-	randomJoke := cliutils.GetRandomJoke(ctx)
-	randomRizz := cliutils.GetRandomRizz(ctx)
+	randomFact := utils.GetRandomFact(ctx)
+	randomQuote := utils.GetRandomQuote(ctx)
+	randomJoke := utils.GetRandomJoke(ctx)
+	randomRizz := utils.GetRandomRizz(ctx)
 
 	replacer := strings.NewReplacer(
 		"{reason}", reason,
@@ -453,7 +453,7 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 		Sender: evt.Info.Sender,
 	}
 
-	mediaURL, _ := s.GetSetting(ctx, cliutils.AFKMediaKey)
+	mediaURL, _ := s.GetSetting(ctx, utils.AFKMediaKey)
 	if mediaURL != "" {
 		body = body + "\n\n" + mediaURL
 	}
@@ -681,9 +681,9 @@ func generateBioText(tzStr string) string {
 	now := time.Now().In(loc)
 	timeFormatted := now.Format("03:04 AM")
 
-	cliutils.AutoBioRngMutex.Lock()
-	quote := cliutils.BioQuotes[cliutils.AutoBioRng.Intn(len(cliutils.BioQuotes))]
-	cliutils.AutoBioRngMutex.Unlock()
+	utils.AutoBioRngMutex.Lock()
+	quote := utils.BioQuotes[utils.AutoBioRng.Intn(len(utils.BioQuotes))]
+	utils.AutoBioRngMutex.Unlock()
 
 	return Sprintf("⏰ %s | %s", timeFormatted, quote)
 }
@@ -714,11 +714,11 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 		if !client.IsConnected() || !client.IsLoggedIn() || errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || strings.Contains(err.Error(), "not connected") || strings.Contains(err.Error(), "disconnected") || strings.Contains(err.Error(), "timed out") || ctx.Err() != nil {
 			return "", nil
 		}
-		Logger.Error("AutoBio: Failed to update bio", "err", err)
+		logger.Error("AutoBio: Failed to update bio", "err", err)
 		return "", err
 	}
 
-	Logger.Debug("AutoBio: Bio updated", "bio", bioText, "timezone", tzStr)
+	logger.Debug("AutoBio: Bio updated", "bio", bioText, "timezone", tzStr)
 	return bioText, nil
 }
 
@@ -743,7 +743,7 @@ func handleTimezone(ctx *Context) error {
 		}
 
 		if _, err := time.LoadLocation(tzName); err != nil {
-			if resolved, okLoc := cliutils.ResolveTimezoneAlias(tzName); okLoc {
+			if resolved, okLoc := utils.ResolveTimezoneAlias(tzName); okLoc {
 				tzName = resolved
 			} else {
 				return ctx.Replyf("Invalid timezone: %q. Please select a valid IANA timezone, Windows timezone name, or abbreviation.", tzName)
@@ -764,10 +764,10 @@ func handleTimezone(ctx *Context) error {
 
 	if len(ctx.Args) >= 2 && strings.ToLower(ctx.Args[0]) == "setidx" {
 		idx, err := strconv.Atoi(ctx.Args[1])
-		if err != nil || idx < 1 || idx > len(cliutils.SupportedTimezones) {
+		if err != nil || idx < 1 || idx > len(utils.SupportedTimezones) {
 			return ctx.Reply("Invalid timezone selection.")
 		}
-		tzName := cliutils.SupportedTimezones[idx-1]
+		tzName := utils.SupportedTimezones[idx-1]
 		if err := s.PutSetting(ctx.Ctx, "timezone", tzName); err != nil {
 			return ctx.Reply("Failed to save timezone setting.")
 		}
@@ -789,7 +789,7 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 	currentTZ := getUserTimezone(ctx.Ctx, s)
 
 	pageSize := 3
-	totalPages := (len(cliutils.SupportedTimezones) + pageSize - 1) / pageSize
+	totalPages := (len(utils.SupportedTimezones) + pageSize - 1) / pageSize
 	if page < 1 {
 		page = 1
 	}
@@ -798,13 +798,13 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 	}
 
 	startIdx := (page - 1) * pageSize
-	endIdx := min(startIdx+pageSize, len(cliutils.SupportedTimezones))
+	endIdx := min(startIdx+pageSize, len(utils.SupportedTimezones))
 
-	pageItems := cliutils.SupportedTimezones[startIdx:endIdx]
+	pageItems := utils.SupportedTimezones[startIdx:endIdx]
 	p := ctx.GetPrefix()
 
 	tb := ctx.Text().
-		Headerf("Timezone Configuration (Page %d of %d, Total: %d)", page, totalPages, len(cliutils.SupportedTimezones)).
+		Headerf("Timezone Configuration (Page %d of %d, Total: %d)", page, totalPages, len(utils.SupportedTimezones)).
 		Field("Current Timezone", currentTZ).
 		Blank().
 		Line("Select your local timezone below so automute & autounmute execute at your exact local time:").
@@ -853,9 +853,9 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 
 func handleReconfigure(ctx *Context) error {
 	key := ctx.Chat.ToNonAD().String() + ":" + ctx.Sender.ToNonAD().String()
-	cliutils.BotWizardMu.Lock()
-	cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "name", UpdatedAt: time.Now()}
-	cliutils.BotWizardMu.Unlock()
+	utils.BotWizardMu.Lock()
+	utils.PendingWizardState[key] = utils.WizardSession{Step: "name", UpdatedAt: time.Now()}
+	utils.BotWizardMu.Unlock()
 
 	p := ctx.GetPrefix()
 	bodyText := "Bot Customization Wizard (Step 1/4)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):"
@@ -925,7 +925,7 @@ func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, i
 			targetPath)
 
 		if err := cmd.Run(); err != nil {
-			Logger.Warn("ffmpeg video processing failed, checking raw video fallback", "err", err)
+			logger.Warn("ffmpeg video processing failed, checking raw video fallback", "err", err)
 			if len(data) <= 10*1024*1024 {
 				if errWrite := os.WriteFile(targetPath, data, 0644); errWrite != nil {
 					return "", errors.New("failed to write raw video fallback: " + errWrite.Error())
@@ -1016,14 +1016,14 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	senderUser := evt.Info.Sender.ToNonAD().User
 	key := evt.Info.Chat.ToNonAD().String() + ":" + evt.Info.Sender.ToNonAD().String()
 
-	cliutils.BotWizardMu.RLock()
-	session, inWizard := cliutils.PendingWizardState[key]
-	cliutils.BotWizardMu.RUnlock()
+	utils.BotWizardMu.RLock()
+	session, inWizard := utils.PendingWizardState[key]
+	utils.BotWizardMu.RUnlock()
 
-	if inWizard && time.Since(session.UpdatedAt) > cliutils.WizardSessionTTL {
-		cliutils.BotWizardMu.Lock()
-		delete(cliutils.PendingWizardState, key)
-		cliutils.BotWizardMu.Unlock()
+	if inWizard && time.Since(session.UpdatedAt) > utils.WizardSessionTTL {
+		utils.BotWizardMu.Lock()
+		delete(utils.PendingWizardState, key)
+		utils.BotWizardMu.Unlock()
 		inWizard = false
 	}
 
@@ -1046,7 +1046,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	if client != nil {
 		prefixes = activePrefixes(ctx, client)
 	} else {
-		prefixes = []string{cliutils.DefaultPrefix}
+		prefixes = []string{utils.DefaultPrefix}
 	}
 
 	if inWizard && text != "" {
@@ -1054,9 +1054,9 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		// so that e.g. ".menu" is caught even when the configured prefix is "!" or similar.
 		prefixSet := make([]string, 0, len(prefixes)+1)
 		prefixSet = append(prefixSet, prefixes...)
-		hasDot := slices.Contains(prefixes, cliutils.DefaultPrefix)
+		hasDot := slices.Contains(prefixes, utils.DefaultPrefix)
 		if !hasDot {
-			prefixSet = append(prefixSet, cliutils.DefaultPrefix)
+			prefixSet = append(prefixSet, utils.DefaultPrefix)
 		}
 
 		for _, pref := range prefixSet {
@@ -1067,18 +1067,18 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 			// prefix itself, it looks like a command invocation (e.g. ".menu"), not a bare
 			// prefix entry (e.g. "."). Cancel the wizard in that case.
 			if len(text) > len(pref) && strings.HasPrefix(text, pref) {
-				cliutils.BotWizardMu.Lock()
-				delete(cliutils.PendingWizardState, key)
-				cliutils.BotWizardMu.Unlock()
+				utils.BotWizardMu.Lock()
+				delete(utils.PendingWizardState, key)
+				utils.BotWizardMu.Unlock()
 				return false
 			}
 		}
 	}
 
 	if !inWizard && okStore {
-		rawPrompt, _ := s.GetSetting(ctx, cliutils.BotNameAwaitingInputPrefix+senderUser)
+		rawPrompt, _ := s.GetSetting(ctx, utils.BotNameAwaitingInputPrefix+senderUser)
 		if rawPrompt == "true" && text != "" && !strings.HasPrefix(text, p) {
-			session = cliutils.WizardSession{Step: "name", UpdatedAt: time.Now()}
+			session = utils.WizardSession{Step: "name", UpdatedAt: time.Now()}
 			inWizard = true
 		}
 	}
@@ -1087,7 +1087,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		return false
 	}
 
-	Logger.Info("Wizard handling step", "chat", key, "step", session.Step, "text", text)
+	logger.Info("Wizard handling step", "chat", key, "step", session.Step, "text", text)
 
 	switch session.Step {
 	case "name":
@@ -1096,15 +1096,15 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		}
 		newName := strings.TrimSpace(text)
 		if okStore {
-			_ = s.PutSetting(ctx, cliutils.BotNameSettingKey, newName)
+			_ = s.PutSetting(ctx, utils.BotNameSettingKey, newName)
 			DismissBotNamePrompt(ctx, s)
-			_ = s.PutSetting(ctx, cliutils.BotNameAwaitingInputPrefix+senderUser, "")
+			_ = s.PutSetting(ctx, utils.BotNameAwaitingInputPrefix+senderUser, "")
 		}
-		cliutils.ClearInstructionCache()
+		utils.ClearInstructionCache()
 
-		cliutils.BotWizardMu.Lock()
-		cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "thumb", UpdatedAt: time.Now()}
-		cliutils.BotWizardMu.Unlock()
+		utils.BotWizardMu.Lock()
+		utils.PendingWizardState[key] = utils.WizardSession{Step: "thumb", UpdatedAt: time.Now()}
+		utils.BotWizardMu.Unlock()
 
 		bodyText := Sprintf("Bot name set to %q.\n\nBot Customization Wizard (Step 2/4)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip below to keep the default thumbnail.", newName)
 		_ = sendPollReply(fakeCtx, bodyText, []string{"Skip"})
@@ -1117,41 +1117,41 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 			return false
 		}
 		downloadable, isVideo, mime := ExtractMediaFromEvent(evt)
-		Logger.Info("Wizard Step 2/4 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
+		logger.Info("Wizard Step 2/4 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
 
 		if downloadable == nil {
-			Logger.Warn("Wizard Step 2/4 (thumb): No image/video/document media found in message", "chat", key)
+			logger.Warn("Wizard Step 2/4 (thumb): No image/video/document media found in message", "chat", key)
 			_ = fakeCtx.Reply("Upload a video or image to use as thumbnail.")
 			return true
 		}
 
-		Logger.Info("Wizard Step 2/4 (thumb): Starting media download", "chat", key, "mime", mime)
+		logger.Info("Wizard Step 2/4 (thumb): Starting media download", "chat", key, "mime", mime)
 		data, err := client.Download(ctx, downloadable)
 
 		if err != nil || len(data) == 0 {
-			Logger.Error("Wizard Step 2/4 (thumb): Media download failed", "chat", key, "err", err, "dataLen", len(data))
+			logger.Error("Wizard Step 2/4 (thumb): Media download failed", "chat", key, "err", err, "dataLen", len(data))
 			_ = fakeCtx.Replyf("Failed to download media for thumbnail (error: %v). Please try sending another file.", err)
 			return true
 		}
 
-		Logger.Info("Wizard Step 2/4 (thumb): Media downloaded successfully", "chat", key, "bytesLen", len(data), "isVideo", isVideo)
+		logger.Info("Wizard Step 2/4 (thumb): Media downloaded successfully", "chat", key, "bytesLen", len(data), "isVideo", isVideo)
 		authDir := GetSessionAuthDir(client)
 		targetPath, errProc := ProcessAndSaveThumbnail(ctx, authDir, data, isVideo)
 		if errProc != nil {
-			Logger.Error("Wizard Step 2/4 (thumb): Thumbnail processing failed", "chat", key, "err", errProc)
+			logger.Error("Wizard Step 2/4 (thumb): Thumbnail processing failed", "chat", key, "err", errProc)
 			_ = fakeCtx.Replyf("Failed to process thumbnail: %v", errProc)
 			return true
 		}
 
-		Logger.Info("Wizard Step 2/4 (thumb): Thumbnail saved successfully", "chat", key, "targetPath", targetPath)
+		logger.Info("Wizard Step 2/4 (thumb): Thumbnail saved successfully", "chat", key, "targetPath", targetPath)
 
 		if okStore {
 			_ = s.PutSetting(ctx, "menu_thumbnail_path", targetPath)
 		}
 
-		cliutils.BotWizardMu.Lock()
-		cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "prefix", UpdatedAt: time.Now()}
-		cliutils.BotWizardMu.Unlock()
+		utils.BotWizardMu.Lock()
+		utils.PendingWizardState[key] = utils.WizardSession{Step: "prefix", UpdatedAt: time.Now()}
+		utils.BotWizardMu.Unlock()
 
 		bodyText := "Bot menu thumbnail updated successfully.\n\nBot Customization Wizard (Step 3/4)\n\nPlease type the symbol or prefix you want to use (e.g. ., !, / or 'none') and send it as a message.\n\nOr select Skip below to keep current prefix."
 		options := []string{
@@ -1173,12 +1173,12 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 			newPrefix = "empty"
 		}
 		if okStore {
-			_ = s.PutSetting(ctx, cliutils.PrefixSettingKey, newPrefix)
+			_ = s.PutSetting(ctx, utils.PrefixSettingKey, newPrefix)
 		}
 
-		cliutils.BotWizardMu.Lock()
-		cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "bio", UpdatedAt: time.Now()}
-		cliutils.BotWizardMu.Unlock()
+		utils.BotWizardMu.Lock()
+		utils.PendingWizardState[key] = utils.WizardSession{Step: "bio", UpdatedAt: time.Now()}
+		utils.BotWizardMu.Unlock()
 
 		bodyText := Sprintf("Prefix set to %q.\n\nBot Customization Wizard (Step 4/4)\n\nPlease type the text for your bot's WhatsApp status bio and send it as a message.\n\nOr select Skip to finish.", newPrefix)
 		bioOptions := []string{
@@ -1198,9 +1198,9 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 			DismissBotNamePrompt(ctx, s)
 		}
 
-		cliutils.BotWizardMu.Lock()
-		delete(cliutils.PendingWizardState, key)
-		cliutils.BotWizardMu.Unlock()
+		utils.BotWizardMu.Lock()
+		delete(utils.PendingWizardState, key)
+		utils.BotWizardMu.Unlock()
 
 		_ = sendWizardSummaryCard(fakeCtx)
 		return true
@@ -1225,48 +1225,48 @@ func handleSetBot(ctx *Context) error {
 
 		switch sub {
 		case "wizard", "setup", "reconfigure", "reconfig":
-			cliutils.BotWizardMu.Lock()
-			cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "name", UpdatedAt: time.Now()}
-			cliutils.BotWizardMu.Unlock()
+			utils.BotWizardMu.Lock()
+			utils.PendingWizardState[key] = utils.WizardSession{Step: "name", UpdatedAt: time.Now()}
+			utils.BotWizardMu.Unlock()
 			return ctx.Reply("Bot Customization Wizard (Step 1/4)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):")
 
 		case "done", "finish":
 			// User clicked "Done" on the wizard summary poll — just silently dismiss.
 			DismissBotNamePrompt(ctx.Ctx, s)
-			cliutils.BotWizardMu.Lock()
-			delete(cliutils.PendingWizardState, key)
-			cliutils.BotWizardMu.Unlock()
+			utils.BotWizardMu.Lock()
+			delete(utils.PendingWizardState, key)
+			utils.BotWizardMu.Unlock()
 			return nil
 
 		case "startover", "restart", "redo":
 			// User clicked "Start Over" on the wizard summary poll — restart from step 1.
-			cliutils.BotWizardMu.Lock()
-			cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "name", UpdatedAt: time.Now()}
-			cliutils.BotWizardMu.Unlock()
+			utils.BotWizardMu.Lock()
+			utils.PendingWizardState[key] = utils.WizardSession{Step: "name", UpdatedAt: time.Now()}
+			utils.BotWizardMu.Unlock()
 			return ctx.Reply("Restarting wizard.\n\nBot Customization Wizard (Step 1/4)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):")
 
 		case "prompt_name", "name_prompt":
-			cliutils.BotWizardMu.Lock()
-			cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "name", UpdatedAt: time.Now()}
-			cliutils.BotWizardMu.Unlock()
+			utils.BotWizardMu.Lock()
+			utils.PendingWizardState[key] = utils.WizardSession{Step: "name", UpdatedAt: time.Now()}
+			utils.BotWizardMu.Unlock()
 			return ctx.Reply("Please type your desired bot display name (e.g. Jarvis, Meow, Fuzzy):")
 
 		case "prompt_thumb", "thumb_prompt":
-			cliutils.BotWizardMu.Lock()
-			cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "thumb", UpdatedAt: time.Now()}
-			cliutils.BotWizardMu.Unlock()
+			utils.BotWizardMu.Lock()
+			utils.PendingWizardState[key] = utils.WizardSession{Step: "thumb", UpdatedAt: time.Now()}
+			utils.BotWizardMu.Unlock()
 			return ctx.Reply("Please upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.")
 
 		case "prompt_prefix", "prefix_prompt":
-			cliutils.BotWizardMu.Lock()
-			cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "prefix", UpdatedAt: time.Now()}
-			cliutils.BotWizardMu.Unlock()
+			utils.BotWizardMu.Lock()
+			utils.PendingWizardState[key] = utils.WizardSession{Step: "prefix", UpdatedAt: time.Now()}
+			utils.BotWizardMu.Unlock()
 			return ctx.Reply("Please send the command prefix symbol or word you want to use (e.g. ., !, / or 'none'):")
 
 		case "prompt_bio", "bio_prompt":
-			cliutils.BotWizardMu.Lock()
-			cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "bio", UpdatedAt: time.Now()}
-			cliutils.BotWizardMu.Unlock()
+			utils.BotWizardMu.Lock()
+			utils.PendingWizardState[key] = utils.WizardSession{Step: "bio", UpdatedAt: time.Now()}
+			utils.BotWizardMu.Unlock()
 			return ctx.Reply("Please send the text for your bot's WhatsApp status bio:")
 
 		case "0", "skip":
@@ -1277,9 +1277,9 @@ func handleSetBot(ctx *Context) error {
 
 			// If no explicit step number, check current wizard state to determine which step to skip
 			if stepNum == 0 {
-				cliutils.BotWizardMu.RLock()
-				ws, hasWizard := cliutils.PendingWizardState[key]
-				cliutils.BotWizardMu.RUnlock()
+				utils.BotWizardMu.RLock()
+				ws, hasWizard := utils.PendingWizardState[key]
+				utils.BotWizardMu.RUnlock()
 				if hasWizard {
 					switch ws.Step {
 					case "thumb":
@@ -1294,9 +1294,9 @@ func handleSetBot(ctx *Context) error {
 
 			if stepNum == 2 {
 				// Skip thumbnail step, advance to prefix step
-				cliutils.BotWizardMu.Lock()
-				cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "prefix", UpdatedAt: time.Now()}
-				cliutils.BotWizardMu.Unlock()
+				utils.BotWizardMu.Lock()
+				utils.PendingWizardState[key] = utils.WizardSession{Step: "prefix", UpdatedAt: time.Now()}
+				utils.BotWizardMu.Unlock()
 
 				bodyText := "Thumbnail step skipped.\n\nBot Customization Wizard (Step 3/4)\n\nPlease type the symbol or prefix you want to use (e.g. ., !, / or 'none') and send it as a message.\n\nOr select Skip to keep the current prefix."
 				return sendPollReply(ctx, bodyText, []string{"Skip"})
@@ -1304,27 +1304,27 @@ func handleSetBot(ctx *Context) error {
 
 			if stepNum == 3 {
 				// Skip prefix step, advance to bio step
-				cliutils.BotWizardMu.Lock()
-				cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "bio", UpdatedAt: time.Now()}
-				cliutils.BotWizardMu.Unlock()
+				utils.BotWizardMu.Lock()
+				utils.PendingWizardState[key] = utils.WizardSession{Step: "bio", UpdatedAt: time.Now()}
+				utils.BotWizardMu.Unlock()
 
 				bodyText := "Bot Customization Wizard (Step 4/4)\n\nPlease type the text for your bot's WhatsApp status bio and send it as a message.\n\nOr select Skip to finish."
 				return sendPollReply(ctx, bodyText, []string{"Skip"})
 			}
 
 			// stepNum == 4 or fallback: finish wizard
-			cliutils.BotWizardMu.Lock()
-			delete(cliutils.PendingWizardState, key)
-			cliutils.BotWizardMu.Unlock()
+			utils.BotWizardMu.Lock()
+			delete(utils.PendingWizardState, key)
+			utils.BotWizardMu.Unlock()
 			DismissBotNamePrompt(ctx.Ctx, s)
 			return sendWizardSummaryCard(ctx)
 
 		case "page":
 			// Ignore stale poll navigation callbacks that fire after the wizard is already
 			// completed/dismissed — checking for an active wizard session guards this.
-			cliutils.BotWizardMu.RLock()
-			_, hasActiveWizard := cliutils.PendingWizardState[key]
-			cliutils.BotWizardMu.RUnlock()
+			utils.BotWizardMu.RLock()
+			_, hasActiveWizard := utils.PendingWizardState[key]
+			utils.BotWizardMu.RUnlock()
 			if !hasActiveWizard {
 				return nil
 			}
@@ -1339,10 +1339,10 @@ func handleSetBot(ctx *Context) error {
 				return ctx.Replyf("Usage: %sbotname <New Name>", p)
 			}
 			newName := strings.Join(args[1:], " ")
-			_ = s.PutSetting(ctx.Ctx, cliutils.BotNameSettingKey, newName)
+			_ = s.PutSetting(ctx.Ctx, utils.BotNameSettingKey, newName)
 			DismissBotNamePrompt(ctx.Ctx, s)
-			_ = s.PutSetting(ctx.Ctx, cliutils.BotNameAwaitingInputPrefix+senderUser, "")
-			cliutils.ClearInstructionCache()
+			_ = s.PutSetting(ctx.Ctx, utils.BotNameAwaitingInputPrefix+senderUser, "")
+			utils.ClearInstructionCache()
 			return ctx.Replyf("Bot name successfully updated to: %q!", newName)
 
 		case "prefix", "setprefix":
@@ -1356,7 +1356,7 @@ func handleSetBot(ctx *Context) error {
 			if strings.EqualFold(newPrefix, "none") || strings.EqualFold(newPrefix, "empty") {
 				newPrefix = "empty"
 			}
-			_ = s.PutSetting(ctx.Ctx, cliutils.PrefixSettingKey, newPrefix)
+			_ = s.PutSetting(ctx.Ctx, utils.PrefixSettingKey, newPrefix)
 			return ctx.Replyf("Command prefix updated to: %q!", newPrefix)
 
 		case "bio", "setbio":
@@ -1371,26 +1371,26 @@ func handleSetBot(ctx *Context) error {
 
 		case "reset":
 			authDir := GetSessionAuthDir(ctx.Client)
-			_ = s.PutSetting(ctx.Ctx, cliutils.BotNameSettingKey, "")
+			_ = s.PutSetting(ctx.Ctx, utils.BotNameSettingKey, "")
 			ResetBotNamePromptDismissed(ctx.Ctx, s)
-			_ = s.PutSetting(ctx.Ctx, cliutils.PrefixSettingKey, "")
+			_ = s.PutSetting(ctx.Ctx, utils.PrefixSettingKey, "")
 			_ = s.PutSetting(ctx.Ctx, "menu_thumbnail_path", "")
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.mp4"))
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.jpg"))
-			cliutils.ClearInstructionCache()
+			utils.ClearInstructionCache()
 			return ctx.Reply("All bot settings (Name, Thumbnail, Prefix) reset to default values.")
 
 		case "setup_customize":
 			DismissBotNamePrompt(ctx.Ctx, s)
-			_ = s.PutSetting(ctx.Ctx, cliutils.BotNameAwaitingInputPrefix+senderUser, "")
-			cliutils.BotWizardMu.Lock()
-			cliutils.PendingWizardState[key] = cliutils.WizardSession{Step: "name", UpdatedAt: time.Now()}
-			cliutils.BotWizardMu.Unlock()
+			_ = s.PutSetting(ctx.Ctx, utils.BotNameAwaitingInputPrefix+senderUser, "")
+			utils.BotWizardMu.Lock()
+			utils.PendingWizardState[key] = utils.WizardSession{Step: "name", UpdatedAt: time.Now()}
+			utils.BotWizardMu.Unlock()
 			return ctx.Reply("Bot Customization Wizard (Step 1/4)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):")
 
 		case "setup_continue":
 			DismissBotNamePrompt(ctx.Ctx, s)
-			_ = s.PutSetting(ctx.Ctx, cliutils.BotNameAwaitingInputPrefix+senderUser, "")
+			_ = s.PutSetting(ctx.Ctx, utils.BotNameAwaitingInputPrefix+senderUser, "")
 			bodyText := "BOT NAME CUSTOMIZATION RECOMMENDED: Keeping default name WhatsRook is fine. You can start the customization wizard anytime using " + p + "reconfigure:"
 			options := []string{
 				"Start Wizard",
@@ -1400,7 +1400,7 @@ func handleSetBot(ctx *Context) error {
 
 		case "setup_ignore":
 			DismissBotNamePrompt(ctx.Ctx, s)
-			_ = s.PutSetting(ctx.Ctx, cliutils.BotNameAwaitingInputPrefix+senderUser, "")
+			_ = s.PutSetting(ctx.Ctx, utils.BotNameAwaitingInputPrefix+senderUser, "")
 			return ctx.Replyf("Kept default bot name. Change anytime using %sreconfigure or %ssetbot", p, p)
 
 		default:
@@ -1408,9 +1408,9 @@ func handleSetBot(ctx *Context) error {
 		}
 	}
 
-	cliutils.BotWizardMu.RLock()
-	_, inActiveWizard := cliutils.PendingWizardState[key]
-	cliutils.BotWizardMu.RUnlock()
+	utils.BotWizardMu.RLock()
+	_, inActiveWizard := utils.PendingWizardState[key]
+	utils.BotWizardMu.RUnlock()
 	if inActiveWizard {
 		return nil
 	}
@@ -1620,12 +1620,12 @@ func handlePrefix(ctx *Context) error {
 	}
 
 	if ctx.RawArgs == "" {
-		raw, err := s.GetSetting(ctx.Ctx, cliutils.PrefixSettingKey)
+		raw, err := s.GetSetting(ctx.Ctx, utils.PrefixSettingKey)
 		if err != nil {
 			return sendText(ctx, "Failed to retrieve prefix configuration.")
 		}
 		if raw == "" {
-			return ctx.SendTextf("Prefix: %q (default)", cliutils.DefaultPrefix)
+			return ctx.SendTextf("Prefix: %q (default)", utils.DefaultPrefix)
 		}
 		return ctx.SendTextf("Prefix(es): %s", raw)
 	}
@@ -1649,7 +1649,7 @@ func handlePrefix(ctx *Context) error {
 	}
 
 	stored := strings.Join(parsedParts, " ")
-	if err := s.PutSetting(ctx.Ctx, cliutils.PrefixSettingKey, stored); err != nil {
+	if err := s.PutSetting(ctx.Ctx, utils.PrefixSettingKey, stored); err != nil {
 		return sendText(ctx, "Failed to update prefix configuration.")
 	}
 
@@ -2520,9 +2520,9 @@ func HandleAutoReact(ctx context.Context, client *whatsmeow.Client, s *StoreWrap
 	reactionMsg := client.BuildReaction(evt.Info.Chat, senderJID, evt.Info.ID, emoji)
 	_, err := client.SendMessage(ctx, evt.Info.Chat, reactionMsg)
 	if err != nil {
-		Logger.Debug("autoreact: failed to send reaction", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
+		logger.Debug("autoreact: failed to send reaction", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
 	} else {
-		Logger.Debug("autoreact: reaction sent", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "emoji", emoji)
+		logger.Debug("autoreact: reaction sent", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "emoji", emoji)
 	}
 }
 
@@ -2541,9 +2541,9 @@ func HandleAutoRead(ctx context.Context, client *whatsmeow.Client, s *StoreWrapp
 			}
 			err := client.MarkRead(ctx, []types.MessageID{evt.Info.ID}, evt.Info.Timestamp, types.StatusBroadcastJID, senderJID)
 			if err != nil {
-				Logger.Debug("autoread: failed to mark status as read", "msg_id", evt.Info.ID, "err", err)
+				logger.Debug("autoread: failed to mark status as read", "msg_id", evt.Info.ID, "err", err)
 			} else {
-				Logger.Debug("autoread: status marked as read", "msg_id", evt.Info.ID, "sender", senderJID.String())
+				logger.Debug("autoread: status marked as read", "msg_id", evt.Info.ID, "sender", senderJID.String())
 			}
 		}
 		return
@@ -2569,8 +2569,8 @@ func HandleAutoRead(ctx context.Context, client *whatsmeow.Client, s *StoreWrapp
 
 	err := client.MarkRead(ctx, []types.MessageID{evt.Info.ID}, evt.Info.Timestamp, evt.Info.Chat, senderJID)
 	if err != nil {
-		Logger.Debug("autoread: failed to mark message as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
+		logger.Debug("autoread: failed to mark message as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
 	} else {
-		Logger.Debug("autoread: message marked as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID)
+		logger.Debug("autoread: message marked as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID)
 	}
 }

@@ -12,9 +12,9 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	utils "whatsrook"
-	clistore "whatsrook/cmd/store"
-	Logger "whatsrook/logger"
+	"whatsrook"
+	"whatsrook/cmd/store"
+	"whatsrook/logger"
 )
 
 type StoreWrapper struct {
@@ -32,35 +32,35 @@ func (w *StoreWrapper) GetSetting(ctx context.Context, key string) (string, erro
 	if w == nil || w.SQLStore == nil {
 		return "", nil
 	}
-	return clistore.GetSetting(ctx, w.SQLStore, key)
+	return store.GetSetting(ctx, w.SQLStore, key)
 }
 
 func (w *StoreWrapper) PutSetting(ctx context.Context, key, value string) error {
 	if w == nil || w.SQLStore == nil {
 		return nil
 	}
-	return clistore.PutSetting(ctx, w.SQLStore, key, value)
+	return store.PutSetting(ctx, w.SQLStore, key, value)
 }
 
 func (w *StoreWrapper) DeleteSetting(ctx context.Context, key string) error {
 	if w == nil || w.SQLStore == nil {
 		return nil
 	}
-	return clistore.DeleteSetting(ctx, w.SQLStore, key)
+	return store.DeleteSetting(ctx, w.SQLStore, key)
 }
 
-func (w *StoreWrapper) GetCallMediaConfig(ctx context.Context, jid types.JID, kind clistore.CallMediaKind) (string, error) {
+func (w *StoreWrapper) GetCallMediaConfig(ctx context.Context, jid types.JID, kind store.CallMediaKind) (string, error) {
 	if w == nil || w.SQLStore == nil {
 		return "", nil
 	}
-	return clistore.GetCallMediaConfig(ctx, w.SQLStore, jid, kind)
+	return store.GetCallMediaConfig(ctx, w.SQLStore, jid, kind)
 }
 
-func (w *StoreWrapper) PutCallMediaConfig(ctx context.Context, jid types.JID, kind clistore.CallMediaKind, filePath string) error {
+func (w *StoreWrapper) PutCallMediaConfig(ctx context.Context, jid types.JID, kind store.CallMediaKind, filePath string) error {
 	if w == nil || w.SQLStore == nil {
 		return nil
 	}
-	return clistore.PutCallMediaConfig(ctx, w.SQLStore, jid, kind, filePath)
+	return store.PutCallMediaConfig(ctx, w.SQLStore, jid, kind, filePath)
 }
 
 func getSQLStore(client *whatsmeow.Client) (*StoreWrapper, bool) {
@@ -255,9 +255,9 @@ func mapOptionToCommandArgs(cmdName, option string) string {
 	}
 }
 
-func sendPollReplyWithMentions(ctx *Context, question string, options []string, jids []types.JID, fn ...func(req PollRequest, res *utils.Response)) error {
+func sendPollReplyWithMentions(ctx *Context, question string, options []string, jids []types.JID, fn ...func(req PollRequest, res *whatsrook.Response)) error {
 	cmdName := ctx.Command
-	Logger.Debug("sendPollReplyWithMentions: creating poll reply",
+	logger.Debug("sendPollReplyWithMentions: creating poll reply",
 		"command", cmdName,
 		"question", question,
 		"optionsCount", len(options),
@@ -275,10 +275,10 @@ func sendPollReplyWithMentions(ctx *Context, question string, options []string, 
 
 	client := ctx.Client
 
-	return builder.Reply(func(req PollRequest, res *utils.Response) {
+	return builder.Reply(func(req PollRequest, res *whatsrook.Response) {
 		for _, selected := range req.SelectedOptions {
 			cmdLine := mapOptionToCommandArgs(cmdName, selected)
-			Logger.Debug("Interactive poll selection triggered",
+			logger.Debug("Interactive poll selection triggered",
 				"command", cmdName,
 				"selected", selected,
 				"dispatchedCommand", cmdLine,
@@ -309,7 +309,7 @@ func sendPollReplyWithMentions(ctx *Context, question string, options []string, 
 	})
 }
 
-func sendPollReply(ctx *Context, question string, options []string, fn ...func(req PollRequest, res *utils.Response)) error {
+func sendPollReply(ctx *Context, question string, options []string, fn ...func(req PollRequest, res *whatsrook.Response)) error {
 	return sendPollReplyWithMentions(ctx, question, options, nil, fn...)
 }
 
@@ -338,7 +338,7 @@ func GetBotName(ctx context.Context, client *whatsmeow.Client) string {
 }
 
 func NormalizeUserJID(ctx context.Context, client *whatsmeow.Client, jid types.JID) types.JID {
-	return utils.ResolvePN(ctx, client, jid)
+	return whatsrook.ResolvePN(ctx, client, jid)
 }
 
 func resolveUserPushName(ctx *Context, pnjid types.JID, rawJID types.JID) string {

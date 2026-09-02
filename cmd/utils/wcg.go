@@ -1,5 +1,5 @@
 // Package utils provides the core Word Chain Game (WCG) engine.
-package cliutils
+package utils
 
 import (
 	"context"

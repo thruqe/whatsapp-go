@@ -11,15 +11,11 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/coder/websocket v1.8.15
-	github.com/fogleman/gg v1.3.0
 	github.com/glebarez/sqlite v1.11.0
-	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
-	github.com/lib/pq v1.12.3
 	github.com/rs/zerolog v1.35.1
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	go.mau.fi/util v0.10.0
 	go.mau.fi/whatsmeow v0.0.0-20260828224850-0fadda796019
-	golang.org/x/image v0.45.0
 	gorm.io/driver/postgres v1.6.2
 	gorm.io/gorm v1.31.2
 	whatsrook v0.0.0-00010101000000-000000000000
@@ -46,6 +42,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/lib/pq v1.12.3 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect

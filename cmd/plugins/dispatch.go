@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 
 	utils "whatsrook"
-	clistore "whatsrook/cmd/store"
+	"whatsrook/cmd/store"
 	cliutils "whatsrook/cmd/utils"
 	"whatsrook/external"
 	Logger "whatsrook/logger"
@@ -112,7 +112,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	s, okStore := getSQLStore(client)
 	if okStore {
-		clistore.InitTables(ctx, s.SQLStore)
+		store.InitTables(ctx, s.SQLStore)
 		if fontStyle, err := s.GetSetting(ctx, "font_style"); err == nil && fontStyle != "" {
 			cliutils.SetFontStyle(fontStyle)
 		}
@@ -126,7 +126,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	if evt.Info.Chat.Server == "g.us" && okStore {
 		Logger.Debug("Processing group message", "chat", chatStr, "sender", senderStr)
-		clistore.LogGroupMessage(ctx, s.SQLStore, evt.Info.Chat, evt.Info.Sender)
+		store.LogGroupMessage(ctx, s.SQLStore, evt.Info.Chat, evt.Info.Sender)
 	}
 
 	if okStore && !evt.Info.IsFromMe {
@@ -759,7 +759,7 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 
 	trigger := strings.TrimSpace(strings.ToLower(text))
 
-	bgmProto, err := clistore.GetBGM(ctx, s.SQLStore, trigger)
+	bgmProto, err := store.GetBGM(ctx, s.SQLStore, trigger)
 	if err == nil && bgmProto != "" {
 		if msg, err := utils.DecodeProtoMessage(bgmProto); err == nil {
 			ApplyFilterPlaceholders(ctx, client, evt, msg)
@@ -769,7 +769,7 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 		}
 	}
 
-	filterProto, err := clistore.GetFilter(ctx, s.SQLStore, trigger)
+	filterProto, err := store.GetFilter(ctx, s.SQLStore, trigger)
 	if err == nil && filterProto != "" {
 		if msg, err := utils.DecodeProtoMessage(filterProto); err == nil {
 			ApplyFilterPlaceholders(ctx, client, evt, msg)
@@ -1092,7 +1092,7 @@ func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, evt *ev
 
 	shaHex := hex.EncodeToString(stk.FileSHA256)
 
-	cmdName, err := clistore.GetStickerCmd(ctx, s.SQLStore, shaHex)
+	cmdName, err := store.GetStickerCmd(ctx, s.SQLStore, shaHex)
 	if err != nil || cmdName == "" {
 		return false
 	}

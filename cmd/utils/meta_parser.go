@@ -1,5 +1,5 @@
 // Response parsing and command-instruction generation for Meta AI requests.
-package cliutils
+package utils
 
 import (
 	"fmt"

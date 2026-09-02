@@ -20,10 +20,11 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"whatsrook/cmd/store"
+
+	"whatsrook"
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
-	"whatsrook"
-	clistore "whatsrook/cmd/store"
 )
 
 const (
@@ -239,9 +240,9 @@ func SetStoredChannel(channel string) error {
 
 // GetChannel gets configured update channel ("stable" or "beta").
 // It checks the SQLStore settings table first, falling back to the local file channel preference.
-func GetChannel(ctx context.Context, store *sqlstore.SQLStore) string {
-	if store != nil {
-		ch, err := clistore.GetSetting(ctx, store, ChannelKey)
+func GetChannel(ctx context.Context, Sqlstore *sqlstore.SQLStore) string {
+	if Sqlstore != nil {
+		ch, err := store.GetSetting(ctx, Sqlstore, ChannelKey)
 		if err == nil && ch != "" {
 			chLower := strings.ToLower(strings.TrimSpace(ch))
 			if chLower == "stable" || chLower == "beta" {
@@ -253,16 +254,16 @@ func GetChannel(ctx context.Context, store *sqlstore.SQLStore) string {
 }
 
 // SetChannel sets update channel ("stable" or "beta") across both SQLStore and local file preference.
-func SetChannel(ctx context.Context, store *sqlstore.SQLStore, channel string) error {
+func SetChannel(ctx context.Context, SQlstore *sqlstore.SQLStore, channel string) error {
 	channel = strings.TrimSpace(strings.ToLower(channel))
 	if channel != "stable" && channel != "beta" {
 		return fmt.Errorf("invalid channel %q: must be \"stable\" or \"beta\"", channel)
 	}
 	_ = SetStoredChannel(channel)
-	if store == nil {
+	if SQlstore == nil {
 		return nil
 	}
-	return clistore.PutSetting(ctx, store, ChannelKey, channel)
+	return store.PutSetting(ctx, SQlstore, ChannelKey, channel)
 }
 
 // ParseVersion converts a semver string into a Version struct.

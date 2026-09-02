@@ -1,10 +1,10 @@
-package cliutils
+package utils
 
 import (
 	"context"
 	"fmt"
 
-	utils "whatsrook"
+	"whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
@@ -22,7 +22,7 @@ func ResolveBusinessTarget(ctx context.Context, client *whatsmeow.Client, target
 
 	queryJID := rawTarget
 	if rawTarget.Server == types.HiddenUserServer {
-		if pnJID := utils.ResolvePN(ctx, client, rawTarget); !pnJID.IsEmpty() {
+		if pnJID := whatsrook.ResolvePN(ctx, client, rawTarget); !pnJID.IsEmpty() {
 			queryJID = pnJID
 		}
 	} else {

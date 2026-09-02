@@ -3692,7 +3692,7 @@ func sendCaptchaGuide(ctx *Context) error {
 	tb.Line("Requires a newly joined participant to complete a verification when they join the group within a certain amount of time else it kicks them out for failing to verify their participant status.")
 	tb.Blank()
 	tb.Section("How It Works:")
-	tb.Numbered(1, "When a new participant joins, a 4-digit code animation video is generated using the captcha package.")
+	tb.Numbered(1, "When a new participant joins, a 4-digit code animation video is generated using the external captcha plugin.")
 	tb.Numbered(2, "The bot sends the video and an interactive button prompt tagging the newly joined participant.")
 	tb.Numbered(3, "The participant is expected to input the 4-digit code to confirm their status within the time limit.")
 	tb.Numbered(4, "If the code matches, their participant status is confirmed.")

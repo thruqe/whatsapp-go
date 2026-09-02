@@ -14,7 +14,7 @@ import (
 	"whatsrook"
 	"whatsrook/cmd/tui"
 	"whatsrook/cmd/updater"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 )
 
 func runStandby(ctx context.Context, defaultDB string) error {
@@ -44,7 +44,7 @@ func runHeadlessStandby(ctx context.Context) error {
 		_ = listener.Close()
 	}()
 
-	Logger.Info("headless standby mode active; awaiting configuration", "port", boundPort)
+	logger.Info("headless standby mode active; awaiting configuration", "port", boundPort)
 	<-ctx.Done()
 	return nil
 }
@@ -63,12 +63,12 @@ func startStandbyHTTPServer() (net.Listener, *http.Server, int, error) {
 	}
 
 	boundPort := listener.Addr().(*net.TCPAddr).Port
-	Logger.Info("standby HTTP server online", "port", boundPort, "addr", listener.Addr().String())
+	logger.Info("standby HTTP server online", "port", boundPort, "addr", listener.Addr().String())
 
 	server := &http.Server{Handler: mux}
 	go func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			Logger.Error("standby HTTP server error", "err", err)
+			logger.Error("standby HTTP server error", "err", err)
 		}
 	}()
 
@@ -123,14 +123,14 @@ func runInteractiveStandby(defaultDB string) error {
 		tui.ClearTerminal()
 
 		if errBot != nil && !errors.Is(errBot, context.Canceled) && !errors.Is(errBot, whatsrook.ErrLoggedOut) {
-			Logger.Warn("session disconnected, returning to standby menu", "err", errBot)
+			logger.Warn("session disconnected, returning to standby menu", "err", errBot)
 		}
 	}
 }
 
 func launchBotWithConfig(ctx context.Context, cfg BotConfig) error {
 	if cfg.Verbose {
-		Logger.SetVerbose(true)
+		logger.SetVerbose(true)
 	}
 
 	bot := NewBot(cfg)
@@ -139,7 +139,7 @@ func launchBotWithConfig(ctx context.Context, cfg BotConfig) error {
 			if ctx.Err() != nil {
 				return nil
 			}
-			Logger.Info("session was logged out and removed; switching to standby mode")
+			logger.Info("session was logged out and removed; switching to standby mode")
 			return runStandby(ctx, cfg.Database)
 		}
 		return err
