@@ -468,6 +468,13 @@ func (b *Bot) runQR(ctx context.Context) error {
 		}
 	}
 
+	cli := b.client.WAClient()
+	if cli != nil && !cli.IsConnected() {
+		if err := cli.Connect(); err != nil {
+			logger.Warn("failed to connect socket for QR streaming", "err", err)
+		}
+	}
+
 	var openedBrowser sync.Once
 	for evt := range qrChan {
 		switch evt.Event {
@@ -481,6 +488,9 @@ func (b *Bot) runQR(ctx context.Context) error {
 						logger.Info("opened browser for qr pairing", "url", qrServer.URL())
 					}
 				})
+			}
+			if termQR := qr.RenderTerminal(evt.Code); termQR != "" {
+				fmt.Printf("\n%s\n", termQR)
 			}
 			b.hub.Broadcast(EventMessage{
 				Kind:    EventPairQR,

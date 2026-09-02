@@ -510,10 +510,6 @@ func (w *zerologToZapWriter) Write(p []byte) (int, error) {
 	delete(raw, "timestamp")
 	delete(raw, "subsystem")
 
-	if lvl == zapcore.DebugLevel {
-		return n, nil
-	}
-
 	if ce := w.logger.Check(lvl, msg); ce != nil {
 		if len(raw) == 0 {
 			ce.Write()
