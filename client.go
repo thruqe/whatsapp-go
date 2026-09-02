@@ -128,18 +128,16 @@ func (c *Client) WAClient() *whatsmeow.Client {
 	return c.rawClient
 }
 
-// initsession initializes persistent storage drivers, retrieves or provisions the companion device record,
+// InitSession initializes persistent storage drivers, retrieves or provisions the companion device record,
 // and constructs the active whatsmeow client instance.
+//
+// it automatically handles directory creation, sqlite / postgresql connection initialization,
+// device lookup based on the configured phone session, and binds zap-based structured loggers.
 func (c *Client) InitSession(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if err := os.MkdirAll(c.Config.DataDir, 0700); err != nil {
-		return fmt.Errorf("failed to create data directory: %w", err)
-	}
-
-	dbPath := filepath.Join(c.Config.DataDir, "whatsrook.db")
-	container, err := c.initStore(ctx, dbPath)
+	container, err := OpenStoreContainer(ctx, c.Config.DataDir, c.Config.Database)
 	if err != nil {
 		return fmt.Errorf("failed to initialize store: %w", err)
 	}
@@ -157,22 +155,35 @@ func (c *Client) InitSession(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) initStore(ctx context.Context, dbPath string) (*sqlstore.Container, error) {
+// OpenStoreContainer opens and prepares a sqlstore.Container storage backend across sqlite or postgresql.
+//
+// it automatically creates the base directory if missing, resolves SQLite PRAGMAs for WAL mode,
+// connection busy timeouts, and binds structured logging diagnostics.
+func OpenStoreContainer(ctx context.Context, dataDir, database string) (*sqlstore.Container, error) {
+	if dataDir == "" {
+		dataDir = DefaultDataDir()
+	}
+	if err := os.MkdirAll(dataDir, 0700); err != nil {
+		return nil, fmt.Errorf("failed to create data directory %q: %w", dataDir, err)
+	}
+
 	waLogger := Logger.NewWaLogger("database")
 
-	if c.Config.Database != "" && c.Config.Database != "sqlite" {
-		driver, dsn, err := c.parseDatabaseConfig(c.Config.Database)
+	if database != "" && database != "sqlite" {
+		driver, dsn, err := ParseDatabaseConfig(database)
 		if err != nil {
 			return nil, err
 		}
 		return sqlstore.New(ctx, driver, dsn, waLogger)
 	}
 
+	dbPath := filepath.Join(dataDir, "whatsrook.db")
 	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)", dbPath)
 	return sqlstore.New(ctx, "sqlite", dsn, waLogger)
 }
 
-func (c *Client) parseDatabaseConfig(dbConf string) (string, string, error) {
+// ParseDatabaseConfig parses a database configuration string or URL into driver name and DSN.
+func ParseDatabaseConfig(dbConf string) (string, string, error) {
 	if strings.HasPrefix(dbConf, "postgres://") || strings.HasPrefix(dbConf, "postgresql://") {
 		return "postgres", dbConf, nil
 	}
@@ -182,6 +193,7 @@ func (c *Client) parseDatabaseConfig(dbConf string) (string, string, error) {
 	return "sqlite", dbConf, nil
 }
 
+// resolveDeviceStore retrieves an existing registered device or creates a fresh companion device identity.
 func (c *Client) resolveDeviceStore(ctx context.Context, container *sqlstore.Container) (*store.Device, error) {
 	if c.Config.Session != "" {
 		phone := strings.TrimPrefix(c.Config.Session, "+")
@@ -435,20 +447,12 @@ type StoredSession struct {
 	Business bool
 }
 
-// liststoredsessions queries the database store for all saved device sessions.
+// ListStoredSessions queries the database store for all saved companion device sessions across SQLite or PostgreSQL.
+//
+// it inspects registered device records without opening active network websockets, returning
+// structured metadata such as JID, push name, emulated platform, and business account indicators.
 func ListStoredSessions(ctx context.Context, dataDir, database string) ([]StoredSession, error) {
-	if dataDir == "" {
-		dataDir = DefaultDataDir()
-	}
-	dbPath := filepath.Join(dataDir, "whatsrook.db")
-
-	dummy := &Client{
-		Config: Config{
-			DataDir:  dataDir,
-			Database: database,
-		},
-	}
-	container, err := dummy.initStore(ctx, dbPath)
+	container, err := OpenStoreContainer(ctx, dataDir, database)
 	if err != nil {
 		return nil, err
 	}
@@ -481,8 +485,8 @@ func ListStoredSessions(ctx context.Context, dataDir, database string) ([]Stored
 	return sessions, nil
 }
 
-// deletestoredsession initiates a server-side logout request to unpair the companion device,
-// and deletes all local session keys and device records from the database.
+// DeleteStoredSession initiates a graceful server-side logout request to unpair the companion device,
+// followed by complete purging of local session keys and device records from persistent storage.
 func DeleteStoredSession(ctx context.Context, dataDir, database, phone string) error {
 	if dataDir == "" {
 		dataDir = DefaultDataDir()
@@ -534,15 +538,9 @@ func DeleteStoredSession(ctx context.Context, dataDir, database, phone string) e
 	return fallbackDeleteDevice(ctx, dataDir, database, phone)
 }
 
+// fallbackDeleteDevice performs direct database-level removal of device records when network logout is impossible or failed.
 func fallbackDeleteDevice(ctx context.Context, dataDir, database, phone string) error {
-	dummy := &Client{
-		Config: Config{
-			DataDir:  dataDir,
-			Database: database,
-		},
-	}
-	dbPath := filepath.Join(dataDir, "whatsrook.db")
-	container, err := dummy.initStore(ctx, dbPath)
+	container, err := OpenStoreContainer(ctx, dataDir, database)
 	if err != nil {
 		return fmt.Errorf("failed to open database container: %w", err)
 	}
