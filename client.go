@@ -139,12 +139,7 @@ func (c *Client) InitSession(ctx context.Context) error {
 	}
 
 	dbPath := filepath.Join(c.Config.DataDir, "whatsrook.db")
-	logLevel := "ERROR"
-	if c.Config.Verbose {
-		logLevel = "DEBUG"
-	}
-
-	container, err := c.initStore(ctx, dbPath, logLevel)
+	container, err := c.initStore(ctx, dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to initialize store: %w", err)
 	}
@@ -162,7 +157,7 @@ func (c *Client) InitSession(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) initStore(ctx context.Context, dbPath, logLevel string) (*sqlstore.Container, error) {
+func (c *Client) initStore(ctx context.Context, dbPath string) (*sqlstore.Container, error) {
 	waLogger := Logger.NewWaLogger("database")
 
 	if c.Config.Database != "" && c.Config.Database != "sqlite" {
@@ -453,7 +448,7 @@ func ListStoredSessions(ctx context.Context, dataDir, database string) ([]Stored
 			Database: database,
 		},
 	}
-	container, err := dummy.initStore(ctx, dbPath, "ERROR")
+	container, err := dummy.initStore(ctx, dbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -547,7 +542,7 @@ func fallbackDeleteDevice(ctx context.Context, dataDir, database, phone string) 
 		},
 	}
 	dbPath := filepath.Join(dataDir, "whatsrook.db")
-	container, err := dummy.initStore(ctx, dbPath, "ERROR")
+	container, err := dummy.initStore(ctx, dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to open database container: %w", err)
 	}

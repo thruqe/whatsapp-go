@@ -175,5 +175,9 @@ func (d *Dispatcher) runWASMModule(plugCtx *utils.PluginContext, path, name stri
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		Logger.Debug("scanner encountered error reading WASM stdout", "plugin", name, "err", err)
+	}
+
 	<-execDone
 }
