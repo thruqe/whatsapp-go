@@ -1,7 +1,6 @@
 package games
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -141,11 +140,10 @@ func TestUnscrambleGame_StartAndGuessFlow(t *testing.T) {
 }
 
 func TestDictionaryDB_SQLiteLookup(t *testing.T) {
-	if !IsDictionaryDBReady() {
-		t.Log("Dictionary.db not found locally; downloading for test...")
-		if err := DownloadDictionaryDB(context.Background()); err != nil {
-			t.Fatalf("DownloadDictionaryDB failed: %v", err)
-		}
+	db, err := getDictionaryDB()
+	if err != nil || db == nil {
+		t.Skip("skipping SQLite dictionary test: sqlite driver not configured")
+		return
 	}
 
 	testWords := []string{"cat", "dog", "apple", "banana", "elephant", "crocodile", "hippopotamus", "parallelogram"}

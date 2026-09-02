@@ -7,7 +7,6 @@ import (
 
 	Logger "whatsrook/logger"
 
-	"github.com/glebarez/sqlite"
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"gorm.io/driver/postgres"
@@ -50,16 +49,9 @@ func GetORMFromDB(ctx context.Context, db *dbutil.Database) (*gorm.DB, error) {
 		return val.(*gorm.DB), nil
 	}
 
-	var dialector gorm.Dialector
-	if db.Dialect == dbutil.Postgres {
-		dialector = postgres.New(postgres.Config{
-			Conn: db.RawDB,
-		})
-	} else {
-		dialector = &sqlite.Dialector{
-			Conn: db.RawDB,
-		}
-	}
+	dialector := postgres.New(postgres.Config{
+		Conn: db.RawDB,
+	})
 
 	gdb, err := gorm.Open(dialector, &gorm.Config{
 		Logger:                                   gormlogger.Default.LogMode(gormlogger.Silent),
