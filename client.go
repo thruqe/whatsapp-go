@@ -169,26 +169,50 @@ func OpenStoreContainer(ctx context.Context, dataDir, database string) (*sqlstor
 
 	waLogger := Logger.NewWaLogger("database")
 
-	if database != "" && database != "sqlite" {
-		driver, dsn, err := ParseDatabaseConfig(database)
-		if err != nil {
-			return nil, err
-		}
-		return sqlstore.New(ctx, driver, dsn, waLogger)
+	driver, dsn, err := ParseDatabaseConfig(database, dataDir)
+	if err != nil {
+		return nil, err
 	}
-
-	dbPath := filepath.Join(dataDir, "whatsrook.db")
-	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)", dbPath)
-	return sqlstore.New(ctx, "sqlite", dsn, waLogger)
+	return sqlstore.New(ctx, driver, dsn, waLogger)
 }
 
 // ParseDatabaseConfig parses a database configuration string or URL into driver name and DSN.
-func ParseDatabaseConfig(dbConf string) (string, string, error) {
+func ParseDatabaseConfig(dbConf string, dataDir ...string) (string, string, error) {
+	dbConf = strings.TrimSpace(dbConf)
+	if dbConf == "" || dbConf == "default" || dbConf == "sqlite" || dbConf == "sqlite3" {
+		baseDir := DefaultDataDir()
+		if len(dataDir) > 0 && dataDir[0] != "" {
+			baseDir = dataDir[0]
+		}
+		dbPath := filepath.Join(baseDir, "whatsrook.db")
+		dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)", dbPath)
+		return "sqlite", dsn, nil
+	}
+
 	if strings.HasPrefix(dbConf, "postgres://") || strings.HasPrefix(dbConf, "postgresql://") {
 		return "postgres", dbConf, nil
 	}
+
 	if u, err := url.Parse(dbConf); err == nil && u.Scheme != "" {
+		if u.Scheme == "postgres" || u.Scheme == "postgresql" {
+			return "postgres", dbConf, nil
+		}
+		if u.Scheme == "file" {
+			if !strings.Contains(dbConf, "foreign_keys") {
+				sep := "?"
+				if strings.Contains(dbConf, "?") {
+					sep = "&"
+				}
+				dbConf += sep + "_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)"
+			}
+			return "sqlite", dbConf, nil
+		}
 		return u.Scheme, dbConf, nil
+	}
+
+	// Plain file path provided
+	if !strings.Contains(dbConf, "foreign_keys") {
+		dbConf = fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)", dbConf)
 	}
 	return "sqlite", dbConf, nil
 }
