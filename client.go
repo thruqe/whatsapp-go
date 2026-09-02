@@ -1148,14 +1148,62 @@ func (c *PluginContext) replyContextInfo() *waE2E.ContextInfo {
 	if c.Evt == nil {
 		return nil
 	}
-	ci := GetContextInfoFromProto(c.Evt.Message)
-	if ci == nil {
-		ci = &waE2E.ContextInfo{}
+	participant := c.Evt.Info.Sender.ToNonAD().String()
+	stanzaID := c.Evt.Info.ID
+
+	var quotedMsg *waE2E.Message
+	if c.Evt.Message != nil {
+		unwrapped := UnwrapMessageProto(c.Evt.Message)
+		if unwrapped != nil {
+			if cloned, ok := proto.Clone(unwrapped).(*waE2E.Message); ok && cloned != nil {
+				stripContextInfo(cloned)
+				quotedMsg = cloned
+			}
+		}
 	}
-	ci.StanzaID = &c.Evt.Info.ID
-	ci.Participant = new(c.Evt.Info.Sender.ToNonAD().String())
-	ci.QuotedMessage = UnwrapMessageProto(c.Evt.Message)
-	return ci
+
+	return &waE2E.ContextInfo{
+		StanzaID:      &stanzaID,
+		Participant:   &participant,
+		QuotedMessage: quotedMsg,
+	}
+}
+
+// stripContextInfo zeroes out any nested ContextInfo within a message protobuf to eliminate cyclic pointer graphs.
+func stripContextInfo(msg *waE2E.Message) {
+	if msg == nil {
+		return
+	}
+	if ext := msg.ExtendedTextMessage; ext != nil {
+		ext.ContextInfo = nil
+	}
+	if img := msg.ImageMessage; img != nil {
+		img.ContextInfo = nil
+	}
+	if vid := msg.VideoMessage; vid != nil {
+		vid.ContextInfo = nil
+	}
+	if aud := msg.AudioMessage; aud != nil {
+		aud.ContextInfo = nil
+	}
+	if doc := msg.DocumentMessage; doc != nil {
+		doc.ContextInfo = nil
+	}
+	if stk := msg.StickerMessage; stk != nil {
+		stk.ContextInfo = nil
+	}
+	if btn := msg.ButtonsMessage; btn != nil {
+		btn.ContextInfo = nil
+	}
+	if btnResp := msg.ButtonsResponseMessage; btnResp != nil {
+		btnResp.ContextInfo = nil
+	}
+	if list := msg.ListResponseMessage; list != nil {
+		list.ContextInfo = nil
+	}
+	if poll := msg.PollCreationMessage; poll != nil {
+		poll.ContextInfo = nil
+	}
 }
 
 // SendText sends a plain text message without quoting.

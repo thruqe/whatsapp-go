@@ -16,9 +16,18 @@ import (
 	"whatsrook/cmd/tui"
 	"whatsrook/cmd/updater"
 	"whatsrook/logger"
+	"whatsrook/system"
 )
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			crashPath := system.RecordCrash(r, "top-level process panic")
+			logger.Error("Fatal runtime crash", "panic", r, "crash_log", crashPath)
+			os.Exit(1)
+		}
+	}()
+
 	args := parseCLIArgs()
 
 	if args.Version {

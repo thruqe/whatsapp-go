@@ -17,6 +17,7 @@ import (
 	"whatsrook/cmd/store"
 	"whatsrook/external"
 	Logger "whatsrook/logger"
+	"whatsrook/system"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
@@ -179,7 +180,8 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		defer func() {
 			cctx.StopAutoLoader()
 			if r := recover(); r != nil {
-				Logger.Error("Panic recovered in command handler", "command", cmdName, "panic", r)
+				crashPath := system.RecordCrash(r, "command: "+cmdName, "user: "+cctx.Sender.String(), "chat: "+cctx.Chat.String())
+				Logger.Error("Panic recovered in command handler", "command", cmdName, "panic", r, "crash_log", crashPath)
 				_ = cctx.Reply("⚠️ An unexpected internal error occurred while executing this command.")
 			}
 		}()

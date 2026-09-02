@@ -6,7 +6,10 @@ package system
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"time"
 )
@@ -93,4 +96,57 @@ func FormatDuration(d time.Duration) string {
 		parts = append(parts, fmt.Sprintf("%ds", seconds))
 	}
 	return strings.Join(parts, " ")
+}
+
+// RecordCrash persists detailed panic or runtime error metadata, stack traces, and system diagnostics
+// to whatsrook_crash.log, outputs a notification to stderr, and returns the absolute log path.
+func RecordCrash(r any, extraContext ...string) string {
+	if r == nil {
+		return ""
+	}
+
+	stack := debug.Stack()
+	stats := GetStats()
+
+	crashDir := os.Getenv("WHATSDATA_DIR")
+	if crashDir == "" {
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			crashDir = filepath.Join(home, ".whatsrook")
+		} else {
+			crashDir = "."
+		}
+	}
+	_ = os.MkdirAll(crashDir, 0700)
+	crashPath := filepath.Join(crashDir, "whatsrook_crash.log")
+
+	var contextInfo string
+	if len(extraContext) > 0 {
+		contextInfo = strings.Join(extraContext, " | ")
+	}
+
+	var buf strings.Builder
+	buf.WriteString("\n================================================================================\n")
+	buf.WriteString(fmt.Sprintf("WHATSRROK RUNTIME CRASH REPORT — %s\n", time.Now().Format("2006-01-02 15:04:05.000 MST")))
+	buf.WriteString("================================================================================\n")
+	buf.WriteString(fmt.Sprintf("Runtime Panic/Error: %v\n", r))
+	if contextInfo != "" {
+		buf.WriteString(fmt.Sprintf("Execution Context:   %s\n", contextInfo))
+	}
+	buf.WriteString(fmt.Sprintf("Host OS/Arch:        %s/%s\n", stats.OS, stats.Arch))
+	buf.WriteString(fmt.Sprintf("Go Compiler:         %s\n", stats.GoVersion))
+	buf.WriteString(fmt.Sprintf("Active Goroutines:   %d\n", stats.NumGoroutine))
+	buf.WriteString(fmt.Sprintf("Memory In-Use/Sys:   %s / %s\n", FormatBytes(stats.MemAlloc), FormatBytes(stats.MemSys)))
+	buf.WriteString("--------------------------------------------------------------------------------\n")
+	buf.WriteString("GOROUTINE STACK TRACE:\n")
+	buf.Write(stack)
+	buf.WriteString("================================================================================\n\n")
+
+	f, err := os.OpenFile(crashPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err == nil {
+		_, _ = f.WriteString(buf.String())
+		_ = f.Close()
+	}
+
+	fmt.Fprintf(os.Stderr, "\n🚨 runtime error, written to %s\n", crashPath)
+	return crashPath
 }
