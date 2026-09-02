@@ -219,28 +219,39 @@ func ParseDatabaseConfig(dbConf string, dataDir ...string) (string, string, erro
 
 // resolveDeviceStore retrieves an existing registered device or creates a fresh companion device identity.
 func (c *Client) resolveDeviceStore(ctx context.Context, container *sqlstore.Container) (*store.Device, error) {
-	if c.Config.Session != "" {
-		phone := strings.TrimPrefix(c.Config.Session, "+")
-		jid := types.NewJID(phone, types.DefaultUserServer)
-
-		deviceStore, err := container.GetDevice(ctx, jid)
-		if err != nil {
-			return nil, err
-		}
-		if deviceStore != nil {
-			return deviceStore, nil
-		}
-	}
-
 	devices, err := container.GetAllDevices(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(devices) > 0 && c.Config.Session == "" {
+	phone := strings.TrimPrefix(c.Config.Session, "+")
+	phone = strings.ReplaceAll(phone, " ", "")
+	phone = strings.ReplaceAll(phone, "-", "")
+
+	// 1. Try to match by configured session phone number across stored companion devices
+	if phone != "" {
+		for _, dev := range devices {
+			if dev != nil && dev.ID != nil {
+				if dev.ID.User == phone || dev.ID.ToNonAD().User == phone {
+					return dev, nil
+				}
+			}
+		}
+
+		// Also try exact JID lookup
+		jid := types.NewJID(phone, types.DefaultUserServer)
+		deviceStore, err := container.GetDevice(ctx, jid)
+		if err == nil && deviceStore != nil && deviceStore.ID != nil {
+			return deviceStore, nil
+		}
+	}
+
+	// 2. If no session identifier is specified and a stored device exists, reuse it
+	if phone == "" && len(devices) > 0 {
 		return devices[0], nil
 	}
 
+	// 3. Otherwise create a new device identity
 	return container.NewDevice(), nil
 }
 
