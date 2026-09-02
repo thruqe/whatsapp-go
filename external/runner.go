@@ -113,6 +113,10 @@ func (d *Dispatcher) runProcess(plugCtx *utils.PluginContext, path, name string,
 			loader.Delete()
 		}
 	}
+
+	if err := scanner.Err(); err != nil {
+		Logger.Debug("scanner encountered error reading plugin stdout", "plugin", name, "err", err)
+	}
 }
 
 // handleActionFrame processes a single action frame emitted by an external plugin on stdout.
