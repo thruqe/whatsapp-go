@@ -44,7 +44,7 @@ func init() {
 		Name:        "afk",
 		Alias:       "away",
 		Description: "Set or customize your Away-From-Keyboard (AFK) status with customizable templates, @ placeholders, and last active tracking",
-		Category:    "settings",
+		Category:    "tools",
 		IsPublic:    false,
 		Handler:     handleAFK,
 	})
@@ -52,7 +52,7 @@ func init() {
 		Name:        "autobio",
 		Alias:       "bioauto",
 		Description: "Auto-update WhatsApp status bio every minute with time & inspirational quotes",
-		Category:    "settings",
+		Category:    "owner",
 		IsPublic:    true,
 		Handler:     handleAutoBio,
 	})
@@ -60,7 +60,7 @@ func init() {
 		Name:        "timezone",
 		Alias:       "tz",
 		Description: "View or configure timezone for automute schedules via poll replies",
-		Category:    "settings",
+		Category:    "group",
 		IsPublic:    true,
 		Handler:     handleTimezone,
 	})
@@ -97,40 +97,40 @@ func init() {
 		Name:        "privacy",
 		Alias:       "myprivacy",
 		Description: "View and update WhatsApp privacy settings (Last Seen, Profile Photo, Status, Read Receipts) via poll replies",
-		Category:    "settings",
+		Category:    "owner",
 		IsPublic:    false,
 		Handler:     handlePrivacy,
 	})
 	Register(&Command{
 		Name:        "setcmd",
 		Description: "Link a sticker to a command trigger. Usage: setcmd [command_name] (replying to a sticker)",
-		Category:    "settings",
+		Category:    "tools",
 		Handler:     handleSetCmd,
 	})
 	Register(&Command{
 		Name:        "delcmd",
 		Description: "Unlink a sticker from a command trigger. Usage: delcmd [command_name] or reply to a mapped sticker",
-		Category:    "settings",
+		Category:    "tools",
 		Handler:     handleDelCmd,
 	})
 	Register(&Command{
 		Name:        "getcmd",
 		Description: "List all mapped sticker commands",
-		Category:    "settings",
+		Category:    "tools",
 		Handler:     handleGetCmd,
 	})
 	Register(&Command{
 		Name:        "discmd",
 		Alias:       "disablecmd",
 		Description: "Disable a command globally for normal users",
-		Category:    "settings",
+		Category:    "owner",
 		Handler:     handleDisableCmd,
 	})
 	Register(&Command{
 		Name:        "encmd",
 		Alias:       "enablecmd",
 		Description: "Enable a previously disabled command",
-		Category:    "settings",
+		Category:    "owner",
 		Handler:     handleEnableCmd,
 	})
 	Register(&Command{

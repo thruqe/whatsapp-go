@@ -12,7 +12,6 @@ import (
 
 var (
 	BotJID         = types.NewJID("whatsrook_bot", "s.whatsapp.net")
-	WcgRng         = rand.New(rand.NewSource(time.Now().UnixNano()))
 	GameRng        = rand.New(rand.NewSource(time.Now().UnixNano()))
 	GameHTTPClient = utils.NewHTTPClient(4 * time.Second)
 

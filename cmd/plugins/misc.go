@@ -2,8 +2,6 @@ package plugins
 
 import (
 	"encoding/hex"
-
-	"github.com/skip2/go-qrcode"
 )
 
 func init() {
@@ -11,23 +9,15 @@ func init() {
 		Name:        "save",
 		Alias:       "savestatus",
 		Description: "Forward a replied message to your DM (or save status)",
-		Category:    "misc",
+		Category:    "tools",
 		IsPublic:    true,
 		Handler:     handleSave,
-	})
-	Register(&Command{
-		Name:        "qrcode",
-		Alias:       "qr",
-		Description: "Generate a QR code image for a text or URL",
-		Category:    "misc",
-		IsPublic:    true,
-		Handler:     handleQRCode,
 	})
 	Register(&Command{
 		Name:        "stkinfo",
 		Alias:       "stickerinfo",
 		Description: "View technical metadata for a replied sticker",
-		Category:    "misc",
+		Category:    "tools",
 		IsPublic:    true,
 		Handler:     handleStickerInfo,
 	})
@@ -49,26 +39,6 @@ func handleSave(ctx *Context) error {
 	}
 
 	return ctx.Reply("Message forwarded to your DM.")
-}
-
-func handleQRCode(ctx *Context) error {
-	query := ctx.RawArgs
-	if query == "" {
-		if quoted := ctx.GetQuotedMessage(); quoted != nil {
-			query = extractTextFromProto(quoted)
-		}
-	}
-	if query == "" {
-		p := ctx.GetPrefix()
-		return ctx.Replyf("Usage: %sqr [text or url] (or reply to a message)", p)
-	}
-
-	pngBytes, err := qrcode.Encode(query, qrcode.Medium, 500)
-	if err != nil {
-		return ctx.Replyf("Error generating QR code: %v", err)
-	}
-
-	return ctx.ReplyWithImage(pngBytes, "image/png", "QR Code Generated")
 }
 
 func handleStickerInfo(ctx *Context) error {

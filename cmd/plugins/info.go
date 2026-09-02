@@ -28,27 +28,10 @@ func init() {
 
 	Register(&Command{
 		Name:        "alive",
-		Alias:       "system",
 		Description: "Check bot online status, uptime, system stats, and custom alive template or replied media (image/video/audio)",
 		Category:    "info",
 		IsPublic:    true,
 		Handler:     handleAlive,
-	})
-
-	Register(&Command{
-		Name:        "cpu",
-		Description: "Show system CPU information and usage",
-		Category:    "info",
-		IsPublic:    true,
-		Handler:     handleCPU,
-	})
-
-	Register(&Command{
-		Name:        "memory",
-		Description: "Show system and process memory usage",
-		Category:    "info",
-		IsPublic:    true,
-		Handler:     handleMemory,
 	})
 
 	Register(&Command{
@@ -497,51 +480,6 @@ func sendAliveCustomizeGuide(ctx *Context) error {
 		Section("Example Custom Templates").
 		Linef("%salive customize @user I am alive and kicking! 🚀 Uptime: @uptime", p).
 		Linef("%salive customize Hello @name, @bot is online!", p).
-		Reply()
-}
-
-func handleCPU(ctx *Context) error {
-	model := cliutils.GetCPUModel()
-	cores := runtime.NumCPU()
-	loadAvg := cliutils.GetLoadAvg()
-
-	usageStr := "Unknown"
-	if u, err := cliutils.GetCPUUsage(); err == nil {
-		usageStr = Sprintf("%.2f%%", u)
-	}
-
-	return ctx.Text().
-		Header("CPU Information").
-		Field("Model", model).
-		Fieldf("Cores/Threads", "%d", cores).
-		Field("Load Average", loadAvg).
-		Field("Current Usage", usageStr).
-		Reply()
-}
-
-func handleMemory(ctx *Context) error {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	procAlloc := float64(m.Alloc) / 1024 / 1024
-	procSys := float64(m.Sys) / 1024 / 1024
-
-	tb := ctx.Text().Header("Memory Information")
-	if sysMem, err := cliutils.GetSystemMemory(); err != nil {
-		tb.Bulletf("System Memory: Error reading (%v)", err)
-	} else {
-		totalGB := float64(sysMem.Total) / 1024 / 1024
-		availableGB := float64(sysMem.Available) / 1024 / 1024
-		usedGB := totalGB - availableGB
-		percent := (usedGB / totalGB) * 100
-
-		tb.Fieldf("Total System Memory", "%.2f GB", totalGB).
-			Fieldf("Used System Memory", "%.2f GB (%.1f%%)", usedGB, percent).
-			Fieldf("Available System Memory", "%.2f GB", availableGB)
-	}
-
-	return tb.
-		Fieldf("Process Allocated", "%.2f MB", procAlloc).
-		Fieldf("Process System Reserved", "%.2f MB", procSys).
 		Reply()
 }
 

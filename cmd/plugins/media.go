@@ -71,13 +71,6 @@ func init() {
 		Handler:     handleMP3,
 	})
 	Register(&Command{
-		Name:        "mp4url",
-		Description: "Download video from direct URL and send as MP4",
-		Category:    "media",
-		IsPublic:    true,
-		Handler:     handleMP4URL,
-	})
-	Register(&Command{
 		Name:        "black",
 		Description: "Create a black video using the audio of a video/audio file",
 		Category:    "media",
@@ -178,25 +171,6 @@ func handleMP3(ctx *Context) error {
 	}
 
 	return ctx.ReplyWithAudio(mp3Data, "audio/ogg; codecs=opus")
-}
-
-func handleMP4URL(ctx *Context) error {
-	if len(ctx.Args) == 0 {
-		return ctx.Reply("Please provide a direct video URL.")
-	}
-	videoURL := ctx.Args[0]
-
-	videoBytes, err := downloadFromURL(ctx.Ctx, videoURL)
-	if err != nil {
-		return ctx.Replyf(" Failed to download video: %v", err)
-	}
-
-	mp4Data, err := processMP4(videoBytes, "video/mp4")
-	if err != nil {
-		return ctx.Replyf(" Failed to process video into MP4: %v", err)
-	}
-
-	return ctx.ReplyWithVideo(mp4Data, "video/mp4", "")
 }
 
 func handleBlack(ctx *Context) error {
@@ -523,10 +497,6 @@ func processMP3(data []byte) ([]byte, error) {
 	}
 
 	return os.ReadFile(tempOut)
-}
-
-func downloadFromURL(ctx context.Context, mediaURL string) ([]byte, error) {
-	return utils.FetchURLBytes(ctx, mediaURL)
 }
 
 func processBlackVideo(data []byte) ([]byte, error) {

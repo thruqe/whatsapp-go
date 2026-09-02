@@ -40,8 +40,6 @@ type WizardSession struct {
 }
 
 var (
-	TablesInitOnce sync.Once
-
 	BotNamePromptDismissedCacheMu sync.RWMutex
 	BotNamePromptDismissedCache   = make(map[string]bool)
 
@@ -52,7 +50,6 @@ var (
 	AfkUserTracker     = make(map[string]*UserAFKState)
 	AfkUserTrackerLock sync.RWMutex
 
-	AutoBioOnce     sync.Once
 	AutoBioRng      = rand.New(rand.NewSource(time.Now().UnixNano()))
 	AutoBioRngMutex sync.Mutex
 

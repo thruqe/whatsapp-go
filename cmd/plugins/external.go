@@ -11,7 +11,7 @@ func init() {
 	Register(&Command{
 		Name:        "install",
 		Description: "Install an external plugin from official registry, custom URL, or local binary (sudoers only)",
-		Category:    "Plugins",
+		Category:    "extensions",
 		IsPublic:    false,
 		Handler:     handlePluginInstall,
 	})
@@ -19,7 +19,7 @@ func init() {
 	Register(&Command{
 		Name:        "uninstall",
 		Description: "Uninstall an external plugin (sudoers only)",
-		Category:    "Plugins",
+		Category:    "extensions",
 		IsPublic:    false,
 		Handler:     handlePluginUninstall,
 	})
@@ -28,7 +28,7 @@ func init() {
 		Name:        "plist",
 		Alias:       "pluginlist",
 		Description: "List all installed external plugins",
-		Category:    "Plugins",
+		Category:    "extensions",
 		IsPublic:    true,
 		Handler:     handlePluginList,
 	})
@@ -41,7 +41,7 @@ func handlePluginInstall(ctx *Context) error {
 			Header("WhatsRook External Plugin Installer").
 			Section("Usage:").
 			Bulletf("%sinstall <name> (automatically downloads for host OS/arch from official registry)", p).
-			Bulletf("%sinstall all (installs all 13 official external plugins in parallel)", p).
+			Bulletf("%sinstall all (installs all %d official external plugins in parallel)", p, len(external.OfficialPlugins)).
 			Bulletf("%sinstall <name> <local-path-or-url>", p).
 			Blank().
 			Section("Official Plugins:").

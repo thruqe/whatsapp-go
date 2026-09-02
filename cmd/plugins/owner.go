@@ -38,7 +38,7 @@ func init() {
 		Name:        "blocklist",
 		Alias:       "blocks",
 		Description: "Display list of all currently blocked contacts",
-		Category:    "owner",
+		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleBlocklist,
 	})
@@ -123,6 +123,14 @@ func init() {
 		Category:    "owner",
 		IsPublic:    false,
 		Handler:     handleUpgradeCommand,
+	})
+	Register(&Command{
+		Name:        "channels",
+		Alias:       "newsletters",
+		Description: "List all subscribed WhatsApp channels and newsletters with subscriber counts",
+		Category:    "owner",
+		IsPublic:    false,
+		Handler:     handleChannels,
 	})
 }
 
@@ -1114,4 +1122,36 @@ func performUpgrade(ctx *Context, isBeta bool) error {
 	}
 	Logger.Error("failed to restart process after update", "err", err)
 	return ctx.Replyf("Updated binary successfully, but process restart failed: %v", err)
+}
+
+func handleChannels(ctx *Context) error {
+	newsletters, err := ctx.Client.GetSubscribedNewsletters(ctx.Ctx)
+	if err != nil || len(newsletters) == 0 {
+		return ctx.Reply("No subscribed channels/newsletters found.")
+	}
+
+	tb := ctx.Text().Header("SUBSCRIBED CHANNELS")
+
+	for i, n := range newsletters {
+		name := n.ThreadMeta.Name.Text
+		if name == "" {
+			name = Sprintf("Channel %d", i+1)
+		}
+		subs := n.ThreadMeta.SubscriberCount
+		role := "SUBSCRIBER"
+		if n.ViewerMeta != nil && n.ViewerMeta.Role != "" {
+			role = string(n.ViewerMeta.Role)
+		}
+		link := "None"
+		if n.ThreadMeta.InviteCode != "" {
+			link = "https://whatsapp.com/channel/" + n.ThreadMeta.InviteCode
+		}
+
+		tb.Numbered(i+1, Bold(name)).
+			Indent(3, Sprintf("Role: %s | Followers: %d", role, subs)).NewLine().
+			Indent(3, Sprintf("Link: %s", link)).NewLine().
+			Blank()
+	}
+
+	return tb.Reply()
 }

@@ -9,27 +9,6 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
-// WhatsRook Custom Table Names
-const (
-	TableBotSettings         = "bot_settings"
-	TableCallMediaConfig     = "call_media_config"
-	TableParticipantActivity = "participant_activity"
-	TableBotFilters          = "bot_filters"
-	TableBotBgm              = "bot_bgm"
-	TableGroupStats          = "group_stats"
-	TableBotStickerCmds      = "bot_sticker_cmds"
-	TableBotUserXP           = "bot_user_xp"
-	TableBotGroupUserXP      = "bot_group_user_xp"
-)
-
-// WhatsRook Bot Setting Keys
-const (
-	SettingPrefix   = "prefix"
-	SettingBotMode  = "mode"
-	SettingSudoers  = "sudoers"
-	SettingDisabled = "disabled_commands"
-)
-
 // Store wraps custom WhatsRook bot database tables and settings operations.
 type Store struct {
 	SQLStore *sqlstore.SQLStore
