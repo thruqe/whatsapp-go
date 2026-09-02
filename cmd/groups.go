@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"whatsrook"
 	"whatsrook/cmd/store"
 	"whatsrook/logger"
 
@@ -279,7 +278,7 @@ func (gm *GroupManager) convertGroupInfo(ctx context.Context, cli *whatsmeow.Cli
 	var participants []store.GroupParticipantMetadata
 	adminCount := 0
 	for _, p := range g.Participants {
-		pnJID := whatsrook.ResolvePN(ctx, cli, p.JID)
+		pnJID := p.JID.ToNonAD()
 		pm := store.GroupParticipantMetadata{
 			JID:          pnJID,
 			LID:          p.LID,
@@ -497,7 +496,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 	// 6. Participants Joins
 	if len(g.Join) > 0 {
 		for _, j := range g.Join {
-			resolvedJID := whatsrook.ResolvePN(ctx, cli, j)
+			resolvedJID := j.ToNonAD()
 			already := false
 			for _, p := range meta.Participants {
 				if p.JID == resolvedJID {
@@ -518,7 +517,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 	// 7. Participants Leaves
 	if len(g.Leave) > 0 {
 		for _, l := range g.Leave {
-			resolvedJID := whatsrook.ResolvePN(ctx, cli, l)
+			resolvedJID := l.ToNonAD()
 			newParticipants := make([]store.GroupParticipantMetadata, 0, len(meta.Participants))
 			for _, p := range meta.Participants {
 				if p.JID != resolvedJID {
@@ -532,7 +531,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 	// 8. Admin Promotions
 	if len(g.Promote) > 0 {
 		for _, prom := range g.Promote {
-			resolvedJID := whatsrook.ResolvePN(ctx, cli, prom)
+			resolvedJID := prom.ToNonAD()
 			for i := range meta.Participants {
 				if meta.Participants[i].JID == resolvedJID {
 					meta.Participants[i].IsAdmin = true
@@ -545,7 +544,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 	// 9. Admin Demotions
 	if len(g.Demote) > 0 {
 		for _, dem := range g.Demote {
-			resolvedJID := whatsrook.ResolvePN(ctx, cli, dem)
+			resolvedJID := dem.ToNonAD()
 			for i := range meta.Participants {
 				if meta.Participants[i].JID == resolvedJID {
 					meta.Participants[i].IsAdmin = false

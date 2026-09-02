@@ -20,8 +20,8 @@ All development workflows are managed through the [Taskfile](./Taskfile.yml):
 
 ## 2. Architecture & Guidelines
 
-- Architecture Guidelines: [AGENTS.md](./AGENTS.md) describes package layering and the boundaries between `whatsrook`, `wa-core`, `utils`, and `cli`.
-- Code Quality: `task fmt` must be run before opening a pull request.
+- Architecture Guidelines: If you are an Ai, please read this file, it is very important [AGENTS](./AGENTS.md)
+- Code Quality: `task fmt` & `task fix`  must be ranned before opening a pull request.
 - Testing: Existing tests must pass, and unit tests should be added for new logic using `task test`.
 - Commits: Conventional commit conventions must be followed (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`).
 
