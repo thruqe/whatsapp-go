@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -28,7 +29,12 @@ type CLIArgs struct {
 
 // parseCLIArgs resolves environment configuration and parses CLI flags.
 func parseCLIArgs() CLIArgs {
-	loadDotEnv(".env", "../.env")
+	candidateFiles := []string{".env", "../.env"}
+	if exe, err := os.Executable(); err == nil && exe != "" {
+		exeDir := filepath.Dir(exe)
+		candidateFiles = append(candidateFiles, filepath.Join(exeDir, ".env"), filepath.Join(exeDir, "..", ".env"))
+	}
+	loadDotEnv(candidateFiles...)
 	return parseCLIArgsFrom(os.Args[1:])
 }
 
@@ -192,11 +198,15 @@ Options:
 		logoutVal = envLogout == "true" || envLogout == "1"
 	}
 
-	// 8. Verbose resolution (Flag > VERBOSE env)
+	// 8. Verbose resolution (Flag > VERBOSE env > DEBUG env > LOG_LEVEL)
 	verboseVal := *verbose
 	if !explicitFlags["verbose"] && !explicitFlags["v"] {
-		envVerbose := strings.ToLower(os.Getenv("VERBOSE"))
-		verboseVal = envVerbose == "true" || envVerbose == "1"
+		envVerbose := strings.ToLower(strings.TrimSpace(os.Getenv("VERBOSE")))
+		envDebug := strings.ToLower(strings.TrimSpace(os.Getenv("DEBUG")))
+		envLogLevel := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
+		verboseVal = envVerbose == "true" || envVerbose == "1" || envVerbose == "yes" || envVerbose == "on" ||
+			envDebug == "true" || envDebug == "1" || envDebug == "yes" || envDebug == "on" ||
+			envLogLevel == "debug" || envLogLevel == "trace"
 	}
 
 	return CLIArgs{
@@ -222,12 +232,19 @@ func isNumeric(s string) bool {
 }
 
 func loadDotEnv(filenames ...string) {
+	seen := make(map[string]bool)
 	for _, filename := range filenames {
+		if filename == "" || seen[filename] {
+			continue
+		}
+		seen[filename] = true
 		data, err := os.ReadFile(filename)
 		if err != nil {
 			continue
 		}
-		for line := range strings.SplitSeq(string(data), "\n") {
+		for _, rawLine := range strings.Split(string(data), "\n") {
+			line := strings.TrimSpace(rawLine)
+			line = strings.TrimPrefix(line, "export ")
 			line = strings.TrimSpace(line)
 			if line == "" || strings.HasPrefix(line, "#") {
 				continue
@@ -238,9 +255,13 @@ func loadDotEnv(filenames ...string) {
 			}
 			key := strings.TrimSpace(parts[0])
 			val := strings.TrimSpace(parts[1])
+
 			if len(val) >= 2 && ((val[0] == '"' && val[len(val)-1] == '"') || (val[0] == '\'' && val[len(val)-1] == '\'')) {
 				val = val[1 : len(val)-1]
+			} else if idx := strings.Index(val, " #"); idx != -1 {
+				val = strings.TrimSpace(val[:idx])
 			}
+
 			if os.Getenv(key) == "" {
 				_ = os.Setenv(key, val)
 			}

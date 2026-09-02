@@ -34,7 +34,7 @@ func sendPollReplyWithMentions(ctx *dispatch.Context, body string, options []str
 
 func splitCSV(s string) []string {
 	var parts []string
-	for _, p := range strings.Split(s, ",") {
+	for p := range strings.SplitSeq(s, ",") {
 		if tr := strings.TrimSpace(p); tr != "" {
 			parts = append(parts, tr)
 		}

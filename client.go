@@ -403,12 +403,6 @@ func (c *Client) PairQR(ctx context.Context) (<-chan whatsmeow.QRChannelItem, er
 	return qrChan, nil
 }
 
-//go:fix inline
-func protoStr(s string) *string { return new(s) }
-
-//go:fix inline
-func protoBool(b bool) *bool { return new(b) }
-
 // GetQRChannel streams QR code events for pairing.
 //
 //go:fix inline
@@ -1150,7 +1144,7 @@ func (c *PluginContext) replyContextInfo() *waE2E.ContextInfo {
 		ci = &waE2E.ContextInfo{}
 	}
 	ci.StanzaID = &c.Evt.Info.ID
-	ci.Participant = protoStr(c.Evt.Info.Sender.ToNonAD().String())
+	ci.Participant = new(c.Evt.Info.Sender.ToNonAD().String())
 	ci.QuotedMessage = UnwrapMessageProto(c.Evt.Message)
 	return ci
 }
@@ -1229,7 +1223,7 @@ func (c *PluginContext) SendImageWithMentions(data []byte, mimetype, caption str
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 			ContextInfo:   ci,
 		},
@@ -1277,7 +1271,7 @@ func (c *PluginContext) SendVideoWithMentions(data []byte, mimetype, caption str
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 			ContextInfo: &waE2E.ContextInfo{
 				MentionedJID: mentionStrs,
@@ -1306,10 +1300,10 @@ func (c *PluginContext) sendVideoInternal(data []byte, mimetype, caption string,
 			DirectPath:    &uploaded.DirectPath,
 			MediaKey:      uploaded.MediaKey,
 			Mimetype:      &mimetype,
-			GifPlayback:   protoBool(isGif),
+			GifPlayback:   new(isGif),
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 		},
 	}
@@ -1338,7 +1332,7 @@ func (c *PluginContext) SendAudio(data []byte, mimetype string) error {
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 		},
 	}
 	_, err = c.Client.SendMessage(c.GetSendContext(), c.Chat, msg)
@@ -1367,7 +1361,7 @@ func (c *PluginContext) SendDocument(data []byte, mimetype, filename, caption st
 			FileName:      &filename,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 		},
 	}
@@ -1390,10 +1384,10 @@ func (c *PluginContext) SendSticker(data []byte) error {
 			URL:           &uploaded.URL,
 			DirectPath:    &uploaded.DirectPath,
 			MediaKey:      uploaded.MediaKey,
-			Mimetype:      protoStr("image/webp"),
+			Mimetype:      new("image/webp"),
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 		},
 	}
 	_, err = c.Client.SendMessage(c.GetSendContext(), c.Chat, msg)
@@ -1517,7 +1511,7 @@ func (c *PluginContext) ReplyWithImageWithMentions(data []byte, mimetype, captio
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 			ContextInfo:   ci,
 		},
@@ -1555,10 +1549,10 @@ func (c *PluginContext) replyVideoInternal(data []byte, mimetype, caption string
 			DirectPath:    &uploaded.DirectPath,
 			MediaKey:      uploaded.MediaKey,
 			Mimetype:      &mimetype,
-			GifPlayback:   protoBool(isGif),
+			GifPlayback:   new(isGif),
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 			ContextInfo:   c.replyContextInfo(),
 		},
@@ -1601,7 +1595,7 @@ func (c *PluginContext) ReplyWithVideoWithMentions(data []byte, mimetype, captio
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 			ContextInfo:   ci,
 		},
@@ -1632,7 +1626,7 @@ func (c *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			ContextInfo:   c.replyContextInfo(),
 		},
 	}
@@ -1663,7 +1657,7 @@ func (c *PluginContext) ReplyWithDocument(data []byte, mimetype, filename, capti
 			FileName:      &filename,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 			ContextInfo:   c.replyContextInfo(),
 		},
@@ -1688,10 +1682,10 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 			URL:           &uploaded.URL,
 			DirectPath:    &uploaded.DirectPath,
 			MediaKey:      uploaded.MediaKey,
-			Mimetype:      protoStr("image/webp"),
+			Mimetype:      new("image/webp"),
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    protoUint64(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			ContextInfo:   c.replyContextInfo(),
 		},
 	}
@@ -2103,8 +2097,6 @@ func (c *PluginContext) GetMedia() ([]byte, string, error) {
 	return nil, "", fmt.Errorf("no media found")
 }
 
-func protoUint64(u uint64) *uint64 { return &u }
-
 // IsAdmin checks if a specific JID is a group admin.
 func (c *PluginContext) IsAdmin(info *types.GroupInfo, jid types.JID) bool {
 	if info == nil {
@@ -2164,19 +2156,19 @@ func ExtractViewOnceMessage(msg *waE2E.Message) *waE2E.Message {
 	res := &waE2E.Message{}
 	if img := msg.GetImageMessage(); img != nil {
 		cloned := proto.Clone(img).(*waE2E.ImageMessage)
-		cloned.ViewOnce = protoBool(false)
+		cloned.ViewOnce = new(false)
 		res.ImageMessage = cloned
 		return res
 	}
 	if vid := msg.GetVideoMessage(); vid != nil {
 		cloned := proto.Clone(vid).(*waE2E.VideoMessage)
-		cloned.ViewOnce = protoBool(false)
+		cloned.ViewOnce = new(false)
 		res.VideoMessage = cloned
 		return res
 	}
 	if aud := msg.GetAudioMessage(); aud != nil {
 		cloned := proto.Clone(aud).(*waE2E.AudioMessage)
-		cloned.ViewOnce = protoBool(false)
+		cloned.ViewOnce = new(false)
 		res.AudioMessage = cloned
 		return res
 	}
@@ -2208,8 +2200,8 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		img.MediaKey = uploaded.MediaKey
 		img.FileEncSHA256 = uploaded.FileEncSHA256
 		img.FileSHA256 = uploaded.FileSHA256
-		img.FileLength = protoUint64(uint64(len(data)))
-		img.ViewOnce = protoBool(false)
+		img.FileLength = new(uint64(len(data)))
+		img.ViewOnce = new(false)
 	} else if vid := unwrapped.GetVideoMessage(); vid != nil {
 		data, err := client.Download(ctx, vid)
 		if err != nil {
@@ -2224,8 +2216,8 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		vid.MediaKey = uploaded.MediaKey
 		vid.FileEncSHA256 = uploaded.FileEncSHA256
 		vid.FileSHA256 = uploaded.FileSHA256
-		vid.FileLength = protoUint64(uint64(len(data)))
-		vid.ViewOnce = protoBool(false)
+		vid.FileLength = new(uint64(len(data)))
+		vid.ViewOnce = new(false)
 	} else if aud := unwrapped.GetAudioMessage(); aud != nil {
 		data, err := client.Download(ctx, aud)
 		if err != nil {
@@ -2240,8 +2232,8 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		aud.MediaKey = uploaded.MediaKey
 		aud.FileEncSHA256 = uploaded.FileEncSHA256
 		aud.FileSHA256 = uploaded.FileSHA256
-		aud.FileLength = protoUint64(uint64(len(data)))
-		aud.ViewOnce = protoBool(false)
+		aud.FileLength = new(uint64(len(data)))
+		aud.ViewOnce = new(false)
 	}
 
 	_, err := client.SendMessage(ctx, targetJID, unwrapped)
