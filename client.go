@@ -31,7 +31,9 @@ import (
 	"whatsrook/webp"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waWa6"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
@@ -130,7 +132,6 @@ func (c *Client) WAClient() *whatsmeow.Client {
 // InitSession initializes persistent storage drivers, retrieves or provisions the companion device record,
 // and constructs the active whatsmeow client instance.
 //
-// it automatically handles directory creation, sqlite / postgresql connection initialization,
 // InitSession initializes persistent storage drivers, retrieves or provisions the companion device record,
 // and constructs the active whatsmeow client instance.
 //
@@ -150,9 +151,34 @@ func (c *Client) InitSession(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get device store: %w", err)
 	}
+	deviceStore.ExternalCache = cache.Default()
 
 	waLogger := Logger.NewWaLogger("client")
 	cli := whatsmeow.NewClient(deviceStore, waLogger)
+	cli.SetCallLogger(Logger.ZerologStyle("wacaller"))
+	cli.AsyncMessageAck = c.Config.AsyncMessageAck
+
+	// Configure companion platform registration headers and os version payloads
+	switch c.Config.ClientType {
+	case ClientAndroid:
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_ANDROID_PHONE.Enum()
+		store.DeviceProps.Os = new("16")
+		store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_ANDROID.Enum()
+		store.BaseClientPayload.UserAgent.OsVersion = new("16.0.0")
+		store.BaseClientPayload.UserAgent.OsBuildNumber = new("16.0.0")
+		store.BaseClientPayload.WebInfo = nil
+	case ClientIos:
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_IOS_PHONE.Enum()
+		store.DeviceProps.Os = new("18.0")
+		store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_IOS.Enum()
+		store.BaseClientPayload.UserAgent.OsVersion = new("18.0")
+		store.BaseClientPayload.UserAgent.OsBuildNumber = new("18.0")
+		store.BaseClientPayload.WebInfo = nil
+	default:
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
+		store.DeviceProps.Os = new("Linux")
+		store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_WEB.Enum()
+	}
 
 	c.rawClient = cli
 	return nil
