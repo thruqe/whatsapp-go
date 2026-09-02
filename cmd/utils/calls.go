@@ -1,10 +1,11 @@
-package cliutils
+package utils
 
 import (
 	"sync"
 
+	"whatsrook/cmd/store"
+
 	"go.mau.fi/whatsmeow/types"
-	clistore "whatsrook/cmd/store"
 )
 
 const (
@@ -13,7 +14,7 @@ const (
 
 type PendingCall struct {
 	Target string
-	Kind   clistore.CallMediaKind
+	Kind   store.CallMediaKind
 }
 
 var (

@@ -1,20 +1,21 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math/rand"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 
-	utils "whatsrook"
-	"whatsrook/cmd/captcha"
+	"whatsrook"
 	"whatsrook/cmd/plugins"
-	clistore "whatsrook/cmd/store"
-	cliutils "whatsrook/cmd/utils"
-	Logger "whatsrook/logger"
+	"whatsrook/cmd/store"
+	"whatsrook/cmd/utils"
+	"whatsrook/external"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCommon"
@@ -30,7 +31,7 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 		return
 	}
 
-	Logger.Debug("anticall: received call offer event",
+	logger.Debug("anticall: received call offer event",
 		"call_id", v.CallID,
 		"caller", v.CallCreator.String(),
 		"timestamp", v.Timestamp,
@@ -38,7 +39,7 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 
 	// Do not process call offers that occurred before bot startup (with 2m clock skew tolerance)
 	if !v.Timestamp.IsZero() && v.Timestamp.Before(b.startupTime.Add(-2*time.Minute)) {
-		Logger.Debug("anticall: skipping stale call offer before startup",
+		logger.Debug("anticall: skipping stale call offer before startup",
 			"call_id", v.CallID,
 			"caller", v.CallCreator.String(),
 			"timestamp", v.Timestamp,
@@ -51,33 +52,33 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 		return
 	}
 
-	voicemailStatus, _ := clistore.GetSetting(ctx, s, cliutils.VoicemailSettingKey)
+	voicemailStatus, _ := store.GetSetting(ctx, s, utils.VoicemailSettingKey)
 	if voicemailStatus == "" {
-		voicemailStatus, _ = clistore.GetSetting(ctx, s, "autoacceptcall_status")
+		voicemailStatus, _ = store.GetSetting(ctx, s, "autoacceptcall_status")
 	}
 	if voicemailStatus == "on" {
-		Logger.Debug("anticall: skipping reject because voicemail is enabled", "call_id", v.CallID, "caller", v.CallCreator.String())
+		logger.Debug("anticall: skipping reject because voicemail is enabled", "call_id", v.CallID, "caller", v.CallCreator.String())
 		return
 	}
 
-	status, _ := clistore.GetSetting(ctx, s, "anticall_status")
+	status, _ := store.GetSetting(ctx, s, "anticall_status")
 	if status != "on" {
-		Logger.Debug("anticall: feature is disabled, ignoring call offer", "call_id", v.CallID, "status", status)
+		logger.Debug("anticall: feature is disabled, ignoring call offer", "call_id", v.CallID, "status", status)
 		return
 	}
 
 	callerJID := v.CallCreator
 	callerNum := callerJID.User
 
-	contactsOnly, _ := clistore.GetSetting(ctx, s, "anticall_contacts_only")
-	allowedCC, _ := clistore.GetSetting(ctx, s, "anticall_allowed_cc")
+	contactsOnly, _ := store.GetSetting(ctx, s, "anticall_contacts_only")
+	allowedCC, _ := store.GetSetting(ctx, s, "anticall_allowed_cc")
 
 	reject := false
 
 	if contactsOnly == "true" {
 		contact, err := cli.Store.Contacts.GetContact(ctx, callerJID)
 		if err != nil || (!contact.Found || (contact.FirstName == "" && contact.FullName == "")) {
-			Logger.Debug("anticall: caller is not in contacts and contacts-only mode is active", "caller", callerJID.String())
+			logger.Debug("anticall: caller is not in contacts and contacts-only mode is active", "caller", callerJID.String())
 			reject = true
 		}
 	}
@@ -93,17 +94,17 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 			}
 		}
 		if !matched {
-			Logger.Debug("anticall: caller country code is not in allowed CC whitelist", "caller", callerJID.String(), "allowedCC", allowedCC)
+			logger.Debug("anticall: caller country code is not in allowed CC whitelist", "caller", callerJID.String(), "allowedCC", allowedCC)
 			reject = true
 		}
 	}
 
 	if !reject && contactsOnly != "true" && allowedCC == "" {
-		Logger.Debug("anticall: rejecting call because unconditional anticall is active", "caller", callerJID.String())
+		logger.Debug("anticall: rejecting call because unconditional anticall is active", "caller", callerJID.String())
 		reject = true
 	}
 
-	Logger.Debug("anticall: evaluation completed",
+	logger.Debug("anticall: evaluation completed",
 		"caller", callerJID.String(),
 		"call_id", v.CallID,
 		"contactsOnly", contactsOnly,
@@ -112,32 +113,32 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 	)
 
 	if reject {
-		Logger.Warn("anticall: rejecting call offer", "from", callerJID.String(), "call_id", v.CallID)
+		logger.Warn("anticall: rejecting call offer", "from", callerJID.String(), "call_id", v.CallID)
 		_ = cli.RejectCall(ctx, callerJID, v.CallID)
 
 		warnKey := "anticall_warn:" + callerJID.String()
-		rawWarn, _ := clistore.GetSetting(ctx, s, warnKey)
+		rawWarn, _ := store.GetSetting(ctx, s, warnKey)
 		warnCount, _ := strconv.Atoi(rawWarn)
 		warnCount++
-		_ = clistore.PutSetting(ctx, s, warnKey, strconv.Itoa(warnCount))
+		_ = store.PutSetting(ctx, s, warnKey, strconv.Itoa(warnCount))
 
-		rawMax, _ := clistore.GetSetting(ctx, s, "anticall_max_warn")
+		rawMax, _ := store.GetSetting(ctx, s, "anticall_max_warn")
 		maxWarn, _ := strconv.Atoi(rawMax)
 		if maxWarn <= 0 {
 			maxWarn = 3
 		}
 
-		Logger.Debug("anticall: caller warning updated", "caller", callerJID.String(), "warnCount", warnCount, "maxWarn", maxWarn)
+		logger.Debug("anticall: caller warning updated", "caller", callerJID.String(), "warnCount", warnCount, "maxWarn", maxWarn)
 
 		if warnCount >= maxWarn {
 			_, _ = cli.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock)
-			Logger.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
+			logger.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
 			warnText := fmt.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
-			formatted := cliutils.FormatTextResponseRaw(warnText)
+			formatted := utils.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 		} else {
 			warnText := fmt.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
-			formatted := cliutils.FormatTextResponseRaw(warnText)
+			formatted := utils.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 		}
 	}
@@ -149,7 +150,7 @@ func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
 		return
 	}
 
-	Logger.Debug("likestatus: received status message event",
+	logger.Debug("likestatus: received status message event",
 		"msgID", v.Info.ID,
 		"sender", v.Info.Sender.String(),
 		"chat", v.Info.Chat.String(),
@@ -157,7 +158,7 @@ func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
 	)
 
 	if !v.Info.Timestamp.IsZero() && v.Info.Timestamp.Before(b.startupTime.Add(-2*time.Minute)) {
-		Logger.Debug("likestatus: skipping stale status broadcast before startup",
+		logger.Debug("likestatus: skipping stale status broadcast before startup",
 			"msgID", v.Info.ID,
 			"timestamp", v.Info.Timestamp,
 		)
@@ -174,16 +175,16 @@ func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
 		senderJID = v.Info.Chat
 	}
 
-	statusView, _ := clistore.GetSetting(ctx, s, "autoread_status_view")
-	generalRead, _ := clistore.GetSetting(ctx, s, "autoread_status")
+	statusView, _ := store.GetSetting(ctx, s, "autoread_status_view")
+	generalRead, _ := store.GetSetting(ctx, s, "autoread_status")
 	if statusView == "on" || (generalRead == "on" && statusView != "off") {
 		_ = cli.MarkRead(ctx, []types.MessageID{v.Info.ID}, v.Info.Timestamp, types.StatusBroadcastJID, senderJID)
-		Logger.Debug("autoread: marked status broadcast as read", "msgID", v.Info.ID, "sender", senderJID.String())
+		logger.Debug("autoread: marked status broadcast as read", "msgID", v.Info.ID, "sender", senderJID.String())
 	}
 
-	status, _ := clistore.GetSetting(ctx, s, "likestatus_status")
+	status, _ := store.GetSetting(ctx, s, "likestatus_status")
 	if status != "on" {
-		Logger.Debug("likestatus: feature disabled, skipping auto-reaction", "status", status)
+		logger.Debug("likestatus: feature disabled, skipping auto-reaction", "status", status)
 		return
 	}
 
@@ -205,9 +206,9 @@ func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
 
 	_, err := cli.SendMessage(ctx, v.Info.Chat, reaction)
 	if err != nil {
-		Logger.Error("likestatus: failed to react to status broadcast", "err", err, "msgID", v.Info.ID)
+		logger.Error("likestatus: failed to react to status broadcast", "err", err, "msgID", v.Info.ID)
 	} else {
-		Logger.Debug("likestatus: liked status broadcast", "emoji", emoji, "sender", senderJID.String(), "msgID", v.Info.ID)
+		logger.Debug("likestatus: liked status broadcast", "emoji", emoji, "sender", senderJID.String(), "msgID", v.Info.ID)
 	}
 }
 
@@ -217,7 +218,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 		return
 	}
 
-	Logger.Debug("handleGroupGreetings: received group info event",
+	logger.Debug("handleGroupGreetings: received group info event",
 		"group", g.JID.String(),
 		"joins", len(g.Join),
 		"leaves", len(g.Leave),
@@ -226,7 +227,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 
 	// Do not process group events that happened before the bot started (with 2m clock skew tolerance)
 	if !g.Timestamp.IsZero() && g.Timestamp.Before(b.startupTime.Add(-2*time.Minute)) {
-		Logger.Debug("handleGroupGreetings: skipping stale group event before startup",
+		logger.Debug("handleGroupGreetings: skipping stale group event before startup",
 			"group", g.JID.String(),
 			"timestamp", g.Timestamp,
 		)
@@ -242,15 +243,15 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 
 	// Process joins (Welcome)
 	if len(g.Join) > 0 {
-		status, _ := clistore.GetSetting(ctx, s, "welcome_status:"+chatKey)
+		status, _ := store.GetSetting(ctx, s, "welcome_status:"+chatKey)
 		if status == "" {
-			status, _ = clistore.GetSetting(ctx, s, "welcome_status:"+g.JID.String())
+			status, _ = store.GetSetting(ctx, s, "welcome_status:"+g.JID.String())
 		}
-		Logger.Debug("handleGroupGreetings: evaluating welcome greeting", "group", chatKey, "status", status, "joinCount", len(g.Join))
+		logger.Debug("handleGroupGreetings: evaluating welcome greeting", "group", chatKey, "status", status, "joinCount", len(g.Join))
 		if status == "on" {
-			tag, _ := clistore.GetSetting(ctx, s, "welcome_tag:"+chatKey)
-			descOpt, _ := clistore.GetSetting(ctx, s, "welcome_desc:"+chatKey)
-			customMsg, _ := clistore.GetSetting(ctx, s, "welcome_msg:"+chatKey)
+			tag, _ := store.GetSetting(ctx, s, "welcome_tag:"+chatKey)
+			descOpt, _ := store.GetSetting(ctx, s, "welcome_desc:"+chatKey)
+			customMsg, _ := store.GetSetting(ctx, s, "welcome_msg:"+chatKey)
 
 			info, err := cli.GetGroupInfo(ctx, g.JID)
 			groupName := "the group"
@@ -275,7 +276,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := utils.ResolveMentionRaw(ctx, cli, info.OwnerJID)
+					_, ownerName := whatsrook.ResolveMentionRaw(ctx, cli, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -284,7 +285,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 			}
 
 			for _, participant := range g.Join {
-				resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, participant)
+				resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -318,7 +319,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					body += "\n\nGroup Description:\n" + groupDesc
 				}
 
-				formatted := cliutils.FormatTextResponseRaw(body)
+				formatted := utils.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" {
 					mentions = append(mentions, resolvedJID.String())
@@ -336,12 +337,12 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					},
 				}
 
-				Logger.Debug("handleGroupGreetings: sending welcome greeting message", "group", g.JID.String(), "participant", participant.String(), "username", username)
+				logger.Debug("handleGroupGreetings: sending welcome greeting message", "group", g.JID.String(), "participant", participant.String(), "username", username)
 				resp, errSend := cli.SendMessage(ctx, g.JID, msg)
 				if errSend != nil {
-					Logger.Error("handleGroupGreetings: failed to send welcome greeting", "group", g.JID.String(), "user", participant.String(), "err", errSend)
+					logger.Error("handleGroupGreetings: failed to send welcome greeting", "group", g.JID.String(), "user", participant.String(), "err", errSend)
 				} else {
-					Logger.Debug("handleGroupGreetings: welcome greeting sent successfully", "group", g.JID.String(), "msg_id", resp.ID, "user", username)
+					logger.Debug("handleGroupGreetings: welcome greeting sent successfully", "group", g.JID.String(), "msg_id", resp.ID, "user", username)
 				}
 			}
 		}
@@ -349,15 +350,15 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 
 	// Process leaves (Goodbye)
 	if len(g.Leave) > 0 {
-		status, _ := clistore.GetSetting(ctx, s, "goodbye_status:"+chatKey)
+		status, _ := store.GetSetting(ctx, s, "goodbye_status:"+chatKey)
 		if status == "" {
-			status, _ = clistore.GetSetting(ctx, s, "goodbye_status:"+g.JID.String())
+			status, _ = store.GetSetting(ctx, s, "goodbye_status:"+g.JID.String())
 		}
-		Logger.Debug("handleGroupGreetings: evaluating goodbye greeting", "group", chatKey, "status", status, "leaveCount", len(g.Leave))
+		logger.Debug("handleGroupGreetings: evaluating goodbye greeting", "group", chatKey, "status", status, "leaveCount", len(g.Leave))
 		if status == "on" {
-			tag, _ := clistore.GetSetting(ctx, s, "goodbye_tag:"+chatKey)
-			descOpt, _ := clistore.GetSetting(ctx, s, "goodbye_desc:"+chatKey)
-			customMsg, _ := clistore.GetSetting(ctx, s, "goodbye_msg:"+chatKey)
+			tag, _ := store.GetSetting(ctx, s, "goodbye_tag:"+chatKey)
+			descOpt, _ := store.GetSetting(ctx, s, "goodbye_desc:"+chatKey)
+			customMsg, _ := store.GetSetting(ctx, s, "goodbye_msg:"+chatKey)
 
 			info, err := cli.GetGroupInfo(ctx, g.JID)
 			groupName := "the group"
@@ -382,7 +383,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := utils.ResolveMentionRaw(ctx, cli, info.OwnerJID)
+					_, ownerName := whatsrook.ResolveMentionRaw(ctx, cli, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -392,11 +393,11 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 
 			for _, participant := range g.Leave {
 				if g.Sender != nil && !g.Sender.IsEmpty() && *g.Sender != participant {
-					Logger.Debug("handleGroupGreetings: skipping goodbye for kicked participant", "group", g.JID.String(), "participant", participant.String(), "actor", g.Sender.String())
+					logger.Debug("handleGroupGreetings: skipping goodbye for kicked participant", "group", g.JID.String(), "participant", participant.String(), "actor", g.Sender.String())
 					continue
 				}
 
-				resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, participant)
+				resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -430,7 +431,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					body += "\n\nGroup Description:\n" + groupDesc
 				}
 
-				formatted := cliutils.FormatTextResponseRaw(body)
+				formatted := utils.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" {
 					mentions = append(mentions, resolvedJID.String())
@@ -448,12 +449,12 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					},
 				}
 
-				Logger.Debug("handleGroupGreetings: sending goodbye greeting message", "group", g.JID.String(), "participant", participant.String(), "username", username)
+				logger.Debug("handleGroupGreetings: sending goodbye greeting message", "group", g.JID.String(), "participant", participant.String(), "username", username)
 				resp, errSend := cli.SendMessage(ctx, g.JID, msg)
 				if errSend != nil {
-					Logger.Error("handleGroupGreetings: failed to send goodbye greeting", "group", g.JID.String(), "user", participant.String(), "err", errSend)
+					logger.Error("handleGroupGreetings: failed to send goodbye greeting", "group", g.JID.String(), "user", participant.String(), "err", errSend)
 				} else {
-					Logger.Debug("handleGroupGreetings: goodbye greeting sent successfully", "group", g.JID.String(), "msg_id", resp.ID, "user", username)
+					logger.Debug("handleGroupGreetings: goodbye greeting sent successfully", "group", g.JID.String(), "msg_id", resp.ID, "user", username)
 				}
 			}
 		}
@@ -466,14 +467,14 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 		return
 	}
 
-	Logger.Debug("handleGroupEventsNotification: received group info event",
+	logger.Debug("handleGroupEventsNotification: received group info event",
 		"group", g.JID.String(),
 		"timestamp", g.Timestamp,
 	)
 
 	// Do not process group events that happened before the bot started (with 2m clock skew tolerance)
 	if !g.Timestamp.IsZero() && g.Timestamp.Before(b.startupTime.Add(-2*time.Minute)) {
-		Logger.Debug("handleGroupEventsNotification: skipping stale group event notification before startup",
+		logger.Debug("handleGroupEventsNotification: skipping stale group event notification before startup",
 			"group", g.JID.String(),
 			"timestamp", g.Timestamp,
 		)
@@ -486,12 +487,12 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	}
 
 	chatKey := g.JID.ToNonAD().String()
-	status, _ := clistore.GetSetting(ctx, s, "events_status:"+chatKey)
+	status, _ := store.GetSetting(ctx, s, "events_status:"+chatKey)
 	if status == "" {
-		status, _ = clistore.GetSetting(ctx, s, "events_status:"+g.JID.String())
+		status, _ = store.GetSetting(ctx, s, "events_status:"+g.JID.String())
 	}
 	if status != "on" {
-		Logger.Debug("handleGroupEventsNotification: event notifications disabled for group", "group", chatKey, "status", status)
+		logger.Debug("handleGroupEventsNotification: event notifications disabled for group", "group", chatKey, "status", status)
 		return
 	}
 
@@ -499,27 +500,27 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	var actorJID *types.JID
 	if g.Sender != nil && !g.Sender.IsEmpty() {
 		actorJID = g.Sender
-		_, actorName := utils.ResolveMentionRaw(ctx, cli, *g.Sender)
+		_, actorName := whatsrook.ResolveMentionRaw(ctx, cli, *g.Sender)
 		actorTag = " by @" + actorName
 	}
 
 	// 1. Group Subject / Name Changed
 	if g.Name != nil && g.Name.Name != "" {
-		Logger.Debug("handleGroupEventsNotification: group name changed", "group", chatKey, "newName", g.Name.Name, "actor", actorTag)
+		logger.Debug("handleGroupEventsNotification: group name changed", "group", chatKey, "newName", g.Name.Name, "actor", actorTag)
 		msgText := fmt.Sprintf("*Group Event*: Group name changed to *%s*%s.", g.Name.Name, actorTag)
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
 
 	// 2. Group Description / Topic Changed
 	if g.Topic != nil && g.Topic.Topic != "" {
-		Logger.Debug("handleGroupEventsNotification: group topic changed", "group", chatKey, "actor", actorTag)
+		logger.Debug("handleGroupEventsNotification: group topic changed", "group", chatKey, "actor", actorTag)
 		msgText := fmt.Sprintf("*Group Event*: Group description updated%s:\n%s", actorTag, g.Topic.Topic)
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
 
 	// 3. Announce Mute / Unmute
 	if g.Announce != nil {
-		Logger.Debug("handleGroupEventsNotification: group announce changed", "group", chatKey, "isAnnounce", g.Announce.IsAnnounce, "actor", actorTag)
+		logger.Debug("handleGroupEventsNotification: group announce changed", "group", chatKey, "isAnnounce", g.Announce.IsAnnounce, "actor", actorTag)
 		if g.Announce.IsAnnounce {
 			msgText := fmt.Sprintf("*Group Event*: Group settings updated%s. Only admins can send messages now.", actorTag)
 			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
@@ -531,7 +532,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 
 	// 4. Locked / Unlocked
 	if g.Locked != nil {
-		Logger.Debug("handleGroupEventsNotification: group lock changed", "group", chatKey, "isLocked", g.Locked.IsLocked, "actor", actorTag)
+		logger.Debug("handleGroupEventsNotification: group lock changed", "group", chatKey, "isLocked", g.Locked.IsLocked, "actor", actorTag)
 		if g.Locked.IsLocked {
 			msgText := fmt.Sprintf("*Group Event*: Group settings locked%s. Only admins can edit group info.", actorTag)
 			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
@@ -544,8 +545,8 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	// 5. Admin Promotions
 	if len(g.Promote) > 0 {
 		for _, userJID := range g.Promote {
-			resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, userJID)
-			Logger.Debug("handleGroupEventsNotification: participant promoted to admin", "group", chatKey, "user", username, "actor", actorTag)
+			resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, cli, userJID)
+			logger.Debug("handleGroupEventsNotification: participant promoted to admin", "group", chatKey, "user", username, "actor", actorTag)
 			msgText := fmt.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
 			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, []types.JID{resolvedJID})
 		}
@@ -554,8 +555,8 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	// 6. Admin Demotions
 	if len(g.Demote) > 0 {
 		for _, userJID := range g.Demote {
-			resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, userJID)
-			Logger.Debug("handleGroupEventsNotification: admin demoted to member", "group", chatKey, "user", username, "actor", actorTag)
+			resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, cli, userJID)
+			logger.Debug("handleGroupEventsNotification: admin demoted to member", "group", chatKey, "user", username, "actor", actorTag)
 			msgText := fmt.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
 			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, []types.JID{resolvedJID})
 		}
@@ -563,7 +564,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 
 	// 7. Member Add Mode
 	if g.MemberAddMode != nil {
-		Logger.Debug("handleGroupEventsNotification: member add mode changed", "group", chatKey, "mode", *g.MemberAddMode, "actor", actorTag)
+		logger.Debug("handleGroupEventsNotification: member add mode changed", "group", chatKey, "mode", *g.MemberAddMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberAddMode == types.GroupMemberAddModeAdmin {
 			msgText = fmt.Sprintf("*Group Event*: Group settings updated%s. Only admins can add members.", actorTag)
@@ -575,7 +576,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 
 	// 8. Member Link Mode
 	if g.MemberLinkMode != nil {
-		Logger.Debug("handleGroupEventsNotification: member link mode changed", "group", chatKey, "mode", *g.MemberLinkMode, "actor", actorTag)
+		logger.Debug("handleGroupEventsNotification: member link mode changed", "group", chatKey, "mode", *g.MemberLinkMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberLinkMode == types.GroupMemberLinkModeAdmin {
 			msgText = fmt.Sprintf("*Group Event*: Group settings updated%s. Only admins can manage invite links.", actorTag)
@@ -587,7 +588,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 
 	// 9. Member Share History Mode
 	if g.MemberShareHistoryMode != nil {
-		Logger.Debug("handleGroupEventsNotification: member share history mode changed", "group", chatKey, "mode", *g.MemberShareHistoryMode, "actor", actorTag)
+		logger.Debug("handleGroupEventsNotification: member share history mode changed", "group", chatKey, "mode", *g.MemberShareHistoryMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberShareHistoryMode == types.GroupMemberShareHistoryModeAdmin {
 			msgText = fmt.Sprintf("*Group Event*: Group history sharing updated%s. Only admins can share group history.", actorTag)
@@ -599,7 +600,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 
 	// 10. Allow Non-Admin Subgroup Creation (Community)
 	if g.AllowNonAdminSubGroupCreation != nil {
-		Logger.Debug("handleGroupEventsNotification: allow non-admin subgroup creation changed", "group", chatKey, "allow", *g.AllowNonAdminSubGroupCreation, "actor", actorTag)
+		logger.Debug("handleGroupEventsNotification: allow non-admin subgroup creation changed", "group", chatKey, "allow", *g.AllowNonAdminSubGroupCreation, "actor", actorTag)
 		var msgText string
 		if *g.AllowNonAdminSubGroupCreation {
 			msgText = fmt.Sprintf("*Group Event*: Community settings updated%s. All members can create sub-groups now.", actorTag)
@@ -623,8 +624,8 @@ func (b *Bot) sendGroupEventMessageWithMentions(ctx context.Context, chatJID typ
 	if cli == nil {
 		return
 	}
-	Logger.Debug("sendGroupEventMessageWithMentions: sending event message", "group", chatJID.String(), "mentionsCount", len(targetMentions))
-	formatted := cliutils.FormatTextResponseRaw(text)
+	logger.Debug("sendGroupEventMessageWithMentions: sending event message", "group", chatJID.String(), "mentionsCount", len(targetMentions))
+	formatted := utils.FormatTextResponseRaw(text)
 	var mentions []string
 	for _, m := range targetMentions {
 		if !m.IsEmpty() {
@@ -641,9 +642,9 @@ func (b *Bot) sendGroupEventMessageWithMentions(ctx context.Context, chatJID typ
 		},
 	}
 	if resp, err := cli.SendMessage(ctx, chatJID, msg); err != nil {
-		Logger.Error("sendGroupEventMessageWithMentions: failed to send message", "group", chatJID.String(), "err", err)
+		logger.Error("sendGroupEventMessageWithMentions: failed to send message", "group", chatJID.String(), "err", err)
 	} else {
-		Logger.Debug("sendGroupEventMessageWithMentions: message sent successfully", "group", chatJID.String(), "msg_id", resp.ID)
+		logger.Debug("sendGroupEventMessageWithMentions: message sent successfully", "group", chatJID.String(), "msg_id", resp.ID)
 	}
 }
 
@@ -666,7 +667,7 @@ func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
 		return
 	}
 
-	Logger.Debug("handleGroupCaptcha: received group info event",
+	logger.Debug("handleGroupCaptcha: received group info event",
 		"group", g.JID.String(),
 		"joins", len(g.Join),
 		"leaves", len(g.Leave),
@@ -676,7 +677,7 @@ func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
 
 	// Do not process group events that happened before the bot started (with 2m clock skew tolerance)
 	if !g.Timestamp.IsZero() && g.Timestamp.Before(b.startupTime.Add(-2*time.Minute)) {
-		Logger.Debug("handleGroupCaptcha: skipping stale group event before startup",
+		logger.Debug("handleGroupCaptcha: skipping stale group event before startup",
 			"group", g.JID.String(),
 			"timestamp", g.Timestamp,
 		)
@@ -689,7 +690,7 @@ func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
 	if len(g.Leave) > 0 {
 		for _, participant := range g.Leave {
 			if pending, ok := plugins.RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
-				Logger.Debug("handleGroupCaptcha: cancelled pending captcha for leaving participant", "group", g.JID.String(), "user", participant.String())
+				logger.Debug("handleGroupCaptcha: cancelled pending captcha for leaving participant", "group", g.JID.String(), "user", participant.String())
 				if cli != nil && pending.MsgID != "" {
 					_, _ = cli.SendMessage(ctx, g.JID, cli.BuildRevoke(g.JID, types.EmptyJID, pending.MsgID))
 				}
@@ -700,7 +701,7 @@ func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
 	if len(g.Promote) > 0 {
 		for _, participant := range g.Promote {
 			if pending, ok := plugins.RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
-				Logger.Debug("handleGroupCaptcha: cancelled pending captcha for promoted admin", "group", g.JID.String(), "user", participant.String())
+				logger.Debug("handleGroupCaptcha: cancelled pending captcha for promoted admin", "group", g.JID.String(), "user", participant.String())
 				if cli != nil && pending.MsgID != "" {
 					_, _ = cli.SendMessage(ctx, g.JID, cli.BuildRevoke(g.JID, types.EmptyJID, pending.MsgID))
 				}
@@ -708,7 +709,7 @@ func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
 		}
 	}
 	if len(g.Join) == 0 {
-		Logger.Debug("handleGroupCaptcha: no joins present in event", "group", g.JID.String())
+		logger.Debug("handleGroupCaptcha: no joins present in event", "group", g.JID.String())
 		return
 	}
 
@@ -727,31 +728,31 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 	}
 
 	chatKey := g.JID.ToNonAD().String()
-	status, _ := clistore.GetSetting(ctx, s, "captcha_status:"+chatKey)
+	status, _ := store.GetSetting(ctx, s, "captcha_status:"+chatKey)
 	if status == "" {
-		status, _ = clistore.GetSetting(ctx, s, "captcha_status:"+g.JID.String())
+		status, _ = store.GetSetting(ctx, s, "captcha_status:"+g.JID.String())
 	}
-	Logger.Debug("processGroupCaptchaJoins: checking captcha status for group", "group", chatKey, "status", status, "joinCount", len(g.Join))
+	logger.Debug("processGroupCaptchaJoins: checking captcha status for group", "group", chatKey, "status", status, "joinCount", len(g.Join))
 	if status != "on" {
-		Logger.Debug("processGroupCaptchaJoins: captcha is disabled for group", "group", chatKey)
+		logger.Debug("processGroupCaptchaJoins: captcha is disabled for group", "group", chatKey)
 		return
 	}
 
 	info, err := cli.GetGroupInfo(ctx, g.JID)
 	if err != nil || info == nil {
-		Logger.Warn("processGroupCaptchaJoins: failed to retrieve group info", "group", chatKey, "err", err)
+		logger.Warn("processGroupCaptchaJoins: failed to retrieve group info", "group", chatKey, "err", err)
 		return
 	}
 
 	// This plugin should only work if this bot is an admin
-	if cli.Store.ID == nil || !utils.IsAdminRaw(ctx, cli, info, *cli.Store.ID) {
-		Logger.Warn("handleGroupCaptcha: bot is not an admin in group, skipping captcha verification", "group", chatKey)
+	if cli.Store.ID == nil || !whatsrook.IsAdminRaw(ctx, cli, info, *cli.Store.ID) {
+		logger.Warn("handleGroupCaptcha: bot is not an admin in group, skipping captcha verification", "group", chatKey)
 		return
 	}
 
 	// If group only allows admins to send messages, no need for verification
 	if info.IsAnnounce {
-		Logger.Debug("handleGroupCaptcha: group is announce-only, skipping captcha verification", "group", chatKey)
+		logger.Debug("handleGroupCaptcha: group is announce-only, skipping captcha verification", "group", chatKey)
 		return
 	}
 
@@ -762,11 +763,11 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 
 	// Timeout setting (default 120s / 2 mins)
 	timeoutSec := 120
-	if rawTime, _ := clistore.GetSetting(ctx, s, "captcha_time:"+chatKey); rawTime != "" {
+	if rawTime, _ := store.GetSetting(ctx, s, "captcha_time:"+chatKey); rawTime != "" {
 		if t, err := strconv.Atoi(rawTime); err == nil && t >= 10 {
 			timeoutSec = t
 		}
-	} else if rawTime, _ := clistore.GetSetting(ctx, s, "captcha_time:"+g.JID.String()); rawTime != "" {
+	} else if rawTime, _ := store.GetSetting(ctx, s, "captcha_time:"+g.JID.String()); rawTime != "" {
 		if t, err := strconv.Atoi(rawTime); err == nil && t >= 10 {
 			timeoutSec = t
 		}
@@ -775,18 +776,18 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 
 	for _, participant := range g.Join {
 		// Skip if participant is the bot itself
-		if utils.IsSameUserRaw(ctx, cli, participant, *cli.Store.ID) {
-			Logger.Debug("processGroupCaptchaJoins: skipping bot participant", "group", chatKey, "user", participant.String())
+		if whatsrook.IsSameUserRaw(ctx, cli, participant, *cli.Store.ID) {
+			logger.Debug("processGroupCaptchaJoins: skipping bot participant", "group", chatKey, "user", participant.String())
 			continue
 		}
 
-		resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, participant)
+		resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, cli, participant)
 
 		// Generate random 4-digit code
 		codeInt := rand.Intn(10000)
 		code := fmt.Sprintf("%04d", codeInt)
 
-		Logger.Debug("processGroupCaptchaJoins: registering pending captcha challenge",
+		logger.Debug("processGroupCaptchaJoins: registering pending captcha challenge",
 			"group", chatKey,
 			"user", participant.String(),
 			"username", username,
@@ -806,59 +807,56 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 			code,
 			time.Duration(timeoutSec)*time.Second,
 			func() {
-				Logger.Debug("processGroupCaptchaJoins: captcha timeout triggered for user", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
+				logger.Debug("processGroupCaptchaJoins: captcha timeout triggered for user", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
 				// Timeout reached, kick user
 				currentInfo, gErr := cli.GetGroupInfo(context.Background(), g.JID)
 				if gErr != nil || currentInfo == nil {
-					Logger.Warn("processGroupCaptchaJoins: failed to get group info during timeout kick", "group", g.JID.String(), "err", gErr)
+					logger.Warn("processGroupCaptchaJoins: failed to get group info during timeout kick", "group", g.JID.String(), "err", gErr)
 					return
 				}
-				if !utils.IsAdminRaw(context.Background(), cli, currentInfo, *cli.Store.ID) {
-					Logger.Warn("handleGroupCaptcha: bot is no longer admin to kick unverified participant", "group", g.JID.String(), "user", partCopy.String())
+				if !whatsrook.IsAdminRaw(context.Background(), cli, currentInfo, *cli.Store.ID) {
+					logger.Warn("handleGroupCaptcha: bot is no longer admin to kick unverified participant", "group", g.JID.String(), "user", partCopy.String())
 					return
 				}
 				// Don't attempt to kick admins/creators if they didn't verify
-				if utils.IsAdminRaw(context.Background(), cli, currentInfo, partCopy) {
-					Logger.Warn("handleGroupCaptcha: unverified participant is an admin or creator, skipping kick", "group", g.JID.String(), "user", partCopy.String())
+				if whatsrook.IsAdminRaw(context.Background(), cli, currentInfo, partCopy) {
+					logger.Warn("handleGroupCaptcha: unverified participant is an admin or creator, skipping kick", "group", g.JID.String(), "user", partCopy.String())
 					return
 				}
 
 				_, kErr := cli.UpdateGroupParticipants(context.Background(), g.JID, []types.JID{partCopy}, whatsmeow.ParticipantChangeRemove)
 				if kErr != nil {
-					Logger.Error("handleGroupCaptcha: failed to kick unverified participant", "user", partCopy.String(), "err", kErr)
+					logger.Error("handleGroupCaptcha: failed to kick unverified participant", "user", partCopy.String(), "err", kErr)
 					return
 				}
 
-				Logger.Info("processGroupCaptchaJoins: unverified participant removed from group", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
+				logger.Info("processGroupCaptchaJoins: unverified participant removed from group", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
 
-				kickTb := utils.NewText()
+				kickTb := whatsrook.NewText()
 				kickTb.Linef("@%s was removed from the group for failing to complete the captcha verification within %s.", userCopy, timeoutDisplay)
 				b.sendGroupEventMessageWithMentions(context.Background(), g.JID, kickTb.Trimmed(), []types.JID{resolvedCopy})
 			},
 		)
 
-		// Generate 8-second captcha video using cli/captcha package
-		var vidBuf bytes.Buffer
-		Logger.Debug("processGroupCaptchaJoins: generating animated captcha video", "group", chatKey, "user", username, "code", code)
-		errGen := captcha.Generate(&vidBuf, code, captcha.Options{
-			Seconds: 8.0,
-		})
+		// Generate 8-second captcha video using external captcha plugin
+		logger.Debug("processGroupCaptchaJoins: generating animated captcha video", "group", chatKey, "user", username, "code", code)
+		vidBytes, errGen := b.generateCaptchaVideo(ctx, code)
 
 		var mediaUploaded *whatsmeow.UploadResponse
-		if errGen == nil && vidBuf.Len() > 0 {
-			Logger.Debug("processGroupCaptchaJoins: uploading animated captcha video", "group", chatKey, "bytes", vidBuf.Len())
-			uploaded, errUp := cli.Upload(ctx, vidBuf.Bytes(), whatsmeow.MediaVideo)
+		if errGen == nil && len(vidBytes) > 0 {
+			logger.Debug("processGroupCaptchaJoins: uploading animated captcha video", "group", chatKey, "bytes", len(vidBytes))
+			uploaded, errUp := cli.Upload(ctx, vidBytes, whatsmeow.MediaVideo)
 			if errUp == nil {
 				mediaUploaded = &uploaded
-				Logger.Debug("processGroupCaptchaJoins: captcha video uploaded successfully", "group", chatKey, "url", uploaded.URL)
+				logger.Debug("processGroupCaptchaJoins: captcha video uploaded successfully", "group", chatKey, "url", uploaded.URL)
 			} else {
-				Logger.Error("handleGroupCaptcha: video upload failed", "err", errUp)
+				logger.Error("handleGroupCaptcha: video upload failed", "err", errUp)
 			}
 		} else {
-			Logger.Error("handleGroupCaptcha: captcha video generation failed", "err", errGen)
+			logger.Debug("handleGroupCaptcha: captcha video generation unavailable/failed", "err", errGen)
 		}
 
-		tbVid := utils.NewText()
+		tbVid := whatsrook.NewText()
 		tbVid.Linef("Welcome @%s! You are required to complete a verification code to join %s.", username, groupName)
 		tbVid.Linef("Please watch the video and reply with the 4-digit verification code within %s, otherwise you will be automatically removed.", timeoutDisplay)
 		formattedCaption := tbVid.Trimmed()
@@ -866,6 +864,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 		// Send video message as gifplayback if generated successfully
 		if mediaUploaded != nil {
 			mimetype := "video/mp4"
+			vidLen := uint64(len(vidBytes))
 			vidMsg := &waE2E.Message{
 				VideoMessage: &waE2E.VideoMessage{
 					URL:           &mediaUploaded.URL,
@@ -875,7 +874,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 					GifPlayback:   new(bool),
 					FileEncSHA256: mediaUploaded.FileEncSHA256,
 					FileSHA256:    mediaUploaded.FileSHA256,
-					FileLength:    new(uint64(vidBuf.Len())),
+					FileLength:    &vidLen,
 					Caption:       &formattedCaption,
 					ContextInfo: &waE2E.ContextInfo{
 						MentionedJID: []string{resolvedJID.String()},
@@ -883,25 +882,25 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 				},
 			}
 			*vidMsg.VideoMessage.GifPlayback = true
-			Logger.Debug("processGroupCaptchaJoins: sending video verification challenge", "group", chatKey, "user", username)
+			logger.Debug("processGroupCaptchaJoins: sending video verification challenge", "group", chatKey, "user", username)
 			resp, errSend := cli.SendMessage(ctx, g.JID, vidMsg)
 			if errSend != nil {
-				Logger.Error("handleGroupCaptcha: failed to send video verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
+				logger.Error("handleGroupCaptcha: failed to send video verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
 			} else if resp.ID != "" {
 				plugins.SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
-				Logger.Debug("handleGroupCaptcha: video verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
+				logger.Debug("handleGroupCaptcha: video verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
 			}
 		} else {
 			// Fallback to text verification prompt if video generation/upload fails
-			Logger.Warn("handleGroupCaptcha: falling back to text verification prompt", "group", g.JID.String(), "user", partCopy.String())
-			tbFallback := utils.NewText()
+			logger.Warn("handleGroupCaptcha: falling back to text verification prompt", "group", g.JID.String(), "user", partCopy.String())
+			tbFallback := whatsrook.NewText()
 			tbFallback.Header("Verification Required")
 			tbFallback.Linef("Welcome @%s! You are required to complete a verification code to join %s.", username, groupName)
 			tbFallback.Blank()
 			tbFallback.Linef("Your verification code is: *%s*", code)
 			tbFallback.Linef("Please reply with the 4-digit code (*%s*) within %s, otherwise you will be automatically removed.", code, timeoutDisplay)
 			tbFallback.Mentions(resolvedJID)
-			formattedFallback := cliutils.FormatTextResponseRaw(tbFallback.Trimmed())
+			formattedFallback := utils.FormatTextResponseRaw(tbFallback.Trimmed())
 			txtMsg := &waE2E.Message{
 				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 					Text: &formattedFallback,
@@ -912,11 +911,46 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 			}
 			resp, errSend := cli.SendMessage(ctx, g.JID, txtMsg)
 			if errSend != nil {
-				Logger.Error("handleGroupCaptcha: failed to send fallback text verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
+				logger.Error("handleGroupCaptcha: failed to send fallback text verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
 			} else if resp.ID != "" {
 				plugins.SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
-				Logger.Debug("handleGroupCaptcha: fallback text verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
+				logger.Debug("handleGroupCaptcha: fallback text verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
 			}
 		}
 	}
+}
+
+// generateCaptchaVideo attempts to generate an animated verification video using the external captcha plugin binary.
+func (b *Bot) generateCaptchaVideo(ctx context.Context, code string) ([]byte, error) {
+	pluginPath, err := external.DefaultDispatcher.PluginPath("captcha")
+	if err != nil {
+		return nil, fmt.Errorf("captcha plugin resolution: %w", err)
+	}
+	if _, err := os.Stat(pluginPath); err != nil {
+		return nil, fmt.Errorf("captcha plugin binary not found: %w", err)
+	}
+
+	tmpFile, err := os.CreateTemp("", "captcha-out-*.mp4")
+	if err != nil {
+		return nil, fmt.Errorf("create temp video file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	defer os.Remove(tmpPath)
+
+	cmd := exec.CommandContext(ctx, pluginPath, code, tmpPath)
+	cmd.Stderr = nil
+	cmd.Stdout = nil
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("execute captcha plugin: %w", err)
+	}
+
+	data, err := os.ReadFile(tmpPath)
+	if err != nil {
+		return nil, fmt.Errorf("read captcha video: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("captcha plugin produced empty output")
+	}
+	return data, nil
 }

@@ -1,14 +1,14 @@
-package cliutils
+package utils
 
 import (
 	"context"
 	"math/rand"
 	"sync"
 	"time"
+	"whatsrook/cmd/store"
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
-	clistore "whatsrook/cmd/store"
 )
 
 const (
@@ -139,7 +139,7 @@ func DismissBotNamePrompt(ctx context.Context, s *sqlstore.SQLStore) {
 	if s == nil {
 		return
 	}
-	_ = clistore.PutSetting(ctx, s, BotNamePromptDismissedKey, "true")
+	_ = store.PutSetting(ctx, s, BotNamePromptDismissedKey, "true")
 	BotNamePromptDismissedCacheMu.Lock()
 	BotNamePromptDismissedCache[s.JID] = true
 	if s.JID != "" {
@@ -154,7 +154,7 @@ func ResetBotNamePromptDismissed(ctx context.Context, s *sqlstore.SQLStore) {
 	if s == nil {
 		return
 	}
-	_ = clistore.PutSetting(ctx, s, BotNamePromptDismissedKey, "false")
+	_ = store.PutSetting(ctx, s, BotNamePromptDismissedKey, "false")
 	BotNamePromptDismissedCacheMu.Lock()
 	delete(BotNamePromptDismissedCache, s.JID)
 	if s.JID != "" {

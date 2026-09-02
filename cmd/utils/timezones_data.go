@@ -1,4 +1,4 @@
-package cliutils
+package utils
 
 // Predefined Windows and IANA timezone entries.
 var tzEntries = []WindowsTZEntry{

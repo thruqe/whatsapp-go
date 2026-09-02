@@ -13,18 +13,10 @@ func init() {
 	Register(&Command{
 		Name:        "business",
 		Alias:       "biz",
-		Description: "View WhatsApp Business profile details",
+		Description: "View business profile details",
 		Category:    "business",
 		IsPublic:    true,
 		Handler:     handleBusinessProfile,
-	})
-	Register(&Command{
-		Name:        "bizlink",
-		Alias:       "resolvelink",
-		Description: "Resolve a WhatsApp Business short link code (wa.me/message/<code>)",
-		Category:    "business",
-		IsPublic:    true,
-		Handler:     handleBusinessLink,
 	})
 }
 
@@ -90,43 +82,4 @@ func handleBusinessProfile(ctx *Context) error {
 	}
 
 	return tb.Reply()
-}
-
-func handleBusinessLink(ctx *Context) error {
-	if len(ctx.Args) == 0 {
-		p := ctx.GetPrefix()
-		return ctx.Replyf("Usage:\n- %sbizlink <code>\n- %sbizlink https://wa.me/message/<code>", p, p)
-	}
-
-	rawArg := strings.TrimSpace(ctx.Args[0])
-	code := rawArg
-
-	if strings.Contains(rawArg, "wa.me/message/") {
-		parts := strings.Split(rawArg, "wa.me/message/")
-		if len(parts) > 1 {
-			code = parts[1]
-		}
-	} else if strings.Contains(rawArg, "whatsapp.com/") {
-		parts := strings.Split(rawArg, "/")
-		code = parts[len(parts)-1]
-	}
-	code = strings.TrimSpace(strings.Split(code, "?")[0])
-
-	if code == "" {
-		return ctx.Reply("Invalid business short link code.")
-	}
-
-	target, err := ctx.Client.ResolveBusinessMessageLink(ctx.Ctx, code)
-	if err != nil || target == nil {
-		return ctx.Replyf("Could not resolve business link code %q: %v", code, err)
-	}
-
-	return ctx.Text().
-		Header("Business Short Link").
-		FieldIf(target.VerifiedName != "", "Verified Name", target.VerifiedName).
-		FieldIf(target.PushName != "", "Push Name", target.PushName).
-		FieldIf(!target.JID.IsEmpty(), "Target Account", "@"+target.JID.User, target.JID).
-		FieldIf(target.VerifiedLevel != "", "Verification Level", target.VerifiedLevel).
-		FieldIf(target.Message != "", "Pre-filled Message", target.Message).
-		Reply()
 }

@@ -1,5 +1,5 @@
 // Instruction cache and group metadata cache powered by universal cache store.
-package cliutils
+package utils
 
 import (
 	"context"

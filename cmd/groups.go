@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	utils "whatsrook"
+	"whatsrook"
 	"whatsrook/cmd/store"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -51,26 +51,26 @@ func (gm *GroupManager) LoadFromDB(ctx context.Context, cli *whatsmeow.Client) e
 
 	groups, err := store.LoadAllCachedGroups(ctx, db, ourJID)
 	if err != nil {
-		Logger.Warn("GroupManager: failed to load cached groups from DB", "err", err)
+		logger.Warn("GroupManager: failed to load cached groups from DB", "err", err)
 	} else {
 		gm.mu.Lock()
 		for _, g := range groups {
 			gm.groups[g.JID] = g
 		}
 		gm.mu.Unlock()
-		Logger.Debug("GroupManager: loaded cached groups from DB", "count", len(groups))
+		logger.Debug("GroupManager: loaded cached groups from DB", "count", len(groups))
 	}
 
 	newsletters, errN := store.LoadAllCachedNewsletters(ctx, db, ourJID)
 	if errN != nil {
-		Logger.Warn("GroupManager: failed to load cached newsletters from DB", "err", errN)
+		logger.Warn("GroupManager: failed to load cached newsletters from DB", "err", errN)
 	} else {
 		gm.mu.Lock()
 		for _, n := range newsletters {
 			gm.newsletters[n.JID] = n
 		}
 		gm.mu.Unlock()
-		Logger.Debug("GroupManager: loaded cached newsletters from DB", "count", len(newsletters))
+		logger.Debug("GroupManager: loaded cached newsletters from DB", "count", len(newsletters))
 	}
 
 	return nil
@@ -85,7 +85,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 	gm.syncing.Lock()
 	defer gm.syncing.Unlock()
 
-	Logger.Info("GroupManager: starting full sync of groups, communities, and newsletters...")
+	logger.Info("GroupManager: starting full sync of groups, communities, and newsletters...")
 
 	ourJID := ""
 	var s *sqlstore.SQLStore
@@ -100,7 +100,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 	var syncedGroups []*store.GroupMetadata
 	joinedGroups, err := cli.GetJoinedGroups(ctx)
 	if err != nil {
-		Logger.Error("GroupManager: failed to fetch joined groups", "err", err)
+		logger.Error("GroupManager: failed to fetch joined groups", "err", err)
 	} else {
 		for _, g := range joinedGroups {
 			meta := gm.convertGroupInfo(ctx, cli, g)
@@ -122,7 +122,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 	var syncedNewsletters []*store.NewsletterMetadata
 	newsletters, errN := cli.GetSubscribedNewsletters(ctx)
 	if errN != nil {
-		Logger.Error("GroupManager: failed to fetch subscribed newsletters", "err", errN)
+		logger.Error("GroupManager: failed to fetch subscribed newsletters", "err", errN)
 	} else {
 		for _, n := range newsletters {
 			meta := gm.convertNewsletterMetadata(n)
@@ -148,7 +148,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 		}
 	}
 
-	Logger.Debug("GroupManager: sync complete",
+	logger.Debug("GroupManager: sync complete",
 		"total_groups", len(syncedGroups),
 		"communities", communityCount,
 		"newsletters", len(syncedNewsletters),
@@ -193,7 +193,7 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 		return
 	}
 
-	Logger.Debug("GroupManager: warming up participant device cache...", "unique_participants", len(uniqueJIDs))
+	logger.Debug("GroupManager: warming up participant device cache...", "unique_participants", len(uniqueJIDs))
 	start := time.Now()
 
 	// Chunk queries into batches of 150 to keep USync requests optimal
@@ -205,7 +205,7 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 		batch := uniqueJIDs[i:end]
 		devices, err := cli.GetUserDevices(ctx, batch)
 		if err != nil {
-			Logger.Debug("GroupManager: device warmup batch error", "batch_start", i, "err", err)
+			logger.Debug("GroupManager: device warmup batch error", "batch_start", i, "err", err)
 		} else {
 			totalCached += len(devices)
 			allDeviceJIDs = append(allDeviceJIDs, devices...)
@@ -221,7 +221,7 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 		_, _, _ = cli.Store.WithCachedSessions(ctx, addrs)
 	}
 
-	Logger.Info("GroupManager: device and session cache warm up complete",
+	logger.Info("GroupManager: device and session cache warm up complete",
 		"total_participants", len(uniqueJIDs),
 		"companion_devices", totalCached,
 		"duration", time.Since(start),
@@ -279,7 +279,7 @@ func (gm *GroupManager) convertGroupInfo(ctx context.Context, cli *whatsmeow.Cli
 	var participants []store.GroupParticipantMetadata
 	adminCount := 0
 	for _, p := range g.Participants {
-		pnJID := utils.ResolvePN(ctx, cli, p.JID)
+		pnJID := whatsrook.ResolvePN(ctx, cli, p.JID)
 		pm := store.GroupParticipantMetadata{
 			JID:          pnJID,
 			LID:          p.LID,
@@ -497,7 +497,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 	// 6. Participants Joins
 	if len(g.Join) > 0 {
 		for _, j := range g.Join {
-			resolvedJID := utils.ResolvePN(ctx, cli, j)
+			resolvedJID := whatsrook.ResolvePN(ctx, cli, j)
 			already := false
 			for _, p := range meta.Participants {
 				if p.JID == resolvedJID {
@@ -518,7 +518,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 	// 7. Participants Leaves
 	if len(g.Leave) > 0 {
 		for _, l := range g.Leave {
-			resolvedJID := utils.ResolvePN(ctx, cli, l)
+			resolvedJID := whatsrook.ResolvePN(ctx, cli, l)
 			newParticipants := make([]store.GroupParticipantMetadata, 0, len(meta.Participants))
 			for _, p := range meta.Participants {
 				if p.JID != resolvedJID {
@@ -532,7 +532,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 	// 8. Admin Promotions
 	if len(g.Promote) > 0 {
 		for _, prom := range g.Promote {
-			resolvedJID := utils.ResolvePN(ctx, cli, prom)
+			resolvedJID := whatsrook.ResolvePN(ctx, cli, prom)
 			for i := range meta.Participants {
 				if meta.Participants[i].JID == resolvedJID {
 					meta.Participants[i].IsAdmin = true
@@ -545,7 +545,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 	// 9. Admin Demotions
 	if len(g.Demote) > 0 {
 		for _, dem := range g.Demote {
-			resolvedJID := utils.ResolvePN(ctx, cli, dem)
+			resolvedJID := whatsrook.ResolvePN(ctx, cli, dem)
 			for i := range meta.Participants {
 				if meta.Participants[i].JID == resolvedJID {
 					meta.Participants[i].IsAdmin = false

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 
 	"github.com/coder/websocket"
 	"go.mau.fi/whatsmeow"
@@ -234,7 +234,7 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 			InsecureSkipVerify: dev,
 		})
 		if err != nil {
-			Logger.Error("ws accept failed", "err", err)
+			logger.Error("ws accept failed", "err", err)
 			return
 		}
 
@@ -278,7 +278,7 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 					}
 					data, err := json.Marshal(msg)
 					if err != nil {
-						Logger.Error("failed to marshal JSON event", "err", err)
+						logger.Error("failed to marshal JSON event", "err", err)
 						continue
 					}
 					if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
@@ -295,20 +295,20 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 				break
 			}
 			if msgType != websocket.MessageText {
-				Logger.Warn("rejected non-text frame")
+				logger.Warn("rejected non-text frame")
 				continue
 			}
 
 			var ctrl ControlMessage
 			if err := json.Unmarshal(data, &ctrl); err != nil {
-				Logger.Warn("bad JSON control frame", "err", err)
+				logger.Warn("bad JSON control frame", "err", err)
 				continue
 			}
 
 			select {
 			case h.Control <- ctrl:
 			default:
-				Logger.Warn("control channel full, dropping message", "id", ctrl.ID)
+				logger.Warn("control channel full, dropping message", "id", ctrl.ID)
 				select {
 				case client.send <- ackEvent(ctrl.ID, false, "server busy"):
 				default:
@@ -316,7 +316,7 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 			}
 		}
 
-		Logger.Info("websocket client disconnected")
+		logger.Info("websocket client disconnected")
 	}
 }
 
@@ -338,7 +338,7 @@ func (b *Bot) Controller(ctx context.Context, ctrl ControlMessage) EventMessage 
 			Payload: b.GetStatsPayload(ctx),
 		}
 	default:
-		Logger.Warn("unknown control type", "kind", ctrl.Kind)
+		logger.Warn("unknown control type", "kind", ctrl.Kind)
 		return ackEvent(ctrl.ID, false, "unknown control type")
 	}
 }
@@ -385,11 +385,11 @@ func (b *Bot) CSendMessage(ctx context.Context, ctrl ControlMessage) EventMessag
 
 	resp, err := cli.SendMessage(ctx, jid, &msg)
 	if err != nil {
-		Logger.Error("send failed", "err", err)
+		logger.Error("send failed", "err", err)
 		return ackEvent(ctrl.ID, false, err.Error())
 	}
 
-	Logger.Info("sent", "id", resp.ID)
+	logger.Info("sent", "id", resp.ID)
 	return ackEvent(ctrl.ID, true, "")
 }
 
@@ -416,7 +416,7 @@ func (b *Bot) CSendReaction(ctx context.Context, ctrl ControlMessage) EventMessa
 
 	reactionMsg := cli.BuildReaction(jid, senderJID, types.MessageID(p.MessageID), p.Emoji)
 	if _, err = cli.SendMessage(ctx, jid, reactionMsg); err != nil {
-		Logger.Error("reaction failed", "err", err)
+		logger.Error("reaction failed", "err", err)
 		return ackEvent(ctrl.ID, false, err.Error())
 	}
 
@@ -439,7 +439,7 @@ func (b *Bot) CEditMessage(ctx context.Context, ctrl ControlMessage) EventMessag
 		Conversation: &p.NewText,
 	})
 	if _, err = cli.SendMessage(ctx, jid, editMsg); err != nil {
-		Logger.Error("edit failed", "err", err)
+		logger.Error("edit failed", "err", err)
 		return ackEvent(ctrl.ID, false, err.Error())
 	}
 
@@ -465,7 +465,7 @@ func (b *Bot) CRevokeMessage(ctx context.Context, ctrl ControlMessage) EventMess
 
 	revokeMsg := cli.BuildRevoke(jid, sender, p.MessageID)
 	if _, err = cli.SendMessage(ctx, jid, revokeMsg); err != nil {
-		Logger.Error("revoke failed", "err", err)
+		logger.Error("revoke failed", "err", err)
 		return ackEvent(ctrl.ID, false, err.Error())
 	}
 

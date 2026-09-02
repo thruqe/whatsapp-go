@@ -1,5 +1,5 @@
 // Data types for the Meta AI request context passed to handler functions.
-package cliutils
+package utils
 
 import "go.mau.fi/whatsmeow/types"
 
