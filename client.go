@@ -354,7 +354,10 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// pairphone initiates companion device linking using an 8-character numeric verification code.
+// PairPhone initiates companion device linking using an 8-character numeric verification code.
+//
+// it ensures the underlying WebSocket connection is open and authenticated with noise keys before
+// dispatching the linking code registration request to WhatsApp routing servers.
 func (c *Client) PairPhone(ctx context.Context, phone string) (string, error) {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -375,6 +378,12 @@ func (c *Client) PairPhone(ctx context.Context, phone string) (string, error) {
 		displayName = "Android"
 	case ClientIos:
 		displayName = "iOS"
+	}
+
+	if !cli.IsConnected() {
+		if err := cli.Connect(); err != nil {
+			return "", fmt.Errorf("failed to connect websocket for phone pairing: %w", err)
+		}
 	}
 
 	code, err := cli.PairPhone(ctx, phone, true, clientType, displayName)
