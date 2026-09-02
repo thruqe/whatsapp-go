@@ -3,22 +3,30 @@ package store_test
 import (
 	"context"
 	"database/sql"
-	"path/filepath"
+	"os"
 	"testing"
 
 	clistore "whatsrook/cmd/store"
 
+	_ "github.com/lib/pq"
 	"go.mau.fi/util/dbutil"
 )
 
 func openTestDB(t *testing.T) *dbutil.Database {
 	t.Helper()
-	dbPath := filepath.Join(t.TempDir(), "test.db")
-	rawDB, err := sql.Open("sqlite", "file:"+dbPath+"?_pragma=foreign_keys=on")
-	if err != nil {
-		t.Fatalf("failed opening test SQLite DB: %v", err)
+	pgURL := os.Getenv("DATABASE_URL")
+	if pgURL == "" {
+		pgURL = os.Getenv("POSTGRES_TEST_URL")
 	}
-	db, err := dbutil.NewWithDB(rawDB, "sqlite")
+	if pgURL == "" {
+		t.Skip("skipping PostgreSQL store test: DATABASE_URL not configured")
+		return nil
+	}
+	rawDB, err := sql.Open("postgres", pgURL)
+	if err != nil {
+		t.Fatalf("failed opening test PostgreSQL DB: %v", err)
+	}
+	db, err := dbutil.NewWithDB(rawDB, "postgres")
 	if err != nil {
 		t.Fatalf("failed wrapping db with dbutil: %v", err)
 	}

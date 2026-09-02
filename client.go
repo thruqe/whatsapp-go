@@ -37,7 +37,6 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	_ "github.com/glebarez/go-sqlite"
 	_ "github.com/lib/pq"
 )
 
@@ -132,12 +131,16 @@ func (c *Client) WAClient() *whatsmeow.Client {
 // and constructs the active whatsmeow client instance.
 //
 // it automatically handles directory creation, sqlite / postgresql connection initialization,
-// device lookup based on the configured phone session, and binds zap-based structured loggers.
+// InitSession initializes persistent storage drivers, retrieves or provisions the companion device record,
+// and constructs the active whatsmeow client instance.
+//
+// it automatically connects to the PostgreSQL database, resolves the companion device record
+// based on the configured phone session, and binds zap-based structured loggers.
 func (c *Client) InitSession(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	container, err := OpenStoreContainer(ctx, c.Config.DataDir, c.Config.Database)
+	container, err := OpenStoreContainer(ctx, c.Config.DataDir, c.Config.Database, c.Config.Session)
 	if err != nil {
 		return fmt.Errorf("failed to initialize store: %w", err)
 	}
@@ -155,66 +158,119 @@ func (c *Client) InitSession(ctx context.Context) error {
 	return nil
 }
 
-// OpenStoreContainer opens and prepares a sqlstore.Container storage backend across sqlite or postgresql.
-//
-// it automatically creates the base directory if missing, resolves SQLite PRAGMAs for WAL mode,
-// connection busy timeouts, and binds structured logging diagnostics.
-func OpenStoreContainer(ctx context.Context, dataDir, database string) (*sqlstore.Container, error) {
-	if dataDir == "" {
-		dataDir = DefaultDataDir()
+// sanitizeDBURL redacts sensitive database credentials prior to log emission.
+func sanitizeDBURL(rawURL string) string {
+	if rawURL == "" {
+		return ""
 	}
-	if err := os.MkdirAll(dataDir, 0700); err != nil {
-		return nil, fmt.Errorf("failed to create data directory %q: %w", dataDir, err)
+	if strings.HasPrefix(rawURL, "postgres://") || strings.HasPrefix(rawURL, "postgresql://") {
+		parts := strings.SplitN(rawURL, "@", 2)
+		if len(parts) == 2 {
+			schemeUser := parts[0]
+			subParts := strings.SplitN(schemeUser, ":", 3)
+			if len(subParts) == 3 {
+				return fmt.Sprintf("%s:%s:****@%s", subParts[0], subParts[1], parts[1])
+			}
+			return fmt.Sprintf("%s:****@%s", parts[0], parts[1])
+		}
+	}
+	return rawURL
+}
+
+// ensureSSLDisabled injects or overrides sslmode=disable on postgresql connection strings during fallback attempts.
+func ensureSSLDisabled(rawURL string) string {
+	if strings.HasSuffix(rawURL, "?sslmode=disable") {
+		return rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		if strings.Contains(rawURL, "?") {
+			return rawURL + "&sslmode=disable"
+		}
+		return rawURL + "?sslmode=disable"
+	}
+	q := u.Query()
+	q.Set("sslmode", "disable")
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+// ResolvePostgresURL resolves the PostgreSQL database connection string following precedence:
+// 1. Explicit database configuration argument (if postgres:// or postgresql://)
+// 2. DATABASE_URL_<phone>
+// 3. DATABASE_URL
+// 4. POSTGRES_URL
+// 5. DB_URL
+// 6. Default fallback
+func ResolvePostgresURL(dbConf string, sessionPhone ...string) string {
+	dbConf = strings.TrimSpace(dbConf)
+	if dbConf != "" && dbConf != "default" && dbConf != "postgres" && dbConf != "postgresql" {
+		if strings.HasPrefix(dbConf, "postgres://") || strings.HasPrefix(dbConf, "postgresql://") {
+			return dbConf
+		}
 	}
 
+	if len(sessionPhone) > 0 {
+		phone := strings.TrimPrefix(sessionPhone[0], "+")
+		phone = strings.ReplaceAll(phone, " ", "")
+		phone = strings.ReplaceAll(phone, "-", "")
+		if phone != "" {
+			if envURL := os.Getenv("DATABASE_URL_" + phone); envURL != "" {
+				return strings.TrimSpace(envURL)
+			}
+		}
+	}
+
+	if env := os.Getenv("DATABASE_URL"); env != "" {
+		return strings.TrimSpace(env)
+	}
+	if env := os.Getenv("POSTGRES_URL"); env != "" {
+		return strings.TrimSpace(env)
+	}
+	if env := os.Getenv("DB_URL"); env != "" {
+		return strings.TrimSpace(env)
+	}
+
+	return "postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable"
+}
+
+// OpenStoreContainer opens and prepares a sqlstore.Container storage backend connected to PostgreSQL.
+//
+// it automatically handles connection retries, SSL mode fallbacks, and binds structured logging diagnostics.
+func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPhone ...string) (*sqlstore.Container, error) {
 	waLogger := Logger.NewWaLogger("database")
 
-	driver, dsn, err := ParseDatabaseConfig(database, dataDir)
-	if err != nil {
-		return nil, err
+	dbConn := ResolvePostgresURL(database, sessionPhone...)
+	if !strings.HasPrefix(dbConn, "postgres://") && !strings.HasPrefix(dbConn, "postgresql://") {
+		return nil, fmt.Errorf("invalid database connection string: PostgreSQL URL required (e.g. postgres://user:password@host:5432/dbname)")
 	}
-	return sqlstore.New(ctx, driver, dsn, waLogger)
+
+	Logger.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
+	container, err := sqlstore.New(ctx, "postgres", dbConn, waLogger)
+	if err == nil && container != nil {
+		Logger.Info("successfully connected to PostgreSQL database")
+		return container, nil
+	}
+
+	// SSL fallback retry logic (if SSL fails, attempt with sslmode=disable)
+	if !strings.HasSuffix(dbConn, "?sslmode=disable") && !strings.Contains(dbConn, "sslmode=disable") {
+		disableURL := ensureSSLDisabled(dbConn)
+		Logger.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
+		container, errDisable := sqlstore.New(ctx, "postgres", disableURL, waLogger)
+		if errDisable == nil && container != nil {
+			Logger.Info("successfully connected to PostgreSQL database with sslmode=disable")
+			return container, nil
+		}
+		return nil, fmt.Errorf("failed to connect to PostgreSQL (ssl retry also failed: %v): %w", errDisable, err)
+	}
+
+	return nil, fmt.Errorf("failed to connect to PostgreSQL database: %w", err)
 }
 
 // ParseDatabaseConfig parses a database configuration string or URL into driver name and DSN.
-func ParseDatabaseConfig(dbConf string, dataDir ...string) (string, string, error) {
-	dbConf = strings.TrimSpace(dbConf)
-	if dbConf == "" || dbConf == "default" || dbConf == "sqlite" || dbConf == "sqlite3" {
-		baseDir := DefaultDataDir()
-		if len(dataDir) > 0 && dataDir[0] != "" {
-			baseDir = dataDir[0]
-		}
-		dbPath := filepath.Join(baseDir, "whatsrook.db")
-		dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)", dbPath)
-		return "sqlite", dsn, nil
-	}
-
-	if strings.HasPrefix(dbConf, "postgres://") || strings.HasPrefix(dbConf, "postgresql://") {
-		return "postgres", dbConf, nil
-	}
-
-	if u, err := url.Parse(dbConf); err == nil && u.Scheme != "" {
-		if u.Scheme == "postgres" || u.Scheme == "postgresql" {
-			return "postgres", dbConf, nil
-		}
-		if u.Scheme == "file" {
-			if !strings.Contains(dbConf, "foreign_keys") {
-				sep := "?"
-				if strings.Contains(dbConf, "?") {
-					sep = "&"
-				}
-				dbConf += sep + "_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)"
-			}
-			return "sqlite", dbConf, nil
-		}
-		return u.Scheme, dbConf, nil
-	}
-
-	// Plain file path provided
-	if !strings.Contains(dbConf, "foreign_keys") {
-		dbConf = fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)", dbConf)
-	}
-	return "sqlite", dbConf, nil
+func ParseDatabaseConfig(dbConf string, sessionPhone ...string) (string, string, error) {
+	dbConn := ResolvePostgresURL(dbConf, sessionPhone...)
+	return "postgres", dbConn, nil
 }
 
 // resolveDeviceStore retrieves an existing registered device or creates a fresh companion device identity.
@@ -232,7 +288,7 @@ func (c *Client) resolveDeviceStore(ctx context.Context, container *sqlstore.Con
 	if phone != "" {
 		for _, dev := range devices {
 			if dev != nil && dev.ID != nil {
-				if dev.ID.User == phone || dev.ID.ToNonAD().User == phone {
+				if strings.HasPrefix(dev.ID.User, phone) || dev.ID.User == phone || dev.ID.ToNonAD().User == phone {
 					return dev, nil
 				}
 			}
