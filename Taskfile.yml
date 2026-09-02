@@ -90,3 +90,27 @@ tasks:
         platforms: [linux, darwin]
       - cmd: powershell -Command "Remove-Item -Recurse -Force bin, tmp -ErrorAction SilentlyContinue"
         platforms: [windows]
+
+  pg:start:
+    desc: Start local PostgreSQL database server on port 5433
+    cmds:
+      - |
+        PG_BIN=$(which pg_ctl 2>/dev/null || ls /usr/pgsql-*/bin/pg_ctl 2>/dev/null | head -n 1)
+        if [ -z "$PG_BIN" ]; then echo "pg_ctl not found"; exit 1; fi
+        $PG_BIN -D ~/.whatsrook/pgdata -l ~/.whatsrook/postgres.log -o "-p 5433 -k ~/.whatsrook/pgdata" start || true
+
+  pg:stop:
+    desc: Stop local PostgreSQL database server
+    cmds:
+      - |
+        PG_BIN=$(which pg_ctl 2>/dev/null || ls /usr/pgsql-*/bin/pg_ctl 2>/dev/null | head -n 1)
+        if [ -z "$PG_BIN" ]; then echo "pg_ctl not found"; exit 1; fi
+        $PG_BIN -D ~/.whatsrook/pgdata stop || true
+
+  pg:status:
+    desc: Check local PostgreSQL database server status
+    cmds:
+      - |
+        PG_BIN=$(which pg_ctl 2>/dev/null || ls /usr/pgsql-*/bin/pg_ctl 2>/dev/null | head -n 1)
+        if [ -z "$PG_BIN" ]; then echo "pg_ctl not found"; exit 1; fi
+        $PG_BIN -D ~/.whatsrook/pgdata status || true
