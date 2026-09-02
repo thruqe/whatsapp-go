@@ -512,6 +512,13 @@ func (b *Bot) runQR(ctx context.Context) error {
 }
 
 func (b *Bot) WAEventHandler(evt any) {
+	defer func() {
+		if r := recover(); r != nil {
+			crashPath := system.RecordCrash(r, fmt.Sprintf("WAEventHandler: %T", evt))
+			logger.Error("Panic recovered in WhatsApp event handler", "panic", r, "crash_log", crashPath)
+		}
+	}()
+
 	var cli *whatsmeow.Client
 	if b.client != nil {
 		cli = b.client.WAClient()
