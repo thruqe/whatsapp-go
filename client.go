@@ -1671,19 +1671,56 @@ func (c *PluginContext) SendSticker(data []byte) error {
 	if c.Client == nil {
 		return fmt.Errorf("client unavailable")
 	}
+
+	if len(data) < 12 || string(data[0:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+		Logger.Error("SendSticker: invalid payload data", "bytes", len(data))
+		return fmt.Errorf("invalid sticker data: missing WebP header")
+	}
+
+	if meta, err := webp.GetStickerMetadata(data); err != nil || meta == nil {
+		Logger.Debug("SendSticker: injecting clean WebP sticker metadata", "pack", c.GetBotName(), "author", "WhatsRook")
+		if withMeta, err := webp.AddStickerMetadata(data, c.GetBotName(), "WhatsRook"); err == nil {
+			data = withMeta
+		} else {
+			Logger.Warn("SendSticker: could not inject sticker metadata", "err", err)
+		}
+	}
+
 	uploaded, err := c.Client.Upload(c.GetSendContext(), data, whatsmeow.MediaImage)
 	if err != nil {
 		return fmt.Errorf("upload sticker failed: %w", err)
 	}
+
+	width := uint32(512)
+	height := uint32(512)
+	isAnimated := false
+	mimetype := "image/webp"
+
+	Logger.Debug("SendSticker: outgoing StickerMessage debug info",
+		"chat", c.Chat.String(),
+		"bytes", len(data),
+		"url", uploaded.URL,
+		"direct_path", uploaded.DirectPath,
+		"file_sha256", hex.EncodeToString(uploaded.FileSHA256),
+		"file_enc_sha256", hex.EncodeToString(uploaded.FileEncSHA256),
+		"media_key_len", len(uploaded.MediaKey),
+		"width", width,
+		"height", height,
+		"mimetype", mimetype,
+	)
+
 	msg := &waE2E.Message{
 		StickerMessage: &waE2E.StickerMessage{
 			URL:           &uploaded.URL,
 			DirectPath:    &uploaded.DirectPath,
 			MediaKey:      uploaded.MediaKey,
-			Mimetype:      new("image/webp"),
+			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    new(uint64(len(data))),
+			Width:         &width,
+			Height:        &height,
+			IsAnimated:    &isAnimated,
 		},
 	}
 	_, err = c.Client.SendMessage(c.GetSendContext(), c.Chat, msg)
@@ -1968,6 +2005,23 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 	if c.Client == nil {
 		return fmt.Errorf("client unavailable")
 	}
+
+	if len(data) < 12 || string(data[0:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+		Logger.Error("ReplyWithSticker: invalid payload data", "bytes", len(data))
+		return fmt.Errorf("invalid sticker data: missing WebP header")
+	}
+
+	if meta, err := webp.GetStickerMetadata(data); err != nil || meta == nil {
+		Logger.Debug("ReplyWithSticker: injecting clean WebP sticker metadata", "pack", c.GetBotName(), "author", "WhatsRook")
+		if withMeta, err := webp.AddStickerMetadata(data, c.GetBotName(), "WhatsRook"); err == nil {
+			data = withMeta
+		} else {
+			Logger.Warn("ReplyWithSticker: could not inject sticker metadata", "err", err)
+		}
+	} else {
+		Logger.Debug("ReplyWithSticker: existing sticker metadata found", "pack", meta.PackName, "publisher", meta.Publisher)
+	}
+
 	Logger.Info("ReplyWithSticker: uploading sticker payload", "chat", c.Chat.String(), "bytes", len(data))
 	uploaded, err := c.Client.Upload(c.GetSendContext(), data, whatsmeow.MediaImage)
 	if err != nil {
@@ -1976,16 +2030,44 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 	}
 	Logger.Info("ReplyWithSticker: upload succeeded", "chat", c.Chat.String(), "url", uploaded.URL)
 
+	width := uint32(512)
+	height := uint32(512)
+	isAnimated := false
+	mimetype := "image/webp"
+	ci := c.replyContextInfo()
+
+	var stanzaID string
+	if ci != nil && ci.StanzaID != nil {
+		stanzaID = *ci.StanzaID
+	}
+
+	Logger.Debug("ReplyWithSticker: outgoing StickerMessage debug info",
+		"chat", c.Chat.String(),
+		"bytes", len(data),
+		"url", uploaded.URL,
+		"direct_path", uploaded.DirectPath,
+		"file_sha256", hex.EncodeToString(uploaded.FileSHA256),
+		"file_enc_sha256", hex.EncodeToString(uploaded.FileEncSHA256),
+		"media_key_len", len(uploaded.MediaKey),
+		"width", width,
+		"height", height,
+		"mimetype", mimetype,
+		"quoted_id", stanzaID,
+	)
+
 	msg := &waE2E.Message{
 		StickerMessage: &waE2E.StickerMessage{
 			URL:           &uploaded.URL,
 			DirectPath:    &uploaded.DirectPath,
 			MediaKey:      uploaded.MediaKey,
-			Mimetype:      new("image/webp"),
+			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    new(uint64(len(data))),
-			ContextInfo:   c.replyContextInfo(),
+			Width:         &width,
+			Height:        &height,
+			IsAnimated:    &isAnimated,
+			ContextInfo:   ci,
 		},
 	}
 	resp, err := c.Client.SendMessage(c.GetSendContext(), c.Chat, msg)
