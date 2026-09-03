@@ -66,56 +66,62 @@ func (d *Dispatcher) runProcess(plugCtx *utils.PluginContext, path, name string,
 	reqBytes, _ := json.Marshal(request)
 	_, _ = fmt.Fprintf(stdinPipe, "%s\n", reqBytes)
 
-	scanner := bufio.NewScanner(stdoutPipe)
+	reader := bufio.NewReaderSize(stdoutPipe, 128*1024)
 	var firstLine string
 	var isStreaming bool
 	var readFirst bool
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
+	for {
+		line, err := reader.ReadString('\n')
+		if len(line) > 0 {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
+				if !readFirst {
+					readFirst = true
+					firstLine = trimmed
+					if strings.HasPrefix(trimmed, "{") && strings.Contains(trimmed, `"action"`) {
+						isStreaming = true
+					} else {
+						// Plain text mode: close stdinPipe immediately so plugin receives EOF on stdin
+						isStreaming = false
+						_ = stdinPipe.Close()
 
-		if !readFirst {
-			readFirst = true
-			firstLine = line
-			if strings.HasPrefix(trimmed, "{\"action\"") {
-				isStreaming = true
-			} else {
-				// Plain text mode: close stdinPipe immediately so plugin receives EOF on stdin
-				isStreaming = false
-				_ = stdinPipe.Close()
-				break
+						var sb strings.Builder
+						sb.WriteString(firstLine)
+						for {
+							restLine, restErr := reader.ReadString('\n')
+							if len(restLine) > 0 {
+								sb.WriteString("\n")
+								sb.WriteString(strings.TrimSpace(restLine))
+							}
+							if restErr != nil {
+								break
+							}
+						}
+						response := strings.TrimSpace(sb.String())
+						if response != "" {
+							_ = loader.Done(response)
+						} else {
+							loader.Delete()
+						}
+						break
+					}
+				}
+
+				if isStreaming {
+					if errAction := d.handleActionFrame(plugCtx, loader, stdinPipe, trimmed); errAction != nil {
+						Logger.Debug("external plugin streaming action finished", "plugin", name, "err", errAction)
+						break
+					}
+				}
 			}
 		}
-
-		if isStreaming {
-			if err := d.handleActionFrame(plugCtx, loader, stdinPipe, line); err != nil {
-				Logger.Debug("external plugin streaming action finished", "plugin", name, "err", err)
-				break
+		if err != nil {
+			if err != io.EOF {
+				Logger.Warn("external plugin stdout read finished", "plugin", name, "err", err)
 			}
+			break
 		}
-	}
-
-	if !isStreaming && readFirst {
-		var sb strings.Builder
-		sb.WriteString(firstLine)
-		for scanner.Scan() {
-			sb.WriteByte('\n')
-			sb.WriteString(scanner.Text())
-		}
-		response := strings.TrimSpace(sb.String())
-		if response != "" {
-			_ = loader.Done(response)
-		} else {
-			loader.Delete()
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		Logger.Debug("scanner encountered error reading plugin stdout", "plugin", name, "err", err)
 	}
 }
 
@@ -216,10 +222,17 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, loader *Loader,
 		loader.Delete()
 		data, err := resolveMediaData(frame.Data)
 		if err != nil {
+			Logger.Error("send_sticker: resolve media data failed", "err", err)
 			d.sendAck(stdinPipe, false, "", err)
 			return nil
 		}
+		Logger.Info("send_sticker: sending sticker to chat", "chat", ctx.Chat.String(), "bytes", len(data))
 		err = ctx.ReplyWithSticker(data)
+		if err != nil {
+			Logger.Error("send_sticker: ReplyWithSticker failed", "chat", ctx.Chat.String(), "err", err)
+		} else {
+			Logger.Info("send_sticker: ReplyWithSticker succeeded", "chat", ctx.Chat.String())
+		}
 		d.sendAck(stdinPipe, err == nil, "", err)
 
 	case "poll":
