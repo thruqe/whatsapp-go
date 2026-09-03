@@ -290,10 +290,20 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 			defer os.Remove(tempMediaFile)
 		}
 
+		stickerPack := plugCtx.GetStickerPack()
+		stickerAuthor := plugCtx.GetStickerAuthor()
+
+		effectiveArgs := args
+		effectiveRawArgs := rawArgs
+		if (name == "sticker" || name == "circle" || name == "crop" || name == "take") && strings.TrimSpace(rawArgs) == "" {
+			effectiveRawArgs = stickerAuthor + "|" + stickerPack
+			effectiveArgs = []string{effectiveRawArgs}
+		}
+
 		req := Request{
 			Command:         name,
-			Args:            args,
-			RawArgs:         rawArgs,
+			Args:            effectiveArgs,
+			RawArgs:         effectiveRawArgs,
 			Chat:            chatKey,
 			Sender:          evt.Info.Sender.String(),
 			Prefix:          prefix,
@@ -307,6 +317,8 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 			QuotedMessage:   quotedPayload,
 			MentionedJIDs:   mentionStrs,
 			Media:           mediaPayload,
+			StickerPack:     stickerPack,
+			StickerAuthor:   stickerAuthor,
 		}
 
 		if isWASMFile(path) {

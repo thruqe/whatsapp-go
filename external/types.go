@@ -79,6 +79,8 @@ type Request struct {
 	QuotedMessage   *QuotedMessagePayload `json:"quoted_message,omitempty"`
 	MentionedJIDs   []string              `json:"mentioned_jids,omitempty"`
 	Media           *MediaPayload         `json:"media,omitempty"`
+	StickerPack     string                `json:"sticker_pack,omitempty"`
+	StickerAuthor   string                `json:"sticker_author,omitempty"`
 }
 
 // Action represents an action frame sent by the external plugin to WhatsRook via standard output.

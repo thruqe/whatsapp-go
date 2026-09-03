@@ -175,6 +175,20 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleAutoReadCmd,
 	})
+	dispatch.Register(&dispatch.Command{
+		Name:        "setpack",
+		Alias:       "stickerpack, packname",
+		Description: "View or configure the default sticker pack name",
+		Category:    "settings",
+		Handler:     handleSetPack,
+	})
+	dispatch.Register(&dispatch.Command{
+		Name:        "setauthor",
+		Alias:       "stickerauthor, author",
+		Description: "View or configure the default sticker author/publisher",
+		Category:    "settings",
+		Handler:     handleSetAuthor,
+	})
 }
 
 func UpdateOwnerLastActive(ctx context.Context, s *dispatch.StoreWrapper) {
@@ -1698,6 +1712,56 @@ func handlePrefix(ctx *dispatch.Context) error {
 		}
 	}
 	return ctx.Replyf("Prefix updated to: %s", strings.Join(display, ", "))
+}
+
+func handleSetPack(ctx *dispatch.Context) error {
+	s, ok := dispatch.GetStore(ctx)
+	if !ok {
+		return ctx.Reply("Settings store unavailable.")
+	}
+
+	if ctx.RawArgs == "" {
+		pack, _ := s.GetSetting(ctx.Ctx, "sticker_pack")
+		if pack == "" {
+			pack = ctx.GetBotName()
+		}
+		return ctx.Replyf("Current default sticker pack: %q\nUsage: %ssetpack [name]", pack, ctx.GetPrefix())
+	}
+
+	if !ctx.IsSudo() {
+		return ctx.Reply("Only owner/sudo users can modify default sticker pack.")
+	}
+
+	newPack := strings.TrimSpace(ctx.RawArgs)
+	if err := s.PutSetting(ctx.Ctx, "sticker_pack", newPack); err != nil {
+		return ctx.Reply("Failed to update default sticker pack.")
+	}
+	return ctx.Replyf("Default sticker pack updated to: %q", newPack)
+}
+
+func handleSetAuthor(ctx *dispatch.Context) error {
+	s, ok := dispatch.GetStore(ctx)
+	if !ok {
+		return ctx.Reply("Settings store unavailable.")
+	}
+
+	if ctx.RawArgs == "" {
+		author, _ := s.GetSetting(ctx.Ctx, "sticker_author")
+		if author == "" {
+			author = "WhatsRook"
+		}
+		return ctx.Replyf("Current default sticker author: %q\nUsage: %ssetauthor [name]", author, ctx.GetPrefix())
+	}
+
+	if !ctx.IsSudo() {
+		return ctx.Reply("Only owner/sudo users can modify default sticker author.")
+	}
+
+	newAuthor := strings.TrimSpace(ctx.RawArgs)
+	if err := s.PutSetting(ctx.Ctx, "sticker_author", newAuthor); err != nil {
+		return ctx.Reply("Failed to update default sticker author.")
+	}
+	return ctx.Replyf("Default sticker author updated to: %q", newAuthor)
 }
 
 func handlePrivacy(ctx *dispatch.Context) error {

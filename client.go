@@ -1678,8 +1678,10 @@ func (c *PluginContext) SendSticker(data []byte) error {
 	}
 
 	if meta, err := webp.GetStickerMetadata(data); err != nil || meta == nil {
-		Logger.Debug("SendSticker: injecting clean WebP sticker metadata", "pack", c.GetBotName(), "author", "WhatsRook")
-		if withMeta, err := webp.AddStickerMetadata(data, c.GetBotName(), "WhatsRook"); err == nil {
+		pack := c.GetStickerPack()
+		author := c.GetStickerAuthor()
+		Logger.Debug("SendSticker: injecting clean WebP sticker metadata", "pack", pack, "author", author)
+		if withMeta, err := webp.AddStickerMetadata(data, pack, author); err == nil {
 			data = withMeta
 		} else {
 			Logger.Warn("SendSticker: could not inject sticker metadata", "err", err)
@@ -2012,8 +2014,10 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 	}
 
 	if meta, err := webp.GetStickerMetadata(data); err != nil || meta == nil {
-		Logger.Debug("ReplyWithSticker: injecting clean WebP sticker metadata", "pack", c.GetBotName(), "author", "WhatsRook")
-		if withMeta, err := webp.AddStickerMetadata(data, c.GetBotName(), "WhatsRook"); err == nil {
+		pack := c.GetStickerPack()
+		author := c.GetStickerAuthor()
+		Logger.Debug("ReplyWithSticker: injecting clean WebP sticker metadata", "pack", pack, "author", author)
+		if withMeta, err := webp.AddStickerMetadata(data, pack, author); err == nil {
 			data = withMeta
 		} else {
 			Logger.Warn("ReplyWithSticker: could not inject sticker metadata", "err", err)
@@ -2273,6 +2277,34 @@ func (c *PluginContext) GetBotName() string {
 		}); ok {
 			if val, err := s.GetSetting(c.GetSendContext(), "bot_name"); err == nil && val != "" {
 				return val
+			}
+		}
+	}
+	return "WhatsRook"
+}
+
+// GetStickerPack returns the configured default sticker pack name, defaulting to GetBotName().
+func (c *PluginContext) GetStickerPack() string {
+	if c != nil && c.Client != nil && c.Client.Store != nil && c.Client.Store.Identities != nil {
+		if s, ok := c.Client.Store.Identities.(interface {
+			GetSetting(ctx context.Context, key string) (string, error)
+		}); ok {
+			if val, err := s.GetSetting(c.GetSendContext(), "sticker_pack"); err == nil && strings.TrimSpace(val) != "" {
+				return strings.TrimSpace(val)
+			}
+		}
+	}
+	return c.GetBotName()
+}
+
+// GetStickerAuthor returns the configured default sticker author/publisher, defaulting to "WhatsRook".
+func (c *PluginContext) GetStickerAuthor() string {
+	if c != nil && c.Client != nil && c.Client.Store != nil && c.Client.Store.Identities != nil {
+		if s, ok := c.Client.Store.Identities.(interface {
+			GetSetting(ctx context.Context, key string) (string, error)
+		}); ok {
+			if val, err := s.GetSetting(c.GetSendContext(), "sticker_author"); err == nil && strings.TrimSpace(val) != "" {
+				return strings.TrimSpace(val)
 			}
 		}
 	}
