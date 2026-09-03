@@ -379,6 +379,20 @@ func (gm *GroupManager) UpdateFromEvent(ctx context.Context, cli *whatsmeow.Clie
 	case *events.Picture:
 		gm.handlePictureEvent(ctx, v, ourJID, s)
 
+	case *events.DisappearingMode:
+		if v.Chat.Server == types.GroupServer {
+			gm.mu.Lock()
+			meta, exists := gm.groups[v.Chat]
+			if exists && meta != nil {
+				meta.IsEphemeral = v.IsEphemeral
+				meta.EphemeralDuration = uint32(v.Timer.Seconds())
+				if s != nil && s.GetDB() != nil {
+					_ = store.SaveCachedGroup(ctx, s.GetDB(), ourJID, meta)
+				}
+			}
+			gm.mu.Unlock()
+		}
+
 	case *events.NewsletterJoin:
 		meta := gm.convertNewsletterMetadata(&v.NewsletterMetadata)
 		gm.mu.Lock()
