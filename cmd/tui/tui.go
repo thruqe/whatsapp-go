@@ -37,6 +37,7 @@ const (
 	stateNewBusinessAccount
 	stateNewClient
 	stateNewLogLevel
+	stateNewDB
 	stateNewSaveOption
 	stateUpdateMenu
 	stateUpdateProgress
@@ -123,13 +124,29 @@ func Run(ctx context.Context, defaultDB string, boundPort int) (SessionResult, b
 	ti.CharLimit = 32
 	ti.Width = 32
 
+	dataDir := whatsrook.DefaultDataDir()
+	sessions, _ := whatsrook.ListStoredSessions(ctx, dataDir, defaultDB)
+
+	initialState := stateMain
+	initialCursor := 0
+	if len(sessions) == 0 {
+		initialState = stateNewAuth
+	}
+
 	m := model{
 		ctx:         ctx,
-		state:       stateMain,
+		state:       initialState,
+		cursor:      initialCursor,
 		defaultDB:   defaultDB,
 		boundPort:   boundPort,
+		sessions:    sessions,
 		currentTime: time.Now(),
 		input:       ti,
+		result: SessionResult{
+			ClientType: whatsrook.ClientChrome,
+			Database:   defaultDB,
+			Verbose:    false,
+		},
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -282,6 +299,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateNewClient(msg)
 		case stateNewLogLevel:
 			return m.updateNewLogLevel(msg)
+		case stateNewDB:
+			return m.updateNewDB(msg)
 		case stateNewSaveOption:
 			return m.updateNewSaveOption(msg)
 		case stateUpdateMenu:
@@ -297,7 +316,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if m.state == stateNewPhoneInput || m.state == stateEditDB {
+	if m.state == stateNewPhoneInput || m.state == stateEditDB || m.state == stateNewDB {
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
 		return m, cmd
@@ -355,8 +374,15 @@ func (m model) selectMainOption() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if len(sessions) == 0 {
-			m.statusMsg = "No saved sessions found. Create a new session to begin."
-			m.isErrorStatus = true
+			m.cursor = 0
+			m.result = SessionResult{
+				ClientType: whatsrook.ClientChrome,
+				Database:   m.defaultDB,
+				Verbose:    false,
+			}
+			m.state = stateNewAuth
+			m.statusMsg = "No saved sessions found. Starting setup wizard..."
+			m.isErrorStatus = false
 			return m, nil
 		}
 		m.sessions = sessions
@@ -765,6 +791,9 @@ func (m model) updateEditVariables(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cursor = 0
 	case "3":
 		m.state = stateEditDB
+		m.input.CharLimit = 256
+		m.input.Width = 50
+		m.input.Placeholder = "postgres://user:pass@host:5432/dbname (or 'default')"
 		m.input.SetValue(m.result.Database)
 		m.input.Focus()
 		return m, textinput.Blink
@@ -786,6 +815,9 @@ func (m model) updateEditVariables(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor = 0
 		case 2: // Edit database
 			m.state = stateEditDB
+			m.input.CharLimit = 256
+			m.input.Width = 50
+			m.input.Placeholder = "postgres://user:pass@host:5432/dbname (or 'default')"
 			m.input.SetValue(m.result.Database)
 			m.input.Focus()
 			return m, textinput.Blink
@@ -977,6 +1009,8 @@ func (m model) updateNewAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.result.QRCode = true
 		m.result.Pair = false
 		m.state = stateNewPhoneInput
+		m.input.CharLimit = 32
+		m.input.Width = 32
 		m.input.Placeholder = "session phone"
 		m.input.SetValue("")
 		m.input.Focus()
@@ -985,19 +1019,27 @@ func (m model) updateNewAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.result.QRCode = false
 		m.result.Pair = true
 		m.state = stateNewPhoneInput
+		m.input.CharLimit = 32
+		m.input.Width = 32
 		m.input.Placeholder = "+15551234567"
 		m.input.SetValue("")
 		m.input.Focus()
 		return m, textinput.Blink
 	case "3", "0", "esc", "b":
 		m.state = stateMain
-		m.cursor = 1
+		if len(m.sessions) == 0 {
+			m.cursor = 1
+		} else {
+			m.cursor = 0
+		}
 	case "enter":
 		switch m.cursor {
 		case 0: // QR Code
 			m.result.QRCode = true
 			m.result.Pair = false
 			m.state = stateNewPhoneInput
+			m.input.CharLimit = 32
+			m.input.Width = 32
 			m.input.Placeholder = "session phone number"
 			m.input.SetValue("")
 			m.input.Focus()
@@ -1006,13 +1048,19 @@ func (m model) updateNewAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.result.QRCode = false
 			m.result.Pair = true
 			m.state = stateNewPhoneInput
+			m.input.CharLimit = 32
+			m.input.Width = 32
 			m.input.Placeholder = "+15551234567"
 			m.input.SetValue("")
 			m.input.Focus()
 			return m, textinput.Blink
 		case 2: // Back
 			m.state = stateMain
-			m.cursor = 1
+			if len(m.sessions) == 0 {
+				m.cursor = 1
+			} else {
+				m.cursor = 0
+			}
 		}
 	}
 	return m, nil
@@ -1153,21 +1201,64 @@ func (m model) updateNewLogLevel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "1":
 		m.result.Verbose = false
-		m.state = stateNewSaveOption
+		m.state = stateNewDB
 		m.cursor = 0
+		return m.setupNewDBInput()
 	case "2":
 		m.result.Verbose = true
-		m.state = stateNewSaveOption
+		m.state = stateNewDB
 		m.cursor = 0
+		return m.setupNewDBInput()
 	case "esc", "b", "0":
 		m.state = stateNewClient
 		m.cursor = 0
 	case "enter":
 		m.result.Verbose = m.cursor == 1
-		m.state = stateNewSaveOption
+		m.state = stateNewDB
 		m.cursor = 0
+		return m.setupNewDBInput()
 	}
 	return m, nil
+}
+
+func (m *model) setupNewDBInput() (tea.Model, tea.Cmd) {
+	m.input.CharLimit = 256
+	m.input.Width = 50
+	m.input.Placeholder = "postgres://user:pass@host:5432/dbname (or 'default')"
+	dbVal := m.result.Database
+	if dbVal == "" {
+		dbVal = m.defaultDB
+	}
+	if dbVal == "" {
+		dbVal = "default"
+	}
+	m.input.SetValue(dbVal)
+	m.input.Focus()
+	return *m, textinput.Blink
+}
+
+func (m model) updateNewDB(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		val := strings.TrimSpace(m.input.Value())
+		if val != "" {
+			m.result.Database = val
+		} else if m.result.Database == "" {
+			m.result.Database = "default"
+		}
+		m.state = stateNewSaveOption
+		m.cursor = 0
+		m.statusMsg = ""
+		return m, nil
+	case "esc":
+		m.state = stateNewLogLevel
+		m.cursor = 0
+		m.statusMsg = ""
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	return m, cmd
 }
 
 func (m model) updateNewSaveOption(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -1188,8 +1279,9 @@ func (m model) updateNewSaveOption(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.result.ShouldRun = true
 		return m, tea.Quit
 	case "esc", "b", "0":
-		m.state = stateNewLogLevel
+		m.state = stateNewDB
 		m.cursor = 0
+		return m.setupNewDBInput()
 	case "enter":
 		switch m.cursor {
 		case 0: // Launch session immediately
@@ -1200,8 +1292,9 @@ func (m model) updateNewSaveOption(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.result.ShouldRun = true
 			return m, tea.Quit
 		case 2: // Back
-			m.state = stateNewLogLevel
+			m.state = stateNewDB
 			m.cursor = 0
+			return m.setupNewDBInput()
 		}
 	}
 	return m, nil
@@ -1283,6 +1376,8 @@ func (m model) View() string {
 		s.WriteString(m.viewNewClient())
 	case stateNewLogLevel:
 		s.WriteString(m.viewNewLogLevel())
+	case stateNewDB:
+		s.WriteString(m.viewNewDB())
 	case stateNewSaveOption:
 		s.WriteString(m.viewNewSaveOption())
 	case stateUpdateMenu:
@@ -1592,7 +1687,7 @@ func (m model) viewEditVariables() string {
 
 	dbName := m.result.Database
 	if dbName == "" || dbName == "default" {
-		dbName = "default (SQLite)"
+		dbName = "default (PostgreSQL)"
 	}
 
 	options := []string{
@@ -1653,7 +1748,7 @@ func (m model) viewEditDB() string {
 	var s strings.Builder
 	s.WriteString(titleStyle.Render("EDIT DATABASE CONNECTION"))
 	s.WriteString("\n\n")
-	s.WriteString(inputPromptStyle.Render("Database URI (or 'default' for SQLite):"))
+	s.WriteString(inputPromptStyle.Render("PostgreSQL URL (or 'default'):"))
 	s.WriteByte('\n')
 	s.WriteString("  ")
 	s.WriteString(m.input.View())
@@ -1781,10 +1876,31 @@ func (m model) viewNewLogLevel() string {
 	return s.String()
 }
 
+func (m model) viewNewDB() string {
+	var s strings.Builder
+	s.WriteString(titleStyle.Render("CONFIGURE DATABASE CONNECTION"))
+	s.WriteString("\n\n")
+	s.WriteString(inputPromptStyle.Render("PostgreSQL URL (press Enter for default):"))
+	s.WriteByte('\n')
+	s.WriteString("  ")
+	s.WriteString(m.input.View())
+	s.WriteString("\n\n")
+	s.WriteString(helpStyle.Render(m.getHelpText("continue")))
+	return s.String()
+}
+
 func (m model) viewNewSaveOption() string {
 	var s strings.Builder
 	s.WriteString(titleStyle.Render("SAVE CONFIGURATION & LAUNCH"))
 	s.WriteString("\n\n")
+
+	dbName := m.result.Database
+	if dbName == "" || dbName == "default" {
+		dbName = "default (PostgreSQL)"
+	}
+
+	s.WriteString(headerMutedStyle.Render(fmt.Sprintf("  • Session:  %s\n", m.result.Session)))
+	s.WriteString(headerMutedStyle.Render(fmt.Sprintf("  • Database: %s\n\n", dbName)))
 
 	options := []string{
 		"Launch session immediately",

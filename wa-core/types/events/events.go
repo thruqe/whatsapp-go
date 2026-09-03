@@ -519,6 +519,7 @@ type GroupInfo struct {
 	MemberLinkMode                *types.GroupMemberLinkMode         // Group member link mode change
 	MemberShareHistoryMode        *types.GroupMemberShareHistoryMode // Group member share history mode change
 	AllowNonAdminSubGroupCreation *bool                              // Allow non-admin subgroup creation in community change
+	GeneralChat                   *bool                              // General chat status change
 
 	Delete *types.GroupDelete
 

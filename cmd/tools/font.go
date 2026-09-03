@@ -1,11 +1,24 @@
 package tools
 
 import (
+	"context"
 	"strings"
 	"sync"
 
 	utils "whatsrook"
+	"whatsrook/cmd/dispatch"
+
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/types/events"
 )
+
+func init() {
+	dispatch.RegisterPostProcessor("font_style", func(ctx context.Context, client *whatsmeow.Client, s *dispatch.StoreWrapper, evt *events.Message) {
+		if style, err := s.GetSetting(ctx, "font_style"); err == nil && style != "" {
+			SetFontStyle(style)
+		}
+	})
+}
 
 // FormatTextResponseRaw formats a text response with monospace/active font format, removing asterisks and emojis.
 func FormatTextResponseRaw(text string) string {

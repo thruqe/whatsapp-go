@@ -1,3 +1,20 @@
-bin
+bin/
 *.env
 *.syso
+
+# Session and local auth directories
+sessions/
+
+# Database artifacts
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs and test artifacts
+*.log
+*.tmp
+coverage.out
+coverage.html
+.DS_Store

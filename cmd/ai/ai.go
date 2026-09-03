@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"context"
 	"encoding/base64"
 	"os"
 	"os/exec"
@@ -77,14 +78,11 @@ func extractTextFromProto(msg *waE2E.Message) string {
 }
 
 func sendPollReply(ctx *dispatch.Context, body string, options []string) error {
-	poll := ctx.Poll(body)
-	for _, opt := range options {
-		poll.AddOption(opt)
-	}
-	return poll.Reply()
+	return dispatch.SendPollReply(ctx, body, options)
 }
 
 func init() {
+	dispatch.RegisterFallbackInterceptor("ai_autoai", HandleAutoAIIntercept)
 	dispatch.Register(&dispatch.Command{
 		Name:        "ai",
 		Alias:       "ask",
@@ -903,4 +901,137 @@ func handleDownloadMessage(ctx *dispatch.Context) error {
 	default:
 		return ctx.SendDocument(mediaData, mimetype, "downloaded_media", "")
 	}
+}
+
+// HandleAutoAIIntercept checks if AutoAI is enabled and the bot was tagged, replied to, or called by name.
+func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
+	s, ok := dispatch.GetStore(c)
+	if !ok {
+		return false
+	}
+	ctx := c.Ctx
+	chatStr := c.Chat.String()
+
+	autoAIVal, _ := s.GetSetting(ctx, "autoai:"+chatStr)
+	if autoAIVal == "" {
+		autoAIVal, _ = s.GetSetting(ctx, "autoai")
+	}
+	if autoAIVal != "on" {
+		return false
+	}
+
+	if !isBotTaggedOrReplied(c, text) {
+		return false
+	}
+
+	prompt := text
+	if c.Client.Store.ID != nil {
+		ourJID := c.Client.Store.ID.ToNonAD()
+		if ourJID.User != "" {
+			prompt = strings.TrimSpace(strings.ReplaceAll(prompt, "@"+ourJID.User, ""))
+		}
+	}
+	if !c.Client.Store.LID.IsEmpty() {
+		ourLID := c.Client.Store.LID.ToNonAD()
+		if ourLID.User != "" {
+			prompt = strings.TrimSpace(strings.ReplaceAll(prompt, "@"+ourLID.User, ""))
+		}
+	}
+	botName := c.GetBotName()
+	if botName != "" && strings.HasPrefix(strings.ToLower(prompt), strings.ToLower(botName)) {
+		prompt = strings.TrimSpace(prompt[len(botName):])
+	}
+	if prompt == "" {
+		prompt = text
+	}
+
+	go func() {
+		reqCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		aiCtx := &dispatch.Context{
+			Ctx:        reqCtx,
+			CancelFunc: cancel,
+			Client:     c.Client,
+			Evt:        c.Evt,
+			Command:    "ai",
+			Args:       strings.Fields(prompt),
+			RawArgs:    prompt,
+			Chat:       c.Chat,
+			Sender:     c.Sender,
+		}
+		aiCtx.StartAutoLoader()
+		defer aiCtx.StopAutoLoader()
+
+		if cmd, ok := dispatch.Get("ai"); ok {
+			_ = cmd.Handler(aiCtx)
+		}
+	}()
+
+	return true
+}
+
+func isBotTaggedOrReplied(c *dispatch.Context, text string) bool {
+	client := c.Client
+	evt := c.Evt
+	if client == nil || client.Store == nil || client.Store.ID == nil {
+		return false
+	}
+	if evt.Info.Chat.Server != "g.us" {
+		return true
+	}
+	ourJID := client.Store.ID.ToNonAD()
+	ourLID := ourJID
+	if !client.Store.LID.IsEmpty() {
+		ourLID = client.Store.LID.ToNonAD()
+	}
+
+	lowerText := strings.ToLower(text)
+	botName := c.GetBotName()
+	lowerBotName := strings.ToLower(botName)
+
+	if (lowerBotName != "" && strings.Contains(lowerText, lowerBotName)) || strings.Contains(lowerText, "whatsrook") || strings.Contains(lowerText, "rook") {
+		return true
+	}
+
+	if strings.Contains(text, "@"+ourJID.User) || (!ourLID.IsEmpty() && strings.Contains(text, "@"+ourLID.User)) {
+		return true
+	}
+
+	var ctxInfo *waE2E.ContextInfo
+	if evt.Message.GetExtendedTextMessage() != nil {
+		ctxInfo = evt.Message.GetExtendedTextMessage().ContextInfo
+	} else if evt.Message.GetImageMessage() != nil {
+		ctxInfo = evt.Message.GetImageMessage().ContextInfo
+	} else if evt.Message.GetVideoMessage() != nil {
+		ctxInfo = evt.Message.GetVideoMessage().ContextInfo
+	} else if evt.Message.GetAudioMessage() != nil {
+		ctxInfo = evt.Message.GetAudioMessage().ContextInfo
+	} else if evt.Message.GetDocumentMessage() != nil {
+		ctxInfo = evt.Message.GetDocumentMessage().ContextInfo
+	}
+
+	if ctxInfo == nil {
+		return false
+	}
+
+	for _, m := range ctxInfo.MentionedJID {
+		if parseJID, err := types.ParseJID(m); err == nil {
+			nonAD := parseJID.ToNonAD()
+			if nonAD == ourJID || (!ourLID.IsEmpty() && nonAD == ourLID) {
+				return true
+			}
+		}
+	}
+
+	if ctxInfo.Participant != nil {
+		if parseJID, err := types.ParseJID(*ctxInfo.Participant); err == nil {
+			nonAD := parseJID.ToNonAD()
+			if nonAD == ourJID || (!ourLID.IsEmpty() && nonAD == ourLID) {
+				return true
+			}
+		}
+	}
+
+	return false
 }

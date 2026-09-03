@@ -1,9 +1,12 @@
 package builder
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -76,5 +79,61 @@ func TestPollRoute_Lifecycle(t *testing.T) {
 
 	if okAfter {
 		t.Errorf("expected route to be removed after timeout expiry")
+	}
+}
+
+type mockSender struct {
+	client *whatsmeow.Client
+	chat   types.JID
+	sender types.JID
+}
+
+func (m *mockSender) GetSendContext() context.Context { return context.Background() }
+func (m *mockSender) GetClient() *whatsmeow.Client    { return m.client }
+func (m *mockSender) GetChat() types.JID              { return m.chat }
+func (m *mockSender) GetSender() types.JID            { return m.sender }
+func (m *mockSender) GetBotName() string              { return "WhatsRook" }
+func (m *mockSender) StopAutoLoader()                 {}
+func (m *mockSender) ReplyContextInfo() *waE2E.ContextInfo { return nil }
+func (m *mockSender) FormatTextResponse(text string) string { return text }
+func (m *mockSender) Reply(text string) error         { return nil }
+func (m *mockSender) ReplyWithMentions(text string, mentions []types.JID) error { return nil }
+func (m *mockSender) ReplyWithImage(data []byte, mimetype, caption string) error { return nil }
+func (m *mockSender) ReplyWithImageWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error { return nil }
+func (m *mockSender) ReplyWithVideo(data []byte, mimetype, caption string) error { return nil }
+func (m *mockSender) ReplyWithVideoWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error { return nil }
+func (m *mockSender) ReplyWithVideoGif(data []byte, mimetype, caption string) error { return nil }
+func (m *mockSender) ReplyWithAudio(data []byte, mimetype string) error { return nil }
+func (m *mockSender) ReplyWithDocument(data []byte, mimetype, filename, caption string) error { return nil }
+func (m *mockSender) ReplyWithSticker(data []byte) error { return nil }
+func (m *mockSender) ReplyWithGroupMention(text string) error { return nil }
+func (m *mockSender) SendText(text string) error { return nil }
+func (m *mockSender) SendTextWithMentions(text string, mentions []types.JID) error { return nil }
+func (m *mockSender) SendImage(data []byte, mimetype, caption string) error { return nil }
+func (m *mockSender) SendImageWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error { return nil }
+func (m *mockSender) SendVideo(data []byte, mimetype, caption string) error { return nil }
+func (m *mockSender) SendVideoWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error { return nil }
+func (m *mockSender) SendVideoGif(data []byte, mimetype, caption string) error { return nil }
+func (m *mockSender) SendAudio(data []byte, mimetype string) error { return nil }
+func (m *mockSender) SendDocument(data []byte, mimetype, filename, caption string) error { return nil }
+func (m *mockSender) SendSticker(data []byte) error { return nil }
+func (m *mockSender) SendTextWithGroupMention(text string) error { return nil }
+func (m *mockSender) React(emoji string) error { return nil }
+func (m *mockSender) Delete(msgID types.MessageID, senderJID ...types.JID) (whatsmeow.SendResponse, error) {
+	return whatsmeow.SendResponse{}, nil
+}
+
+func TestIsSameUser_LID(t *testing.T) {
+	// 1. Same user and server
+	pn1 := types.NewJID("2348011111111", types.DefaultUserServer)
+	pn2 := types.NewJID("2348011111111", types.DefaultUserServer)
+	if !isSameUser(context.Background(), nil, pn1, pn2) {
+		t.Errorf("expected same user for identical JIDs")
+	}
+
+	// 2. Non-AD comparison
+	pn1AD := types.NewADJID("2348011111111", 0, 1)
+	if !isSameUser(context.Background(), nil, pn1, pn1AD) {
+		t.Errorf("expected same user for AD and NonAD JIDs")
 	}
 }

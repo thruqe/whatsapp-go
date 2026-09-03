@@ -185,16 +185,18 @@ func migration1InitialSchema(ctx context.Context, db *dbutil.Database) error {
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS bot_group_user_xp (
-			our_jid    TEXT NOT NULL DEFAULT '',
-			group_jid  TEXT NOT NULL,
-			user_jid   TEXT NOT NULL,
-			xp         INTEGER NOT NULL DEFAULT 0,
-			ttt_wins   INTEGER NOT NULL DEFAULT 0,
-			ttt_losses INTEGER NOT NULL DEFAULT 0,
-			ttt_draws  INTEGER NOT NULL DEFAULT 0,
-			wcg_wins   INTEGER NOT NULL DEFAULT 0,
-			wcg_games  INTEGER NOT NULL DEFAULT 0,
-			wcg_rating INTEGER NOT NULL DEFAULT 1000,
+			our_jid          TEXT NOT NULL DEFAULT '',
+			group_jid        TEXT NOT NULL,
+			user_jid         TEXT NOT NULL,
+			xp               INTEGER NOT NULL DEFAULT 0,
+			ttt_wins         INTEGER NOT NULL DEFAULT 0,
+			ttt_losses       INTEGER NOT NULL DEFAULT 0,
+			ttt_draws        INTEGER NOT NULL DEFAULT 0,
+			wcg_wins         INTEGER NOT NULL DEFAULT 0,
+			wcg_games        INTEGER NOT NULL DEFAULT 0,
+			wcg_rating       INTEGER NOT NULL DEFAULT 1000,
+			unscramble_wins  INTEGER NOT NULL DEFAULT 0,
+			unscramble_score INTEGER NOT NULL DEFAULT 0,
 			PRIMARY KEY (our_jid, group_jid, user_jid)
 		)`,
 	}
@@ -249,6 +251,8 @@ func migration2RepairConstraintsAndColumns(ctx context.Context, db *dbutil.Datab
 	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "wcg_wins", "INTEGER DEFAULT 0")
 	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "wcg_games", "INTEGER DEFAULT 0")
 	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "wcg_rating", "INTEGER DEFAULT 1000")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "unscramble_wins", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "unscramble_score", "INTEGER DEFAULT 0")
 
 	// 4. Best-effort column addition for contacts table
 	_ = EnsureCustomColumnExists(ctx, db, "whatsmeow_contacts", "username", "TEXT")
@@ -333,6 +337,7 @@ func migration6CachedGroupsAndChannels(ctx context.Context, db *dbutil.Database)
 			parent_jid                TEXT DEFAULT '',
 			linked_parent_jid         TEXT DEFAULT '',
 			is_default_subgroup       BOOLEAN DEFAULT FALSE,
+			is_general_chat           BOOLEAN DEFAULT FALSE,
 			participant_count         INTEGER DEFAULT 0,
 			admin_count               INTEGER DEFAULT 0,
 			updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -420,9 +425,15 @@ func migration7SessionIsolation(ctx context.Context, db *dbutil.Database) error 
 	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "wcg_wins", "INTEGER DEFAULT 0")
 	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "wcg_games", "INTEGER DEFAULT 0")
 	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "wcg_rating", "INTEGER DEFAULT 1000")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "unscramble_wins", "INTEGER DEFAULT 0")
+	_ = EnsureCustomColumnExists(ctx, db, "bot_group_user_xp", "unscramble_score", "INTEGER DEFAULT 0")
 	_, _ = db.Exec(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS bot_group_user_xp_our_jid_group_user_idx ON bot_group_user_xp (our_jid, group_jid, user_jid)")
 
+	// 6. Add is_general_chat to cached_groups if missing
+	_ = EnsureCustomColumnExists(ctx, db, "cached_groups", "is_general_chat", "BOOLEAN DEFAULT FALSE")
+
 	if db.Dialect == dbutil.Postgres {
+		_, _ = db.Exec(ctx, "ALTER TABLE cached_groups ADD COLUMN IF NOT EXISTS is_general_chat BOOLEAN DEFAULT FALSE")
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS our_jid TEXT NOT NULL DEFAULT ''")
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_settings DROP CONSTRAINT IF EXISTS bot_settings_pkey")
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_settings DROP CONSTRAINT IF EXISTS bot_settings_key_key")
@@ -455,6 +466,8 @@ func migration7SessionIsolation(ctx context.Context, db *dbutil.Database) error 
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_user_xp ADD PRIMARY KEY (our_jid, user_jid)")
 
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_group_user_xp ADD COLUMN IF NOT EXISTS our_jid TEXT NOT NULL DEFAULT ''")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_group_user_xp ADD COLUMN IF NOT EXISTS unscramble_wins INTEGER NOT NULL DEFAULT 0")
+		_, _ = db.Exec(ctx, "ALTER TABLE bot_group_user_xp ADD COLUMN IF NOT EXISTS unscramble_score INTEGER NOT NULL DEFAULT 0")
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_group_user_xp DROP CONSTRAINT IF EXISTS bot_group_user_xp_pkey")
 		_, _ = db.Exec(ctx, "DELETE FROM bot_group_user_xp a USING bot_group_user_xp b WHERE a.ctid < b.ctid AND a.our_jid = b.our_jid AND a.group_jid = b.group_jid AND a.user_jid = b.user_jid")
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_group_user_xp ADD PRIMARY KEY (our_jid, group_jid, user_jid)")

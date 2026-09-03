@@ -525,13 +525,13 @@ func GetRandomWordWithHint(length int) (original string, scrambled string, hint 
 	words, ok := wordList[length]
 	if !ok || len(words) == 0 {
 		// Fallback: generate random letters
-		var b strings.Builder
+		tb := utils.NewText()
 		for range length {
-			b.WriteByte(byte('a' + rand.Intn(26)))
+			_ = tb.WriteByte(byte('a' + rand.Intn(26)))
 		}
-		original = b.String()
+		original = tb.String()
 		scrambled = scrambleString(original)
-		hint = fmt.Sprintf("A %d-letter word", length)
+		hint = utils.Sprintf("A %d-letter word", length)
 		return original, scrambled, hint
 	}
 
@@ -539,7 +539,7 @@ func GetRandomWordWithHint(length int) (original string, scrambled string, hint 
 	scrambled = scrambleString(original)
 	hint = FetchWordMeaning(original)
 	if hint == "" {
-		hint = fmt.Sprintf("A %d-letter English word", length)
+		hint = utils.Sprintf("A %d-letter English word", length)
 	}
 	return original, scrambled, hint
 }
@@ -986,7 +986,7 @@ func cleanAndMaskDefinition(def, word, pos string) string {
 	}
 
 	if pos != "" {
-		return fmt.Sprintf("[%s] %s", pos, def)
+		return utils.Sprintf("[%s] %s", pos, def)
 	}
 	return def
 }

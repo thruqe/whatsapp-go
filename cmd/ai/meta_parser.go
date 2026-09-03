@@ -2,7 +2,6 @@
 package ai
 
 import (
-	"fmt"
 	"strings"
 
 	"go.mau.fi/whatsmeow/types"
@@ -57,7 +56,7 @@ func BuildRunCommandInstructionWithNameAndPrefix(cmds []CommandInfo, botName, pr
 	for _, c := range cmds {
 		aliasStr := ""
 		if c.Alias != "" {
-			aliasStr = fmt.Sprintf(" (alias: %s%s)", prefix, c.Alias)
+			aliasStr = utils.Sprintf(" (alias: %s%s)", prefix, c.Alias)
 		}
 		sudoStr := ""
 		if !c.IsPublic {

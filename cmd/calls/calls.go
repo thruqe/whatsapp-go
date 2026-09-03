@@ -248,11 +248,7 @@ func handleCall(ctx *dispatch.Context) error {
 			Bulletf("%svoicemail [on/off] - Automated voicemail", p).
 			Trimmed()
 		options := []string{"Call Audio", "Call Video", "Voicemail"}
-		poll := ctx.Poll(body)
-		for _, opt := range options {
-			poll.AddOption(opt)
-		}
-		return poll.Reply()
+		return dispatch.SendPollReply(ctx, body, options)
 	}
 
 	targetJID := targets[0]
@@ -270,11 +266,7 @@ func handleCall(ctx *dispatch.Context) error {
 
 	body := dispatch.Sprintf("Place Call to %s\n\nSelect call type:", targetMention)
 	options := []string{"Audio Call", "Video Call"}
-	poll := ctx.Poll(body).Mentions(targetJID)
-	for _, opt := range options {
-		poll.AddOption(opt)
-	}
-	return poll.Reply()
+	return dispatch.SendPollReplyWithMentions(ctx, body, options, []types.JID{targetJID})
 }
 
 func handleCallAudio(ctx *dispatch.Context) error {
@@ -598,11 +590,7 @@ func sendAntiCallMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 		actionText,
 		"Customize",
 	}
-	poll := ctx.Poll(bodyText)
-	for _, opt := range options {
-		poll.AddOption(opt)
-	}
-	return poll.Reply()
+	return dispatch.SendPollReply(ctx, bodyText, options)
 }
 
 func sendAntiCallCustomizeGuide(ctx *dispatch.Context) error {
@@ -710,11 +698,7 @@ func handleVoicemail(ctx *dispatch.Context) error {
 			"Call Video",
 		}
 
-		poll := ctx.Poll(bodyText)
-		for _, opt := range options {
-			poll.AddOption(opt)
-		}
-		return poll.Reply()
+		return dispatch.SendPollReply(ctx, bodyText, options)
 	}
 }
 

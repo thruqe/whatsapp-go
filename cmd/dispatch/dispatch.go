@@ -8,8 +8,8 @@ package dispatch
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -20,6 +20,9 @@ import (
 	"whatsrook/system"
 
 	"go.mau.fi/whatsmeow"
+	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -73,10 +76,33 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			return true
 		}
 	}
-	if pollUpdate := evt.Message.GetPollUpdateMessage(); pollUpdate != nil {
+	msgProto := utils.UnwrapMessageProto(evt.Message)
+	if msgProto == nil {
+		msgProto = evt.Message
+	}
+	if pollUpdate := msgProto.GetPollUpdateMessage(); pollUpdate != nil {
+		targetID := ""
+		if key := pollUpdate.GetPollCreationMessageKey(); key != nil {
+			targetID = key.GetID()
+		}
+		Logger.Debug("Dispatcher: incoming poll vote message detected",
+			"targetPollMsgID", targetID,
+			"chat", evt.Info.Chat.String(),
+			"sender", evt.Info.Sender.String(),
+		)
 		if utils.DispatchPollVoteEvent(cctx, evt) {
+			Logger.Debug("Dispatcher: poll vote event successfully dispatched to reactive route",
+				"targetPollMsgID", targetID,
+				"chat", evt.Info.Chat.String(),
+				"sender", evt.Info.Sender.String(),
+			)
 			return true
 		}
+		Logger.Debug("Dispatcher: poll vote event has no matching reactive route",
+			"targetPollMsgID", targetID,
+			"chat", evt.Info.Chat.String(),
+			"sender", evt.Info.Sender.String(),
+		)
 	}
 
 	s, okStore := GetSQLStore(client)
@@ -86,6 +112,66 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	if evt.Info.Chat.Server == "g.us" && okStore {
 		store.LogGroupMessage(ctx, s.SQLStore, evt.Info.Chat, evt.Info.Sender)
+	}
+
+	// 1. Status Broadcast Auto-Save
+	if (evt.Info.Chat.String() == "status@broadcast" || evt.Info.Chat.Server == "broadcast") && okStore {
+		raw, _ := s.GetSetting(ctx, "autostatussave")
+		if raw == "on" && client.Store.ID != nil {
+			ownerJID := client.Store.ID.ToNonAD()
+			_, _ = client.SendMessage(ctx, ownerJID, evt.Message)
+		}
+	}
+
+	// 2. ViewOnce Auto-Save / Forwarding (autovv)
+	if (evt.IsViewOnce || evt.IsViewOnceV2 || utils.IsViewOnceMessage(evt.Message)) && okStore {
+		handleAutoViewOnce(ctx, client, s.SQLStore, evt)
+	}
+
+	// 3. Asynchronous Post-Processors (AutoRead, AutoReact)
+	if okStore && !evt.Info.IsFromMe {
+		postProcessorsMu.RLock()
+		for _, pp := range postProcessors {
+			go pp.fn(ctx, client, s, evt)
+		}
+		postProcessorsMu.RUnlock()
+	}
+
+	// 4. Sticker Commands
+	if evt.Message.StickerMessage != nil && okStore {
+		if handleStickerCommand(ctx, client, s.SQLStore, evt) {
+			return true
+		}
+	}
+
+	// 5. Bot Tagged / Mention Proto
+	if isBotMentioned(client, evt) && okStore {
+		if mentionProto, err := s.GetSetting(ctx, "mention_proto"); err == nil && mentionProto != "" {
+			if msg, err := utils.DecodeProtoMessage(mentionProto); err == nil {
+				setReplyContextInfo(msg, evt)
+				_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
+				return true
+			}
+		}
+	}
+
+	// 6. Filters & BGM Trigger Words
+	if text != "" && okStore {
+		if handleFiltersAndBGM(ctx, client, s.SQLStore, evt, text) {
+			return true
+		}
+	}
+
+	// 7. Run registered Pre-Interceptors (Group Moderation, AFK, Games, Shell)
+	preInterceptorsMu.RLock()
+	preList := make([]interceptorEntry, len(preInterceptors))
+	copy(preList, preInterceptors)
+	preInterceptorsMu.RUnlock()
+
+	for _, it := range preList {
+		if it.fn(cctx, text) {
+			return true
+		}
 	}
 
 	if text == "" {
@@ -129,6 +215,19 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			return external.DefaultDispatcher.Dispatch(ctx, client, evt, cmdName, args, rawArgs)
 		}
 	}
+
+	// 9. Run registered Fallback Interceptors (AutoAI)
+	fallbackInterceptorsMu.RLock()
+	fallbackList := make([]interceptorEntry, len(fallbackInterceptors))
+	copy(fallbackList, fallbackInterceptors)
+	fallbackInterceptorsMu.RUnlock()
+
+	for _, it := range fallbackList {
+		if it.fn(cctx, text) {
+			return true
+		}
+	}
+
 	return false
 }
 
@@ -172,6 +271,24 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		return true
 	}
 
+	if s, okStore := GetSQLStore(client); okStore {
+		botMode, _ := s.GetSetting(ctx, "mode")
+		if botMode == "private" && !cctx.IsSudo() {
+			_ = cctx.Reply("The bot is currently in private mode. Only sudoers/owners can use it.")
+			return true
+		}
+
+		raw, _ := s.GetSetting(ctx, "disabled_commands")
+		if raw != "" {
+			for disabled := range strings.FieldsSeq(raw) {
+				if strings.EqualFold(disabled, cmdName) {
+					_ = cctx.Replyf("⚠️ Command %q is currently disabled.", cmdName)
+					return true
+				}
+			}
+		}
+	}
+
 	if !cmd.NoLoader {
 		cctx.StartAutoLoader(1200 * time.Millisecond)
 	}
@@ -189,7 +306,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		err := cmd.Handler(cctx)
 		if err != nil {
 			LogHandlerErrWithContext(cctx, cmdName, err)
-			_ = cctx.Reply(fmt.Sprintf("⚠️ %v", err))
+			_ = cctx.Replyf("⚠️ %v", err)
 		}
 	}()
 
@@ -260,4 +377,189 @@ func extractInteractionDisplayText(evt *events.Message) string {
 		return templResp.GetSelectedDisplayText()
 	}
 	return ""
+}
+
+func handleAutoViewOnce(ctx context.Context, client *whatsmeow.Client, s *sqlstore.SQLStore, evt *events.Message) {
+	raw, _ := store.GetSetting(ctx, s, "autovv")
+	if raw != "on" {
+		return
+	}
+	mode, _ := store.GetSetting(ctx, s, "autovv_mode")
+	var targetJID types.JID
+	if (mode == "public" || mode == "chat") && !evt.Info.Chat.IsEmpty() {
+		targetJID = evt.Info.Chat
+	} else if client.Store.ID != nil {
+		targetJID = client.Store.ID.ToNonAD()
+	}
+
+	if !targetJID.IsEmpty() {
+		go func() {
+			_ = utils.UnwrapAndSendViewOnceMessage(context.Background(), client, evt.Message, evt.Info.Sender, evt.Info.PushName, targetJID, evt.Info.ID, evt.Info.Chat)
+		}()
+	}
+}
+
+func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, s *sqlstore.SQLStore, evt *events.Message) bool {
+	stk := evt.Message.StickerMessage
+	if stk == nil || len(stk.FileSHA256) == 0 {
+		return false
+	}
+
+	shaHex := hex.EncodeToString(stk.FileSHA256)
+	cmdName, err := store.GetStickerCmd(ctx, s, shaHex)
+	if err != nil || cmdName == "" {
+		return false
+	}
+
+	cmd, exists := Get(cmdName)
+	if !exists {
+		return false
+	}
+
+	var args []string
+	var rawArgs string
+
+	if ext := evt.Message.GetExtendedTextMessage(); ext != nil {
+		if ci := ext.GetContextInfo(); ci != nil && ci.QuotedMessage != nil {
+			quotedText := utils.ExtractTextFromProto(ci.QuotedMessage)
+			if quotedText != "" {
+				args = strings.Fields(quotedText)
+				rawArgs = quotedText
+			}
+		}
+	} else if ci := stk.GetContextInfo(); ci != nil && ci.QuotedMessage != nil {
+		quotedText := utils.ExtractTextFromProto(ci.QuotedMessage)
+		if quotedText != "" {
+			args = strings.Fields(quotedText)
+			rawArgs = quotedText
+		}
+	}
+
+	cctx := &Context{
+		Ctx:     ctx,
+		Client:  client,
+		Evt:     evt,
+		Command: cmdName,
+		Args:    args,
+		RawArgs: rawArgs,
+		Chat:    evt.Info.Chat,
+		Sender:  evt.Info.Sender,
+	}
+
+	go func() {
+		botMode, _ := store.GetSetting(ctx, s, "mode")
+		if botMode == "private" && !cctx.IsSudo() {
+			_ = cctx.Reply("The bot is currently in private mode. Only sudoers/owners can use it.")
+			return
+		}
+
+		raw, _ := store.GetSetting(ctx, s, "disabled_commands")
+		if raw != "" {
+			for disabled := range strings.FieldsSeq(raw) {
+				if strings.EqualFold(disabled, cmdName) {
+					_ = cctx.Replyf("⚠️ Command %q is currently disabled.", cmdName)
+					return
+				}
+			}
+		}
+
+		if err := cmd.Handler(cctx); err != nil {
+			LogHandlerErrWithContext(cctx, cmdName, err)
+			_ = cctx.Replyf("⚠️ %v", err)
+		}
+	}()
+
+	return true
+}
+
+func isBotMentioned(client *whatsmeow.Client, evt *events.Message) bool {
+	if client == nil || client.Store == nil || client.Store.ID == nil {
+		return false
+	}
+	ourJID := client.Store.ID.ToNonAD()
+
+	var mentions []string
+	if ext := evt.Message.GetExtendedTextMessage(); ext != nil {
+		if ci := ext.GetContextInfo(); ci != nil {
+			mentions = ci.MentionedJID
+		}
+	}
+
+	ourLID := ourJID
+	if !client.Store.LID.IsEmpty() {
+		ourLID = client.Store.LID.ToNonAD()
+	} else if ourJID.Server == types.DefaultUserServer && client.Store.LIDs != nil {
+		if lid, err := client.Store.LIDs.GetLIDForPN(context.Background(), ourJID); err == nil && !lid.IsEmpty() {
+			ourLID = lid.ToNonAD()
+		}
+	} else if ourJID.Server == types.HiddenUserServer && client.Store.LIDs != nil {
+		if pn, err := client.Store.LIDs.GetPNForLID(context.Background(), ourJID); err == nil && !pn.IsEmpty() {
+			ourLID = pn.ToNonAD()
+		}
+	}
+
+	for _, m := range mentions {
+		mj, err := types.ParseJID(m)
+		if err == nil {
+			mj = mj.ToNonAD()
+			if mj == ourJID || mj == ourLID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, s *sqlstore.SQLStore, evt *events.Message, text string) bool {
+	trigger := strings.TrimSpace(strings.ToLower(text))
+	if trigger == "" {
+		return false
+	}
+
+	bgmProto, err := store.GetBGM(ctx, s, trigger)
+	if err == nil && bgmProto != "" {
+		if msg, err := utils.DecodeProtoMessage(bgmProto); err == nil {
+			setReplyContextInfo(msg, evt)
+			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
+			return true
+		}
+	}
+
+	filterProto, err := store.GetFilter(ctx, s, trigger)
+	if err == nil && filterProto != "" {
+		if msg, err := utils.DecodeProtoMessage(filterProto); err == nil {
+			setReplyContextInfo(msg, evt)
+			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
+			return true
+		}
+	}
+
+	return false
+}
+
+func setReplyContextInfo(msg *waE2E.Message, evt *events.Message) {
+	if msg == nil || evt == nil {
+		return
+	}
+	ci := &waE2E.ContextInfo{
+		StanzaID:      &evt.Info.ID,
+		Participant:   new(string),
+		QuotedMessage: evt.Message,
+	}
+	senderStr := evt.Info.Sender.ToNonAD().String()
+	*ci.Participant = senderStr
+
+	if ext := msg.ExtendedTextMessage; ext != nil {
+		ext.ContextInfo = ci
+	} else if img := msg.ImageMessage; img != nil {
+		img.ContextInfo = ci
+	} else if vid := msg.VideoMessage; vid != nil {
+		vid.ContextInfo = ci
+	} else if aud := msg.AudioMessage; aud != nil {
+		aud.ContextInfo = ci
+	} else if doc := msg.DocumentMessage; doc != nil {
+		doc.ContextInfo = ci
+	} else if stk := msg.StickerMessage; stk != nil {
+		stk.ContextInfo = ci
+	}
 }

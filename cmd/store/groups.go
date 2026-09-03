@@ -39,6 +39,7 @@ type GroupMetadata struct {
 	ParentJID              types.JID                  `json:"parent_jid"`
 	LinkedParentJID        types.JID                  `json:"linked_parent_jid"`
 	IsDefaultSubgroup      bool                       `json:"is_default_subgroup"`
+	IsGeneralChat          bool                       `json:"is_general_chat"`
 	Participants           []GroupParticipantMetadata `json:"participants,omitempty"`
 	ParticipantCount       int                        `json:"participant_count"`
 	AdminCount             int                        `json:"admin_count"`
@@ -93,6 +94,7 @@ func SaveCachedGroup(ctx context.Context, db *dbutil.Database, ourJID string, g 
 		ParentJID:              g.ParentJID.String(),
 		LinkedParentJID:        g.LinkedParentJID.String(),
 		IsDefaultSubgroup:      g.IsDefaultSubgroup,
+		IsGeneralChat:          g.IsGeneralChat,
 		ParticipantCount:       g.ParticipantCount,
 		AdminCount:             g.AdminCount,
 		UpdatedAt:              now,
@@ -130,17 +132,28 @@ func SaveCachedGroupParticipants(ctx context.Context, db *dbutil.Database, ourJI
 		return nil
 	}
 
+	seenUsers := make(map[string]bool)
 	var records []CachedGroupParticipant
 	for _, p := range participants {
+		uStr := p.JID.String()
+		if uStr == "" || seenUsers[uStr] {
+			continue
+		}
+		seenUsers[uStr] = true
+
 		records = append(records, CachedGroupParticipant{
 			OurJID:       ourJID,
 			GroupJID:     groupJID,
-			UserJID:      p.JID.String(),
+			UserJID:      uStr,
 			LID:          p.LID.String(),
 			IsAdmin:      p.IsAdmin,
 			IsSuperAdmin: p.IsSuperAdmin,
 			DisplayName:  p.DisplayName,
 		})
+	}
+
+	if len(records) == 0 {
+		return nil
 	}
 
 	return gdb.WithContext(ctx).Clauses(clause.OnConflict{
@@ -227,9 +240,14 @@ func LoadAllCachedGroups(ctx context.Context, db *dbutil.Database, ourJID string
 		return nil, err
 	}
 
+	normJID := ourJID
+	if parsed, err := types.ParseJID(ourJID); err == nil && !parsed.IsEmpty() {
+		normJID = parsed.ToNonAD().String()
+	}
+
 	var cgs []CachedGroup
 	if err := gdb.WithContext(ctx).
-		Where("our_jid = ?", ourJID).
+		Where("our_jid = ? OR our_jid = ? OR our_jid = '' OR our_jid IS NULL", normJID, ourJID).
 		Order("name ASC").
 		Find(&cgs).Error; err != nil {
 		return nil, err
@@ -237,7 +255,7 @@ func LoadAllCachedGroups(ctx context.Context, db *dbutil.Database, ourJID string
 
 	var allParticipants []CachedGroupParticipant
 	_ = gdb.WithContext(ctx).
-		Where("our_jid = ?", ourJID).
+		Where("our_jid = ? OR our_jid = ? OR our_jid = '' OR our_jid IS NULL", normJID, ourJID).
 		Find(&allParticipants).Error
 
 	partMap := make(map[string][]GroupParticipantMetadata)
@@ -286,6 +304,7 @@ func LoadAllCachedGroups(ctx context.Context, db *dbutil.Database, ourJID string
 			ParentJID:              parentJID,
 			LinkedParentJID:        linkedParentJID,
 			IsDefaultSubgroup:      cg.IsDefaultSubgroup,
+			IsGeneralChat:          cg.IsGeneralChat,
 			Participants:           parts,
 			ParticipantCount:       pCount,
 			AdminCount:             cg.AdminCount,
@@ -306,9 +325,14 @@ func LoadAllCachedNewsletters(ctx context.Context, db *dbutil.Database, ourJID s
 		return nil, err
 	}
 
+	normJID := ourJID
+	if parsed, err := types.ParseJID(ourJID); err == nil && !parsed.IsEmpty() {
+		normJID = parsed.ToNonAD().String()
+	}
+
 	var cns []CachedNewsletter
 	if err := gdb.WithContext(ctx).
-		Where("our_jid = ?", ourJID).
+		Where("our_jid = ? OR our_jid = ? OR our_jid = '' OR our_jid IS NULL", normJID, ourJID).
 		Order("name ASC").
 		Find(&cns).Error; err != nil {
 		return nil, err

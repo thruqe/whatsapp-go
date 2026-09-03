@@ -259,7 +259,30 @@ func (cli *Client) DecryptComment(ctx context.Context, comment *events.Message) 
 //		}
 //	}
 func (cli *Client) DecryptPollVote(ctx context.Context, vote *events.Message) (*waE2E.PollVoteMessage, error) {
-	pollUpdate := vote.Message.GetPollUpdateMessage()
+	if vote == nil || vote.Message == nil {
+		return nil, ErrNotPollUpdateMessage
+	}
+	rawMsg := vote.Message
+	for {
+		if ephem := rawMsg.GetEphemeralMessage(); ephem != nil && ephem.GetMessage() != nil {
+			rawMsg = ephem.GetMessage()
+			continue
+		}
+		if vo := rawMsg.GetViewOnceMessage(); vo != nil && vo.GetMessage() != nil {
+			rawMsg = vo.GetMessage()
+			continue
+		}
+		if vo2 := rawMsg.GetViewOnceMessageV2(); vo2 != nil && vo2.GetMessage() != nil {
+			rawMsg = vo2.GetMessage()
+			continue
+		}
+		if edited := rawMsg.GetEditedMessage(); edited != nil && edited.GetMessage() != nil {
+			rawMsg = edited.GetMessage()
+			continue
+		}
+		break
+	}
+	pollUpdate := rawMsg.GetPollUpdateMessage()
 	if pollUpdate == nil {
 		return nil, ErrNotPollUpdateMessage
 	}
@@ -365,7 +388,9 @@ func (cli *Client) BuildPollVote(ctx context.Context, pollInfo *types.MessageInf
 //
 //	resp, err := cli.SendMessage(context.Background(), chat, cli.BuildPollCreation("meow?", []string{"yes", "no"}, 1))
 func (cli *Client) BuildPollCreation(name string, optionNames []string, selectableOptionCount int) *waE2E.Message {
-	cli.Log.Debugf("Building poll creation message: name=%q, optionsCount=%d, selectableCount=%d", name, len(optionNames), selectableOptionCount)
+	if cli != nil && cli.Log != nil {
+		cli.Log.Debugf("Building poll creation message: name=%q, optionsCount=%d, selectableCount=%d", name, len(optionNames), selectableOptionCount)
+	}
 	msgSecret := random.Bytes(32)
 	if selectableOptionCount < 0 || selectableOptionCount > len(optionNames) {
 		selectableOptionCount = 0

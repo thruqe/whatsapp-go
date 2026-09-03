@@ -3,12 +3,12 @@ package games
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
 	"time"
 
+	"whatsrook/builder"
 	"whatsrook/httpx"
 )
 
@@ -103,9 +103,9 @@ func GetRandomQuote(ctx context.Context) string {
 			if json.NewDecoder(resp.Body).Decode(&res) == nil && strings.TrimSpace(res.Quote) != "" {
 				q := strings.TrimSpace(res.Quote)
 				if res.Author != "" {
-					return fmt.Sprintf("%q – %s", q, res.Author)
+					return builder.Sprintf("%q – %s", q, res.Author)
 				}
-				return fmt.Sprintf("%q", q)
+				return builder.Sprintf("%q", q)
 			}
 		}
 	}
@@ -122,9 +122,9 @@ func GetRandomQuote(ctx context.Context) string {
 				q := strings.TrimSpace(resList[0].Q)
 				a := strings.TrimSpace(resList[0].A)
 				if a != "" {
-					return fmt.Sprintf("%q – %s", q, a)
+					return builder.Sprintf("%q – %s", q, a)
 				}
-				return fmt.Sprintf("%q", q)
+				return builder.Sprintf("%q", q)
 			}
 		}
 	}
@@ -156,7 +156,7 @@ func GetRandomJoke(ctx context.Context) string {
 				Punchline string `json:"punchline"`
 			}
 			if json.NewDecoder(resp2.Body).Decode(&res2) == nil && strings.TrimSpace(res2.Setup) != "" {
-				return fmt.Sprintf("%s\n\n%s", strings.TrimSpace(res2.Setup), strings.TrimSpace(res2.Punchline))
+				return builder.Sprintf("%s\n\n%s", strings.TrimSpace(res2.Setup), strings.TrimSpace(res2.Punchline))
 			}
 		}
 	}

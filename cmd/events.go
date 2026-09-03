@@ -133,11 +133,11 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 		if warnCount >= maxWarn {
 			_, _ = cli.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock)
 			logger.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
-			warnText := fmt.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
+			warnText := utils.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
 			formatted := utils.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 		} else {
-			warnText := fmt.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
+			warnText := utils.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
 			formatted := utils.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 		}
@@ -180,6 +180,17 @@ func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
 	if statusView == "on" || (generalRead == "on" && statusView != "off") {
 		_ = cli.MarkRead(ctx, []types.MessageID{v.Info.ID}, v.Info.Timestamp, types.StatusBroadcastJID, senderJID)
 		logger.Debug("autoread: marked status broadcast as read", "msgID", v.Info.ID, "sender", senderJID.String())
+	}
+
+	statusSave, _ := store.GetSetting(ctx, s, "autostatussave")
+	if statusSave == "on" && cli.Store != nil && cli.Store.ID != nil {
+		ownerJID := cli.Store.ID.ToNonAD()
+		_, errSave := cli.SendMessage(ctx, ownerJID, v.Message)
+		if errSave != nil {
+			logger.Error("autostatussave: failed to forward status broadcast to owner", "err", errSave, "msgID", v.Info.ID)
+		} else {
+			logger.Debug("autostatussave: forwarded status broadcast to owner", "owner", ownerJID.String(), "msgID", v.Info.ID)
+		}
 	}
 
 	status, _ := store.GetSetting(ctx, s, "likestatus_status")
@@ -321,7 +332,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 
 				formatted := utils.FormatTextResponseRaw(body)
 				var mentions []string
-				if tag == "on" {
+				if tag == "on" || tag == "" {
 					mentions = append(mentions, resolvedJID.String())
 				}
 				if ownerJIDStr != "" && (strings.Contains(customMsg, "{owner}") || strings.Contains(customMsg, "{creator}")) {
@@ -433,7 +444,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 
 				formatted := utils.FormatTextResponseRaw(body)
 				var mentions []string
-				if tag == "on" {
+				if tag == "on" || tag == "" {
 					mentions = append(mentions, resolvedJID.String())
 				}
 				if ownerJIDStr != "" && (strings.Contains(customMsg, "{owner}") || strings.Contains(customMsg, "{creator}")) {
@@ -507,14 +518,14 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	// 1. Group Subject / Name Changed
 	if g.Name != nil && g.Name.Name != "" {
 		logger.Debug("handleGroupEventsNotification: group name changed", "group", chatKey, "newName", g.Name.Name, "actor", actorTag)
-		msgText := fmt.Sprintf("*Group Event*: Group name changed to *%s*%s.", g.Name.Name, actorTag)
+		msgText := utils.Sprintf("*Group Event*: Group name changed to *%s*%s.", g.Name.Name, actorTag)
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
 
 	// 2. Group Description / Topic Changed
 	if g.Topic != nil && g.Topic.Topic != "" {
 		logger.Debug("handleGroupEventsNotification: group topic changed", "group", chatKey, "actor", actorTag)
-		msgText := fmt.Sprintf("*Group Event*: Group description updated%s:\n%s", actorTag, g.Topic.Topic)
+		msgText := utils.Sprintf("*Group Event*: Group description updated%s:\n%s", actorTag, g.Topic.Topic)
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
 
@@ -522,10 +533,10 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	if g.Announce != nil {
 		logger.Debug("handleGroupEventsNotification: group announce changed", "group", chatKey, "isAnnounce", g.Announce.IsAnnounce, "actor", actorTag)
 		if g.Announce.IsAnnounce {
-			msgText := fmt.Sprintf("*Group Event*: Group settings updated%s. Only admins can send messages now.", actorTag)
+			msgText := utils.Sprintf("*Group Event*: Group settings updated%s. Only admins can send messages now.", actorTag)
 			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 		} else {
-			msgText := fmt.Sprintf("*Group Event*: Group settings updated%s. All members can send messages now.", actorTag)
+			msgText := utils.Sprintf("*Group Event*: Group settings updated%s. All members can send messages now.", actorTag)
 			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 		}
 	}
@@ -534,10 +545,10 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	if g.Locked != nil {
 		logger.Debug("handleGroupEventsNotification: group lock changed", "group", chatKey, "isLocked", g.Locked.IsLocked, "actor", actorTag)
 		if g.Locked.IsLocked {
-			msgText := fmt.Sprintf("*Group Event*: Group settings locked%s. Only admins can edit group info.", actorTag)
+			msgText := utils.Sprintf("*Group Event*: Group settings locked%s. Only admins can edit group info.", actorTag)
 			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 		} else {
-			msgText := fmt.Sprintf("*Group Event*: Group settings unlocked%s. All members can edit group info.", actorTag)
+			msgText := utils.Sprintf("*Group Event*: Group settings unlocked%s. All members can edit group info.", actorTag)
 			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 		}
 	}
@@ -547,8 +558,12 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 		for _, userJID := range g.Promote {
 			resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, userJID)
 			logger.Debug("handleGroupEventsNotification: participant promoted to admin", "group", chatKey, "user", username, "actor", actorTag)
-			msgText := fmt.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
-			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, []types.JID{resolvedJID})
+			msgText := utils.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
+			mentions := []types.JID{resolvedJID}
+			if actorJID != nil && !actorJID.IsEmpty() {
+				mentions = append(mentions, *actorJID)
+			}
+			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, mentions)
 		}
 	}
 
@@ -557,8 +572,12 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 		for _, userJID := range g.Demote {
 			resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, userJID)
 			logger.Debug("handleGroupEventsNotification: admin demoted to member", "group", chatKey, "user", username, "actor", actorTag)
-			msgText := fmt.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
-			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, []types.JID{resolvedJID})
+			msgText := utils.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
+			mentions := []types.JID{resolvedJID}
+			if actorJID != nil && !actorJID.IsEmpty() {
+				mentions = append(mentions, *actorJID)
+			}
+			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, mentions)
 		}
 	}
 
@@ -567,9 +586,9 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 		logger.Debug("handleGroupEventsNotification: member add mode changed", "group", chatKey, "mode", *g.MemberAddMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberAddMode == types.GroupMemberAddModeAdmin {
-			msgText = fmt.Sprintf("*Group Event*: Group settings updated%s. Only admins can add members.", actorTag)
+			msgText = utils.Sprintf("*Group Event*: Group settings updated%s. Only admins can add members.", actorTag)
 		} else {
-			msgText = fmt.Sprintf("*Group Event*: Group settings updated%s. All members can add members.", actorTag)
+			msgText = utils.Sprintf("*Group Event*: Group settings updated%s. All members can add members.", actorTag)
 		}
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
@@ -579,9 +598,9 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 		logger.Debug("handleGroupEventsNotification: member link mode changed", "group", chatKey, "mode", *g.MemberLinkMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberLinkMode == types.GroupMemberLinkModeAdmin {
-			msgText = fmt.Sprintf("*Group Event*: Group settings updated%s. Only admins can manage invite links.", actorTag)
+			msgText = utils.Sprintf("*Group Event*: Group settings updated%s. Only admins can manage invite links.", actorTag)
 		} else {
-			msgText = fmt.Sprintf("*Group Event*: Group settings updated%s. All members can manage invite links.", actorTag)
+			msgText = utils.Sprintf("*Group Event*: Group settings updated%s. All members can manage invite links.", actorTag)
 		}
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
@@ -591,9 +610,9 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 		logger.Debug("handleGroupEventsNotification: member share history mode changed", "group", chatKey, "mode", *g.MemberShareHistoryMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberShareHistoryMode == types.GroupMemberShareHistoryModeAdmin {
-			msgText = fmt.Sprintf("*Group Event*: Group history sharing updated%s. Only admins can share group history.", actorTag)
+			msgText = utils.Sprintf("*Group Event*: Group history sharing updated%s. Only admins can share group history.", actorTag)
 		} else {
-			msgText = fmt.Sprintf("*Group Event*: Group history sharing updated%s. Recent history is shared with new members.", actorTag)
+			msgText = utils.Sprintf("*Group Event*: Group history sharing updated%s. Recent history is shared with new members.", actorTag)
 		}
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
@@ -603,9 +622,9 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 		logger.Debug("handleGroupEventsNotification: allow non-admin subgroup creation changed", "group", chatKey, "allow", *g.AllowNonAdminSubGroupCreation, "actor", actorTag)
 		var msgText string
 		if *g.AllowNonAdminSubGroupCreation {
-			msgText = fmt.Sprintf("*Group Event*: Community settings updated%s. All members can create sub-groups now.", actorTag)
+			msgText = utils.Sprintf("*Group Event*: Community settings updated%s. All members can create sub-groups now.", actorTag)
 		} else {
-			msgText = fmt.Sprintf("*Group Event*: Community settings updated%s. Only admins can create sub-groups now.", actorTag)
+			msgText = utils.Sprintf("*Group Event*: Community settings updated%s. Only admins can create sub-groups now.", actorTag)
 		}
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
@@ -657,9 +676,9 @@ func formatTimeoutStr(sec int) string {
 		if mins == 1 {
 			return "1 min"
 		}
-		return fmt.Sprintf("%d mins", mins)
+		return utils.Sprintf("%d mins", mins)
 	}
-	return fmt.Sprintf("%d seconds", sec)
+	return utils.Sprintf("%d seconds", sec)
 }
 
 func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
@@ -785,7 +804,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 
 		// Generate random 4-digit code
 		codeInt := rand.Intn(10000)
-		code := fmt.Sprintf("%04d", codeInt)
+		code := utils.Sprintf("%04d", codeInt)
 
 		logger.Debug("processGroupCaptchaJoins: registering pending captcha challenge",
 			"group", chatKey,
