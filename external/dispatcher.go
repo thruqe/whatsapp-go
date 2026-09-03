@@ -242,6 +242,46 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 			mentionStrs = append(mentionStrs, jid.String())
 		}
 
+		// Extract media if present in the triggering or quoted message
+		var mediaPayload *MediaPayload
+		var tempMediaFile string
+		if mediaData, mime, err := plugCtx.GetMedia(); err == nil && len(mediaData) > 0 {
+			ext := ".bin"
+			switch {
+			case strings.Contains(mime, "image/jpeg") || strings.Contains(mime, "image/jpg"):
+				ext = ".jpg"
+			case strings.Contains(mime, "image/png"):
+				ext = ".png"
+			case strings.Contains(mime, "image/webp"):
+				ext = ".webp"
+			case strings.Contains(mime, "video/mp4"):
+				ext = ".mp4"
+			case strings.Contains(mime, "audio/ogg"):
+				ext = ".ogg"
+			case strings.Contains(mime, "audio/mp4") || strings.Contains(mime, "audio/m4a"):
+				ext = ".m4a"
+			case strings.Contains(mime, "audio/mpeg") || strings.Contains(mime, "audio/mp3"):
+				ext = ".mp3"
+			}
+
+			if tmp, err := os.CreateTemp("", "whatsrook_media_*"+ext); err == nil {
+				if _, err := tmp.Write(mediaData); err == nil {
+					tempMediaFile = tmp.Name()
+					isQuoted := plugCtx.GetQuotedMessage() != nil
+					mediaPayload = &MediaPayload{
+						Path:     tempMediaFile,
+						MimeType: mime,
+						IsQuoted: isQuoted,
+					}
+				}
+				_ = tmp.Close()
+			}
+		}
+
+		if tempMediaFile != "" {
+			defer os.Remove(tempMediaFile)
+		}
+
 		req := Request{
 			Command:         name,
 			Args:            args,
@@ -258,6 +298,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 			IsCancelRequest: false,
 			QuotedMessage:   quotedPayload,
 			MentionedJIDs:   mentionStrs,
+			Media:           mediaPayload,
 		}
 
 		if isWASMFile(path) {
