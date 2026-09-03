@@ -53,6 +53,13 @@ type QuotedMessagePayload struct {
 	Text   string `json:"text,omitempty"`
 }
 
+// MediaPayload represents media attached to or quoted in the message.
+type MediaPayload struct {
+	Path     string `json:"path,omitempty"`      // local filesystem path to the downloaded media file
+	MimeType string `json:"mimetype,omitempty"`  // media MIME type (e.g. image/jpeg, video/mp4, image/webp)
+	IsQuoted bool   `json:"is_quoted,omitempty"` // true if media was extracted from a quoted message
+}
+
 // Request is the rich context payload sent to an external plugin via standard input.
 type Request struct {
 	Command         string                `json:"command"`
@@ -71,6 +78,7 @@ type Request struct {
 	IsCancelRequest bool                  `json:"is_cancel_request,omitempty"`
 	QuotedMessage   *QuotedMessagePayload `json:"quoted_message,omitempty"`
 	MentionedJIDs   []string              `json:"mentioned_jids,omitempty"`
+	Media           *MediaPayload         `json:"media,omitempty"`
 }
 
 // Action represents an action frame sent by the external plugin to WhatsRook via standard output.
