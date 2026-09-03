@@ -128,55 +128,57 @@ func (d *Dispatcher) runWASMModule(plugCtx *utils.PluginContext, path, name stri
 		execDone <- nil
 	}()
 
-	scanner := bufio.NewScanner(stdoutReader)
+	reader := bufio.NewReaderSize(stdoutReader, 128*1024)
 	var firstLine string
 	var isStreaming bool
 	var readFirst bool
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
+	for {
+		line, err := reader.ReadString('\n')
+		if len(line) > 0 {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
+				if !readFirst {
+					readFirst = true
+					firstLine = trimmed
+					if strings.HasPrefix(trimmed, "{") && strings.Contains(trimmed, `"action"`) {
+						isStreaming = true
+					} else {
+						isStreaming = false
+						var sb strings.Builder
+						sb.WriteString(firstLine)
+						for {
+							restLine, restErr := reader.ReadString('\n')
+							if len(restLine) > 0 {
+								sb.WriteString("\n")
+								sb.WriteString(strings.TrimSpace(restLine))
+							}
+							if restErr != nil {
+								break
+							}
+						}
+						response := strings.TrimSpace(sb.String())
+						if response != "" {
+							_ = loader.Done(response)
+						} else {
+							loader.Delete()
+						}
+						break
+					}
+				}
 
-		if !readFirst {
-			readFirst = true
-			firstLine = line
-			if strings.HasPrefix(trimmed, "{\"action\"") {
-				isStreaming = true
-			} else {
-				isStreaming = false
-				break
+				if isStreaming {
+					// WASM plugins can emit action frames (reply, edit, react, delete, media, poll, done)
+					if errAction := d.handleActionFrame(plugCtx, loader, nil, trimmed); errAction != nil {
+						Logger.Debug("WASM streaming action finished", "plugin", name, "err", errAction)
+						break
+					}
+				}
 			}
 		}
-
-		if isStreaming {
-			// WASM plugins can emit action frames (reply, edit, react, delete, media, poll, done)
-			if err := d.handleActionFrame(plugCtx, loader, nil, line); err != nil {
-				Logger.Debug("WASM streaming action finished", "plugin", name, "err", err)
-				break
-			}
+		if err != nil {
+			break
 		}
-	}
-
-	if !isStreaming && readFirst {
-		var sb strings.Builder
-		sb.WriteString(firstLine)
-		for scanner.Scan() {
-			sb.WriteByte('\n')
-			sb.WriteString(scanner.Text())
-		}
-		response := strings.TrimSpace(sb.String())
-		if response != "" {
-			_ = loader.Done(response)
-		} else {
-			loader.Delete()
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		Logger.Debug("scanner encountered error reading WASM stdout", "plugin", name, "err", err)
 	}
 
 	<-execDone

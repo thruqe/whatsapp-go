@@ -1398,11 +1398,14 @@ func (c *PluginContext) replyContextInfo() *waE2E.ContextInfo {
 		}
 	}
 
-	return &waE2E.ContextInfo{
+	ci := &waE2E.ContextInfo{
 		StanzaID:      &stanzaID,
-		Participant:   &participant,
 		QuotedMessage: quotedMsg,
 	}
+	if c.Evt.Info.IsGroup {
+		ci.Participant = &participant
+	}
+	return ci
 }
 
 // stripContextInfo zeroes out any nested ContextInfo within a message protobuf to eliminate cyclic pointer graphs.
@@ -1965,10 +1968,13 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 	if c.Client == nil {
 		return fmt.Errorf("client unavailable")
 	}
+	Logger.Info("ReplyWithSticker: uploading sticker payload", "chat", c.Chat.String(), "bytes", len(data))
 	uploaded, err := c.Client.Upload(c.GetSendContext(), data, whatsmeow.MediaImage)
 	if err != nil {
+		Logger.Error("ReplyWithSticker: upload failed", "chat", c.Chat.String(), "err", err)
 		return fmt.Errorf("upload sticker failed: %w", err)
 	}
+	Logger.Info("ReplyWithSticker: upload succeeded", "chat", c.Chat.String(), "url", uploaded.URL)
 
 	msg := &waE2E.Message{
 		StickerMessage: &waE2E.StickerMessage{
@@ -1982,7 +1988,12 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 			ContextInfo:   c.replyContextInfo(),
 		},
 	}
-	_, err = c.Client.SendMessage(c.GetSendContext(), c.Chat, msg)
+	resp, err := c.Client.SendMessage(c.GetSendContext(), c.Chat, msg)
+	if err != nil {
+		Logger.Error("ReplyWithSticker: SendMessage failed", "chat", c.Chat.String(), "err", err)
+	} else {
+		Logger.Info("ReplyWithSticker: SendMessage succeeded", "chat", c.Chat.String(), "id", resp.ID)
+	}
 	return err
 }
 
@@ -2393,6 +2404,7 @@ func (c *PluginContext) GetMedia() ([]byte, string, error) {
 		}
 		data, err := c.Client.Download(c.GetSendContext(), downloadable)
 		if err != nil {
+			Logger.Warn("PluginContext.GetMedia: download failed", "mime", mime, "err", err)
 			return nil, "", false
 		}
 		return data, mime, true
