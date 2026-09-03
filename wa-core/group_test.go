@@ -60,6 +60,65 @@ func TestParseGroupNode_MemberLinkAndShareHistoryMode(t *testing.T) {
 	}
 }
 
+func TestParseGroupNode_GeneralChat(t *testing.T) {
+	cli := &Client{
+		Log: waLog.Stdout("Test", "DEBUG", true),
+	}
+
+	groupNode := &waBinary.Node{
+		Tag: "group",
+		Attrs: waBinary.Attrs{
+			"id":       "120363423354434197",
+			"creation": "1700000000",
+			"subject":  "Community General Chat",
+		},
+		Content: []waBinary.Node{
+			{
+				Tag: "general_chat",
+			},
+		},
+	}
+
+	info, err := cli.parseGroupNode(groupNode)
+	if err != nil {
+		t.Fatalf("parseGroupNode failed: %v", err)
+	}
+
+	if !info.IsGeneralChat {
+		t.Errorf("expected IsGeneralChat true, got false")
+	}
+
+	// Also verify parseGroupLinkTargetNode with general_chat
+	linkTarget, err := parseGroupLinkTargetNode(groupNode)
+	if err != nil {
+		t.Fatalf("parseGroupLinkTargetNode failed: %v", err)
+	}
+	if !linkTarget.IsGeneralChat {
+		t.Errorf("expected linkTarget.IsGeneralChat true, got false")
+	}
+
+	// Verify group change with general_chat
+	changeNode := &waBinary.Node{
+		Tag: "notification",
+		Attrs: waBinary.Attrs{
+			"from": types.NewJID("120363423354434197", types.GroupServer),
+			"t":    "1700000000",
+		},
+		Content: []waBinary.Node{
+			{
+				Tag: "general_chat",
+			},
+		},
+	}
+	evt, _, _, err := cli.parseGroupChangeWithUsernames(changeNode)
+	if err != nil {
+		t.Fatalf("parseGroupChangeWithUsernames failed: %v", err)
+	}
+	if evt.GeneralChat == nil || !*evt.GeneralChat {
+		t.Errorf("expected evt.GeneralChat true, got %+v", evt.GeneralChat)
+	}
+}
+
 func TestParseGroupChange_MemberLinkAndShareHistoryMode(t *testing.T) {
 	cli := &Client{
 		Log: waLog.Stdout("Test", "DEBUG", true),

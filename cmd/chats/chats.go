@@ -612,11 +612,7 @@ func sendVVMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 		"Customize",
 	}
 
-	poll := ctx.Poll(bodyText)
-	for _, opt := range options {
-		poll.AddOption(opt)
-	}
-	return poll.Reply()
+	return dispatch.SendPollReply(ctx, bodyText, options)
 }
 
 func sendVVCustomizeGuide(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {

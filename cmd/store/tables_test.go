@@ -3,8 +3,11 @@ package store_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
 	clistore "whatsrook/cmd/store"
 
@@ -22,15 +25,36 @@ func openTestDB(t *testing.T) *dbutil.Database {
 		t.Skip("skipping PostgreSQL store test: DATABASE_URL not configured")
 		return nil
 	}
+	if !strings.Contains(pgURL, "sslmode=") {
+		if strings.Contains(pgURL, "?") {
+			pgURL += "&sslmode=disable"
+		} else {
+			pgURL += "?sslmode=disable"
+		}
+	}
 	rawDB, err := sql.Open("postgres", pgURL)
 	if err != nil {
 		t.Fatalf("failed opening test PostgreSQL DB: %v", err)
 	}
+	if err := rawDB.Ping(); err != nil {
+		t.Fatalf("failed pinging test PostgreSQL DB: %v", err)
+	}
+
+	schemaName := fmt.Sprintf("test_schema_%d", time.Now().UnixNano())
+	if _, err := rawDB.Exec("CREATE SCHEMA " + schemaName); err != nil {
+		t.Fatalf("failed creating test schema %s: %v", schemaName, err)
+	}
+	if _, err := rawDB.Exec("SET search_path TO " + schemaName); err != nil {
+		t.Fatalf("failed setting search_path to %s: %v", schemaName, err)
+	}
+
 	db, err := dbutil.NewWithDB(rawDB, "postgres")
 	if err != nil {
 		t.Fatalf("failed wrapping db with dbutil: %v", err)
 	}
 	t.Cleanup(func() {
+		_, _ = rawDB.Exec("SET search_path TO public")
+		_, _ = rawDB.Exec("DROP SCHEMA " + schemaName + " CASCADE")
 		_ = db.Close()
 	})
 	return db

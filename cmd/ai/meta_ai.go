@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"whatsrook/builder"
 	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
@@ -121,14 +122,14 @@ func ExtractMetaAiText(msg *waE2E.Message) string {
 		return ""
 	}
 	if rich := msg.GetRichResponseMessage(); rich != nil {
-		var text strings.Builder
+		tb := builder.NewText()
 		for _, sub := range rich.GetSubmessages() {
 			s := sub.GetMessageText()
 			if !IsDummyPlaceholderText(s) {
-				text.WriteString(s)
+				tb.Text(s)
 			}
 		}
-		res := text.String()
+		res := tb.String()
 		if !IsDummyPlaceholderText(res) && res != "" {
 			return res
 		}
@@ -185,60 +186,54 @@ func extractTextFromUnifiedJSON(raw []byte) string {
 		return ""
 	}
 
-	var sb strings.Builder
+	tb := builder.NewText()
 	for _, sec := range data.Sections {
 		p := sec.ViewModel.Primitive
 		switch p.Typename {
 		case "GenAIMarkdownTextUXPrimitive":
 			if p.Text != "" && !IsDummyPlaceholderText(p.Text) {
-				if sb.Len() > 0 && !strings.HasSuffix(sb.String(), "\n") {
-					sb.WriteString("\n")
+				if tb.Len() > 0 && !strings.HasSuffix(tb.String(), "\n") {
+					tb.Line()
 				}
-				sb.WriteString(p.Text)
+				tb.Text(p.Text)
 			}
 		case "GenATableUXPrimitive":
 			if len(p.Rows) > 0 {
-				if sb.Len() > 0 && !strings.HasSuffix(sb.String(), "\n") {
-					sb.WriteString("\n")
+				if tb.Len() > 0 && !strings.HasSuffix(tb.String(), "\n") {
+					tb.Line()
 				}
 				for rIdx, row := range p.Rows {
-					sb.WriteString("| ")
-					sb.WriteString(strings.Join(row.Cells, " | "))
-					sb.WriteString(" |\n")
+					tb.Linef("| %s |", strings.Join(row.Cells, " | "))
 					if rIdx == 0 || row.IsHeader {
 						var seps []string
 						for range row.Cells {
 							seps = append(seps, "---")
 						}
-						sb.WriteString("| ")
-						sb.WriteString(strings.Join(seps, " | "))
-						sb.WriteString(" |\n")
+						tb.Linef("| %s |", strings.Join(seps, " | "))
 					}
 				}
 			}
 		case "GenAICodeUXPrimitive":
 			if len(p.CodeBlocks) > 0 {
-				if sb.Len() > 0 && !strings.HasSuffix(sb.String(), "\n") {
-					sb.WriteString("\n")
+				if tb.Len() > 0 && !strings.HasSuffix(tb.String(), "\n") {
+					tb.Line()
 				}
 				lang := p.Language
 				if lang == "" {
 					lang = "text"
 				}
-				sb.WriteString("```")
-				sb.WriteString(lang)
-				sb.WriteString("\n")
+				tb.Line("```" + lang)
 				for _, b := range p.CodeBlocks {
-					sb.WriteString(b.Content)
+					tb.Text(b.Content)
 				}
-				if !strings.HasSuffix(sb.String(), "\n") {
-					sb.WriteString("\n")
+				if !strings.HasSuffix(tb.String(), "\n") {
+					tb.Line()
 				}
-				sb.WriteString("```\n")
+				tb.Line("```")
 			}
 		}
 	}
-	return sb.String()
+	return tb.String()
 }
 
 func searchMediaInJSON(val any) (mediaURL, mimeType, text string) {

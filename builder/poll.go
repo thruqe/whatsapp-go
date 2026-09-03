@@ -589,17 +589,68 @@ func (p *PollBuilder) sendMsgWithID(to types.JID, asReply bool) (pollMsgID types
 	return resp.ID, precedingMsgID, nil
 }
 
+func unwrapPollMessage(msg *waE2E.Message) *waE2E.Message {
+	if msg == nil {
+		return nil
+	}
+	for {
+		if ephem := msg.GetEphemeralMessage(); ephem != nil && ephem.GetMessage() != nil {
+			msg = ephem.GetMessage()
+			continue
+		}
+		if vo := msg.GetViewOnceMessage(); vo != nil && vo.GetMessage() != nil {
+			msg = vo.GetMessage()
+			continue
+		}
+		if vo2 := msg.GetViewOnceMessageV2(); vo2 != nil && vo2.GetMessage() != nil {
+			msg = vo2.GetMessage()
+			continue
+		}
+		if edited := msg.GetEditedMessage(); edited != nil && edited.GetMessage() != nil {
+			msg = edited.GetMessage()
+			continue
+		}
+		break
+	}
+	return msg
+}
+
 func isSameUser(ctx context.Context, client *whatsmeow.Client, a, b types.JID) bool {
 	if a.IsEmpty() || b.IsEmpty() {
 		return false
 	}
+	aNonAD := a.ToNonAD()
+	bNonAD := b.ToNonAD()
+	if aNonAD == bNonAD {
+		return true
+	}
 	if a.User == b.User && (a.Server == b.Server || a.Server == types.DefaultUserServer || b.Server == types.DefaultUserServer) {
 		return true
 	}
-	if a == b || a.ToNonAD() == b.ToNonAD() {
-		return true
+	if client != nil && client.Store != nil && client.Store.LIDs != nil {
+		if aNonAD.Server == types.DefaultUserServer && bNonAD.Server == types.HiddenUserServer {
+			if lid, err := client.Store.LIDs.GetLIDForPN(ctx, aNonAD); err == nil && !lid.IsEmpty() && lid.ToNonAD() == bNonAD {
+				return true
+			}
+		} else if aNonAD.Server == types.HiddenUserServer && bNonAD.Server == types.DefaultUserServer {
+			if pn, err := client.Store.LIDs.GetPNForLID(ctx, aNonAD); err == nil && !pn.IsEmpty() && pn.ToNonAD() == bNonAD {
+				return true
+			}
+		}
 	}
 	return false
+}
+
+var (
+	defaultPollCallback   func(req PollRequest, res *Response)
+	defaultPollCallbackMu sync.RWMutex
+)
+
+// SetDefaultPollCallback sets a global fallback callback for decrypted poll votes that have no specific route.fn.
+func SetDefaultPollCallback(fn func(req PollRequest, res *Response)) {
+	defaultPollCallbackMu.Lock()
+	defaultPollCallback = fn
+	defaultPollCallbackMu.Unlock()
 }
 
 // DispatchPollVoteEvent decrypts the poll vote in evt, matches selected option
@@ -608,7 +659,11 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 	if evt == nil || evt.Message == nil {
 		return false
 	}
-	pollUpdate := evt.Message.GetPollUpdateMessage()
+	msg := unwrapPollMessage(evt.Message)
+	if msg == nil {
+		return false
+	}
+	pollUpdate := msg.GetPollUpdateMessage()
 	if pollUpdate == nil {
 		return false
 	}
@@ -813,6 +868,32 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 			handlerStart := time.Now()
 			route.fn(req, res)
 			Logger.Debug("WARook: poll callback finished successfully",
+				"targetPollMsgID", pollMsgID,
+				"duration", time.Since(handlerStart),
+			)
+		}()
+		return true
+	}
+
+	defaultPollCallbackMu.RLock()
+	fallbackFn := defaultPollCallback
+	defaultPollCallbackMu.RUnlock()
+
+	if fallbackFn != nil {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					Logger.Error("WARook: default poll callback panicked",
+						"targetPollMsgID", pollMsgID,
+						"sender", sender.GetSender().String(),
+						"chat", sender.GetChat().String(),
+						"panic", r,
+					)
+				}
+			}()
+			handlerStart := time.Now()
+			fallbackFn(req, res)
+			Logger.Debug("WARook: default poll callback finished successfully",
 				"targetPollMsgID", pollMsgID,
 				"duration", time.Since(handlerStart),
 			)

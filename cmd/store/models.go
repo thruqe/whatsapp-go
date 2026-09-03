@@ -137,6 +137,7 @@ type CachedGroup struct {
 	ParentJID              string    `gorm:"column:parent_jid;size:255"`
 	LinkedParentJID        string    `gorm:"column:linked_parent_jid;size:255"`
 	IsDefaultSubgroup      bool      `gorm:"column:is_default_subgroup"`
+	IsGeneralChat          bool      `gorm:"column:is_general_chat"`
 	ParticipantCount       int       `gorm:"column:participant_count"`
 	AdminCount             int       `gorm:"column:admin_count"`
 	UpdatedAt              time.Time `gorm:"column:updated_at;type:timestamp"`

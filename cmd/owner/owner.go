@@ -26,6 +26,9 @@ import (
 )
 
 func init() {
+	dispatch.RegisterPreInterceptor("owner_shell", func(c *dispatch.Context, text string) bool {
+		return HandleShellInput(c, text)
+	})
 	dispatch.Register(&dispatch.Command{
 		Name:        "bio",
 		Alias:       "setbio",
@@ -798,7 +801,7 @@ func handleListSudo(ctx *dispatch.Context) error {
 		sudoerJID, err := types.ParseJID(sdr)
 		if err == nil {
 			sudoerJID = sudoerJID.ToNonAD()
-			if ctx.Client.Store.ID != nil && ctx.IsSameUser(sudoerJID, *ctx.Client.Store.ID) {
+			if ctx.IsTargetOwner(sudoerJID) {
 				continue
 			}
 			resolvedJID, username := ctx.ResolveMention(sudoerJID)

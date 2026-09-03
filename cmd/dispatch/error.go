@@ -2,7 +2,6 @@
 package dispatch
 
 import (
-	"fmt"
 	Logger "whatsrook/logger"
 )
 
@@ -17,7 +16,7 @@ type PluginError struct {
 // Error implements the standard error interface.
 func (e *PluginError) Error() string {
 	if e.Cause != nil {
-		return fmt.Sprintf("%s: %v", e.UserMessage, e.Cause)
+		return Sprintf("%s: %v", e.UserMessage, e.Cause)
 	}
 	return e.UserMessage
 }
@@ -34,7 +33,7 @@ func Fail(msg string) error {
 
 // Failf constructs a formatted user-facing PluginError.
 func Failf(format string, a ...any) error {
-	return &PluginError{UserMessage: fmt.Sprintf(format, a...)}
+	return &PluginError{UserMessage: Sprintf(format, a...)}
 }
 
 // ErrUsage returns a standardized usage error message.

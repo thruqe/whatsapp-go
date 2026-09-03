@@ -905,37 +905,137 @@ func IsAdminRaw(ctx context.Context, client *whatsmeow.Client, groupInfo *types.
 	}
 	target := userJID.ToNonAD()
 	for _, p := range groupInfo.Participants {
-		if p.JID.ToNonAD().User == target.User {
+		if IsSameUserRaw(ctx, client, p.JID, target) {
 			return p.IsAdmin || p.IsSuperAdmin
 		}
 	}
 	return false
 }
 
-// IsSudoRaw checks if a sender JID has sudo/owner privileges stored in database settings.
+// IsSudoRaw checks if a sender JID has sudo/owner privileges stored in database settings or environment.
 func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) bool {
-	if client == nil || client.Store == nil || client.Store.ID == nil {
+	if client == nil || sender.IsEmpty() {
 		return false
 	}
-	if IsSameUserRaw(ctx, client, sender, *client.Store.ID) {
-		return true
+
+	// 1. Check if sender is the bot owner (Store.ID or Store.LID)
+	if client.Store != nil {
+		if client.Store.ID != nil && !client.Store.ID.IsEmpty() && IsSameUserRaw(ctx, client, sender, *client.Store.ID) {
+			return true
+		}
+		if !client.Store.LID.IsEmpty() && IsSameUserRaw(ctx, client, sender, client.Store.LID) {
+			return true
+		}
 	}
-	if client.Store.Identities == nil {
-		return false
+
+	// 2. Check environment variables (SUDOERS, SUDO, OWNER)
+	for _, envKey := range []string{"SUDOERS", "SUDO", "OWNER"} {
+		if envVal := strings.TrimSpace(os.Getenv(envKey)); envVal != "" {
+			for entry := range strings.FieldsSeq(envVal) {
+				cleanEntry := strings.TrimPrefix(entry, "+")
+				if parsed, err := types.ParseJID(entry); err == nil {
+					if IsSameUserRaw(ctx, client, sender, parsed) {
+						return true
+					}
+				} else if cleanEntry != "" && (sender.ToNonAD().User == cleanEntry || strings.TrimPrefix(sender.ToNonAD().User, "+") == cleanEntry) {
+					return true
+				}
+			}
+		}
 	}
-	s, ok := client.Store.Identities.(interface {
-		GetSetting(ctx context.Context, key string) (string, error)
-	})
-	if !ok {
-		return false
+
+	// 3. Check database settings (database "sudoers" list)
+	if client.Store != nil && client.Store.Identities != nil {
+		s, ok := client.Store.Identities.(interface {
+			GetSetting(ctx context.Context, key string) (string, error)
+		})
+		if ok {
+			if raw, err := s.GetSetting(ctx, "sudoers"); err == nil && raw != "" {
+				for sudoerStr := range strings.FieldsSeq(raw) {
+					cleanSudoer := strings.TrimPrefix(sudoerStr, "+")
+					if sudoerJID, err := types.ParseJID(sudoerStr); err == nil {
+						if IsSameUserRaw(ctx, client, sender, sudoerJID) {
+							return true
+						}
+					} else if cleanSudoer != "" && (sender.ToNonAD().User == cleanSudoer || strings.TrimPrefix(sender.ToNonAD().User, "+") == cleanSudoer) {
+						return true
+					}
+				}
+			}
+
+			// Backward compatibility fallback for per-JID key
+			if val, err := s.GetSetting(ctx, "sudo:"+sender.ToNonAD().String()); err == nil && val == "true" {
+				return true
+			}
+		}
 	}
-	val, err := s.GetSetting(ctx, "sudo:"+sender.ToNonAD().String())
-	return err == nil && val == "true"
+
+	return false
 }
 
-// IsSameUserRaw compares two JIDs ignoring device and agent AD suffixes.
-func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, jid1, jid2 types.JID) bool {
-	return jid1.ToNonAD().User == jid2.ToNonAD().User
+// IsSameUserRaw compares two JIDs ignoring device and agent AD suffixes,
+// resolving and matching Phone Numbers and Linked Identities (LIDs).
+func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID) bool {
+	a = a.ToNonAD()
+	b = b.ToNonAD()
+	if a.IsEmpty() || b.IsEmpty() {
+		return false
+	}
+
+	// 1. Direct match (same JID or same server + user)
+	if a == b || (a.Server == b.Server && a.User == b.User) {
+		return true
+	}
+
+	// 2. Direct comparison between client's stored companion ID (PN) and LID
+	if client != nil && client.Store != nil {
+		id := client.Store.ID
+		lid := client.Store.LID
+		if id != nil && !id.IsEmpty() && !lid.IsEmpty() {
+			idNonAD := id.ToNonAD()
+			lidNonAD := lid.ToNonAD()
+			if (a == idNonAD && b == lidNonAD) || (a == lidNonAD && b == idNonAD) {
+				return true
+			}
+			if (a.User == idNonAD.User && b.User == lidNonAD.User) || (a.User == lidNonAD.User && b.User == idNonAD.User) {
+				return true
+			}
+		}
+	}
+
+	// 3. Resolve LIDs to Phone Numbers via whatsmeow LID mapping store
+	aPN := a
+	bPN := b
+	if a.Server == types.HiddenUserServer && client != nil && client.Store != nil && client.Store.LIDs != nil {
+		if pn, err := client.Store.LIDs.GetPNForLID(ctx, a); err == nil && !pn.IsEmpty() {
+			aPN = pn.ToNonAD()
+		}
+	}
+	if b.Server == types.HiddenUserServer && client != nil && client.Store != nil && client.Store.LIDs != nil {
+		if pn, err := client.Store.LIDs.GetPNForLID(ctx, b); err == nil && !pn.IsEmpty() {
+			bPN = pn.ToNonAD()
+		}
+	}
+
+	if !aPN.IsEmpty() && !bPN.IsEmpty() && (aPN == bPN || (aPN.Server == bPN.Server && aPN.User == bPN.User)) {
+		return true
+	}
+
+	// 4. Resolve Phone Numbers to LIDs via whatsmeow LID mapping store
+	aLID := a
+	bLID := b
+	if a.Server == types.DefaultUserServer && client != nil && client.Store != nil && client.Store.LIDs != nil {
+		if lid, err := client.Store.LIDs.GetLIDForPN(ctx, a); err == nil && !lid.IsEmpty() {
+			aLID = lid.ToNonAD()
+		}
+	}
+	if b.Server == types.DefaultUserServer && client != nil && client.Store != nil && client.Store.LIDs != nil {
+		if lid, err := client.Store.LIDs.GetLIDForPN(ctx, b); err == nil && !lid.IsEmpty() {
+			bLID = lid.ToNonAD()
+		}
+	}
+
+	return !aLID.IsEmpty() && !bLID.IsEmpty() && (aLID == bLID || (aLID.Server == bLID.Server && aLID.User == bLID.User))
 }
 
 // ResolveMentionRaw resolves mention strings and display usernames for a given participant JID.
@@ -2088,16 +2188,31 @@ func (c *PluginContext) GetBotName() string {
 
 // IsOwner returns true if the sender is the primary bot owner.
 func (c *PluginContext) IsOwner() bool {
-	if c == nil || c.Client == nil || c.Client.Store == nil || c.Client.Store.ID == nil {
+	if c == nil || c.Client == nil {
 		return false
 	}
-	return IsSameUserRaw(c.GetSendContext(), c.Client, c.Sender, *c.Client.Store.ID)
+	if c.Evt != nil && c.Evt.Info.IsFromMe {
+		return true
+	}
+	if c.Client.Store == nil {
+		return false
+	}
+	if c.Client.Store.ID != nil && !c.Client.Store.ID.IsEmpty() && IsSameUserRaw(c.GetSendContext(), c.Client, c.Sender, *c.Client.Store.ID) {
+		return true
+	}
+	if !c.Client.Store.LID.IsEmpty() && IsSameUserRaw(c.GetSendContext(), c.Client, c.Sender, c.Client.Store.LID) {
+		return true
+	}
+	return false
 }
 
 // IsSudo returns true if the sender is a sudo user or bot owner.
 func (c *PluginContext) IsSudo() bool {
 	if c == nil || c.Client == nil {
 		return false
+	}
+	if c.IsOwner() {
+		return true
 	}
 	return IsSudoRaw(c.GetSendContext(), c.Client, c.Sender)
 }
@@ -2190,10 +2305,16 @@ func (c *PluginContext) IsTargetSudo(target types.JID) bool {
 
 // IsTargetOwner checks if a target JID is the bot owner.
 func (c *PluginContext) IsTargetOwner(target types.JID) bool {
-	if c == nil || c.Client == nil || c.Client.Store == nil || c.Client.Store.ID == nil {
+	if c == nil || c.Client == nil || c.Client.Store == nil {
 		return false
 	}
-	return c.IsSameUser(target, *c.Client.Store.ID)
+	if c.Client.Store.ID != nil && !c.Client.Store.ID.IsEmpty() && c.IsSameUser(target, *c.Client.Store.ID) {
+		return true
+	}
+	if !c.Client.Store.LID.IsEmpty() && c.IsSameUser(target, c.Client.Store.LID) {
+		return true
+	}
+	return false
 }
 
 // GetTargets resolves target user JIDs from quoted reply, mentions, or arguments.
@@ -2464,13 +2585,21 @@ func DecodeProtoMessage(encoded string) (*waE2E.Message, error) {
 	return msg, nil
 }
 
+var _ builder.Sender = (*PluginContext)(nil)
+
 // DispatchListSelection resolves an interactive list button response.
 func DispatchListSelection(ctx any, text, displayText string) bool {
+	if sender, ok := ctx.(builder.Sender); ok {
+		return builder.DispatchListSelection(sender, text, displayText)
+	}
 	return false
 }
 
 // DispatchPollVoteEvent routes incoming poll votes to reactive action handlers.
 func DispatchPollVoteEvent(ctx any, evt *events.Message) bool {
+	if sender, ok := ctx.(builder.Sender); ok {
+		return builder.DispatchPollVoteEvent(sender, evt)
+	}
 	return false
 }
 

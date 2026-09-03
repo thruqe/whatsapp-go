@@ -48,6 +48,8 @@ type ReqCreateGroup struct {
 	types.GroupParent
 	// Set LinkedParentJID to create a group inside a community.
 	types.GroupLinkedParent
+	// Set IsGeneralChat to true to designate this group as a Community General Chat.
+	types.GroupGeneralChat
 }
 
 // CreateGroup creates a group on WhatsApp with the given name and participants.
@@ -119,6 +121,9 @@ func (cli *Client) CreateGroup(ctx context.Context, req ReqCreateGroup) (*types.
 			Tag:   "linked_parent",
 			Attrs: waBinary.Attrs{"jid": req.LinkedParentJID},
 		})
+	}
+	if req.IsGeneralChat {
+		participantNodes = append(participantNodes, waBinary.Node{Tag: "general_chat"})
 	}
 	if req.IsLocked {
 		participantNodes = append(participantNodes, waBinary.Node{Tag: "locked"})
@@ -857,6 +862,8 @@ func (cli *Client) parseGroupNode(groupNode *waBinary.Node) (*types.GroupInfo, e
 			group.LinkedParentJID = childAG.JID("jid")
 		case "default_sub_group":
 			group.IsDefaultSubGroup = true
+		case "general_chat":
+			group.IsGeneralChat = true
 		case "parent":
 			group.IsParent = true
 			group.DefaultMembershipApprovalMode = childAG.OptionalString("default_membership_approval_mode")
@@ -890,6 +897,7 @@ func parseGroupLinkTargetNode(groupNode *waBinary.Node) (types.GroupLinkTarget, 
 		Name:              ag.OptionalString("subject"),
 		NameSetAt:         ag.OptionalUnixTime("s_t"),
 		IsDefaultSubGroup: groupNode.GetChildByTag("default_sub_group").Tag == "default_sub_group",
+		IsGeneralChat:     groupNode.GetChildByTag("general_chat").Tag == "general_chat",
 	}, ag.Error()
 }
 
@@ -1102,6 +1110,12 @@ func (cli *Client) parseGroupChangeWithUsernames(node *waBinary.Node) (*events.G
 			evt.Suspended = true
 		case "unsuspended":
 			evt.Unsuspended = true
+		case "general_chat":
+			generalChat := true
+			evt.GeneralChat = &generalChat
+		case "not_general_chat":
+			generalChat := false
+			evt.GeneralChat = &generalChat
 		default:
 			evt.UnknownChanges = append(evt.UnknownChanges, &child)
 		}

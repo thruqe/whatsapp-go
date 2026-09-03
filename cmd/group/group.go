@@ -26,6 +26,7 @@ import (
 )
 
 func init() {
+	dispatch.RegisterPreInterceptor("group_moderation", HandleGroupModeration)
 	dispatch.Register(&dispatch.Command{
 		Name:        "tagall",
 		Alias:       "tag, everyone, all, tagmembers",

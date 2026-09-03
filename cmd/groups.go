@@ -274,6 +274,7 @@ func (gm *GroupManager) convertGroupInfo(ctx context.Context, cli *whatsmeow.Cli
 	linkedParentJID := g.GroupLinkedParent.LinkedParentJID
 	parentJID := linkedParentJID
 	isDefaultSubgroup := g.GroupIsDefaultSub.IsDefaultSubGroup
+	isGeneralChat := g.GroupGeneralChat.IsGeneralChat
 
 	var participants []store.GroupParticipantMetadata
 	adminCount := 0
@@ -311,6 +312,7 @@ func (gm *GroupManager) convertGroupInfo(ctx context.Context, cli *whatsmeow.Cli
 		ParentJID:              parentJID,
 		LinkedParentJID:        linkedParentJID,
 		IsDefaultSubgroup:      isDefaultSubgroup,
+		IsGeneralChat:          isGeneralChat,
 		Participants:           participants,
 		ParticipantCount:       len(participants),
 		AdminCount:             adminCount,

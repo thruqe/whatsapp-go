@@ -242,7 +242,7 @@ func loadDotEnv(filenames ...string) {
 		if err != nil {
 			continue
 		}
-		for _, rawLine := range strings.Split(string(data), "\n") {
+		for rawLine := range strings.SplitSeq(string(data), "\n") {
 			line := strings.TrimSpace(rawLine)
 			line = strings.TrimPrefix(line, "export ")
 			line = strings.TrimSpace(line)

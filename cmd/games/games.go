@@ -25,14 +25,42 @@ func NormalizeUserJID(_ any, _ any, jid types.JID) types.JID {
 }
 
 func sendPollReplyWithMentions(ctx *dispatch.Context, body string, options []string, mentions []types.JID) error {
-	poll := ctx.Poll(body).Mentions(mentions...)
-	for _, opt := range options {
-		poll.AddOption(opt)
-	}
-	return poll.Reply()
+	return dispatch.SendPollReplyWithMentions(ctx, body, options, mentions)
 }
 
 func init() {
+	dispatch.RegisterPreInterceptor("games_ttt", func(c *dispatch.Context, text string) bool {
+		chatStr := c.Chat.String()
+		trimmed := strings.TrimSpace(text)
+		if IsTTTGameActive(chatStr) && len(trimmed) == 1 && trimmed >= "1" && trimmed <= "9" {
+			return dispatch.RunCommand(c, "ttt "+trimmed)
+		}
+		return false
+	})
+	dispatch.RegisterPreInterceptor("games_unscramble", func(c *dispatch.Context, text string) bool {
+		chatStr := c.Chat.String()
+		if GetUnscrambleGame(chatStr) != nil {
+			if HandleUnscrambleLobbyInput(c, text) {
+				return true
+			}
+			if HandleUnscrambleInput(c, text) {
+				return true
+			}
+		}
+		return false
+	})
+	dispatch.RegisterPreInterceptor("games_wcg", func(c *dispatch.Context, text string) bool {
+		chatStr := c.Chat.String()
+		if GetWCGGame(chatStr) != nil {
+			if HandleWCGLobbyInput(c, text) {
+				return true
+			}
+			if HandleWCGInput(c, text) {
+				return true
+			}
+		}
+		return false
+	})
 	dispatch.Register(&dispatch.Command{
 		Name:        "ttt",
 		Alias:       "tictactoe",
@@ -977,7 +1005,7 @@ func saveUnscrambleStats(ctx *dispatch.Context, game *UnscrambleGame, winner *Un
 		normJID := NormalizeUserJID(ctx.Ctx, game.Client, p.MentionJID)
 		cleanJID := normJID.String()
 
-		_ = store.AddGroupUserWCGXP(ctx.Ctx, s.SQLStore, groupJID, cleanJID, xpEarned, winInc, 1, ratingDelta)
+		_ = store.AddGroupUserUnscrambleXP(ctx.Ctx, s.SQLStore, groupJID, cleanJID, xpEarned, winInc, p.Score)
 	}
 }
 

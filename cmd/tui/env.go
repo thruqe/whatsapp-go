@@ -20,7 +20,7 @@ func SaveDotEnv(session string, client string, verbose bool, dbURL string) error
 	if verbose {
 		updates["VERBOSE"] = "true"
 	}
-	if dbURL != "" && dbURL != "default" && dbURL != "sqlite" {
+	if dbURL != "" && dbURL != "default" && dbURL != "sqlite" && dbURL != "postgres" && dbURL != "postgresql" {
 		updates["DATABASE_URL"] = dbURL
 	}
 

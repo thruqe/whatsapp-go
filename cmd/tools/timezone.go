@@ -5,6 +5,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"whatsrook/builder"
 )
 
 type WindowsTZEntry struct {
@@ -112,6 +114,6 @@ func SearchTimezone(query string) (*TimezoneResult, error) {
 		ID:          iana,
 		Location:    strings.ReplaceAll(iana, "_", " "),
 		CurrentTime: now.Format("03:04 PM (15:04)"),
-		UTCOffset:   fmt.Sprintf("%s%.0f", offsetSign, offsetHours),
+		UTCOffset:   builder.Sprintf("%s%.0f", offsetSign, offsetHours),
 	}, nil
 }
