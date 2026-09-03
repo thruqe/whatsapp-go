@@ -586,6 +586,18 @@ type PrivacySettings struct {
 	StickersChanged     bool
 }
 
+// DisappearingMode is emitted when a disappearing messages setting notification is received.
+type DisappearingMode struct {
+	Chat             types.JID     // The chat this applies to (or ServerJID for account default)
+	Sender           *types.JID    // The sender or participant who made the change, if available
+	IsEphemeral      bool          // Whether disappearing messages are enabled (Timer > 0)
+	Timer            time.Duration // The disappearing timer duration
+	Trigger          string        // Trigger type (e.g. "chat_setting", "account_setting")
+	Initiator        string        // Initiator type (e.g. "changed_in_chat", "initiated_by_me")
+	Timestamp        time.Time     // Time when the notification was received
+	SettingTimestamp time.Time     // Time when the setting was applied
+}
+
 // OfflineSyncPreview is emitted right after connecting if the server is going to send events that the client missed during downtime.
 type OfflineSyncPreview struct {
 	Total int

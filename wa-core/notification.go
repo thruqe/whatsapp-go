@@ -505,6 +505,62 @@ func (cli *Client) handleStatusNotification(_ context.Context, node *waBinary.No
 	})
 }
 
+func (cli *Client) parseDisappearingModeNotification(node *waBinary.Node) *events.DisappearingMode {
+	ag := node.AttrGetter()
+	from := ag.JID("from")
+	ts := ag.UnixTime("t")
+	if ts.IsZero() {
+		ts = time.Now()
+	}
+
+	var durSec int
+	var trigger string
+	var initiator string
+	var settingTS time.Time
+
+	if child, ok := node.GetOptionalChildByTag("disappearing_mode"); ok {
+		cag := child.AttrGetter()
+		durSec = cag.OptionalInt("duration")
+		trigger = cag.OptionalString("trigger")
+		initiator = cag.OptionalString("initiator")
+		settingTS = cag.OptionalUnixTime("t")
+	} else {
+		durSec = ag.OptionalInt("duration")
+		trigger = ag.OptionalString("trigger")
+		initiator = ag.OptionalString("initiator")
+		settingTS = ag.OptionalUnixTime("t")
+	}
+
+	if settingTS.IsZero() {
+		settingTS = ts
+	}
+
+	timer := time.Duration(durSec) * time.Second
+	isEphemeral := durSec > 0
+
+	var sender *types.JID
+	if participant := ag.OptionalJIDOrEmpty("participant"); !participant.IsEmpty() {
+		sender = &participant
+	}
+
+	return &events.DisappearingMode{
+		Chat:             from,
+		Sender:           sender,
+		IsEphemeral:      isEphemeral,
+		Timer:            timer,
+		Trigger:          trigger,
+		Initiator:        initiator,
+		Timestamp:        ts,
+		SettingTimestamp: settingTS,
+	}
+}
+
+func (cli *Client) handleDisappearingModeNotification(_ context.Context, node *waBinary.Node) {
+	evt := cli.parseDisappearingModeNotification(node)
+	cli.Log.Debugf("Disappearing mode notification for %s: duration=%s (trigger=%s, initiator=%s)", evt.Chat, evt.Timer, evt.Trigger, evt.Initiator)
+	cli.dispatchEvent(evt)
+}
+
 func (cli *Client) handleNotification(ctx context.Context, node *waBinary.Node) {
 	var cancelled bool
 	defer cli.maybeDeferredAck(ctx, node)(&cancelled)
@@ -560,7 +616,9 @@ func (cli *Client) handleNotification(ctx context.Context, node *waBinary.Node) 
 		cli.handleQueuedBusinessCatalogNotification(node)
 	case "crsc_continuation":
 		go cli.tryHandlePasskeyContinuationNotification(ctx, node)
-	// Other types: disappearing_mode, server, status, pay, psa
+	case "disappearing_mode":
+		cli.handleDisappearingModeNotification(ctx, node)
+	// Other types: server, status, pay, psa
 	default:
 		cli.Log.Debugf("Unhandled notification with type %s", notifType)
 	}

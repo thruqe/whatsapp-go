@@ -698,6 +698,15 @@ func (b *Bot) WAEventHandler(evt any) {
 		logger.Warn("e2ee identity key changed", "event", v)
 	case *events.PrivacySettings:
 		logger.Info("account privacy settings updated", "event", v)
+	case *events.DisappearingMode:
+		logger.Info("disappearing mode updated",
+			"chat", v.Chat.String(),
+			"timer", v.Timer.String(),
+			"is_ephemeral", v.IsEphemeral,
+			"trigger", v.Trigger,
+			"initiator", v.Initiator,
+		)
+		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 	case *events.Blocklist:
 		logger.Info("blocklist synchronized", "event", v)
 	case *events.NotifyAccountReachoutTimelock:

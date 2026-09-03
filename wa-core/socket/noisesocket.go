@@ -119,5 +119,5 @@ func (ns *NoiseSocket) receiveEncryptedFrame(ctx context.Context, ciphertext []b
 }
 
 func (ns *NoiseSocket) IsConnected() bool {
-	return ns.fs.IsConnected()
+	return ns != nil && ns.fs != nil && ns.fs.IsConnected()
 }
