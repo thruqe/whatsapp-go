@@ -19,6 +19,8 @@ import (
 	"whatsrook/system"
 )
 
+func init() {}
+
 func main() {
 	defer func() {
 		if r := recover(); r != nil {

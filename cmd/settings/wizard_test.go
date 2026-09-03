@@ -145,7 +145,7 @@ func TestWizard_ConfigLifecycle(t *testing.T) {
 		t.Fatalf("expected setbot skip 2 to execute successfully")
 	}
 	var wcPrefix string
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		wcPrefix, _ = clistore.GetSetting(ctx, sqStore, "wizard_config")
 		if wcPrefix == "prefix" {
 			break
