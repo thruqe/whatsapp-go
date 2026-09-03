@@ -979,24 +979,7 @@ func saveUnscrambleStats(ctx *dispatch.Context, game *UnscrambleGame, winner *Un
 			xpEarned += 10
 		}
 
-		avgTimeMs := int64(0)
-		if p.GuessesCount > 0 {
-			avgTimeMs = p.TotalTimeMs / int64(p.GuessesCount)
-		}
-
-		ratingDelta := -15
-		if isWin {
-			ratingDelta = 30
-		}
-		if p.CorrectGuesses > 0 && avgTimeMs > 0 {
-			if avgTimeMs < 3000 {
-				ratingDelta += 15
-			} else if avgTimeMs > 10000 {
-				ratingDelta -= 10
-			}
-		}
 		if p.CorrectGuesses == 0 {
-			ratingDelta -= 15
 			if xpEarned > 20 {
 				xpEarned = 5
 			}
