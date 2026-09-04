@@ -76,6 +76,11 @@ tasks:
     cmds:
       - go -C scripts run . proto {{.cmd_ARGS}}
 
+  proto:sync:
+    desc: Pull latest WAProto schema, split into modular wa-core/proto, and recompile
+    cmds:
+      - go -C scripts run . proto --sync {{.cmd_ARGS}}
+
   res:
     desc: Generate Windows binary resource metadata and icons from assets/logo.png
     cmds:

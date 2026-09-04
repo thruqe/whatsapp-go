@@ -1,0 +1,98 @@
+name: Update WhatsApp Protobufs
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # Daily at 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-proto:
+    name: Sync & Update Protobufs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Git User
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup Go Toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Setup Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Protobuf Sync
+        run: |
+          task proto:sync
+
+      - name: Check for Changes
+        id: check-changes
+        run: |
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::All protobuf definitions and client version are up to date."
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            VERSION=$(grep -oE 'WAVersionContainer\{[0-9, ]+\}' wa-core/store/clientpayload.go | tr -d 'WAVersionContainer{} ' | tr ',' '.')
+            echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "Protobuf update detected! Target version: ${VERSION}"
+          fi
+
+      - name: Format & Create Pull Request
+        if: steps.check-changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.check-changes.outputs.version }}
+        run: |
+          task fmt
+
+          BRANCH_NAME="proto/update-v${VERSION}"
+
+          # Create or reset branch
+          git checkout -B "${BRANCH_NAME}"
+          git add wa-core/proto wa-core/store/clientpayload.go
+          git commit -m "feat(proto): update wa-core protobuf definitions to v${VERSION}"
+          git push origin "${BRANCH_NAME}" --force
+
+          # Create PR if one does not already exist
+          if ! gh pr view "${BRANCH_NAME}" >/dev/null 2>&1; then
+            gh pr create \
+              --title "feat(proto): update wa-core protobuf definitions to v${VERSION}" \
+              --body "### Automated WhatsApp Web Protobuf Sync
+
+This automated PR updates \`wa-core/proto\` definitions and the client revision in \`wa-core/store/clientpayload.go\` to \`v${VERSION}\` generated from [Thruqe/wa-proto](https://github.com/Thruqe/wa-proto).
+
+#### Automated Steps Executed
+- Downloaded latest \`WAProto.proto\` schema
+- Generated modular packages under \`wa-core/proto/\`
+- Updated \`wa-core/store/clientpayload.go\`
+- Recompiled Go protobuf bindings (\`*.pb.go\`) using \`protoc\`
+- Code formatted with \`task fmt\`
+" \
+              --base master \
+              --head "${BRANCH_NAME}"
+          else
+            echo "Pull request for ${BRANCH_NAME} already exists."
+          fi

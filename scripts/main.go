@@ -47,14 +47,15 @@ Usage:
   go run ./scripts <command> [arguments...]
 
 Available Commands:
-  bump   [version]  Bump release version to current date (D.M.YY) or specified version across metadata files
-  proto  [filter]   Compile and update all wa-core protobuf definitions using protoc
-  res               Generate Windows binary resources & metadata with app icon from assets/logo.png
-  help              Display this help message
+  bump   [version]        Bump release version to current date (D.M.YY) or specified version across metadata files
+  proto  [--sync] [filter] Compile and update wa-core protobuf definitions (optional --sync pulls latest WAProto)
+  res                     Generate Windows binary resources & metadata with app icon from assets/logo.png
+  help                    Display this help message
 
 Examples:
   go run ./scripts bump
   go run ./scripts bump 21.8.26
   go run ./scripts proto
-  go run ./scripts proto waE2E`)
+  go run ./scripts proto waE2E
+  go run ./scripts proto --sync`)
 }
