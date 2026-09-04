@@ -160,3 +160,91 @@ func TestMapOptionToCommandArgs(t *testing.T) {
 		}
 	}
 }
+
+func TestClosestCommand(t *testing.T) {
+	dispatch.Register(
+		&dispatch.Command{Name: "ping", Alias: "p,pong", Description: "Ping bot", IsPublic: true},
+		&dispatch.Command{Name: "help", Alias: "menu", Description: "Help menu", IsPublic: true},
+		&dispatch.Command{Name: "sticker", Alias: "s", Description: "Sticker creator", IsPublic: true},
+		&dispatch.Command{Name: "restart", Description: "Restart bot", IsPublic: false},
+		&dispatch.Command{Name: "unblock", Description: "Unblock user", IsPublic: false},
+	)
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"pingg", "ping"},
+		{"pign", "ping"},
+		{"pinng", "ping"},
+		{"ponng", "pong"},
+		{"helpp", "help"},
+		{"hlep", "help"},
+		{"stiker", "sticker"},
+		{"restrt", "restart"},
+		{"unblck", "unblock"},
+		{"", ""},
+	}
+
+	for _, tc := range tests {
+		got := dispatch.ClosestCommand(tc.input)
+		if got != tc.expected {
+			t.Errorf("ClosestCommand(%q) = %q, expected %q", tc.input, got, tc.expected)
+		}
+	}
+}
+
+func TestFormatUnknownCommandSuggestion(t *testing.T) {
+	msg1 := dispatch.FormatUnknownCommandSuggestion("@2348011111111", ".", "ping")
+	expected1 := "@2348011111111 that's not quite right, did you mean to run .ping?"
+	if msg1 != expected1 {
+		t.Errorf("expected %q, got %q", expected1, msg1)
+	}
+
+	msg2 := dispatch.FormatUnknownCommandSuggestion("", "!", "help")
+	expected2 := "@User that's not quite right, did you mean to run !help?"
+	if msg2 != expected2 {
+		t.Errorf("expected %q, got %q", expected2, msg2)
+	}
+}
+
+func TestHandleUnknownCommand(t *testing.T) {
+	dispatch.Register(
+		&dispatch.Command{Name: "status", Description: "Bot status", IsPublic: true},
+	)
+
+	cctx := &dispatch.Context{
+		Ctx:    context.Background(),
+		Chat:   types.NewJID("120363000000001", types.GroupServer),
+		Sender: types.NewJID("2348011111111", types.DefaultUserServer),
+	}
+
+	msg, handled := dispatch.HandleUnknownCommand(cctx, ".", "stutus")
+	if !handled {
+		t.Fatalf("expected handled to be true")
+	}
+	expected := "@2348011111111 that's not quite right, did you mean to run .status?"
+	if msg != expected {
+		t.Errorf("expected msg %q, got %q", expected, msg)
+	}
+
+	// Test with nil context
+	_, handledNil := dispatch.HandleUnknownCommand(nil, ".", "stutus")
+	if handledNil {
+		t.Errorf("expected handled to be false for nil context")
+	}
+
+	// Test fallback when sender is empty
+	cctxEmptySender := &dispatch.Context{
+		Ctx:  context.Background(),
+		Chat: types.EmptyJID,
+	}
+	msgEmpty, handledEmpty := dispatch.HandleUnknownCommand(cctxEmptySender, "!", "pinng")
+	if !handledEmpty {
+		t.Fatalf("expected handled to be true for empty sender context")
+	}
+	expectedEmpty := "@User that's not quite right, did you mean to run !ping?"
+	if msgEmpty != expectedEmpty {
+		t.Errorf("expected msg %q, got %q", expectedEmpty, msgEmpty)
+	}
+}
