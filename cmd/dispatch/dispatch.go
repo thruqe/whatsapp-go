@@ -138,9 +138,12 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 
 	// 4. Sticker Commands
-	if evt.Message.StickerMessage != nil && okStore {
-		if handleStickerCommand(ctx, client, s.SQLStore, evt) {
-			return true
+	if okStore {
+		stk := msgProto.GetStickerMessage()
+		if stk != nil {
+			if handleStickerCommand(ctx, client, s.SQLStore, evt, stk) {
+				return true
+			}
 		}
 	}
 
@@ -229,7 +232,14 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 	}
 
-	// 9. Run registered Fallback Interceptors (AutoAI)
+	// 9. Sticker Commands via reply with arguments
+	if text != "" && okStore {
+		if handleQuotedStickerCommand(ctx, client, s.SQLStore, evt, text) {
+			return true
+		}
+	}
+
+	// 10. Run registered Fallback Interceptors (AutoAI)
 	fallbackInterceptorsMu.RLock()
 	fallbackList := make([]interceptorEntry, len(fallbackInterceptors))
 	copy(fallbackList, fallbackInterceptors)
@@ -513,77 +523,73 @@ func handleAutoViewOnce(ctx context.Context, client *whatsmeow.Client, s *sqlsto
 	}
 }
 
-func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, s *sqlstore.SQLStore, evt *events.Message) bool {
-	stk := evt.Message.StickerMessage
-	if stk == nil || len(stk.FileSHA256) == 0 {
+func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, s *sqlstore.SQLStore, evt *events.Message, stk *waE2E.StickerMessage) bool {
+	if stk == nil || len(stk.GetFileSHA256()) == 0 {
 		return false
 	}
 
-	shaHex := hex.EncodeToString(stk.FileSHA256)
-	cmdName, err := store.GetStickerCmd(ctx, s, shaHex)
-	if err != nil || cmdName == "" {
+	shaHex := hex.EncodeToString(stk.GetFileSHA256())
+	rawCmd, err := store.GetStickerCmd(ctx, s, shaHex)
+	if err != nil || strings.TrimSpace(rawCmd) == "" {
 		return false
 	}
 
-	cmd, exists := Get(cmdName)
-	if !exists {
-		return false
+	rawCmd = strings.TrimSpace(rawCmd)
+	rawCmd = strings.TrimLeft(rawCmd, "./!#$")
+
+	cmdLine := rawCmd
+
+	// Check if the sticker quotes a message providing extra arguments
+	ci := stk.GetContextInfo()
+	if ci == nil {
+		ci = utils.GetContextInfoFromProto(evt.Message)
 	}
-
-	var args []string
-	var rawArgs string
-
-	if ext := evt.Message.GetExtendedTextMessage(); ext != nil {
-		if ci := ext.GetContextInfo(); ci != nil && ci.QuotedMessage != nil {
-			quotedText := utils.ExtractTextFromProto(ci.QuotedMessage)
-			if quotedText != "" {
-				args = strings.Fields(quotedText)
-				rawArgs = quotedText
-			}
-		}
-	} else if ci := stk.GetContextInfo(); ci != nil && ci.QuotedMessage != nil {
-		quotedText := utils.ExtractTextFromProto(ci.QuotedMessage)
+	if ci != nil && ci.QuotedMessage != nil {
+		quotedText := strings.TrimSpace(utils.ExtractTextFromProto(ci.QuotedMessage))
 		if quotedText != "" {
-			args = strings.Fields(quotedText)
-			rawArgs = quotedText
+			cmdLine = rawCmd + " " + quotedText
 		}
 	}
 
-	cctx := &Context{
-		Ctx:     ctx,
-		Client:  client,
-		Evt:     evt,
-		Command: cmdName,
-		Args:    args,
-		RawArgs: rawArgs,
-		Chat:    evt.Info.Chat,
-		Sender:  evt.Info.Sender,
+	return runCommand(ctx, client, evt, cmdLine)
+}
+
+func handleQuotedStickerCommand(ctx context.Context, client *whatsmeow.Client, s *sqlstore.SQLStore, evt *events.Message, replyText string) bool {
+	if s == nil || evt == nil || evt.Message == nil {
+		return false
 	}
 
-	go func() {
-		botMode, _ := store.GetSetting(ctx, s, "mode")
-		if botMode == "private" && !cctx.IsSudo() {
-			_ = cctx.Reply("The bot is currently in private mode. Only sudoers/owners can use it.")
-			return
-		}
+	ci := utils.GetContextInfoFromProto(evt.Message)
+	if ci == nil || ci.QuotedMessage == nil {
+		return false
+	}
 
-		raw, _ := store.GetSetting(ctx, s, "disabled_commands")
-		if raw != "" {
-			for disabled := range strings.FieldsSeq(raw) {
-				if strings.EqualFold(disabled, cmdName) {
-					_ = cctx.Replyf("⚠️ Command %q is currently disabled.", cmdName)
-					return
-				}
-			}
-		}
+	quotedMsg := utils.UnwrapMessageProto(ci.QuotedMessage)
+	if quotedMsg == nil {
+		return false
+	}
 
-		if err := cmd.Handler(cctx); err != nil {
-			LogHandlerErrWithContext(cctx, cmdName, err)
-			_ = cctx.Replyf("⚠️ %v", err)
-		}
-	}()
+	stk := quotedMsg.GetStickerMessage()
+	if stk == nil || len(stk.GetFileSHA256()) == 0 {
+		return false
+	}
 
-	return true
+	shaHex := hex.EncodeToString(stk.GetFileSHA256())
+	rawCmd, err := store.GetStickerCmd(ctx, s, shaHex)
+	if err != nil || strings.TrimSpace(rawCmd) == "" {
+		return false
+	}
+
+	rawCmd = strings.TrimSpace(rawCmd)
+	rawCmd = strings.TrimLeft(rawCmd, "./!#$")
+
+	replyText = strings.TrimSpace(replyText)
+	cmdLine := rawCmd
+	if replyText != "" {
+		cmdLine = rawCmd + " " + replyText
+	}
+
+	return runCommand(ctx, client, evt, cmdLine)
 }
 
 func isBotMentioned(client *whatsmeow.Client, evt *events.Message) bool {

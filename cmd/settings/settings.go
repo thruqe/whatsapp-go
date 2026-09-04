@@ -30,6 +30,7 @@ import (
 	"whatsrook/cmd/games"
 	"whatsrook/cmd/store"
 	"whatsrook/cmd/tools"
+	"whatsrook/external"
 	Logger "whatsrook/logger"
 )
 
@@ -115,7 +116,7 @@ func init() {
 	})
 	dispatch.Register(&dispatch.Command{
 		Name:        "setcmd",
-		Description: "Link a sticker to a command trigger. Usage: setcmd [command_name] (replying to a sticker)",
+		Description: "Link a sticker to a command trigger. Usage: setcmd [command_name] [args...] (replying to a sticker)",
 		Category:    "tools",
 		Handler:     handleSetCmd,
 	})
@@ -1855,23 +1856,43 @@ func handleSetCmd(ctx *dispatch.Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
-	if len(ctx.Args) == 0 {
-		return ctx.Reply("Usage: setcmd [command_name] (reply to a sticker)")
+	rawInput := strings.TrimSpace(ctx.RawArgs)
+	if rawInput == "" && len(ctx.Args) > 0 {
+		rawInput = strings.Join(ctx.Args, " ")
 	}
-	cmdName := strings.ToLower(ctx.Args[0])
+	if rawInput == "" {
+		return ctx.Reply("Usage: setcmd [command_name] [args...] (reply to a sticker)")
+	}
 
-	_, exists := dispatch.Get(cmdName)
-	if !exists {
-		return ctx.Replyf(" Command %q does not exist.", cmdName)
+	fields := strings.Fields(rawInput)
+	if len(fields) == 0 {
+		return ctx.Reply("Usage: setcmd [command_name] [args...] (reply to a sticker)")
+	}
+
+	rawBaseCmd := strings.ToLower(fields[0])
+	cleanBaseCmd := strings.TrimLeft(rawBaseCmd, "./!#$")
+
+	baseCmd := cleanBaseCmd
+	_, existsNative := dispatch.Get(baseCmd)
+	isExternal := external.DefaultDispatcher.IsInstalled(baseCmd)
+
+	if !existsNative && !isExternal {
+		baseCmd = rawBaseCmd
+		_, existsNative = dispatch.Get(baseCmd)
+		isExternal = external.DefaultDispatcher.IsInstalled(baseCmd)
+	}
+
+	if !existsNative && !isExternal {
+		return ctx.Replyf("Command %q does not exist.", rawBaseCmd)
 	}
 
 	quoted := ctx.GetQuotedMessage()
-	if quoted == nil || quoted.StickerMessage == nil {
+	if quoted == nil || quoted.GetStickerMessage() == nil {
 		return ctx.Reply("Please reply to a sticker message.")
 	}
 
-	stk := quoted.StickerMessage
-	if len(stk.FileSHA256) == 0 {
+	stk := quoted.GetStickerMessage()
+	if len(stk.GetFileSHA256()) == 0 {
 		return ctx.Reply("Invalid sticker (no FileSHA256 found).")
 	}
 
@@ -1880,13 +1901,22 @@ func handleSetCmd(ctx *dispatch.Context) error {
 		return ctx.Reply("Settings store unavailable.")
 	}
 
-	shaHex := hex.EncodeToString(stk.FileSHA256)
+	shaHex := hex.EncodeToString(stk.GetFileSHA256())
 
-	if err := store.PutStickerCmd(ctx.Ctx, s.SQLStore, shaHex, cmdName); err != nil {
+	storedCmd := baseCmd
+	if len(fields) > 1 {
+		trailingArgs := strings.TrimSpace(strings.TrimPrefix(rawInput, fields[0]))
+		if trailingArgs != "" {
+			storedCmd = baseCmd + " " + trailingArgs
+		}
+	}
+
+	if err := store.PutStickerCmd(ctx.Ctx, s.SQLStore, shaHex, storedCmd); err != nil {
+		Logger.Error("handleSetCmd: failed to put sticker command", "err", err)
 		return ctx.Reply("Failed to link sticker command.")
 	}
 
-	return ctx.Replyf("Sticker linked to command %q.", cmdName)
+	return ctx.Replyf("Sticker linked to command %q.", storedCmd)
 }
 
 func handleDelCmd(ctx *dispatch.Context) error {
@@ -1900,12 +1930,12 @@ func handleDelCmd(ctx *dispatch.Context) error {
 	}
 
 	quoted := ctx.GetQuotedMessage()
-	if quoted != nil && quoted.StickerMessage != nil {
-		stk := quoted.StickerMessage
-		if len(stk.FileSHA256) == 0 {
+	if quoted != nil && quoted.GetStickerMessage() != nil {
+		stk := quoted.GetStickerMessage()
+		if len(stk.GetFileSHA256()) == 0 {
 			return ctx.Reply("Invalid sticker (no FileSHA256 found).")
 		}
-		shaHex := hex.EncodeToString(stk.FileSHA256)
+		shaHex := hex.EncodeToString(stk.GetFileSHA256())
 
 		if err := store.DeleteStickerCmdBySHA(ctx.Ctx, s.SQLStore, shaHex); err != nil {
 			return ctx.Reply("Failed to remove sticker command.")
@@ -1918,6 +1948,7 @@ func handleDelCmd(ctx *dispatch.Context) error {
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
+	cmdName = strings.TrimLeft(cmdName, "./!#$")
 	if err := store.DeleteStickerCmdByName(ctx.Ctx, s.SQLStore, cmdName); err != nil {
 		return ctx.Reply("Failed to remove sticker command.")
 	}
