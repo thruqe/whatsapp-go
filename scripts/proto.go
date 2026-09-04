@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,31 +24,49 @@ func runProto(args []string) error {
 		return fmt.Errorf("protobuf directory not found at: %s", protoDir)
 	}
 
-	// 1. Setup PATH with Go bin directory (GOPATH/bin, GOBIN)
+	// 1. Check if upstream schema synchronization was requested
+	isSync := false
+	var filteredArgs []string
+	for _, a := range args {
+		la := strings.ToLower(a)
+		if la == "--sync" || la == "-sync" || la == "sync" || la == "--update" || la == "update" {
+			isSync = true
+		} else {
+			filteredArgs = append(filteredArgs, a)
+		}
+	}
+
+	if isSync {
+		if err := syncProtosFromWaProto(rootDir, protoDir); err != nil {
+			return fmt.Errorf("upstream protobuf synchronization failed: %w", err)
+		}
+	}
+
+	// 2. Setup PATH with Go bin directory (GOPATH/bin, GOBIN)
 	setupGoBinPath()
 
-	// 2. Ensure protoc-gen-go plugin is installed and accessible
+	// 3. Ensure protoc-gen-go plugin is installed and accessible
 	if err := ensureProtocGenGo(); err != nil {
 		return err
 	}
 
-	// 3. Check for protoc compiler
+	// 4. Check for protoc compiler
 	protocPath, err := exec.LookPath("protoc")
 	if err != nil {
 		printProtocInstallInstructions()
 		return fmt.Errorf("protoc compiler not found in PATH")
 	}
 
-	// 4. Normalize option go_package in proto files (ensure go.mau.fi/whatsmeow/proto/...)
+	// 5. Normalize option go_package in proto files (ensure go.mau.fi/whatsmeow/proto/...)
 	if err := normalizeProtoPackageOptions(protoDir); err != nil {
 		return fmt.Errorf("failed to normalize proto go_package options: %w", err)
 	}
 
-	// 5. Find all .proto files (with optional filter)
+	// 6. Find all .proto files (with optional filter)
 	var protoFiles []string
 	targetFilter := ""
-	if len(args) > 0 {
-		targetFilter = strings.ToLower(args[0])
+	if len(filteredArgs) > 0 {
+		targetFilter = strings.ToLower(filteredArgs[0])
 	}
 
 	err = filepath.WalkDir(protoDir, func(path string, d fs.DirEntry, err error) error {
@@ -231,4 +251,67 @@ func printProtocInstallInstructions() {
 	}
 	fmt.Fprintln(os.Stderr, "\nOr download official binary releases from:")
 	fmt.Fprintln(os.Stderr, "  https://github.com/protocolbuffers/protobuf/releases")
+}
+
+func syncProtosFromWaProto(rootDir, protoDir string) error {
+	clientPayloadPath := filepath.Join(rootDir, "wa-core", "store", "clientpayload.go")
+
+	// 1. Locate or fetch WAProto.proto
+	protoSource := ""
+	localWaProto := filepath.Join(rootDir, "..", "wa-proto")
+	if stat, err := os.Stat(filepath.Join(localWaProto, "WAProto.proto")); err == nil && !stat.IsDir() {
+		protoSource = filepath.Join(localWaProto, "WAProto.proto")
+		fmt.Printf("Using local WAProto schema from %s\n", protoSource)
+	} else {
+		// Download from GitHub
+		fmt.Println("Downloading latest WAProto.proto from github.com/Thruqe/wa-proto...")
+		tmpFile, err := os.CreateTemp("", "WAProto-*.proto")
+		if err != nil {
+			return fmt.Errorf("failed creating temp file for WAProto.proto: %w", err)
+		}
+		defer os.Remove(tmpFile.Name())
+
+		resp, err := http.Get("https://raw.githubusercontent.com/Thruqe/wa-proto/main/WAProto.proto")
+		if err != nil {
+			return fmt.Errorf("failed downloading WAProto.proto from GitHub: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("failed downloading WAProto.proto: HTTP %d", resp.StatusCode)
+		}
+
+		if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+			return fmt.Errorf("failed saving downloaded WAProto.proto: %w", err)
+		}
+		_ = tmpFile.Close()
+		protoSource = tmpFile.Name()
+	}
+
+	// 2. Run wa-proto split command
+	fmt.Println("Splitting WAProto into modular wa-core/proto packages...")
+	var splitCmd *exec.Cmd
+	if _, err := os.Stat(filepath.Join(localWaProto, "main.go")); err == nil {
+		splitCmd = exec.Command("go", "run", ".", "split",
+			"-proto", protoSource,
+			"-out", protoDir,
+			"-clientpayload", clientPayloadPath,
+		)
+		splitCmd.Dir = localWaProto
+	} else {
+		splitCmd = exec.Command("go", "run", "github.com/Thruqe/wa-proto@latest", "split",
+			"-proto", protoSource,
+			"-out", protoDir,
+			"-clientpayload", clientPayloadPath,
+		)
+		splitCmd.Dir = rootDir
+	}
+
+	splitCmd.Stdout = os.Stdout
+	splitCmd.Stderr = os.Stderr
+	if err := splitCmd.Run(); err != nil {
+		return fmt.Errorf("wa-proto split failed: %w", err)
+	}
+
+	return nil
 }
