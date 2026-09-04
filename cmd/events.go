@@ -764,7 +764,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 	}
 
 	// This plugin should only work if this bot is an admin
-	if cli.Store.ID == nil || !utils.IsAdminRaw(ctx, cli, info, *cli.Store.ID) {
+	if !utils.IsBotAdminRaw(ctx, cli, info) {
 		logger.Warn("handleGroupCaptcha: bot is not an admin in group, skipping captcha verification", "group", chatKey)
 		return
 	}
@@ -833,7 +833,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 					logger.Warn("processGroupCaptchaJoins: failed to get group info during timeout kick", "group", g.JID.String(), "err", gErr)
 					return
 				}
-				if !utils.IsAdminRaw(context.Background(), cli, currentInfo, *cli.Store.ID) {
+				if !utils.IsBotAdminRaw(context.Background(), cli, currentInfo) {
 					logger.Warn("handleGroupCaptcha: bot is no longer admin to kick unverified participant", "group", g.JID.String(), "user", partCopy.String())
 					return
 				}

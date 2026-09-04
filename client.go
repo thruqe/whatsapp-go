@@ -898,16 +898,103 @@ func ExtractTextFromProto(msg *waE2E.Message) string {
 	return ""
 }
 
-// IsAdminRaw checks if a participant JID is an admin in groupInfo.
-func IsAdminRaw(ctx context.Context, client *whatsmeow.Client, groupInfo *types.GroupInfo, userJID types.JID) bool {
-	if groupInfo == nil {
+// ParticipantMatchesUser checks if a group participant matches the target JID,
+// comparing primary JID, LID, and PhoneNumber, as well as resolving through the client's store.
+func ParticipantMatchesUser(ctx context.Context, client *whatsmeow.Client, p types.GroupParticipant, target types.JID) bool {
+	if target.IsEmpty() {
 		return false
 	}
-	target := userJID.ToNonAD()
+	cleanTarget := target.ToNonAD()
+
+	// 1. Direct match with p.JID
+	if !p.JID.IsEmpty() {
+		cleanPJID := p.JID.ToNonAD()
+		if cleanPJID == cleanTarget || (cleanPJID.User == cleanTarget.User && (cleanPJID.Server == cleanTarget.Server || cleanTarget.Server == "")) {
+			return true
+		}
+	}
+
+	// 2. Direct match with p.LID
+	if !p.LID.IsEmpty() {
+		cleanPLID := p.LID.ToNonAD()
+		if cleanPLID == cleanTarget || (cleanPLID.User == cleanTarget.User && (cleanPLID.Server == cleanTarget.Server || cleanTarget.Server == "")) {
+			return true
+		}
+	}
+
+	// 3. Direct match with p.PhoneNumber
+	if !p.PhoneNumber.IsEmpty() {
+		cleanPPN := p.PhoneNumber.ToNonAD()
+		if cleanPPN == cleanTarget || (cleanPPN.User == cleanTarget.User && (cleanPPN.Server == cleanTarget.Server || cleanTarget.Server == "")) {
+			return true
+		}
+	}
+
+	// 4. Check if target is the bot and p matches bot's ID or LID
+	if client != nil && client.Store != nil {
+		botID := client.Store.ID
+		botLID := client.Store.LID
+
+		targetIsBot := (botID != nil && !botID.IsEmpty() && IsSameUserRaw(ctx, client, cleanTarget, *botID)) ||
+			(!botLID.IsEmpty() && IsSameUserRaw(ctx, client, cleanTarget, botLID))
+
+		if targetIsBot {
+			if botID != nil && !botID.IsEmpty() {
+				cleanBotID := botID.ToNonAD()
+				if (!p.JID.IsEmpty() && p.JID.ToNonAD() == cleanBotID) ||
+					(!p.PhoneNumber.IsEmpty() && p.PhoneNumber.ToNonAD() == cleanBotID) ||
+					(!p.LID.IsEmpty() && p.LID.ToNonAD() == cleanBotID) {
+					return true
+				}
+			}
+			if !botLID.IsEmpty() {
+				cleanBotLID := botLID.ToNonAD()
+				if (!p.JID.IsEmpty() && p.JID.ToNonAD() == cleanBotLID) ||
+					(!p.LID.IsEmpty() && p.LID.ToNonAD() == cleanBotLID) ||
+					(!p.PhoneNumber.IsEmpty() && p.PhoneNumber.ToNonAD() == cleanBotLID) {
+					return true
+				}
+			}
+		}
+	}
+
+	// 5. Cross-check using IsSameUserRaw across all non-empty JIDs on p
+	if !p.JID.IsEmpty() && IsSameUserRaw(ctx, client, p.JID, cleanTarget) {
+		return true
+	}
+	if !p.LID.IsEmpty() && IsSameUserRaw(ctx, client, p.LID, cleanTarget) {
+		return true
+	}
+	if !p.PhoneNumber.IsEmpty() && IsSameUserRaw(ctx, client, p.PhoneNumber, cleanTarget) {
+		return true
+	}
+
+	return false
+}
+
+// IsAdminRaw checks if a participant JID is an admin or superadmin in groupInfo.
+func IsAdminRaw(ctx context.Context, client *whatsmeow.Client, groupInfo *types.GroupInfo, userJID types.JID) bool {
+	if groupInfo == nil || userJID.IsEmpty() {
+		return false
+	}
 	for _, p := range groupInfo.Participants {
-		if IsSameUserRaw(ctx, client, p.JID, target) {
+		if ParticipantMatchesUser(ctx, client, p, userJID) {
 			return p.IsAdmin || p.IsSuperAdmin
 		}
+	}
+	return false
+}
+
+// IsBotAdminRaw checks if the bot itself has admin or superadmin privileges in groupInfo.
+func IsBotAdminRaw(ctx context.Context, client *whatsmeow.Client, groupInfo *types.GroupInfo) bool {
+	if client == nil || client.Store == nil || groupInfo == nil {
+		return false
+	}
+	if client.Store.ID != nil && !client.Store.ID.IsEmpty() && IsAdminRaw(ctx, client, groupInfo, *client.Store.ID) {
+		return true
+	}
+	if !client.Store.LID.IsEmpty() && IsAdminRaw(ctx, client, groupInfo, client.Store.LID) {
+		return true
 	}
 	return false
 }
@@ -2539,24 +2626,18 @@ func (c *PluginContext) GetMedia() ([]byte, string, error) {
 
 // IsAdmin checks if a specific JID is a group admin.
 func (c *PluginContext) IsAdmin(info *types.GroupInfo, jid types.JID) bool {
-	if info == nil {
+	if c == nil || c.Client == nil || info == nil {
 		return false
 	}
-	target := jid.ToNonAD()
-	for _, p := range info.Participants {
-		if p.JID.ToNonAD() == target {
-			return p.IsAdmin || p.IsSuperAdmin
-		}
-	}
-	return false
+	return IsAdminRaw(c.GetSendContext(), c.Client, info, jid)
 }
 
 // AmIAdmin checks if the bot itself is an admin in the group.
 func (c *PluginContext) AmIAdmin(info *types.GroupInfo) bool {
-	if c.Client == nil || c.Client.Store == nil || c.Client.Store.ID == nil {
+	if c == nil || c.Client == nil || info == nil {
 		return false
 	}
-	return c.IsAdmin(info, *c.Client.Store.ID)
+	return IsBotAdminRaw(c.GetSendContext(), c.Client, info)
 }
 
 // Sprintf formats text according to format specifier.
