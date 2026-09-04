@@ -39,7 +39,7 @@ var EmbeddedAppVersion = func() string {
 	if v, err := whatsrook.GetVersion(); err == nil && v.Raw != "" {
 		return v.Raw
 	}
-	return "28.8.26"
+	return "4.9.26"
 }()
 
 // Backward-compatible exports for external callers.
