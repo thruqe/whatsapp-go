@@ -1,9 +1,10 @@
-package whatsrook
+package tests
 
 import (
 	"context"
 	"os"
 	"testing"
+	"whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCommon"
@@ -41,21 +42,21 @@ func TestIsSameUserRaw(t *testing.T) {
 
 	// 1. Same PN with different AD device suffixes
 	senderAD := types.NewADJID("2348011112222", 0, 88)
-	if !IsSameUserRaw(ctx, cli, senderAD, botPN) {
+	if !whatsrook.IsSameUserRaw(ctx, cli, senderAD, botPN) {
 		t.Errorf("expected senderAD and botPN to match as same user")
 	}
 
 	// 2. Direct match between bot Store.ID and bot Store.LID
-	if !IsSameUserRaw(ctx, cli, botLID, botPN) {
+	if !whatsrook.IsSameUserRaw(ctx, cli, botLID, botPN) {
 		t.Errorf("expected botLID and botPN to match as same user via store")
 	}
-	if !IsSameUserRaw(ctx, cli, botPN, botLID) {
+	if !whatsrook.IsSameUserRaw(ctx, cli, botPN, botLID) {
 		t.Errorf("expected botPN and botLID to match as same user via store")
 	}
 
 	// 3. Different user should not match
 	otherUser := types.NewJID("2348099998888", types.DefaultUserServer)
-	if IsSameUserRaw(ctx, cli, otherUser, botPN) {
+	if whatsrook.IsSameUserRaw(ctx, cli, otherUser, botPN) {
 		t.Errorf("expected different users not to match")
 	}
 }
@@ -83,7 +84,7 @@ func TestPluginContext_IsOwner_And_IsSudo(t *testing.T) {
 	}
 
 	// Case 1: Message sent from bot owner's primary device (IsFromMe = true)
-	pctxFromMe := &PluginContext{
+	pctxFromMe := &whatsrook.PluginContext{
 		Ctx:    ctx,
 		Client: cli,
 		Sender: botLID,
@@ -103,7 +104,7 @@ func TestPluginContext_IsOwner_And_IsSudo(t *testing.T) {
 	}
 
 	// Case 2: Message sent with owner's LID in a group (IsFromMe = false, Sender = botLID)
-	pctxLID := &PluginContext{
+	pctxLID := &whatsrook.PluginContext{
 		Ctx:    ctx,
 		Client: cli,
 		Sender: botLID,
@@ -123,7 +124,7 @@ func TestPluginContext_IsOwner_And_IsSudo(t *testing.T) {
 	}
 
 	// Case 3: Message sent with owner's PN
-	pctxPN := &PluginContext{
+	pctxPN := &whatsrook.PluginContext{
 		Ctx:    ctx,
 		Client: cli,
 		Sender: botPN,
@@ -143,7 +144,7 @@ func TestPluginContext_IsOwner_And_IsSudo(t *testing.T) {
 	}
 
 	// Case 4: Secondary user in database sudoers list
-	pctxSudoer := &PluginContext{
+	pctxSudoer := &whatsrook.PluginContext{
 		Ctx:    ctx,
 		Client: cli,
 		Sender: otherUserPN,
@@ -167,7 +168,7 @@ func TestPluginContext_IsOwner_And_IsSudo(t *testing.T) {
 	os.Setenv("SUDOERS", "2348077778888@s.whatsapp.net")
 	defer os.Unsetenv("SUDOERS")
 
-	pctxEnv := &PluginContext{
+	pctxEnv := &whatsrook.PluginContext{
 		Ctx:    ctx,
 		Client: cli,
 		Sender: envUserPN,
@@ -185,7 +186,7 @@ func TestPluginContext_IsOwner_And_IsSudo(t *testing.T) {
 
 	// Case 6: Random unauthorized user
 	randomUser := types.NewJID("1234500000", types.DefaultUserServer)
-	pctxRandom := &PluginContext{
+	pctxRandom := &whatsrook.PluginContext{
 		Ctx:    ctx,
 		Client: cli,
 		Sender: randomUser,
@@ -207,7 +208,7 @@ func TestPluginContext_IsOwner_And_IsSudo(t *testing.T) {
 
 func TestDispatchPollVoteEvent_Wiring(t *testing.T) {
 	pollID := "POLL_TEST_ID_123"
-	pctx := &PluginContext{
+	pctx := &whatsrook.PluginContext{
 		Chat:   types.NewJID("120363000000001", types.GroupServer),
 		Sender: types.NewJID("2348011111111", types.DefaultUserServer),
 	}
@@ -230,7 +231,7 @@ func TestDispatchPollVoteEvent_Wiring(t *testing.T) {
 	}
 
 	// No route registered: should not panic, returns false
-	if DispatchPollVoteEvent(pctx, evt) {
+	if whatsrook.DispatchPollVoteEvent(pctx, evt) {
 		t.Errorf("expected false for unregistered poll route")
 	}
 
@@ -242,7 +243,7 @@ func TestDispatchPollVoteEvent_Wiring(t *testing.T) {
 		},
 		Message: &waE2E.Message{},
 	}
-	if DispatchPollVoteEvent(pctx, emptyEvt) {
+	if whatsrook.DispatchPollVoteEvent(pctx, emptyEvt) {
 		t.Errorf("expected false for non-poll message")
 	}
 }

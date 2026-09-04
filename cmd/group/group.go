@@ -303,7 +303,7 @@ func handleKick(ctx *dispatch.Context) error {
 	if err != nil {
 		return ctx.Replyf(" Failed to get group info: %v", err)
 	}
-	if !ctx.IsSenderAdmin(info) {
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
 		return ctx.Reply("Only group admins can kick members.")
 	}
 	if !ctx.AmIAdmin(info) {
@@ -347,7 +347,7 @@ func handleAdd(ctx *dispatch.Context) error {
 	if err != nil {
 		return ctx.Replyf(" Failed to get group info: %v", err)
 	}
-	if !ctx.IsSenderAdmin(info) {
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
 		return ctx.Reply("Only group admins can add members.")
 	}
 	if !ctx.AmIAdmin(info) {
@@ -387,7 +387,7 @@ func handlePromote(ctx *dispatch.Context) error {
 	if err != nil {
 		return ctx.Replyf(" Failed to get group info: %v", err)
 	}
-	if !ctx.IsSenderAdmin(info) {
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
 		return ctx.Reply("Only group admins can promote members.")
 	}
 	if !ctx.AmIAdmin(info) {
@@ -427,7 +427,7 @@ func handleDemote(ctx *dispatch.Context) error {
 	if err != nil {
 		return ctx.Replyf(" Failed to get group info: %v", err)
 	}
-	if !ctx.IsSenderAdmin(info) {
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
 		return ctx.Reply("Only group admins can demote members.")
 	}
 	if !ctx.AmIAdmin(info) {
@@ -471,7 +471,7 @@ func handleGroup(ctx *dispatch.Context) error {
 	if err != nil {
 		return ctx.Replyf(" Failed to get group info: %v", err)
 	}
-	if !ctx.IsSenderAdmin(info) {
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
 		return ctx.Reply("Only group admins can change group settings.")
 	}
 	if !ctx.AmIAdmin(info) {
@@ -588,7 +588,7 @@ func handleAntiLink(ctx *dispatch.Context) error {
 	if err != nil {
 		return ctx.Replyf("Failed to get group info: %v", err)
 	}
-	if !ctx.IsSenderAdmin(info) {
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
 		return ctx.Reply("Only group admins can change anti-link settings.")
 	}
 
@@ -847,7 +847,7 @@ func handleAntiWord(ctx *dispatch.Context) error {
 	if err != nil {
 		return ctx.Replyf("Failed to get group info: %v", err)
 	}
-	if !ctx.IsSenderAdmin(info) {
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
 		return ctx.Reply("Only group admins can change anti-word settings.")
 	}
 
@@ -1189,8 +1189,11 @@ func handleInvite(ctx *dispatch.Context) error {
 	if err != nil {
 		return ctx.Replyf("Failed to get group info: %v", err)
 	}
-	if !ctx.IsSenderAdmin(info) {
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
 		return ctx.Reply("Only group admins can retrieve the invite link.")
+	}
+	if !ctx.AmIAdmin(info) {
+		return ctx.Reply("The bot must be an admin to retrieve the invite link.")
 	}
 
 	link, err := ctx.Client.GetGroupInviteLink(ctx.Ctx, ctx.Chat, false)
@@ -1417,30 +1420,24 @@ func handleKickAll(ctx *dispatch.Context) error {
 		return ctx.Reply("Only group admins or bot owners can use kickall.")
 	}
 
-	botJID := ctx.Client.Store.ID.ToNonAD()
-	botLID := ctx.Client.Store.LID.ToNonAD()
-
-	botIsAdmin := false
-	for _, p := range info.Participants {
-		if (p.JID.User == botJID.User || (!botLID.IsEmpty() && p.JID.User == botLID.User)) && p.IsAdmin {
-			botIsAdmin = true
-			break
-		}
-	}
-
-	if !botIsAdmin {
+	if !ctx.AmIAdmin(info) {
 		return ctx.Reply("I need admin privileges to kick participants.")
 	}
 
 	var toKick []types.JID
 	for _, p := range info.Participants {
-		if p.JID.User == botJID.User || (!botLID.IsEmpty() && p.JID.User == botLID.User) {
+		if ctx.Client != nil && ctx.Client.Store != nil {
+			if ctx.Client.Store.ID != nil && utils.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, *ctx.Client.Store.ID) {
+				continue
+			}
+			if !ctx.Client.Store.LID.IsEmpty() && utils.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Client.Store.LID) {
+				continue
+			}
+		}
+		if utils.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Sender) {
 			continue
 		}
-		if p.JID.User == ctx.Sender.ToNonAD().User {
-			continue
-		}
-		if ctx.IsTargetSudo(p.JID) {
+		if ctx.IsTargetSudo(p.JID) || (!p.PhoneNumber.IsEmpty() && ctx.IsTargetSudo(p.PhoneNumber)) || (!p.LID.IsEmpty() && ctx.IsTargetSudo(p.LID)) {
 			continue
 		}
 		toKick = append(toKick, p.JID)
@@ -2176,7 +2173,7 @@ func handleAutoMute(ctx *dispatch.Context) error {
 	if err != nil {
 		return ctx.Replyf("Failed to get group info: %v", err)
 	}
-	if !ctx.IsSenderAdmin(info) {
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
 		return ctx.Reply("Only group admins can set automute schedules.")
 	}
 
@@ -2221,7 +2218,7 @@ func handleAutoUnmute(ctx *dispatch.Context) error {
 	if err != nil {
 		return ctx.Replyf("Failed to get group info: %v", err)
 	}
-	if !ctx.IsSenderAdmin(info) {
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
 		return ctx.Reply("Only group admins can set autounmute schedules.")
 	}
 
@@ -2411,19 +2408,8 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 				continue
 			}
 
-			botJID := client.Store.ID.ToNonAD()
-			botLID := client.Store.GetLID().ToNonAD()
-			isAdmin := false
-			for _, p := range info.Participants {
-				matchesBot := (!p.PhoneNumber.IsEmpty() && p.PhoneNumber.ToNonAD() == botJID) ||
-					(!p.LID.IsEmpty() && p.LID.ToNonAD() == botLID) ||
-					(p.JID.ToNonAD() == botJID)
-				if matchesBot && (p.IsAdmin || p.IsSuperAdmin) {
-					isAdmin = true
-					break
-				}
-			}
-			Logger.Debug("automute: admin check", "group", groupJIDStr, "bot_jid", botJID.String(), "is_admin", isAdmin)
+			isAdmin := utils.IsBotAdminRaw(ctx, client, info)
+			Logger.Debug("automute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
 
 			if !isAdmin {
 				Logger.Warn("automute: bot is not admin in group, cannot mute", "group", groupJIDStr)
@@ -2476,19 +2462,8 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 				continue
 			}
 
-			botJID := client.Store.ID.ToNonAD()
-			botLID := client.Store.GetLID().ToNonAD()
-			isAdmin := false
-			for _, p := range info.Participants {
-				matchesBot := (!p.PhoneNumber.IsEmpty() && p.PhoneNumber.ToNonAD() == botJID) ||
-					(!p.LID.IsEmpty() && p.LID.ToNonAD() == botLID) ||
-					(p.JID.ToNonAD() == botJID) // fallback for older/PN-addressed groups
-				if matchesBot && (p.IsAdmin || p.IsSuperAdmin) {
-					isAdmin = true
-					break
-				}
-			}
-			Logger.Debug("autounmute: admin check", "group", groupJIDStr, "bot_jid", botJID.String(), "is_admin", isAdmin)
+			isAdmin := utils.IsBotAdminRaw(ctx, client, info)
+			Logger.Debug("autounmute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
 
 			if !isAdmin {
 				Logger.Warn("autounmute: bot is not admin in group, cannot unmute", "group", groupJIDStr)
@@ -2607,11 +2582,15 @@ func handleSetGroupPP(ctx *dispatch.Context) error {
 	}
 
 	groupInfo, errGroup := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
-	if errGroup == nil && groupInfo != nil {
-		isBotAdmin := utils.IsAdminRaw(ctx.Ctx, ctx.Client, groupInfo, ctx.Sender)
-		if groupInfo.IsAnnounce && !isBotAdmin {
-			return ctx.Reply("Only group admins are allowed to edit group info.")
-		}
+	if errGroup != nil || groupInfo == nil {
+		return ctx.Replyf("Failed to get group info: %v", errGroup)
+	}
+
+	if !ctx.IsSenderAdmin(groupInfo) && !ctx.IsSudo() {
+		return ctx.Reply("Only group admins can change the group profile picture.")
+	}
+	if groupInfo.IsLocked && !ctx.AmIAdmin(groupInfo) {
+		return ctx.Reply("The bot must be an admin to change the group profile picture when group settings are restricted.")
 	}
 
 	downloadable, _, mime := ExtractMediaFromEvent(ctx.Evt)
@@ -2916,41 +2895,43 @@ func isJIDOwnerOrSudo(ctx *dispatch.Context, target types.JID) bool {
 }
 
 func isParticipantAdmin(info *types.GroupInfo, target types.JID) bool {
-	if info == nil {
+	if info == nil || target.IsEmpty() {
 		return false
 	}
-	targetUser := target.ToNonAD().User
-	for _, p := range info.Participants {
-		if (p.JID.User == targetUser) && (p.IsAdmin || p.IsSuperAdmin) {
-			return true
-		}
-	}
-	return false
+	return utils.IsAdminRaw(context.Background(), nil, info, target)
 }
 
 func isBotAdmin(ctx *dispatch.Context, info *types.GroupInfo) bool {
-	if info == nil || ctx.Client.Store.ID == nil {
+	if ctx == nil || info == nil {
 		return false
 	}
-	botUser := ctx.Client.Store.ID.ToNonAD().User
-	botLIDUser := ""
-	if !ctx.Client.Store.LID.IsEmpty() {
-		botLIDUser = ctx.Client.Store.LID.ToNonAD().User
-	}
+	return ctx.AmIAdmin(info)
+}
 
-	for _, p := range info.Participants {
-		if (p.JID.User == botUser || (botLIDUser != "" && p.JID.User == botLIDUser)) && (p.IsAdmin || p.IsSuperAdmin) {
+func isBotGroupOwner(ctx *dispatch.Context, info *types.GroupInfo) bool {
+	if ctx == nil || info == nil || ctx.Client == nil || ctx.Client.Store == nil {
+		return false
+	}
+	if info.OwnerJID.IsEmpty() && info.OwnerPN.IsEmpty() {
+		return false
+	}
+	if ctx.Client.Store.ID != nil && !ctx.Client.Store.ID.IsEmpty() {
+		if !info.OwnerJID.IsEmpty() && ctx.IsSameUser(info.OwnerJID, *ctx.Client.Store.ID) {
+			return true
+		}
+		if !info.OwnerPN.IsEmpty() && ctx.IsSameUser(info.OwnerPN, *ctx.Client.Store.ID) {
+			return true
+		}
+	}
+	if !ctx.Client.Store.LID.IsEmpty() {
+		if !info.OwnerJID.IsEmpty() && ctx.IsSameUser(info.OwnerJID, ctx.Client.Store.LID) {
+			return true
+		}
+		if !info.OwnerPN.IsEmpty() && ctx.IsSameUser(info.OwnerPN, ctx.Client.Store.LID) {
 			return true
 		}
 	}
 	return false
-}
-
-func isBotGroupOwner(ctx *dispatch.Context, info *types.GroupInfo) bool {
-	if info == nil || info.OwnerJID.IsEmpty() || ctx.Client.Store.ID == nil {
-		return false
-	}
-	return ctx.IsSameUser(info.OwnerJID, *ctx.Client.Store.ID)
 }
 
 func handleWelcome(ctx *dispatch.Context) error {

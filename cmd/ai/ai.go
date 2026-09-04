@@ -610,7 +610,9 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 			data.UserOfQuotedMessage = quotedPushName
 			if data.ChatType == "group" {
 				for _, p := range data.GroupMetaData.Participants {
-					if p.JID.User == quotedJID.User || p.JID.User == quotedPNJID.User {
+					matches := (!quotedJID.IsEmpty() && utils.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, quotedJID)) ||
+						(!quotedPNJID.IsEmpty() && utils.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, quotedPNJID))
+					if matches {
 						switch {
 						case p.IsSuperAdmin:
 							data.QuotedMessageParticipantRole = "Super Admin"

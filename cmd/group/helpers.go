@@ -163,10 +163,7 @@ func HandleGroupModeration(c *dispatch.Context, text string) bool {
 				if action == "" {
 					action = "delete"
 				}
-				botIsAdmin := false
-				if client.Store.ID != nil {
-					botIsAdmin = utils.IsAdminRaw(ctx, client, info, *client.Store.ID)
-				}
+				botIsAdmin := utils.IsBotAdminRaw(ctx, client, info)
 				if botIsAdmin {
 					_, _ = client.SendMessage(ctx, c.Chat, client.BuildRevoke(c.Chat, c.Sender, evt.Info.ID))
 					if action == "kick" {
@@ -259,11 +256,7 @@ func HandleGroupModeration(c *dispatch.Context, text string) bool {
 	}
 
 	if violation {
-		botIsAdmin := false
-		if client.Store.ID != nil {
-			botIsAdmin = utils.IsAdminRaw(ctx, client, info, *client.Store.ID)
-		}
-
+		botIsAdmin := utils.IsBotAdminRaw(ctx, client, info)
 		if botIsAdmin {
 			_, _ = client.SendMessage(ctx, c.Chat, client.BuildRevoke(c.Chat, c.Sender, evt.Info.ID))
 			resolvedJID, username := utils.ResolveMentionRaw(ctx, client, c.Sender)
