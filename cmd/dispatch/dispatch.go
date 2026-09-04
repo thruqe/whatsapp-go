@@ -244,6 +244,77 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	return false
 }
 
+// ResolveSenderMention resolves the triggering sender to an interactive WhatsApp mention tag (@phone)
+// and all associated non-AD JIDs (including Phone Number and LID mappings) for ContextInfo.MentionedJID.
+func ResolveSenderMention(cctx *Context) (string, []types.JID) {
+	if cctx == nil {
+		return "@User", nil
+	}
+
+	sender := cctx.Sender
+	if sender.IsEmpty() && cctx.Evt != nil && !cctx.Evt.Info.Sender.IsEmpty() {
+		sender = cctx.Evt.Info.Sender
+	}
+	if sender.IsEmpty() {
+		sender = cctx.Chat
+	}
+	if sender.IsEmpty() && cctx.Client != nil && cctx.Client.Store != nil && cctx.Client.Store.ID != nil {
+		sender = *cctx.Client.Store.ID
+	}
+	sender = sender.ToNonAD()
+	if sender.IsEmpty() || (sender.Server != types.DefaultUserServer && sender.Server != types.HiddenUserServer) {
+		return "@User", nil
+	}
+
+	ctx := cctx.GetSendContext()
+	client := cctx.Client
+
+	pnJID := sender
+	var lidJID types.JID
+
+	if sender.Server == types.HiddenUserServer {
+		lidJID = sender
+		if client != nil && client.Store != nil && client.Store.LIDs != nil {
+			if pn, err := client.Store.LIDs.GetPNForLID(ctx, sender); err == nil && !pn.IsEmpty() {
+				pnJID = pn.ToNonAD()
+			}
+		}
+	} else if sender.Server == types.DefaultUserServer {
+		pnJID = sender
+		if client != nil && client.Store != nil && client.Store.LIDs != nil {
+			if lid, err := client.Store.LIDs.GetLIDForPN(ctx, sender); err == nil && !lid.IsEmpty() {
+				lidJID = lid.ToNonAD()
+			}
+		}
+	}
+
+	// In WhatsApp protocol, interactive text mentions require @<phone_number> (the JID User part).
+	// WhatsApp clients match this against ContextInfo.MentionedJID to highlight and render the clickable mention.
+	tagUser := pnJID.User
+	if tagUser == "" {
+		tagUser = sender.User
+	}
+	if tagUser == "" || tagUser == "User" {
+		return "@User", nil
+	}
+	userTag := "@" + tagUser
+
+	var mentions []types.JID
+	seen := make(map[string]bool)
+	for _, j := range []types.JID{pnJID, lidJID, sender} {
+		if !j.IsEmpty() {
+			norm := j.ToNonAD()
+			key := norm.String()
+			if !seen[key] {
+				seen[key] = true
+				mentions = append(mentions, norm)
+			}
+		}
+	}
+
+	return userTag, mentions
+}
+
 // HandleUnknownCommand handles incoming messages where the prefix matched but the command does not exist.
 // It finds the closest registered command, formats the suggestion with user mention, and replies.
 func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) {
@@ -265,22 +336,11 @@ func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) 
 		return "", false
 	}
 
-	sender := cctx.Sender
-	if sender.IsEmpty() {
-		sender = cctx.Chat
-	}
-	userTag, mentionJID := cctx.FormatMention(sender)
-	if userTag == "" || userTag == "@" {
-		userTag = "@User"
-	}
+	userTag, mentions := ResolveSenderMention(cctx)
 
 	msg := FormatUnknownCommandSuggestion(userTag, prefix, closest)
-	var mentions []types.JID
-	if !mentionJID.IsEmpty() {
-		mentions = append(mentions, mentionJID)
-	}
 
-	Logger.Debug("Dispatcher: unknown command with prefix detected, suggesting closest", "prefix", prefix, "input", cmdName, "suggestion", closest, "user", userTag)
+	Logger.Debug("Dispatcher: unknown command with prefix detected, suggesting closest", "prefix", prefix, "input", cmdName, "suggestion", closest, "user", userTag, "mentions", mentions)
 	_ = cctx.ReplyWithMentions(msg, mentions)
 	return msg, true
 }
