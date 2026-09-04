@@ -4,9 +4,7 @@ whatsrook is a command-line, third-party, hybrid-automation whatsapp client.
 
 ## Support
 
-[Join the Chat](https://t.me/whatsrookpublic)
-
-[Announcements](https://t.me/whatsrook)
+[Group Chat](https://t.me/whatsrook)
 
 ## Installation
 
