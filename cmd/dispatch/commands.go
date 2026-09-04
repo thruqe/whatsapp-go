@@ -7,10 +7,13 @@
 package dispatch
 
 import (
+	"fmt"
+	"math"
 	"strings"
 	"sync"
 	utils "whatsrook"
 	"whatsrook/builder"
+	"whatsrook/external"
 )
 
 // Context aliases the core whatsrook.PluginContext execution context.
@@ -163,4 +166,148 @@ func Count() int {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
 	return len(order)
+}
+
+// ClosestCommand returns the registered command name or alias closest in edit distance
+// to the provided target string using Damerau-Levenshtein distance.
+func ClosestCommand(target string) string {
+	target = strings.ToLower(strings.TrimSpace(target))
+	if target == "" {
+		return ""
+	}
+
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+
+	var bestMatch string
+	bestDist := math.MaxInt
+	bestLenDiff := math.MaxInt
+	bestIsPrimary := false
+
+	// Check all triggers in registry (both primary command names and aliases)
+	for trigger, cmd := range registry {
+		dist := damerauLevenshtein(target, trigger)
+		isPrimary := cmd != nil && strings.EqualFold(cmd.Name, trigger)
+		lenDiff := abs(len(trigger) - len(target))
+
+		if dist < bestDist {
+			bestDist = dist
+			bestMatch = trigger
+			bestLenDiff = lenDiff
+			bestIsPrimary = isPrimary
+		} else if dist == bestDist {
+			// Tie-breaking:
+			// 1. Prefer smaller length difference with target
+			// 2. Prefer primary command names over aliases
+			// 3. Prefer lexicographically smaller trigger for determinism
+			if lenDiff < bestLenDiff {
+				bestMatch = trigger
+				bestLenDiff = lenDiff
+				bestIsPrimary = isPrimary
+			} else if lenDiff == bestLenDiff {
+				if isPrimary && !bestIsPrimary {
+					bestMatch = trigger
+					bestIsPrimary = isPrimary
+				} else if isPrimary == bestIsPrimary && trigger < bestMatch {
+					bestMatch = trigger
+				}
+			}
+		}
+	}
+
+	// Also check installed external plugins
+	if external.DefaultDispatcher != nil {
+		if plugins, err := external.DefaultDispatcher.List(); err == nil {
+			for _, p := range plugins {
+				name := strings.ToLower(p.Name)
+				dist := damerauLevenshtein(target, name)
+				lenDiff := abs(len(name) - len(target))
+				if dist < bestDist {
+					bestDist = dist
+					bestMatch = name
+					bestLenDiff = lenDiff
+					bestIsPrimary = true
+				} else if dist == bestDist {
+					if lenDiff < bestLenDiff {
+						bestMatch = name
+						bestLenDiff = lenDiff
+						bestIsPrimary = true
+					} else if lenDiff == bestLenDiff && (!bestIsPrimary || name < bestMatch) {
+						bestMatch = name
+						bestIsPrimary = true
+					}
+				}
+			}
+		}
+	}
+
+	return bestMatch
+}
+
+// FormatUnknownCommandSuggestion formats the user-facing suggestion when a command is misspelled.
+func FormatUnknownCommandSuggestion(userTag, prefix, closestCmd string) string {
+	if userTag == "" || userTag == "@" {
+		userTag = "@User"
+	}
+	return fmt.Sprintf("%s that's not quite right, did you mean to run %s%s?", userTag, prefix, closestCmd)
+}
+
+// damerauLevenshtein calculates the Damerau-Levenshtein distance between two strings,
+// accounting for insertions, deletions, substitutions, and adjacent transpositions.
+func damerauLevenshtein(a, b string) int {
+	r1, r2 := []rune(a), []rune(b)
+	n, m := len(r1), len(r2)
+	if n == 0 {
+		return m
+	}
+	if m == 0 {
+		return n
+	}
+
+	stride := m + 1
+	d := make([]int, (n+1)*stride)
+	for i := 0; i <= n; i++ {
+		d[i*stride] = i
+	}
+	for j := 0; j <= m; j++ {
+		d[j] = j
+	}
+
+	for i := 1; i <= n; i++ {
+		for j := 1; j <= m; j++ {
+			cost := 1
+			if r1[i-1] == r2[j-1] {
+				cost = 0
+			}
+			del := d[(i-1)*stride+j] + 1
+			ins := d[i*stride+(j-1)] + 1
+			sub := d[(i-1)*stride+(j-1)] + cost
+
+			minVal := min(sub, min(ins, del))
+			d[i*stride+j] = minVal
+
+			// Transposition check
+			if i > 1 && j > 1 && r1[i-1] == r2[j-2] && r1[i-2] == r2[j-1] {
+				if trans := d[(i-2)*stride+(j-2)] + 1; trans < d[i*stride+j] {
+					d[i*stride+j] = trans
+				}
+			}
+		}
+	}
+	return d[n*stride+m]
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func isLikelyCommandName(s string) bool {
+	if s == "" {
+		return false
+	}
+	r := rune(s[0])
+	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
 }

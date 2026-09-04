@@ -189,8 +189,21 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 		if matchesPrefix(text, p) {
 			body := strings.TrimLeft(strings.TrimSpace(text[len(p):]), ",:;! \t")
+			fields := strings.Fields(body)
+			if len(fields) == 0 {
+				continue
+			}
 			if runCommand(ctx, client, evt, body) {
 				return true
+			}
+			cmdName := strings.ToLower(fields[0])
+			if clean := strings.TrimRight(cmdName, ",:;!? \t"); clean != "" {
+				cmdName = clean
+			}
+			if isLikelyCommandName(cmdName) {
+				if _, handled := HandleUnknownCommand(cctx, p, cmdName); handled {
+					return true
+				}
 			}
 		}
 	}
@@ -229,6 +242,47 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 
 	return false
+}
+
+// HandleUnknownCommand handles incoming messages where the prefix matched but the command does not exist.
+// It finds the closest registered command, formats the suggestion with user mention, and replies.
+func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) {
+	if cctx == nil {
+		return "", false
+	}
+
+	sendCtx := cctx.GetSendContext()
+	if s, okStore := GetSQLStore(cctx.Client); okStore {
+		botMode, _ := s.GetSetting(sendCtx, "mode")
+		if botMode == "private" && !cctx.IsSudo() {
+			_ = cctx.Reply("The bot is currently in private mode. Only sudoers/owners can use it.")
+			return "The bot is currently in private mode. Only sudoers/owners can use it.", true
+		}
+	}
+
+	closest := ClosestCommand(cmdName)
+	if closest == "" {
+		return "", false
+	}
+
+	sender := cctx.Sender
+	if sender.IsEmpty() {
+		sender = cctx.Chat
+	}
+	userTag, mentionJID := cctx.FormatMention(sender)
+	if userTag == "" || userTag == "@" {
+		userTag = "@User"
+	}
+
+	msg := FormatUnknownCommandSuggestion(userTag, prefix, closest)
+	var mentions []types.JID
+	if !mentionJID.IsEmpty() {
+		mentions = append(mentions, mentionJID)
+	}
+
+	Logger.Debug("Dispatcher: unknown command with prefix detected, suggesting closest", "prefix", prefix, "input", cmdName, "suggestion", closest, "user", userTag)
+	_ = cctx.ReplyWithMentions(msg, mentions)
+	return msg, true
 }
 
 func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, cmdLine string) bool {
