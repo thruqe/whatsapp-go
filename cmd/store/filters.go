@@ -270,7 +270,7 @@ func DeleteStickerCmdByName(ctx context.Context, s *sqlstore.SQLStore, cmdName s
 	}
 	ourJID := ourJIDStr(s)
 	return gdb.WithContext(ctx).
-		Where("our_jid = ? AND command_name = ?", ourJID, cmdName).
+		Where("our_jid = ? AND (command_name = ? OR command_name LIKE ?)", ourJID, cmdName, cmdName+" %").
 		Delete(&BotStickerCmd{}).Error
 }
 
