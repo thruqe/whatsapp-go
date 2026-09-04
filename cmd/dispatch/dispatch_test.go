@@ -248,3 +248,93 @@ func TestHandleUnknownCommand(t *testing.T) {
 		t.Errorf("expected msg %q, got %q", expectedEmpty, msgEmpty)
 	}
 }
+
+func TestResolveSenderMention(t *testing.T) {
+	// 1. Nil context
+	tagNil, mentionsNil := dispatch.ResolveSenderMention(nil)
+	if tagNil != "@User" || len(mentionsNil) != 0 {
+		t.Errorf("expected @User and nil mentions for nil context, got tag=%q mentions=%v", tagNil, mentionsNil)
+	}
+
+	// 2. Empty context
+	tagEmpty, mentionsEmpty := dispatch.ResolveSenderMention(&dispatch.Context{})
+	if tagEmpty != "@User" || len(mentionsEmpty) != 0 {
+		t.Errorf("expected @User and nil mentions for empty context, got tag=%q mentions=%v", tagEmpty, mentionsEmpty)
+	}
+
+	// 3. Standard Phone Number JID
+	pnJID := types.NewJID("2348011111111", types.DefaultUserServer)
+	cctxPN := &dispatch.Context{
+		Sender: pnJID,
+	}
+	tagPN, mentionsPN := dispatch.ResolveSenderMention(cctxPN)
+	if tagPN != "@2348011111111" {
+		t.Errorf("expected @2348011111111, got %q", tagPN)
+	}
+	if len(mentionsPN) != 1 || mentionsPN[0] != pnJID {
+		t.Errorf("expected mentions [%v], got %v", pnJID, mentionsPN)
+	}
+
+	// 4. Sender with device suffix (AD JID)
+	adJID := types.JID{
+		User:     "2348011111111",
+		RawAgent: 0,
+		Device:   2,
+		Server:   types.DefaultUserServer,
+	}
+	cctxAD := &dispatch.Context{
+		Sender: adJID,
+	}
+	tagAD, mentionsAD := dispatch.ResolveSenderMention(cctxAD)
+	if tagAD != "@2348011111111" {
+		t.Errorf("expected @2348011111111, got %q", tagAD)
+	}
+	if len(mentionsAD) != 1 || mentionsAD[0] != pnJID {
+		t.Errorf("expected device suffix to be stripped in mentions [%v], got %v", pnJID, mentionsAD)
+	}
+
+	// 5. Fallback to Evt.Info.Sender when cctx.Sender is empty
+	cctxEvt := &dispatch.Context{
+		Evt: &events.Message{
+			Info: types.MessageInfo{
+				Sender: pnJID,
+			},
+		},
+	}
+	tagEvt, mentionsEvt := dispatch.ResolveSenderMention(cctxEvt)
+	if tagEvt != "@2348011111111" || len(mentionsEvt) != 1 || mentionsEvt[0] != pnJID {
+		t.Errorf("expected resolution from Evt.Info.Sender, got tag=%q mentions=%v", tagEvt, mentionsEvt)
+	}
+
+	// 6. Fallback to DM Chat JID when sender is empty
+	cctxDM := &dispatch.Context{
+		Chat: pnJID,
+	}
+	tagDM, mentionsDM := dispatch.ResolveSenderMention(cctxDM)
+	if tagDM != "@2348011111111" || len(mentionsDM) != 1 || mentionsDM[0] != pnJID {
+		t.Errorf("expected resolution from DM chat JID, got tag=%q mentions=%v", tagDM, mentionsDM)
+	}
+
+	// 7. Group chat with empty sender must not treat group JID as user
+	groupJID := types.NewJID("120363000000001", types.GroupServer)
+	cctxGroupEmptySender := &dispatch.Context{
+		Chat: groupJID,
+	}
+	tagGroup, mentionsGroup := dispatch.ResolveSenderMention(cctxGroupEmptySender)
+	if tagGroup != "@User" || len(mentionsGroup) != 0 {
+		t.Errorf("expected @User and nil mentions when only group chat JID is present, got tag=%q mentions=%v", tagGroup, mentionsGroup)
+	}
+
+	// 8. LID sender fallback
+	lidJID := types.NewJID("1234567890123", types.HiddenUserServer)
+	cctxLID := &dispatch.Context{
+		Sender: lidJID,
+	}
+	tagLID, mentionsLID := dispatch.ResolveSenderMention(cctxLID)
+	if tagLID != "@1234567890123" {
+		t.Errorf("expected @1234567890123, got %q", tagLID)
+	}
+	if len(mentionsLID) != 1 || mentionsLID[0] != lidJID {
+		t.Errorf("expected mentions [%v], got %v", lidJID, mentionsLID)
+	}
+}
