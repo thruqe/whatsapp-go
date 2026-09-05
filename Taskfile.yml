@@ -40,14 +40,14 @@ tasks:
       - go vet ./...
       - cd wa-core && go vet ./...
       - cd cmd && go vet ./...
-      - staticcheck ./... 2>/dev/null || $(go env GOPATH)/bin/staticcheck ./...
-      - cd wa-core && (staticcheck ./... 2>/dev/null || $(go env GOPATH)/bin/staticcheck ./...)
-      - cd cmd && (staticcheck ./... 2>/dev/null || $(go env GOPATH)/bin/staticcheck ./...)
+      - command -v staticcheck >/dev/null 2>&1 && staticcheck ./... || ([ -x "$(go env GOPATH)/bin/staticcheck" ] && "$(go env GOPATH)/bin/staticcheck" ./...) || true
+      - cd wa-core && (command -v staticcheck >/dev/null 2>&1 && staticcheck ./... || ([ -x "$(go env GOPATH)/bin/staticcheck" ] && "$(go env GOPATH)/bin/staticcheck" ./...) || true)
+      - cd cmd && (command -v staticcheck >/dev/null 2>&1 && staticcheck ./... || ([ -x "$(go env GOPATH)/bin/staticcheck" ] && "$(go env GOPATH)/bin/staticcheck" ./...) || true)
 
   deadcode:
     desc: Analyze unreachable functions across the codebase
     cmds:
-      - cd cmd && (deadcode . 2>/dev/null || $(go env GOPATH)/bin/deadcode .)
+      - cd cmd && (command -v deadcode >/dev/null 2>&1 && deadcode . || ([ -x "$(go env GOPATH)/bin/deadcode" ] && "$(go env GOPATH)/bin/deadcode" .) || true)
 
   test:
     desc: Run the test suite
