@@ -29,7 +29,7 @@ jobs:
       - name: Setup Go Toolchain
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: '1.27.x'
           cache: true
 
       - name: Install Protoc
@@ -46,6 +46,7 @@ jobs:
       - name: Run Protobuf Sync
         run: |
           task proto:sync
+          task fmt
 
       - name: Check for Changes
         id: check-changes
@@ -59,6 +60,11 @@ jobs:
             echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
             echo "Protobuf update detected! Target version: ${VERSION}"
           fi
+
+      - name: Verify Protobuf Changes
+        if: steps.check-changes.outputs.has_changes == 'true'
+        run: |
+          task test
 
       - name: Format & Create Pull Request
         if: steps.check-changes.outputs.has_changes == 'true'
