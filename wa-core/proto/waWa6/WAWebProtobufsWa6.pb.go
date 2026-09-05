@@ -21,86 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type HandshakeMessage_HandshakePqMode int32
-
-const (
-	HandshakeMessage_HANDSHAKE_PQ_MODE_UNKNOWN HandshakeMessage_HandshakePqMode = 0
-	HandshakeMessage_XXKEM                     HandshakeMessage_HandshakePqMode = 1
-	HandshakeMessage_XXKEM_FS                  HandshakeMessage_HandshakePqMode = 2
-	HandshakeMessage_XXKEM_EPH                 HandshakeMessage_HandshakePqMode = 9
-	HandshakeMessage_WA_CLASSICAL              HandshakeMessage_HandshakePqMode = 3
-	HandshakeMessage_WA_PQ                     HandshakeMessage_HandshakePqMode = 4
-	HandshakeMessage_IKKEM                     HandshakeMessage_HandshakePqMode = 5
-	HandshakeMessage_IKKEM_FS                  HandshakeMessage_HandshakePqMode = 6
-	HandshakeMessage_XXKEM_2                   HandshakeMessage_HandshakePqMode = 7
-	HandshakeMessage_IKKEM_2                   HandshakeMessage_HandshakePqMode = 8
-)
-
-// Enum value maps for HandshakeMessage_HandshakePqMode.
-var (
-	HandshakeMessage_HandshakePqMode_name = map[int32]string{
-		0: "HANDSHAKE_PQ_MODE_UNKNOWN",
-		1: "XXKEM",
-		2: "XXKEM_FS",
-		9: "XXKEM_EPH",
-		3: "WA_CLASSICAL",
-		4: "WA_PQ",
-		5: "IKKEM",
-		6: "IKKEM_FS",
-		7: "XXKEM_2",
-		8: "IKKEM_2",
-	}
-	HandshakeMessage_HandshakePqMode_value = map[string]int32{
-		"HANDSHAKE_PQ_MODE_UNKNOWN": 0,
-		"XXKEM":                     1,
-		"XXKEM_FS":                  2,
-		"XXKEM_EPH":                 9,
-		"WA_CLASSICAL":              3,
-		"WA_PQ":                     4,
-		"IKKEM":                     5,
-		"IKKEM_FS":                  6,
-		"XXKEM_2":                   7,
-		"IKKEM_2":                   8,
-	}
-)
-
-func (x HandshakeMessage_HandshakePqMode) Enum() *HandshakeMessage_HandshakePqMode {
-	p := new(HandshakeMessage_HandshakePqMode)
-	*p = x
-	return p
-}
-
-func (x HandshakeMessage_HandshakePqMode) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (HandshakeMessage_HandshakePqMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[0].Descriptor()
-}
-
-func (HandshakeMessage_HandshakePqMode) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[0]
-}
-
-func (x HandshakeMessage_HandshakePqMode) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *HandshakeMessage_HandshakePqMode) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = HandshakeMessage_HandshakePqMode(num)
-	return nil
-}
-
-// Deprecated: Use HandshakeMessage_HandshakePqMode.Descriptor instead.
-func (HandshakeMessage_HandshakePqMode) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 0}
-}
-
 type ClientPayload_TrafficAnonymization int32
 
 const (
@@ -131,11 +51,11 @@ func (x ClientPayload_TrafficAnonymization) String() string {
 }
 
 func (ClientPayload_TrafficAnonymization) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[1].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[0].Descriptor()
 }
 
 func (ClientPayload_TrafficAnonymization) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[1]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[0]
 }
 
 func (x ClientPayload_TrafficAnonymization) Number() protoreflect.EnumNumber {
@@ -154,7 +74,7 @@ func (x *ClientPayload_TrafficAnonymization) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ClientPayload_TrafficAnonymization.Descriptor instead.
 func (ClientPayload_TrafficAnonymization) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 0}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 0}
 }
 
 type ClientPayload_AccountType int32
@@ -187,11 +107,11 @@ func (x ClientPayload_AccountType) String() string {
 }
 
 func (ClientPayload_AccountType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[2].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[1].Descriptor()
 }
 
 func (ClientPayload_AccountType) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[2]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[1]
 }
 
 func (x ClientPayload_AccountType) Number() protoreflect.EnumNumber {
@@ -210,7 +130,7 @@ func (x *ClientPayload_AccountType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ClientPayload_AccountType.Descriptor instead.
 func (ClientPayload_AccountType) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 1}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 1}
 }
 
 type ClientPayload_Product int32
@@ -252,11 +172,11 @@ func (x ClientPayload_Product) String() string {
 }
 
 func (ClientPayload_Product) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[3].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[2].Descriptor()
 }
 
 func (ClientPayload_Product) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[3]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[2]
 }
 
 func (x ClientPayload_Product) Number() protoreflect.EnumNumber {
@@ -275,7 +195,7 @@ func (x *ClientPayload_Product) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ClientPayload_Product.Descriptor instead.
 func (ClientPayload_Product) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 2}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 2}
 }
 
 type ClientPayload_ConnectType int32
@@ -347,11 +267,11 @@ func (x ClientPayload_ConnectType) String() string {
 }
 
 func (ClientPayload_ConnectType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[4].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[3].Descriptor()
 }
 
 func (ClientPayload_ConnectType) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[4]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[3]
 }
 
 func (x ClientPayload_ConnectType) Number() protoreflect.EnumNumber {
@@ -370,7 +290,7 @@ func (x *ClientPayload_ConnectType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ClientPayload_ConnectType.Descriptor instead.
 func (ClientPayload_ConnectType) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 3}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 3}
 }
 
 type ClientPayload_ConnectReason int32
@@ -418,11 +338,11 @@ func (x ClientPayload_ConnectReason) String() string {
 }
 
 func (ClientPayload_ConnectReason) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[5].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[4].Descriptor()
 }
 
 func (ClientPayload_ConnectReason) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[5]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[4]
 }
 
 func (x ClientPayload_ConnectReason) Number() protoreflect.EnumNumber {
@@ -441,7 +361,7 @@ func (x *ClientPayload_ConnectReason) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ClientPayload_ConnectReason.Descriptor instead.
 func (ClientPayload_ConnectReason) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 4}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 4}
 }
 
 type ClientPayload_IOSAppExtension int32
@@ -477,11 +397,11 @@ func (x ClientPayload_IOSAppExtension) String() string {
 }
 
 func (ClientPayload_IOSAppExtension) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[6].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[5].Descriptor()
 }
 
 func (ClientPayload_IOSAppExtension) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[6]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[5]
 }
 
 func (x ClientPayload_IOSAppExtension) Number() protoreflect.EnumNumber {
@@ -500,7 +420,7 @@ func (x *ClientPayload_IOSAppExtension) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ClientPayload_IOSAppExtension.Descriptor instead.
 func (ClientPayload_IOSAppExtension) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 5}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 5}
 }
 
 type ClientPayload_DNSSource_DNSResolutionMethod int32
@@ -551,11 +471,11 @@ func (x ClientPayload_DNSSource_DNSResolutionMethod) String() string {
 }
 
 func (ClientPayload_DNSSource_DNSResolutionMethod) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[7].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[6].Descriptor()
 }
 
 func (ClientPayload_DNSSource_DNSResolutionMethod) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[7]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[6]
 }
 
 func (x ClientPayload_DNSSource_DNSResolutionMethod) Number() protoreflect.EnumNumber {
@@ -574,7 +494,7 @@ func (x *ClientPayload_DNSSource_DNSResolutionMethod) UnmarshalJSON(b []byte) er
 
 // Deprecated: Use ClientPayload_DNSSource_DNSResolutionMethod.Descriptor instead.
 func (ClientPayload_DNSSource_DNSResolutionMethod) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 0, 0}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 0, 0}
 }
 
 type ClientPayload_WebInfo_WebSubPlatform int32
@@ -619,11 +539,11 @@ func (x ClientPayload_WebInfo_WebSubPlatform) String() string {
 }
 
 func (ClientPayload_WebInfo_WebSubPlatform) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[8].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[7].Descriptor()
 }
 
 func (ClientPayload_WebInfo_WebSubPlatform) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[8]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[7]
 }
 
 func (x ClientPayload_WebInfo_WebSubPlatform) Number() protoreflect.EnumNumber {
@@ -642,7 +562,7 @@ func (x *ClientPayload_WebInfo_WebSubPlatform) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ClientPayload_WebInfo_WebSubPlatform.Descriptor instead.
 func (ClientPayload_WebInfo_WebSubPlatform) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 1, 0}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 1, 0}
 }
 
 type ClientPayload_UserAgent_DeviceType int32
@@ -684,11 +604,11 @@ func (x ClientPayload_UserAgent_DeviceType) String() string {
 }
 
 func (ClientPayload_UserAgent_DeviceType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[9].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[8].Descriptor()
 }
 
 func (ClientPayload_UserAgent_DeviceType) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[9]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[8]
 }
 
 func (x ClientPayload_UserAgent_DeviceType) Number() protoreflect.EnumNumber {
@@ -707,7 +627,7 @@ func (x *ClientPayload_UserAgent_DeviceType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ClientPayload_UserAgent_DeviceType.Descriptor instead.
 func (ClientPayload_UserAgent_DeviceType) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 2, 0}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 2, 0}
 }
 
 type ClientPayload_UserAgent_DistributionChannel int32
@@ -746,11 +666,11 @@ func (x ClientPayload_UserAgent_DistributionChannel) String() string {
 }
 
 func (ClientPayload_UserAgent_DistributionChannel) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[10].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[9].Descriptor()
 }
 
 func (ClientPayload_UserAgent_DistributionChannel) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[10]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[9]
 }
 
 func (x ClientPayload_UserAgent_DistributionChannel) Number() protoreflect.EnumNumber {
@@ -769,7 +689,7 @@ func (x *ClientPayload_UserAgent_DistributionChannel) UnmarshalJSON(b []byte) er
 
 // Deprecated: Use ClientPayload_UserAgent_DistributionChannel.Descriptor instead.
 func (ClientPayload_UserAgent_DistributionChannel) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 2, 1}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 2, 1}
 }
 
 type ClientPayload_UserAgent_ReleaseChannel int32
@@ -808,11 +728,11 @@ func (x ClientPayload_UserAgent_ReleaseChannel) String() string {
 }
 
 func (ClientPayload_UserAgent_ReleaseChannel) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[11].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[10].Descriptor()
 }
 
 func (ClientPayload_UserAgent_ReleaseChannel) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[11]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[10]
 }
 
 func (x ClientPayload_UserAgent_ReleaseChannel) Number() protoreflect.EnumNumber {
@@ -831,7 +751,7 @@ func (x *ClientPayload_UserAgent_ReleaseChannel) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ClientPayload_UserAgent_ReleaseChannel.Descriptor instead.
 func (ClientPayload_UserAgent_ReleaseChannel) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 2, 2}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 2, 2}
 }
 
 type ClientPayload_UserAgent_Platform int32
@@ -876,6 +796,8 @@ const (
 	ClientPayload_UserAgent_BLUE_VR        ClientPayload_UserAgent_Platform = 36
 	ClientPayload_UserAgent_AR_WRIST       ClientPayload_UserAgent_Platform = 37
 	ClientPayload_UserAgent_WAIL           ClientPayload_UserAgent_Platform = 38
+	ClientPayload_UserAgent_WORK_ANDROID   ClientPayload_UserAgent_Platform = 39
+	ClientPayload_UserAgent_WORK_IOS       ClientPayload_UserAgent_Platform = 40
 )
 
 // Enum value maps for ClientPayload_UserAgent_Platform.
@@ -920,6 +842,8 @@ var (
 		36: "BLUE_VR",
 		37: "AR_WRIST",
 		38: "WAIL",
+		39: "WORK_ANDROID",
+		40: "WORK_IOS",
 	}
 	ClientPayload_UserAgent_Platform_value = map[string]int32{
 		"ANDROID":        0,
@@ -961,6 +885,8 @@ var (
 		"BLUE_VR":        36,
 		"AR_WRIST":       37,
 		"WAIL":           38,
+		"WORK_ANDROID":   39,
+		"WORK_IOS":       40,
 	}
 )
 
@@ -975,11 +901,11 @@ func (x ClientPayload_UserAgent_Platform) String() string {
 }
 
 func (ClientPayload_UserAgent_Platform) Descriptor() protoreflect.EnumDescriptor {
-	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[12].Descriptor()
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[11].Descriptor()
 }
 
 func (ClientPayload_UserAgent_Platform) Type() protoreflect.EnumType {
-	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[12]
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[11]
 }
 
 func (x ClientPayload_UserAgent_Platform) Number() protoreflect.EnumNumber {
@@ -998,67 +924,87 @@ func (x *ClientPayload_UserAgent_Platform) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ClientPayload_UserAgent_Platform.Descriptor instead.
 func (ClientPayload_UserAgent_Platform) EnumDescriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 2, 3}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 2, 3}
 }
 
-type HandshakeMessage struct {
-	state         protoimpl.MessageState         `protogen:"open.v1"`
-	ClientHello   *HandshakeMessage_ClientHello  `protobuf:"bytes,2,opt,name=clientHello" json:"clientHello,omitempty"`
-	ServerHello   *HandshakeMessage_ServerHello  `protobuf:"bytes,3,opt,name=serverHello" json:"serverHello,omitempty"`
-	ClientFinish  *HandshakeMessage_ClientFinish `protobuf:"bytes,4,opt,name=clientFinish" json:"clientFinish,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
+type HandshakeMessage_HandshakePqMode int32
 
-func (x *HandshakeMessage) Reset() {
-	*x = HandshakeMessage{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
+const (
+	HandshakeMessage_HANDSHAKE_PQ_MODE_UNKNOWN HandshakeMessage_HandshakePqMode = 0
+	HandshakeMessage_XXKEM                     HandshakeMessage_HandshakePqMode = 1
+	HandshakeMessage_XXKEM_FS                  HandshakeMessage_HandshakePqMode = 2
+	HandshakeMessage_XXKEM_EPH                 HandshakeMessage_HandshakePqMode = 9
+	HandshakeMessage_WA_CLASSICAL              HandshakeMessage_HandshakePqMode = 3
+	HandshakeMessage_WA_PQ                     HandshakeMessage_HandshakePqMode = 4
+	HandshakeMessage_IKKEM                     HandshakeMessage_HandshakePqMode = 5
+	HandshakeMessage_IKKEM_FS                  HandshakeMessage_HandshakePqMode = 6
+	HandshakeMessage_XXKEM_2                   HandshakeMessage_HandshakePqMode = 7
+	HandshakeMessage_IKKEM_2                   HandshakeMessage_HandshakePqMode = 8
+)
 
-func (x *HandshakeMessage) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*HandshakeMessage) ProtoMessage() {}
-
-func (x *HandshakeMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+// Enum value maps for HandshakeMessage_HandshakePqMode.
+var (
+	HandshakeMessage_HandshakePqMode_name = map[int32]string{
+		0: "HANDSHAKE_PQ_MODE_UNKNOWN",
+		1: "XXKEM",
+		2: "XXKEM_FS",
+		9: "XXKEM_EPH",
+		3: "WA_CLASSICAL",
+		4: "WA_PQ",
+		5: "IKKEM",
+		6: "IKKEM_FS",
+		7: "XXKEM_2",
+		8: "IKKEM_2",
 	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use HandshakeMessage.ProtoReflect.Descriptor instead.
-func (*HandshakeMessage) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *HandshakeMessage) GetClientHello() *HandshakeMessage_ClientHello {
-	if x != nil {
-		return x.ClientHello
+	HandshakeMessage_HandshakePqMode_value = map[string]int32{
+		"HANDSHAKE_PQ_MODE_UNKNOWN": 0,
+		"XXKEM":                     1,
+		"XXKEM_FS":                  2,
+		"XXKEM_EPH":                 9,
+		"WA_CLASSICAL":              3,
+		"WA_PQ":                     4,
+		"IKKEM":                     5,
+		"IKKEM_FS":                  6,
+		"XXKEM_2":                   7,
+		"IKKEM_2":                   8,
 	}
+)
+
+func (x HandshakeMessage_HandshakePqMode) Enum() *HandshakeMessage_HandshakePqMode {
+	p := new(HandshakeMessage_HandshakePqMode)
+	*p = x
+	return p
+}
+
+func (x HandshakeMessage_HandshakePqMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (HandshakeMessage_HandshakePqMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_waWa6_WAWebProtobufsWa6_proto_enumTypes[12].Descriptor()
+}
+
+func (HandshakeMessage_HandshakePqMode) Type() protoreflect.EnumType {
+	return &file_waWa6_WAWebProtobufsWa6_proto_enumTypes[12]
+}
+
+func (x HandshakeMessage_HandshakePqMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *HandshakeMessage_HandshakePqMode) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = HandshakeMessage_HandshakePqMode(num)
 	return nil
 }
 
-func (x *HandshakeMessage) GetServerHello() *HandshakeMessage_ServerHello {
-	if x != nil {
-		return x.ServerHello
-	}
-	return nil
-}
-
-func (x *HandshakeMessage) GetClientFinish() *HandshakeMessage_ClientFinish {
-	if x != nil {
-		return x.ClientFinish
-	}
-	return nil
+// Deprecated: Use HandshakeMessage_HandshakePqMode.Descriptor instead.
+func (HandshakeMessage_HandshakePqMode) EnumDescriptor() ([]byte, []int) {
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 0}
 }
 
 type ClientPayload struct {
@@ -1105,7 +1051,7 @@ type ClientPayload struct {
 
 func (x *ClientPayload) Reset() {
 	*x = ClientPayload{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[1]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1117,7 +1063,7 @@ func (x *ClientPayload) String() string {
 func (*ClientPayload) ProtoMessage() {}
 
 func (x *ClientPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[1]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1130,7 +1076,7 @@ func (x *ClientPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientPayload.ProtoReflect.Descriptor instead.
 func (*ClientPayload) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ClientPayload) GetUsername() uint64 {
@@ -1385,32 +1331,30 @@ func (x *ClientPayload) GetTestIsolationID() []byte {
 	return nil
 }
 
-type HandshakeMessage_ClientFinish struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Static             []byte                 `protobuf:"bytes,1,opt,name=static" json:"static,omitempty"`
-	Payload            []byte                 `protobuf:"bytes,2,opt,name=payload" json:"payload,omitempty"`
-	ExtendedCiphertext []byte                 `protobuf:"bytes,3,opt,name=extendedCiphertext" json:"extendedCiphertext,omitempty"`
-	PaddedBytes        []byte                 `protobuf:"bytes,4,opt,name=paddedBytes" json:"paddedBytes,omitempty"`
-	SimulateXxkemFs    *bool                  `protobuf:"varint,5,opt,name=simulateXxkemFs" json:"simulateXxkemFs,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+type HandshakeMessage struct {
+	state         protoimpl.MessageState         `protogen:"open.v1"`
+	ClientHello   *HandshakeMessage_ClientHello  `protobuf:"bytes,2,opt,name=clientHello" json:"clientHello,omitempty"`
+	ServerHello   *HandshakeMessage_ServerHello  `protobuf:"bytes,3,opt,name=serverHello" json:"serverHello,omitempty"`
+	ClientFinish  *HandshakeMessage_ClientFinish `protobuf:"bytes,4,opt,name=clientFinish" json:"clientFinish,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *HandshakeMessage_ClientFinish) Reset() {
-	*x = HandshakeMessage_ClientFinish{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[2]
+func (x *HandshakeMessage) Reset() {
+	*x = HandshakeMessage{}
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *HandshakeMessage_ClientFinish) String() string {
+func (x *HandshakeMessage) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*HandshakeMessage_ClientFinish) ProtoMessage() {}
+func (*HandshakeMessage) ProtoMessage() {}
 
-func (x *HandshakeMessage_ClientFinish) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[2]
+func (x *HandshakeMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1421,242 +1365,28 @@ func (x *HandshakeMessage_ClientFinish) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HandshakeMessage_ClientFinish.ProtoReflect.Descriptor instead.
-func (*HandshakeMessage_ClientFinish) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 0}
+// Deprecated: Use HandshakeMessage.ProtoReflect.Descriptor instead.
+func (*HandshakeMessage) Descriptor() ([]byte, []int) {
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *HandshakeMessage_ClientFinish) GetStatic() []byte {
+func (x *HandshakeMessage) GetClientHello() *HandshakeMessage_ClientHello {
 	if x != nil {
-		return x.Static
+		return x.ClientHello
 	}
 	return nil
 }
 
-func (x *HandshakeMessage_ClientFinish) GetPayload() []byte {
+func (x *HandshakeMessage) GetServerHello() *HandshakeMessage_ServerHello {
 	if x != nil {
-		return x.Payload
+		return x.ServerHello
 	}
 	return nil
 }
 
-func (x *HandshakeMessage_ClientFinish) GetExtendedCiphertext() []byte {
+func (x *HandshakeMessage) GetClientFinish() *HandshakeMessage_ClientFinish {
 	if x != nil {
-		return x.ExtendedCiphertext
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ClientFinish) GetPaddedBytes() []byte {
-	if x != nil {
-		return x.PaddedBytes
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ClientFinish) GetSimulateXxkemFs() bool {
-	if x != nil && x.SimulateXxkemFs != nil {
-		return *x.SimulateXxkemFs
-	}
-	return false
-}
-
-type HandshakeMessage_ServerHello struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Ephemeral          []byte                 `protobuf:"bytes,1,opt,name=ephemeral" json:"ephemeral,omitempty"`
-	Static             []byte                 `protobuf:"bytes,2,opt,name=static" json:"static,omitempty"`
-	Payload            []byte                 `protobuf:"bytes,3,opt,name=payload" json:"payload,omitempty"`
-	ExtendedStatic     []byte                 `protobuf:"bytes,4,opt,name=extendedStatic" json:"extendedStatic,omitempty"`
-	PaddingBytes       []byte                 `protobuf:"bytes,5,opt,name=paddingBytes" json:"paddingBytes,omitempty"`
-	ExtendedCiphertext []byte                 `protobuf:"bytes,6,opt,name=extendedCiphertext" json:"extendedCiphertext,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
-}
-
-func (x *HandshakeMessage_ServerHello) Reset() {
-	*x = HandshakeMessage_ServerHello{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *HandshakeMessage_ServerHello) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*HandshakeMessage_ServerHello) ProtoMessage() {}
-
-func (x *HandshakeMessage_ServerHello) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use HandshakeMessage_ServerHello.ProtoReflect.Descriptor instead.
-func (*HandshakeMessage_ServerHello) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 1}
-}
-
-func (x *HandshakeMessage_ServerHello) GetEphemeral() []byte {
-	if x != nil {
-		return x.Ephemeral
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ServerHello) GetStatic() []byte {
-	if x != nil {
-		return x.Static
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ServerHello) GetPayload() []byte {
-	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ServerHello) GetExtendedStatic() []byte {
-	if x != nil {
-		return x.ExtendedStatic
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ServerHello) GetPaddingBytes() []byte {
-	if x != nil {
-		return x.PaddingBytes
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ServerHello) GetExtendedCiphertext() []byte {
-	if x != nil {
-		return x.ExtendedCiphertext
-	}
-	return nil
-}
-
-type HandshakeMessage_ClientHello struct {
-	state                      protoimpl.MessageState            `protogen:"open.v1"`
-	Ephemeral                  []byte                            `protobuf:"bytes,1,opt,name=ephemeral" json:"ephemeral,omitempty"`
-	Static                     []byte                            `protobuf:"bytes,2,opt,name=static" json:"static,omitempty"`
-	Payload                    []byte                            `protobuf:"bytes,3,opt,name=payload" json:"payload,omitempty"`
-	UseExtended                *bool                             `protobuf:"varint,4,opt,name=useExtended" json:"useExtended,omitempty"`
-	ExtendedCiphertext         []byte                            `protobuf:"bytes,5,opt,name=extendedCiphertext" json:"extendedCiphertext,omitempty"`
-	PaddedBytes                []byte                            `protobuf:"bytes,6,opt,name=paddedBytes" json:"paddedBytes,omitempty"`
-	SendServerHelloPaddedBytes *bool                             `protobuf:"varint,7,opt,name=sendServerHelloPaddedBytes" json:"sendServerHelloPaddedBytes,omitempty"`
-	SimulateXxkemFs            *bool                             `protobuf:"varint,8,opt,name=simulateXxkemFs" json:"simulateXxkemFs,omitempty"`
-	PqMode                     *HandshakeMessage_HandshakePqMode `protobuf:"varint,9,opt,name=pqMode,enum=WAWebProtobufsWa6.HandshakeMessage_HandshakePqMode" json:"pqMode,omitempty"`
-	ExtendedEphemeral          []byte                            `protobuf:"bytes,10,opt,name=extendedEphemeral" json:"extendedEphemeral,omitempty"`
-	unknownFields              protoimpl.UnknownFields
-	sizeCache                  protoimpl.SizeCache
-}
-
-func (x *HandshakeMessage_ClientHello) Reset() {
-	*x = HandshakeMessage_ClientHello{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *HandshakeMessage_ClientHello) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*HandshakeMessage_ClientHello) ProtoMessage() {}
-
-func (x *HandshakeMessage_ClientHello) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use HandshakeMessage_ClientHello.ProtoReflect.Descriptor instead.
-func (*HandshakeMessage_ClientHello) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 2}
-}
-
-func (x *HandshakeMessage_ClientHello) GetEphemeral() []byte {
-	if x != nil {
-		return x.Ephemeral
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ClientHello) GetStatic() []byte {
-	if x != nil {
-		return x.Static
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ClientHello) GetPayload() []byte {
-	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ClientHello) GetUseExtended() bool {
-	if x != nil && x.UseExtended != nil {
-		return *x.UseExtended
-	}
-	return false
-}
-
-func (x *HandshakeMessage_ClientHello) GetExtendedCiphertext() []byte {
-	if x != nil {
-		return x.ExtendedCiphertext
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ClientHello) GetPaddedBytes() []byte {
-	if x != nil {
-		return x.PaddedBytes
-	}
-	return nil
-}
-
-func (x *HandshakeMessage_ClientHello) GetSendServerHelloPaddedBytes() bool {
-	if x != nil && x.SendServerHelloPaddedBytes != nil {
-		return *x.SendServerHelloPaddedBytes
-	}
-	return false
-}
-
-func (x *HandshakeMessage_ClientHello) GetSimulateXxkemFs() bool {
-	if x != nil && x.SimulateXxkemFs != nil {
-		return *x.SimulateXxkemFs
-	}
-	return false
-}
-
-func (x *HandshakeMessage_ClientHello) GetPqMode() HandshakeMessage_HandshakePqMode {
-	if x != nil && x.PqMode != nil {
-		return *x.PqMode
-	}
-	return HandshakeMessage_HANDSHAKE_PQ_MODE_UNKNOWN
-}
-
-func (x *HandshakeMessage_ClientHello) GetExtendedEphemeral() []byte {
-	if x != nil {
-		return x.ExtendedEphemeral
+		return x.ClientFinish
 	}
 	return nil
 }
@@ -1671,7 +1401,7 @@ type ClientPayload_DNSSource struct {
 
 func (x *ClientPayload_DNSSource) Reset() {
 	*x = ClientPayload_DNSSource{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[5]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1683,7 +1413,7 @@ func (x *ClientPayload_DNSSource) String() string {
 func (*ClientPayload_DNSSource) ProtoMessage() {}
 
 func (x *ClientPayload_DNSSource) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[5]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1696,7 +1426,7 @@ func (x *ClientPayload_DNSSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientPayload_DNSSource.ProtoReflect.Descriptor instead.
 func (*ClientPayload_DNSSource) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 0}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 0}
 }
 
 func (x *ClientPayload_DNSSource) GetDnsMethod() ClientPayload_DNSSource_DNSResolutionMethod {
@@ -1727,7 +1457,7 @@ type ClientPayload_WebInfo struct {
 
 func (x *ClientPayload_WebInfo) Reset() {
 	*x = ClientPayload_WebInfo{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[6]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1739,7 +1469,7 @@ func (x *ClientPayload_WebInfo) String() string {
 func (*ClientPayload_WebInfo) ProtoMessage() {}
 
 func (x *ClientPayload_WebInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[6]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1752,7 +1482,7 @@ func (x *ClientPayload_WebInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientPayload_WebInfo.ProtoReflect.Descriptor instead.
 func (*ClientPayload_WebInfo) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 1}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 1}
 }
 
 func (x *ClientPayload_WebInfo) GetRefToken() string {
@@ -1822,7 +1552,7 @@ type ClientPayload_UserAgent struct {
 
 func (x *ClientPayload_UserAgent) Reset() {
 	*x = ClientPayload_UserAgent{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[7]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1834,7 +1564,7 @@ func (x *ClientPayload_UserAgent) String() string {
 func (*ClientPayload_UserAgent) ProtoMessage() {}
 
 func (x *ClientPayload_UserAgent) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[7]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1847,7 +1577,7 @@ func (x *ClientPayload_UserAgent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientPayload_UserAgent.ProtoReflect.Descriptor instead.
 func (*ClientPayload_UserAgent) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 2}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 2}
 }
 
 func (x *ClientPayload_UserAgent) GetPlatform() ClientPayload_UserAgent_Platform {
@@ -1980,7 +1710,7 @@ type ClientPayload_InteropData struct {
 
 func (x *ClientPayload_InteropData) Reset() {
 	*x = ClientPayload_InteropData{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[8]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1992,7 +1722,7 @@ func (x *ClientPayload_InteropData) String() string {
 func (*ClientPayload_InteropData) ProtoMessage() {}
 
 func (x *ClientPayload_InteropData) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[8]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2005,7 +1735,7 @@ func (x *ClientPayload_InteropData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientPayload_InteropData.ProtoReflect.Descriptor instead.
 func (*ClientPayload_InteropData) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 3}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 3}
 }
 
 func (x *ClientPayload_InteropData) GetAccountID() uint64 {
@@ -2045,7 +1775,7 @@ type ClientPayload_DevicePairingRegistrationData struct {
 
 func (x *ClientPayload_DevicePairingRegistrationData) Reset() {
 	*x = ClientPayload_DevicePairingRegistrationData{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[9]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2057,7 +1787,7 @@ func (x *ClientPayload_DevicePairingRegistrationData) String() string {
 func (*ClientPayload_DevicePairingRegistrationData) ProtoMessage() {}
 
 func (x *ClientPayload_DevicePairingRegistrationData) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[9]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2070,7 +1800,7 @@ func (x *ClientPayload_DevicePairingRegistrationData) ProtoReflect() protoreflec
 
 // Deprecated: Use ClientPayload_DevicePairingRegistrationData.ProtoReflect.Descriptor instead.
 func (*ClientPayload_DevicePairingRegistrationData) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 4}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 4}
 }
 
 func (x *ClientPayload_DevicePairingRegistrationData) GetERegid() []byte {
@@ -2148,7 +1878,7 @@ type ClientPayload_WebInfo_WebdPayload struct {
 
 func (x *ClientPayload_WebInfo_WebdPayload) Reset() {
 	*x = ClientPayload_WebInfo_WebdPayload{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[10]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2160,7 +1890,7 @@ func (x *ClientPayload_WebInfo_WebdPayload) String() string {
 func (*ClientPayload_WebInfo_WebdPayload) ProtoMessage() {}
 
 func (x *ClientPayload_WebInfo_WebdPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[10]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2173,7 +1903,7 @@ func (x *ClientPayload_WebInfo_WebdPayload) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ClientPayload_WebInfo_WebdPayload.ProtoReflect.Descriptor instead.
 func (*ClientPayload_WebInfo_WebdPayload) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 1, 0}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 1, 0}
 }
 
 func (x *ClientPayload_WebInfo_WebdPayload) GetUsesParticipantInKey() bool {
@@ -2266,7 +1996,7 @@ type ClientPayload_UserAgent_AppVersion struct {
 
 func (x *ClientPayload_UserAgent_AppVersion) Reset() {
 	*x = ClientPayload_UserAgent_AppVersion{}
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[11]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2278,7 +2008,7 @@ func (x *ClientPayload_UserAgent_AppVersion) String() string {
 func (*ClientPayload_UserAgent_AppVersion) ProtoMessage() {}
 
 func (x *ClientPayload_UserAgent_AppVersion) ProtoReflect() protoreflect.Message {
-	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[11]
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2291,7 +2021,7 @@ func (x *ClientPayload_UserAgent_AppVersion) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use ClientPayload_UserAgent_AppVersion.ProtoReflect.Descriptor instead.
 func (*ClientPayload_UserAgent_AppVersion) Descriptor() ([]byte, []int) {
-	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 2, 0}
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{0, 2, 0}
 }
 
 func (x *ClientPayload_UserAgent_AppVersion) GetPrimary() uint32 {
@@ -2329,52 +2059,287 @@ func (x *ClientPayload_UserAgent_AppVersion) GetQuinary() uint32 {
 	return 0
 }
 
+type HandshakeMessage_ClientFinish struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Static             []byte                 `protobuf:"bytes,1,opt,name=static" json:"static,omitempty"`
+	Payload            []byte                 `protobuf:"bytes,2,opt,name=payload" json:"payload,omitempty"`
+	ExtendedCiphertext []byte                 `protobuf:"bytes,3,opt,name=extendedCiphertext" json:"extendedCiphertext,omitempty"`
+	PaddedBytes        []byte                 `protobuf:"bytes,4,opt,name=paddedBytes" json:"paddedBytes,omitempty"`
+	SimulateXxkemFs    *bool                  `protobuf:"varint,5,opt,name=simulateXxkemFs" json:"simulateXxkemFs,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *HandshakeMessage_ClientFinish) Reset() {
+	*x = HandshakeMessage_ClientFinish{}
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandshakeMessage_ClientFinish) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandshakeMessage_ClientFinish) ProtoMessage() {}
+
+func (x *HandshakeMessage_ClientFinish) ProtoReflect() protoreflect.Message {
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandshakeMessage_ClientFinish.ProtoReflect.Descriptor instead.
+func (*HandshakeMessage_ClientFinish) Descriptor() ([]byte, []int) {
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 0}
+}
+
+func (x *HandshakeMessage_ClientFinish) GetStatic() []byte {
+	if x != nil {
+		return x.Static
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ClientFinish) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ClientFinish) GetExtendedCiphertext() []byte {
+	if x != nil {
+		return x.ExtendedCiphertext
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ClientFinish) GetPaddedBytes() []byte {
+	if x != nil {
+		return x.PaddedBytes
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ClientFinish) GetSimulateXxkemFs() bool {
+	if x != nil && x.SimulateXxkemFs != nil {
+		return *x.SimulateXxkemFs
+	}
+	return false
+}
+
+type HandshakeMessage_ServerHello struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Ephemeral          []byte                 `protobuf:"bytes,1,opt,name=ephemeral" json:"ephemeral,omitempty"`
+	Static             []byte                 `protobuf:"bytes,2,opt,name=static" json:"static,omitempty"`
+	Payload            []byte                 `protobuf:"bytes,3,opt,name=payload" json:"payload,omitempty"`
+	ExtendedStatic     []byte                 `protobuf:"bytes,4,opt,name=extendedStatic" json:"extendedStatic,omitempty"`
+	PaddingBytes       []byte                 `protobuf:"bytes,5,opt,name=paddingBytes" json:"paddingBytes,omitempty"`
+	ExtendedCiphertext []byte                 `protobuf:"bytes,6,opt,name=extendedCiphertext" json:"extendedCiphertext,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *HandshakeMessage_ServerHello) Reset() {
+	*x = HandshakeMessage_ServerHello{}
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandshakeMessage_ServerHello) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandshakeMessage_ServerHello) ProtoMessage() {}
+
+func (x *HandshakeMessage_ServerHello) ProtoReflect() protoreflect.Message {
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandshakeMessage_ServerHello.ProtoReflect.Descriptor instead.
+func (*HandshakeMessage_ServerHello) Descriptor() ([]byte, []int) {
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 1}
+}
+
+func (x *HandshakeMessage_ServerHello) GetEphemeral() []byte {
+	if x != nil {
+		return x.Ephemeral
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ServerHello) GetStatic() []byte {
+	if x != nil {
+		return x.Static
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ServerHello) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ServerHello) GetExtendedStatic() []byte {
+	if x != nil {
+		return x.ExtendedStatic
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ServerHello) GetPaddingBytes() []byte {
+	if x != nil {
+		return x.PaddingBytes
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ServerHello) GetExtendedCiphertext() []byte {
+	if x != nil {
+		return x.ExtendedCiphertext
+	}
+	return nil
+}
+
+type HandshakeMessage_ClientHello struct {
+	state                      protoimpl.MessageState            `protogen:"open.v1"`
+	Ephemeral                  []byte                            `protobuf:"bytes,1,opt,name=ephemeral" json:"ephemeral,omitempty"`
+	Static                     []byte                            `protobuf:"bytes,2,opt,name=static" json:"static,omitempty"`
+	Payload                    []byte                            `protobuf:"bytes,3,opt,name=payload" json:"payload,omitempty"`
+	UseExtended                *bool                             `protobuf:"varint,4,opt,name=useExtended" json:"useExtended,omitempty"`
+	ExtendedCiphertext         []byte                            `protobuf:"bytes,5,opt,name=extendedCiphertext" json:"extendedCiphertext,omitempty"`
+	PaddedBytes                []byte                            `protobuf:"bytes,6,opt,name=paddedBytes" json:"paddedBytes,omitempty"`
+	SendServerHelloPaddedBytes *bool                             `protobuf:"varint,7,opt,name=sendServerHelloPaddedBytes" json:"sendServerHelloPaddedBytes,omitempty"`
+	SimulateXxkemFs            *bool                             `protobuf:"varint,8,opt,name=simulateXxkemFs" json:"simulateXxkemFs,omitempty"`
+	PqMode                     *HandshakeMessage_HandshakePqMode `protobuf:"varint,9,opt,name=pqMode,enum=WAWebProtobufsWa6.HandshakeMessage_HandshakePqMode" json:"pqMode,omitempty"`
+	ExtendedEphemeral          []byte                            `protobuf:"bytes,10,opt,name=extendedEphemeral" json:"extendedEphemeral,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
+}
+
+func (x *HandshakeMessage_ClientHello) Reset() {
+	*x = HandshakeMessage_ClientHello{}
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandshakeMessage_ClientHello) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandshakeMessage_ClientHello) ProtoMessage() {}
+
+func (x *HandshakeMessage_ClientHello) ProtoReflect() protoreflect.Message {
+	mi := &file_waWa6_WAWebProtobufsWa6_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandshakeMessage_ClientHello.ProtoReflect.Descriptor instead.
+func (*HandshakeMessage_ClientHello) Descriptor() ([]byte, []int) {
+	return file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP(), []int{1, 2}
+}
+
+func (x *HandshakeMessage_ClientHello) GetEphemeral() []byte {
+	if x != nil {
+		return x.Ephemeral
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ClientHello) GetStatic() []byte {
+	if x != nil {
+		return x.Static
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ClientHello) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ClientHello) GetUseExtended() bool {
+	if x != nil && x.UseExtended != nil {
+		return *x.UseExtended
+	}
+	return false
+}
+
+func (x *HandshakeMessage_ClientHello) GetExtendedCiphertext() []byte {
+	if x != nil {
+		return x.ExtendedCiphertext
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ClientHello) GetPaddedBytes() []byte {
+	if x != nil {
+		return x.PaddedBytes
+	}
+	return nil
+}
+
+func (x *HandshakeMessage_ClientHello) GetSendServerHelloPaddedBytes() bool {
+	if x != nil && x.SendServerHelloPaddedBytes != nil {
+		return *x.SendServerHelloPaddedBytes
+	}
+	return false
+}
+
+func (x *HandshakeMessage_ClientHello) GetSimulateXxkemFs() bool {
+	if x != nil && x.SimulateXxkemFs != nil {
+		return *x.SimulateXxkemFs
+	}
+	return false
+}
+
+func (x *HandshakeMessage_ClientHello) GetPqMode() HandshakeMessage_HandshakePqMode {
+	if x != nil && x.PqMode != nil {
+		return *x.PqMode
+	}
+	return HandshakeMessage_HANDSHAKE_PQ_MODE_UNKNOWN
+}
+
+func (x *HandshakeMessage_ClientHello) GetExtendedEphemeral() []byte {
+	if x != nil {
+		return x.ExtendedEphemeral
+	}
+	return nil
+}
+
 var File_waWa6_WAWebProtobufsWa6_proto protoreflect.FileDescriptor
 
 const file_waWa6_WAWebProtobufsWa6_proto_rawDesc = "" +
 	"\n" +
-	"\x1dwaWa6/WAWebProtobufsWa6.proto\x12\x11WAWebProtobufsWa6\"\x8d\n" +
-	"\n" +
-	"\x10HandshakeMessage\x12Q\n" +
-	"\vclientHello\x18\x02 \x01(\v2/.WAWebProtobufsWa6.HandshakeMessage.ClientHelloR\vclientHello\x12Q\n" +
-	"\vserverHello\x18\x03 \x01(\v2/.WAWebProtobufsWa6.HandshakeMessage.ServerHelloR\vserverHello\x12T\n" +
-	"\fclientFinish\x18\x04 \x01(\v20.WAWebProtobufsWa6.HandshakeMessage.ClientFinishR\fclientFinish\x1a\xbc\x01\n" +
-	"\fClientFinish\x12\x16\n" +
-	"\x06static\x18\x01 \x01(\fR\x06static\x12\x18\n" +
-	"\apayload\x18\x02 \x01(\fR\apayload\x12.\n" +
-	"\x12extendedCiphertext\x18\x03 \x01(\fR\x12extendedCiphertext\x12 \n" +
-	"\vpaddedBytes\x18\x04 \x01(\fR\vpaddedBytes\x12(\n" +
-	"\x0fsimulateXxkemFs\x18\x05 \x01(\bR\x0fsimulateXxkemFs\x1a\xd9\x01\n" +
-	"\vServerHello\x12\x1c\n" +
-	"\tephemeral\x18\x01 \x01(\fR\tephemeral\x12\x16\n" +
-	"\x06static\x18\x02 \x01(\fR\x06static\x12\x18\n" +
-	"\apayload\x18\x03 \x01(\fR\apayload\x12&\n" +
-	"\x0eextendedStatic\x18\x04 \x01(\fR\x0eextendedStatic\x12\"\n" +
-	"\fpaddingBytes\x18\x05 \x01(\fR\fpaddingBytes\x12.\n" +
-	"\x12extendedCiphertext\x18\x06 \x01(\fR\x12extendedCiphertext\x1a\xb6\x03\n" +
-	"\vClientHello\x12\x1c\n" +
-	"\tephemeral\x18\x01 \x01(\fR\tephemeral\x12\x16\n" +
-	"\x06static\x18\x02 \x01(\fR\x06static\x12\x18\n" +
-	"\apayload\x18\x03 \x01(\fR\apayload\x12 \n" +
-	"\vuseExtended\x18\x04 \x01(\bR\vuseExtended\x12.\n" +
-	"\x12extendedCiphertext\x18\x05 \x01(\fR\x12extendedCiphertext\x12 \n" +
-	"\vpaddedBytes\x18\x06 \x01(\fR\vpaddedBytes\x12>\n" +
-	"\x1asendServerHelloPaddedBytes\x18\a \x01(\bR\x1asendServerHelloPaddedBytes\x12(\n" +
-	"\x0fsimulateXxkemFs\x18\b \x01(\bR\x0fsimulateXxkemFs\x12K\n" +
-	"\x06pqMode\x18\t \x01(\x0e23.WAWebProtobufsWa6.HandshakeMessage.HandshakePqModeR\x06pqMode\x12,\n" +
-	"\x11extendedEphemeral\x18\n" +
-	" \x01(\fR\x11extendedEphemeral\"\xa8\x01\n" +
-	"\x0fHandshakePqMode\x12\x1d\n" +
-	"\x19HANDSHAKE_PQ_MODE_UNKNOWN\x10\x00\x12\t\n" +
-	"\x05XXKEM\x10\x01\x12\f\n" +
-	"\bXXKEM_FS\x10\x02\x12\r\n" +
-	"\tXXKEM_EPH\x10\t\x12\x10\n" +
-	"\fWA_CLASSICAL\x10\x03\x12\t\n" +
-	"\x05WA_PQ\x10\x04\x12\t\n" +
-	"\x05IKKEM\x10\x05\x12\f\n" +
-	"\bIKKEM_FS\x10\x06\x12\v\n" +
-	"\aXXKEM_2\x10\a\x12\v\n" +
-	"\aIKKEM_2\x10\b\"\xf1-\n" +
+	"\x1dwaWa6/WAWebProtobufsWa6.proto\x12\x11WAWebProtobufsWa6\"\x91.\n" +
 	"\rClientPayload\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\x04R\busername\x12\x18\n" +
 	"\apassive\x18\x03 \x01(\bR\apassive\x12H\n" +
@@ -2457,7 +2422,7 @@ const file_waWa6_WAWebProtobufsWa6_proto_rawDesc = "" +
 	"\x06DARWIN\x10\x03\x12\t\n" +
 	"\x05WIN32\x10\x04\x12\x0e\n" +
 	"\n" +
-	"WIN_HYBRID\x10\x05\x1a\xa9\x0e\n" +
+	"WIN_HYBRID\x10\x05\x1a\xc9\x0e\n" +
 	"\tUserAgent\x12O\n" +
 	"\bplatform\x18\x01 \x01(\x0e23.WAWebProtobufsWa6.ClientPayload.UserAgent.PlatformR\bplatform\x12U\n" +
 	"\n" +
@@ -2508,7 +2473,7 @@ const file_waWa6_WAWebProtobufsWa6_proto_rawDesc = "" +
 	"\aRELEASE\x10\x00\x12\b\n" +
 	"\x04BETA\x10\x01\x12\t\n" +
 	"\x05ALPHA\x10\x02\x12\t\n" +
-	"\x05DEBUG\x10\x03\"\xaf\x04\n" +
+	"\x05DEBUG\x10\x03\"\xcf\x04\n" +
 	"\bPlatform\x12\v\n" +
 	"\aANDROID\x10\x00\x12\a\n" +
 	"\x03IOS\x10\x01\x12\x11\n" +
@@ -2554,7 +2519,9 @@ const file_waWa6_WAWebProtobufsWa6_proto_rawDesc = "" +
 	"\rSMART_GLASSES\x10#\x12\v\n" +
 	"\aBLUE_VR\x10$\x12\f\n" +
 	"\bAR_WRIST\x10%\x12\b\n" +
-	"\x04WAIL\x10&\x1aq\n" +
+	"\x04WAIL\x10&\x12\x10\n" +
+	"\fWORK_ANDROID\x10'\x12\f\n" +
+	"\bWORK_IOS\x10(\x1aq\n" +
 	"\vInteropData\x12\x1c\n" +
 	"\taccountID\x18\x01 \x01(\x04R\taccountID\x12\x14\n" +
 	"\x05token\x18\x02 \x01(\fR\x05token\x12.\n" +
@@ -2607,7 +2574,48 @@ const file_waWa6_WAWebProtobufsWa6_proto_rawDesc = "" +
 	"\x0fIOSAppExtension\x12\x13\n" +
 	"\x0fSHARE_EXTENSION\x10\x00\x12\x15\n" +
 	"\x11SERVICE_EXTENSION\x10\x01\x12\x15\n" +
-	"\x11INTENTS_EXTENSION\x10\x02B!Z\x1fgo.mau.fi/whatsmeow/proto/waWa6"
+	"\x11INTENTS_EXTENSION\x10\x02\"\x8d\n" +
+	"\n" +
+	"\x10HandshakeMessage\x12Q\n" +
+	"\vclientHello\x18\x02 \x01(\v2/.WAWebProtobufsWa6.HandshakeMessage.ClientHelloR\vclientHello\x12Q\n" +
+	"\vserverHello\x18\x03 \x01(\v2/.WAWebProtobufsWa6.HandshakeMessage.ServerHelloR\vserverHello\x12T\n" +
+	"\fclientFinish\x18\x04 \x01(\v20.WAWebProtobufsWa6.HandshakeMessage.ClientFinishR\fclientFinish\x1a\xbc\x01\n" +
+	"\fClientFinish\x12\x16\n" +
+	"\x06static\x18\x01 \x01(\fR\x06static\x12\x18\n" +
+	"\apayload\x18\x02 \x01(\fR\apayload\x12.\n" +
+	"\x12extendedCiphertext\x18\x03 \x01(\fR\x12extendedCiphertext\x12 \n" +
+	"\vpaddedBytes\x18\x04 \x01(\fR\vpaddedBytes\x12(\n" +
+	"\x0fsimulateXxkemFs\x18\x05 \x01(\bR\x0fsimulateXxkemFs\x1a\xd9\x01\n" +
+	"\vServerHello\x12\x1c\n" +
+	"\tephemeral\x18\x01 \x01(\fR\tephemeral\x12\x16\n" +
+	"\x06static\x18\x02 \x01(\fR\x06static\x12\x18\n" +
+	"\apayload\x18\x03 \x01(\fR\apayload\x12&\n" +
+	"\x0eextendedStatic\x18\x04 \x01(\fR\x0eextendedStatic\x12\"\n" +
+	"\fpaddingBytes\x18\x05 \x01(\fR\fpaddingBytes\x12.\n" +
+	"\x12extendedCiphertext\x18\x06 \x01(\fR\x12extendedCiphertext\x1a\xb6\x03\n" +
+	"\vClientHello\x12\x1c\n" +
+	"\tephemeral\x18\x01 \x01(\fR\tephemeral\x12\x16\n" +
+	"\x06static\x18\x02 \x01(\fR\x06static\x12\x18\n" +
+	"\apayload\x18\x03 \x01(\fR\apayload\x12 \n" +
+	"\vuseExtended\x18\x04 \x01(\bR\vuseExtended\x12.\n" +
+	"\x12extendedCiphertext\x18\x05 \x01(\fR\x12extendedCiphertext\x12 \n" +
+	"\vpaddedBytes\x18\x06 \x01(\fR\vpaddedBytes\x12>\n" +
+	"\x1asendServerHelloPaddedBytes\x18\a \x01(\bR\x1asendServerHelloPaddedBytes\x12(\n" +
+	"\x0fsimulateXxkemFs\x18\b \x01(\bR\x0fsimulateXxkemFs\x12K\n" +
+	"\x06pqMode\x18\t \x01(\x0e23.WAWebProtobufsWa6.HandshakeMessage.HandshakePqModeR\x06pqMode\x12,\n" +
+	"\x11extendedEphemeral\x18\n" +
+	" \x01(\fR\x11extendedEphemeral\"\xa8\x01\n" +
+	"\x0fHandshakePqMode\x12\x1d\n" +
+	"\x19HANDSHAKE_PQ_MODE_UNKNOWN\x10\x00\x12\t\n" +
+	"\x05XXKEM\x10\x01\x12\f\n" +
+	"\bXXKEM_FS\x10\x02\x12\r\n" +
+	"\tXXKEM_EPH\x10\t\x12\x10\n" +
+	"\fWA_CLASSICAL\x10\x03\x12\t\n" +
+	"\x05WA_PQ\x10\x04\x12\t\n" +
+	"\x05IKKEM\x10\x05\x12\f\n" +
+	"\bIKKEM_FS\x10\x06\x12\v\n" +
+	"\aXXKEM_2\x10\a\x12\v\n" +
+	"\aIKKEM_2\x10\bB!Z\x1fgo.mau.fi/whatsmeow/proto/waWa6"
 
 var (
 	file_waWa6_WAWebProtobufsWa6_proto_rawDescOnce sync.Once
@@ -2624,56 +2632,56 @@ func file_waWa6_WAWebProtobufsWa6_proto_rawDescGZIP() []byte {
 var file_waWa6_WAWebProtobufsWa6_proto_enumTypes = make([]protoimpl.EnumInfo, 13)
 var file_waWa6_WAWebProtobufsWa6_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_waWa6_WAWebProtobufsWa6_proto_goTypes = []any{
-	(HandshakeMessage_HandshakePqMode)(0),               // 0: WAWebProtobufsWa6.HandshakeMessage.HandshakePqMode
-	(ClientPayload_TrafficAnonymization)(0),             // 1: WAWebProtobufsWa6.ClientPayload.TrafficAnonymization
-	(ClientPayload_AccountType)(0),                      // 2: WAWebProtobufsWa6.ClientPayload.AccountType
-	(ClientPayload_Product)(0),                          // 3: WAWebProtobufsWa6.ClientPayload.Product
-	(ClientPayload_ConnectType)(0),                      // 4: WAWebProtobufsWa6.ClientPayload.ConnectType
-	(ClientPayload_ConnectReason)(0),                    // 5: WAWebProtobufsWa6.ClientPayload.ConnectReason
-	(ClientPayload_IOSAppExtension)(0),                  // 6: WAWebProtobufsWa6.ClientPayload.IOSAppExtension
-	(ClientPayload_DNSSource_DNSResolutionMethod)(0),    // 7: WAWebProtobufsWa6.ClientPayload.DNSSource.DNSResolutionMethod
-	(ClientPayload_WebInfo_WebSubPlatform)(0),           // 8: WAWebProtobufsWa6.ClientPayload.WebInfo.WebSubPlatform
-	(ClientPayload_UserAgent_DeviceType)(0),             // 9: WAWebProtobufsWa6.ClientPayload.UserAgent.DeviceType
-	(ClientPayload_UserAgent_DistributionChannel)(0),    // 10: WAWebProtobufsWa6.ClientPayload.UserAgent.DistributionChannel
-	(ClientPayload_UserAgent_ReleaseChannel)(0),         // 11: WAWebProtobufsWa6.ClientPayload.UserAgent.ReleaseChannel
-	(ClientPayload_UserAgent_Platform)(0),               // 12: WAWebProtobufsWa6.ClientPayload.UserAgent.Platform
-	(*HandshakeMessage)(nil),                            // 13: WAWebProtobufsWa6.HandshakeMessage
-	(*ClientPayload)(nil),                               // 14: WAWebProtobufsWa6.ClientPayload
-	(*HandshakeMessage_ClientFinish)(nil),               // 15: WAWebProtobufsWa6.HandshakeMessage.ClientFinish
-	(*HandshakeMessage_ServerHello)(nil),                // 16: WAWebProtobufsWa6.HandshakeMessage.ServerHello
-	(*HandshakeMessage_ClientHello)(nil),                // 17: WAWebProtobufsWa6.HandshakeMessage.ClientHello
-	(*ClientPayload_DNSSource)(nil),                     // 18: WAWebProtobufsWa6.ClientPayload.DNSSource
-	(*ClientPayload_WebInfo)(nil),                       // 19: WAWebProtobufsWa6.ClientPayload.WebInfo
-	(*ClientPayload_UserAgent)(nil),                     // 20: WAWebProtobufsWa6.ClientPayload.UserAgent
-	(*ClientPayload_InteropData)(nil),                   // 21: WAWebProtobufsWa6.ClientPayload.InteropData
-	(*ClientPayload_DevicePairingRegistrationData)(nil), // 22: WAWebProtobufsWa6.ClientPayload.DevicePairingRegistrationData
-	(*ClientPayload_WebInfo_WebdPayload)(nil),           // 23: WAWebProtobufsWa6.ClientPayload.WebInfo.WebdPayload
-	(*ClientPayload_UserAgent_AppVersion)(nil),          // 24: WAWebProtobufsWa6.ClientPayload.UserAgent.AppVersion
+	(ClientPayload_TrafficAnonymization)(0),             // 0: WAWebProtobufsWa6.ClientPayload.TrafficAnonymization
+	(ClientPayload_AccountType)(0),                      // 1: WAWebProtobufsWa6.ClientPayload.AccountType
+	(ClientPayload_Product)(0),                          // 2: WAWebProtobufsWa6.ClientPayload.Product
+	(ClientPayload_ConnectType)(0),                      // 3: WAWebProtobufsWa6.ClientPayload.ConnectType
+	(ClientPayload_ConnectReason)(0),                    // 4: WAWebProtobufsWa6.ClientPayload.ConnectReason
+	(ClientPayload_IOSAppExtension)(0),                  // 5: WAWebProtobufsWa6.ClientPayload.IOSAppExtension
+	(ClientPayload_DNSSource_DNSResolutionMethod)(0),    // 6: WAWebProtobufsWa6.ClientPayload.DNSSource.DNSResolutionMethod
+	(ClientPayload_WebInfo_WebSubPlatform)(0),           // 7: WAWebProtobufsWa6.ClientPayload.WebInfo.WebSubPlatform
+	(ClientPayload_UserAgent_DeviceType)(0),             // 8: WAWebProtobufsWa6.ClientPayload.UserAgent.DeviceType
+	(ClientPayload_UserAgent_DistributionChannel)(0),    // 9: WAWebProtobufsWa6.ClientPayload.UserAgent.DistributionChannel
+	(ClientPayload_UserAgent_ReleaseChannel)(0),         // 10: WAWebProtobufsWa6.ClientPayload.UserAgent.ReleaseChannel
+	(ClientPayload_UserAgent_Platform)(0),               // 11: WAWebProtobufsWa6.ClientPayload.UserAgent.Platform
+	(HandshakeMessage_HandshakePqMode)(0),               // 12: WAWebProtobufsWa6.HandshakeMessage.HandshakePqMode
+	(*ClientPayload)(nil),                               // 13: WAWebProtobufsWa6.ClientPayload
+	(*HandshakeMessage)(nil),                            // 14: WAWebProtobufsWa6.HandshakeMessage
+	(*ClientPayload_DNSSource)(nil),                     // 15: WAWebProtobufsWa6.ClientPayload.DNSSource
+	(*ClientPayload_WebInfo)(nil),                       // 16: WAWebProtobufsWa6.ClientPayload.WebInfo
+	(*ClientPayload_UserAgent)(nil),                     // 17: WAWebProtobufsWa6.ClientPayload.UserAgent
+	(*ClientPayload_InteropData)(nil),                   // 18: WAWebProtobufsWa6.ClientPayload.InteropData
+	(*ClientPayload_DevicePairingRegistrationData)(nil), // 19: WAWebProtobufsWa6.ClientPayload.DevicePairingRegistrationData
+	(*ClientPayload_WebInfo_WebdPayload)(nil),           // 20: WAWebProtobufsWa6.ClientPayload.WebInfo.WebdPayload
+	(*ClientPayload_UserAgent_AppVersion)(nil),          // 21: WAWebProtobufsWa6.ClientPayload.UserAgent.AppVersion
+	(*HandshakeMessage_ClientFinish)(nil),               // 22: WAWebProtobufsWa6.HandshakeMessage.ClientFinish
+	(*HandshakeMessage_ServerHello)(nil),                // 23: WAWebProtobufsWa6.HandshakeMessage.ServerHello
+	(*HandshakeMessage_ClientHello)(nil),                // 24: WAWebProtobufsWa6.HandshakeMessage.ClientHello
 }
 var file_waWa6_WAWebProtobufsWa6_proto_depIdxs = []int32{
-	17, // 0: WAWebProtobufsWa6.HandshakeMessage.clientHello:type_name -> WAWebProtobufsWa6.HandshakeMessage.ClientHello
-	16, // 1: WAWebProtobufsWa6.HandshakeMessage.serverHello:type_name -> WAWebProtobufsWa6.HandshakeMessage.ServerHello
-	15, // 2: WAWebProtobufsWa6.HandshakeMessage.clientFinish:type_name -> WAWebProtobufsWa6.HandshakeMessage.ClientFinish
-	20, // 3: WAWebProtobufsWa6.ClientPayload.userAgent:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent
-	19, // 4: WAWebProtobufsWa6.ClientPayload.webInfo:type_name -> WAWebProtobufsWa6.ClientPayload.WebInfo
-	4,  // 5: WAWebProtobufsWa6.ClientPayload.connectType:type_name -> WAWebProtobufsWa6.ClientPayload.ConnectType
-	5,  // 6: WAWebProtobufsWa6.ClientPayload.connectReason:type_name -> WAWebProtobufsWa6.ClientPayload.ConnectReason
-	18, // 7: WAWebProtobufsWa6.ClientPayload.dnsSource:type_name -> WAWebProtobufsWa6.ClientPayload.DNSSource
-	22, // 8: WAWebProtobufsWa6.ClientPayload.devicePairingData:type_name -> WAWebProtobufsWa6.ClientPayload.DevicePairingRegistrationData
-	3,  // 9: WAWebProtobufsWa6.ClientPayload.product:type_name -> WAWebProtobufsWa6.ClientPayload.Product
-	6,  // 10: WAWebProtobufsWa6.ClientPayload.iosAppExtension:type_name -> WAWebProtobufsWa6.ClientPayload.IOSAppExtension
-	21, // 11: WAWebProtobufsWa6.ClientPayload.interopData:type_name -> WAWebProtobufsWa6.ClientPayload.InteropData
-	1,  // 12: WAWebProtobufsWa6.ClientPayload.trafficAnonymization:type_name -> WAWebProtobufsWa6.ClientPayload.TrafficAnonymization
-	2,  // 13: WAWebProtobufsWa6.ClientPayload.accountType:type_name -> WAWebProtobufsWa6.ClientPayload.AccountType
-	0,  // 14: WAWebProtobufsWa6.HandshakeMessage.ClientHello.pqMode:type_name -> WAWebProtobufsWa6.HandshakeMessage.HandshakePqMode
-	7,  // 15: WAWebProtobufsWa6.ClientPayload.DNSSource.dnsMethod:type_name -> WAWebProtobufsWa6.ClientPayload.DNSSource.DNSResolutionMethod
-	23, // 16: WAWebProtobufsWa6.ClientPayload.WebInfo.webdPayload:type_name -> WAWebProtobufsWa6.ClientPayload.WebInfo.WebdPayload
-	8,  // 17: WAWebProtobufsWa6.ClientPayload.WebInfo.webSubPlatform:type_name -> WAWebProtobufsWa6.ClientPayload.WebInfo.WebSubPlatform
-	12, // 18: WAWebProtobufsWa6.ClientPayload.UserAgent.platform:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent.Platform
-	24, // 19: WAWebProtobufsWa6.ClientPayload.UserAgent.appVersion:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent.AppVersion
-	11, // 20: WAWebProtobufsWa6.ClientPayload.UserAgent.releaseChannel:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent.ReleaseChannel
-	9,  // 21: WAWebProtobufsWa6.ClientPayload.UserAgent.deviceType:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent.DeviceType
-	10, // 22: WAWebProtobufsWa6.ClientPayload.UserAgent.distributionChannel:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent.DistributionChannel
+	17, // 0: WAWebProtobufsWa6.ClientPayload.userAgent:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent
+	16, // 1: WAWebProtobufsWa6.ClientPayload.webInfo:type_name -> WAWebProtobufsWa6.ClientPayload.WebInfo
+	3,  // 2: WAWebProtobufsWa6.ClientPayload.connectType:type_name -> WAWebProtobufsWa6.ClientPayload.ConnectType
+	4,  // 3: WAWebProtobufsWa6.ClientPayload.connectReason:type_name -> WAWebProtobufsWa6.ClientPayload.ConnectReason
+	15, // 4: WAWebProtobufsWa6.ClientPayload.dnsSource:type_name -> WAWebProtobufsWa6.ClientPayload.DNSSource
+	19, // 5: WAWebProtobufsWa6.ClientPayload.devicePairingData:type_name -> WAWebProtobufsWa6.ClientPayload.DevicePairingRegistrationData
+	2,  // 6: WAWebProtobufsWa6.ClientPayload.product:type_name -> WAWebProtobufsWa6.ClientPayload.Product
+	5,  // 7: WAWebProtobufsWa6.ClientPayload.iosAppExtension:type_name -> WAWebProtobufsWa6.ClientPayload.IOSAppExtension
+	18, // 8: WAWebProtobufsWa6.ClientPayload.interopData:type_name -> WAWebProtobufsWa6.ClientPayload.InteropData
+	0,  // 9: WAWebProtobufsWa6.ClientPayload.trafficAnonymization:type_name -> WAWebProtobufsWa6.ClientPayload.TrafficAnonymization
+	1,  // 10: WAWebProtobufsWa6.ClientPayload.accountType:type_name -> WAWebProtobufsWa6.ClientPayload.AccountType
+	24, // 11: WAWebProtobufsWa6.HandshakeMessage.clientHello:type_name -> WAWebProtobufsWa6.HandshakeMessage.ClientHello
+	23, // 12: WAWebProtobufsWa6.HandshakeMessage.serverHello:type_name -> WAWebProtobufsWa6.HandshakeMessage.ServerHello
+	22, // 13: WAWebProtobufsWa6.HandshakeMessage.clientFinish:type_name -> WAWebProtobufsWa6.HandshakeMessage.ClientFinish
+	6,  // 14: WAWebProtobufsWa6.ClientPayload.DNSSource.dnsMethod:type_name -> WAWebProtobufsWa6.ClientPayload.DNSSource.DNSResolutionMethod
+	20, // 15: WAWebProtobufsWa6.ClientPayload.WebInfo.webdPayload:type_name -> WAWebProtobufsWa6.ClientPayload.WebInfo.WebdPayload
+	7,  // 16: WAWebProtobufsWa6.ClientPayload.WebInfo.webSubPlatform:type_name -> WAWebProtobufsWa6.ClientPayload.WebInfo.WebSubPlatform
+	11, // 17: WAWebProtobufsWa6.ClientPayload.UserAgent.platform:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent.Platform
+	21, // 18: WAWebProtobufsWa6.ClientPayload.UserAgent.appVersion:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent.AppVersion
+	10, // 19: WAWebProtobufsWa6.ClientPayload.UserAgent.releaseChannel:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent.ReleaseChannel
+	8,  // 20: WAWebProtobufsWa6.ClientPayload.UserAgent.deviceType:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent.DeviceType
+	9,  // 21: WAWebProtobufsWa6.ClientPayload.UserAgent.distributionChannel:type_name -> WAWebProtobufsWa6.ClientPayload.UserAgent.DistributionChannel
+	12, // 22: WAWebProtobufsWa6.HandshakeMessage.ClientHello.pqMode:type_name -> WAWebProtobufsWa6.HandshakeMessage.HandshakePqMode
 	23, // [23:23] is the sub-list for method output_type
 	23, // [23:23] is the sub-list for method input_type
 	23, // [23:23] is the sub-list for extension type_name

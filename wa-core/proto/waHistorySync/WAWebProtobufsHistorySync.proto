@@ -2,10 +2,11 @@ syntax = "proto2";
 package WAWebProtobufsHistorySync;
 option go_package = "go.mau.fi/whatsmeow/proto/waHistorySync";
 
-import "waSyncAction/WAWebProtobufSyncAction.proto";
+import "waAICommon/WAWebProtobufsAICommon.proto";
 import "waChatLockSettings/WAWebProtobufsChatLockSettings.proto";
-import "waE2E/WAWebProtobufsE2E.proto";
 import "waCommon/WACommon.proto";
+import "waE2E/WAWebProtobufsE2E.proto";
+import "waSyncAction/WAWebProtobufSyncAction.proto";
 import "waWeb/WAWebProtobufsWeb.proto";
 
 enum MediaVisibility {
@@ -18,44 +19,26 @@ enum PrivacySystemMessage {
 	E2EE_MSG = 1;
 	NE2EE_SELF = 2;
 	NE2EE_OTHER = 3;
+	PRIVACYSYSTEMMESSAGE_UNKNOWN = 0;
 }
 
-message HistorySync {
-	enum BotAIWaitListState {
-		IN_WAITLIST = 0;
-		AI_AVAILABLE = 1;
-	}
+message Account {
+	optional string lid = 1;
+	optional string username = 2;
+	optional string countryCode = 3;
+	optional bool isUsernameDeleted = 4;
+}
 
-	enum HistorySyncType {
-		INITIAL_BOOTSTRAP = 0;
-		INITIAL_STATUS_V3 = 1;
-		FULL = 2;
-		RECENT = 3;
-		PUSH_NAME = 4;
-		NON_BLOCKING_DATA = 5;
-		ON_DEMAND = 6;
-	}
+message AutoDownloadSettings {
+	optional bool downloadImages = 1;
+	optional bool downloadAudio = 2;
+	optional bool downloadVideo = 3;
+	optional bool downloadDocuments = 4;
+}
 
-	required HistorySyncType syncType = 1;
-	repeated Conversation conversations = 2;
-	repeated WAWebProtobufsWeb.WebMessageInfo statusV3Messages = 3;
-	optional uint32 chunkOrder = 5;
-	optional uint32 progress = 6;
-	repeated Pushname pushnames = 7;
-	optional GlobalSettings globalSettings = 8;
-	optional bytes threadIDUserSecret = 9;
-	optional uint32 threadDsTimeframeOffset = 10;
-	repeated StickerMetadata recentStickers = 11;
-	repeated PastParticipants pastParticipants = 12;
-	repeated WAWebProtobufSyncAction.CallLogRecord callLogRecords = 13;
-	optional BotAIWaitListState aiWaitListState = 14;
-	repeated PhoneNumberToLIDMapping phoneNumberToLidMappings = 15;
-	optional string companionMetaNonce = 16;
-	optional bytes shareableChatIdentifierEncryptionKey = 17;
-	repeated Account accounts = 18;
-	optional bytes nctSalt = 19;
-	repeated InlineContact inlineContacts = 20;
-	optional bool inlineContactsProvided = 21;
+message AvatarUserSettings {
+	optional string FBID = 1;
+	optional string password = 2;
 }
 
 message Conversation {
@@ -138,70 +121,6 @@ message Conversation {
 	optional IdentityVerificationState identityVerification = 63;
 }
 
-message GroupParticipant {
-	enum Rank {
-		REGULAR = 0;
-		ADMIN = 1;
-		SUPERADMIN = 2;
-	}
-
-	required string userJID = 1;
-	optional Rank rank = 2;
-	optional WAWebProtobufsE2E.MemberLabel memberLabel = 3;
-}
-
-message PastParticipant {
-	enum LeaveReason {
-		LEFT = 0;
-		REMOVED = 1;
-	}
-
-	optional string userJID = 1;
-	optional LeaveReason leaveReason = 2;
-	optional uint64 leaveTS = 3;
-}
-
-message IdentityVerificationState {
-	optional bool verified = 1;
-	optional uint64 actionSeq = 2;
-}
-
-message PhoneNumberToLIDMapping {
-	optional string pnJID = 1;
-	optional string lidJID = 2;
-}
-
-message InlineContact {
-	optional string pnJID = 1;
-	optional string lidJID = 2;
-	optional string fullName = 3;
-	optional string firstName = 4;
-	optional string username = 5;
-}
-
-message Account {
-	optional string lid = 1;
-	optional string username = 2;
-	optional string countryCode = 3;
-	optional bool isUsernameDeleted = 4;
-}
-
-message HistorySyncMsg {
-	optional WAWebProtobufsWeb.WebMessageInfo message = 1;
-	optional uint64 msgOrderID = 2;
-}
-
-message Pushname {
-	optional string ID = 1;
-	optional string pushname = 2;
-}
-
-message WallpaperSettings {
-	optional string filename = 1;
-	optional uint32 opacity = 2;
-	optional bool isGenAi = 3;
-}
-
 message GlobalSettings {
 	optional WallpaperSettings lightThemeWallpaper = 1;
 	optional MediaVisibility mediaVisibility = 2;
@@ -225,11 +144,107 @@ message GlobalSettings {
 	optional int64 chatDbLidMigrationTimestamp = 20;
 }
 
-message AutoDownloadSettings {
-	optional bool downloadImages = 1;
-	optional bool downloadAudio = 2;
-	optional bool downloadVideo = 3;
-	optional bool downloadDocuments = 4;
+message GroupParticipant {
+	enum Rank {
+		REGULAR = 0;
+		ADMIN = 1;
+		SUPERADMIN = 2;
+	}
+
+	required string userJID = 1;
+	optional Rank rank = 2;
+	optional WAWebProtobufsE2E.MemberLabel memberLabel = 3;
+}
+
+message HistorySync {
+	enum BotAIWaitListState {
+		IN_WAITLIST = 0;
+		AI_AVAILABLE = 1;
+	}
+
+	enum HistorySyncType {
+		INITIAL_BOOTSTRAP = 0;
+		INITIAL_STATUS_V3 = 1;
+		FULL = 2;
+		RECENT = 3;
+		PUSH_NAME = 4;
+		NON_BLOCKING_DATA = 5;
+		ON_DEMAND = 6;
+	}
+
+	required HistorySyncType syncType = 1;
+	repeated Conversation conversations = 2;
+	repeated WAWebProtobufsWeb.WebMessageInfo statusV3Messages = 3;
+	optional uint32 chunkOrder = 5;
+	optional uint32 progress = 6;
+	repeated Pushname pushnames = 7;
+	optional GlobalSettings globalSettings = 8;
+	optional bytes threadIDUserSecret = 9;
+	optional uint32 threadDsTimeframeOffset = 10;
+	repeated StickerMetadata recentStickers = 11;
+	repeated PastParticipants pastParticipants = 12;
+	repeated WAWebProtobufSyncAction.CallLogRecord callLogRecords = 13;
+	optional BotAIWaitListState aiWaitListState = 14;
+	repeated PhoneNumberToLIDMapping phoneNumberToLidMappings = 15;
+	optional string companionMetaNonce = 16;
+	optional bytes shareableChatIdentifierEncryptionKey = 17;
+	repeated Account accounts = 18;
+	optional bytes nctSalt = 19;
+	repeated InlineContact inlineContacts = 20;
+	optional bool inlineContactsProvided = 21;
+}
+
+message HistorySyncMsg {
+	optional WAWebProtobufsWeb.WebMessageInfo message = 1;
+	optional uint64 msgOrderID = 2;
+}
+
+message IdentityVerificationState {
+	optional bool verified = 1;
+	optional uint64 actionSeq = 2;
+}
+
+message InlineContact {
+	optional string pnJID = 1;
+	optional string lidJID = 2;
+	optional string fullName = 3;
+	optional string firstName = 4;
+	optional string username = 5;
+}
+
+message NotificationSettings {
+	optional string messageVibrate = 1;
+	optional string messagePopup = 2;
+	optional string messageLight = 3;
+	optional bool lowPriorityNotifications = 4;
+	optional bool reactionsMuted = 5;
+	optional string callVibrate = 6;
+}
+
+message PastParticipant {
+	enum LeaveReason {
+		LEFT = 0;
+		REMOVED = 1;
+	}
+
+	optional string userJID = 1;
+	optional LeaveReason leaveReason = 2;
+	optional uint64 leaveTS = 3;
+}
+
+message PastParticipants {
+	optional string groupJID = 1;
+	repeated PastParticipant pastParticipants = 2;
+}
+
+message PhoneNumberToLIDMapping {
+	optional string pnJID = 1;
+	optional string lidJID = 2;
+}
+
+message Pushname {
+	optional string ID = 1;
+	optional string pushname = 2;
 }
 
 message StickerMetadata {
@@ -249,21 +264,8 @@ message StickerMetadata {
 	optional bool isAvatarSticker = 14;
 }
 
-message PastParticipants {
-	optional string groupJID = 1;
-	repeated PastParticipant pastParticipants = 2;
-}
-
-message AvatarUserSettings {
-	optional string FBID = 1;
-	optional string password = 2;
-}
-
-message NotificationSettings {
-	optional string messageVibrate = 1;
-	optional string messagePopup = 2;
-	optional string messageLight = 3;
-	optional bool lowPriorityNotifications = 4;
-	optional bool reactionsMuted = 5;
-	optional string callVibrate = 6;
+message WallpaperSettings {
+	optional string filename = 1;
+	optional uint32 opacity = 2;
+	optional bool isGenAi = 3;
 }

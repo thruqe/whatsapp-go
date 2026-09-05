@@ -22,6 +22,66 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type SyncdPlainTextRecord struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Value         *waSyncAction.SyncActionData `protobuf:"bytes,1,opt,name=value" json:"value,omitempty"`
+	KeyID         []byte                       `protobuf:"bytes,2,opt,name=keyID" json:"keyID,omitempty"`
+	Mac           []byte                       `protobuf:"bytes,3,opt,name=mac" json:"mac,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncdPlainTextRecord) Reset() {
+	*x = SyncdPlainTextRecord{}
+	mi := &file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncdPlainTextRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncdPlainTextRecord) ProtoMessage() {}
+
+func (x *SyncdPlainTextRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncdPlainTextRecord.ProtoReflect.Descriptor instead.
+func (*SyncdPlainTextRecord) Descriptor() ([]byte, []int) {
+	return file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *SyncdPlainTextRecord) GetValue() *waSyncAction.SyncActionData {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *SyncdPlainTextRecord) GetKeyID() []byte {
+	if x != nil {
+		return x.KeyID
+	}
+	return nil
+}
+
+func (x *SyncdPlainTextRecord) GetMac() []byte {
+	if x != nil {
+		return x.Mac
+	}
+	return nil
+}
+
 type SyncdSnapshotRecovery struct {
 	state            protoimpl.MessageState  `protogen:"open.v1"`
 	Version          *SyncdVersion           `protobuf:"bytes,1,opt,name=version" json:"version,omitempty"`
@@ -34,7 +94,7 @@ type SyncdSnapshotRecovery struct {
 
 func (x *SyncdSnapshotRecovery) Reset() {
 	*x = SyncdSnapshotRecovery{}
-	mi := &file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_msgTypes[0]
+	mi := &file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -46,7 +106,7 @@ func (x *SyncdSnapshotRecovery) String() string {
 func (*SyncdSnapshotRecovery) ProtoMessage() {}
 
 func (x *SyncdSnapshotRecovery) ProtoReflect() protoreflect.Message {
-	mi := &file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_msgTypes[0]
+	mi := &file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,7 +119,7 @@ func (x *SyncdSnapshotRecovery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncdSnapshotRecovery.ProtoReflect.Descriptor instead.
 func (*SyncdSnapshotRecovery) Descriptor() ([]byte, []int) {
-	return file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_rawDescGZIP(), []int{0}
+	return file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *SyncdSnapshotRecovery) GetVersion() *SyncdVersion {
@@ -86,66 +146,6 @@ func (x *SyncdSnapshotRecovery) GetMutationRecords() []*SyncdPlainTextRecord {
 func (x *SyncdSnapshotRecovery) GetCollectionLthash() []byte {
 	if x != nil {
 		return x.CollectionLthash
-	}
-	return nil
-}
-
-type SyncdPlainTextRecord struct {
-	state         protoimpl.MessageState       `protogen:"open.v1"`
-	Value         *waSyncAction.SyncActionData `protobuf:"bytes,1,opt,name=value" json:"value,omitempty"`
-	KeyID         []byte                       `protobuf:"bytes,2,opt,name=keyID" json:"keyID,omitempty"`
-	Mac           []byte                       `protobuf:"bytes,3,opt,name=mac" json:"mac,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SyncdPlainTextRecord) Reset() {
-	*x = SyncdPlainTextRecord{}
-	mi := &file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SyncdPlainTextRecord) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SyncdPlainTextRecord) ProtoMessage() {}
-
-func (x *SyncdPlainTextRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SyncdPlainTextRecord.ProtoReflect.Descriptor instead.
-func (*SyncdPlainTextRecord) Descriptor() ([]byte, []int) {
-	return file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *SyncdPlainTextRecord) GetValue() *waSyncAction.SyncActionData {
-	if x != nil {
-		return x.Value
-	}
-	return nil
-}
-
-func (x *SyncdPlainTextRecord) GetKeyID() []byte {
-	if x != nil {
-		return x.KeyID
-	}
-	return nil
-}
-
-func (x *SyncdPlainTextRecord) GetMac() []byte {
-	if x != nil {
-		return x.Mac
 	}
 	return nil
 }
@@ -198,16 +198,16 @@ var File_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto proto
 
 const file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_rawDesc = "" +
 	"\n" +
-	"AwaSyncdSnapshotRecovery/WAWebProtobufsSyncdSnapshotRecovery.proto\x12#WAWebProtobufsSyncdSnapshotRecovery\x1a*waSyncAction/WAWebProtobufSyncAction.proto\"\x9d\x02\n" +
+	"AwaSyncdSnapshotRecovery/WAWebProtobufsSyncdSnapshotRecovery.proto\x12#WAWebProtobufsSyncdSnapshotRecovery\x1a*waSyncAction/WAWebProtobufSyncAction.proto\"}\n" +
+	"\x14SyncdPlainTextRecord\x12=\n" +
+	"\x05value\x18\x01 \x01(\v2'.WAWebProtobufSyncAction.SyncActionDataR\x05value\x12\x14\n" +
+	"\x05keyID\x18\x02 \x01(\fR\x05keyID\x12\x10\n" +
+	"\x03mac\x18\x03 \x01(\fR\x03mac\"\x9d\x02\n" +
 	"\x15SyncdSnapshotRecovery\x12K\n" +
 	"\aversion\x18\x01 \x01(\v21.WAWebProtobufsSyncdSnapshotRecovery.SyncdVersionR\aversion\x12&\n" +
 	"\x0ecollectionName\x18\x02 \x01(\tR\x0ecollectionName\x12c\n" +
 	"\x0fmutationRecords\x18\x03 \x03(\v29.WAWebProtobufsSyncdSnapshotRecovery.SyncdPlainTextRecordR\x0fmutationRecords\x12*\n" +
-	"\x10collectionLthash\x18\x04 \x01(\fR\x10collectionLthash\"}\n" +
-	"\x14SyncdPlainTextRecord\x12=\n" +
-	"\x05value\x18\x01 \x01(\v2'.WAWebProtobufSyncAction.SyncActionDataR\x05value\x12\x14\n" +
-	"\x05keyID\x18\x02 \x01(\fR\x05keyID\x12\x10\n" +
-	"\x03mac\x18\x03 \x01(\fR\x03mac\"(\n" +
+	"\x10collectionLthash\x18\x04 \x01(\fR\x10collectionLthash\"(\n" +
 	"\fSyncdVersion\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x04R\aversionB3Z1go.mau.fi/whatsmeow/proto/waSyncdSnapshotRecovery"
 
@@ -225,15 +225,15 @@ func file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_rawD
 
 var file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_goTypes = []any{
-	(*SyncdSnapshotRecovery)(nil),       // 0: WAWebProtobufsSyncdSnapshotRecovery.SyncdSnapshotRecovery
-	(*SyncdPlainTextRecord)(nil),        // 1: WAWebProtobufsSyncdSnapshotRecovery.SyncdPlainTextRecord
+	(*SyncdPlainTextRecord)(nil),        // 0: WAWebProtobufsSyncdSnapshotRecovery.SyncdPlainTextRecord
+	(*SyncdSnapshotRecovery)(nil),       // 1: WAWebProtobufsSyncdSnapshotRecovery.SyncdSnapshotRecovery
 	(*SyncdVersion)(nil),                // 2: WAWebProtobufsSyncdSnapshotRecovery.SyncdVersion
 	(*waSyncAction.SyncActionData)(nil), // 3: WAWebProtobufSyncAction.SyncActionData
 }
 var file_waSyncdSnapshotRecovery_WAWebProtobufsSyncdSnapshotRecovery_proto_depIdxs = []int32{
-	2, // 0: WAWebProtobufsSyncdSnapshotRecovery.SyncdSnapshotRecovery.version:type_name -> WAWebProtobufsSyncdSnapshotRecovery.SyncdVersion
-	1, // 1: WAWebProtobufsSyncdSnapshotRecovery.SyncdSnapshotRecovery.mutationRecords:type_name -> WAWebProtobufsSyncdSnapshotRecovery.SyncdPlainTextRecord
-	3, // 2: WAWebProtobufsSyncdSnapshotRecovery.SyncdPlainTextRecord.value:type_name -> WAWebProtobufSyncAction.SyncActionData
+	3, // 0: WAWebProtobufsSyncdSnapshotRecovery.SyncdPlainTextRecord.value:type_name -> WAWebProtobufSyncAction.SyncActionData
+	2, // 1: WAWebProtobufsSyncdSnapshotRecovery.SyncdSnapshotRecovery.version:type_name -> WAWebProtobufsSyncdSnapshotRecovery.SyncdVersion
+	0, // 2: WAWebProtobufsSyncdSnapshotRecovery.SyncdSnapshotRecovery.mutationRecords:type_name -> WAWebProtobufsSyncdSnapshotRecovery.SyncdPlainTextRecord
 	3, // [3:3] is the sub-list for method output_type
 	3, // [3:3] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name

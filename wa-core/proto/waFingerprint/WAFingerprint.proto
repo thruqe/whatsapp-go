@@ -7,6 +7,12 @@ enum HostedState {
 	HOSTED = 1;
 }
 
+message CombinedFingerprint {
+	optional uint32 version = 1;
+	optional FingerprintData localFingerprint = 2;
+	optional FingerprintData remoteFingerprint = 3;
+}
+
 message FingerprintData {
 	optional bytes publicKey = 1;
 	optional bytes pnIdentifier = 2;
@@ -14,10 +20,4 @@ message FingerprintData {
 	optional bytes usernameIdentifier = 4;
 	optional HostedState hostedState = 5;
 	optional bytes hashedPublicKey = 6;
-}
-
-message CombinedFingerprint {
-	optional uint32 version = 1;
-	optional FingerprintData localFingerprint = 2;
-	optional FingerprintData remoteFingerprint = 3;
 }

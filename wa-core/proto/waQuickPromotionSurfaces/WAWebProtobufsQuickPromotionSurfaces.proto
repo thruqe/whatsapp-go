@@ -7,17 +7,20 @@ message QP {
 		TRUE = 1;
 		FALSE = 2;
 		UNKNOWN = 3;
+		FILTERRESULT_UNSPECIFIED = 0;
 	}
 
 	enum FilterClientNotSupportedConfig {
 		PASS_BY_DEFAULT = 1;
 		FAIL_BY_DEFAULT = 2;
+		FILTERCLIENTNOTSUPPORTEDCONFIG_UNKNOWN = 0;
 	}
 
 	enum ClauseType {
 		AND = 1;
 		OR = 2;
 		NOR = 3;
+		CLAUSETYPE_UNKNOWN = 0;
 	}
 
 	message FilterClause {
@@ -37,4 +40,5 @@ message QP {
 		optional string key = 1;
 		optional string value = 2;
 	}
+
 }

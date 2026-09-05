@@ -2,19 +2,6 @@ syntax = "proto2";
 package WACert;
 option go_package = "go.mau.fi/whatsmeow/proto/waCert";
 
-message NoiseCertificate {
-	message Details {
-		optional uint32 serial = 1;
-		optional string issuer = 2;
-		optional uint64 expires = 3;
-		optional string subject = 4;
-		optional bytes key = 5;
-	}
-
-	optional bytes details = 1;
-	optional bytes signature = 2;
-}
-
 message CertChain {
 	message NoiseCertificate {
 		message Details {
@@ -31,4 +18,17 @@ message CertChain {
 
 	optional NoiseCertificate leaf = 1;
 	optional NoiseCertificate intermediate = 2;
+}
+
+message NoiseCertificate {
+	message Details {
+		optional uint32 serial = 1;
+		optional string issuer = 2;
+		optional uint64 expires = 3;
+		optional string subject = 4;
+		optional bytes key = 5;
+	}
+
+	optional bytes details = 1;
+	optional bytes signature = 2;
 }

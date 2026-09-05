@@ -139,60 +139,7 @@ func (x *Command_CommandType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use Command_CommandType.Descriptor instead.
 func (Command_CommandType) EnumDescriptor() ([]byte, []int) {
-	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{1, 0}
-}
-
-type Mention_MentionType int32
-
-const (
-	Mention_PROFILE Mention_MentionType = 0
-)
-
-// Enum value maps for Mention_MentionType.
-var (
-	Mention_MentionType_name = map[int32]string{
-		0: "PROFILE",
-	}
-	Mention_MentionType_value = map[string]int32{
-		"PROFILE": 0,
-	}
-)
-
-func (x Mention_MentionType) Enum() *Mention_MentionType {
-	p := new(Mention_MentionType)
-	*p = x
-	return p
-}
-
-func (x Mention_MentionType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Mention_MentionType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waCommon_WACommon_proto_enumTypes[2].Descriptor()
-}
-
-func (Mention_MentionType) Type() protoreflect.EnumType {
-	return &file_waCommon_WACommon_proto_enumTypes[2]
-}
-
-func (x Mention_MentionType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *Mention_MentionType) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = Mention_MentionType(num)
-	return nil
-}
-
-// Deprecated: Use Mention_MentionType.Descriptor instead.
-func (Mention_MentionType) EnumDescriptor() ([]byte, []int) {
-	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{2, 0}
+	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{0, 0}
 }
 
 type LimitSharing_Trigger int32
@@ -231,11 +178,11 @@ func (x LimitSharing_Trigger) String() string {
 }
 
 func (LimitSharing_Trigger) Descriptor() protoreflect.EnumDescriptor {
-	return file_waCommon_WACommon_proto_enumTypes[3].Descriptor()
+	return file_waCommon_WACommon_proto_enumTypes[2].Descriptor()
 }
 
 func (LimitSharing_Trigger) Type() protoreflect.EnumType {
-	return &file_waCommon_WACommon_proto_enumTypes[3]
+	return &file_waCommon_WACommon_proto_enumTypes[2]
 }
 
 func (x LimitSharing_Trigger) Number() protoreflect.EnumNumber {
@@ -254,75 +201,60 @@ func (x *LimitSharing_Trigger) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use LimitSharing_Trigger.Descriptor instead.
 func (LimitSharing_Trigger) EnumDescriptor() ([]byte, []int) {
-	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{5, 0}
+	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{1, 0}
 }
 
-type MessageKey struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RemoteJID     *string                `protobuf:"bytes,1,opt,name=remoteJID" json:"remoteJID,omitempty"`
-	FromMe        *bool                  `protobuf:"varint,2,opt,name=fromMe" json:"fromMe,omitempty"`
-	ID            *string                `protobuf:"bytes,3,opt,name=ID" json:"ID,omitempty"`
-	Participant   *string                `protobuf:"bytes,4,opt,name=participant" json:"participant,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
+type Mention_MentionType int32
 
-func (x *MessageKey) Reset() {
-	*x = MessageKey{}
-	mi := &file_waCommon_WACommon_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
+const (
+	Mention_PROFILE Mention_MentionType = 0
+)
 
-func (x *MessageKey) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MessageKey) ProtoMessage() {}
-
-func (x *MessageKey) ProtoReflect() protoreflect.Message {
-	mi := &file_waCommon_WACommon_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+// Enum value maps for Mention_MentionType.
+var (
+	Mention_MentionType_name = map[int32]string{
+		0: "PROFILE",
 	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MessageKey.ProtoReflect.Descriptor instead.
-func (*MessageKey) Descriptor() ([]byte, []int) {
-	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *MessageKey) GetRemoteJID() string {
-	if x != nil && x.RemoteJID != nil {
-		return *x.RemoteJID
+	Mention_MentionType_value = map[string]int32{
+		"PROFILE": 0,
 	}
-	return ""
+)
+
+func (x Mention_MentionType) Enum() *Mention_MentionType {
+	p := new(Mention_MentionType)
+	*p = x
+	return p
 }
 
-func (x *MessageKey) GetFromMe() bool {
-	if x != nil && x.FromMe != nil {
-		return *x.FromMe
-	}
-	return false
+func (x Mention_MentionType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (x *MessageKey) GetID() string {
-	if x != nil && x.ID != nil {
-		return *x.ID
-	}
-	return ""
+func (Mention_MentionType) Descriptor() protoreflect.EnumDescriptor {
+	return file_waCommon_WACommon_proto_enumTypes[3].Descriptor()
 }
 
-func (x *MessageKey) GetParticipant() string {
-	if x != nil && x.Participant != nil {
-		return *x.Participant
+func (Mention_MentionType) Type() protoreflect.EnumType {
+	return &file_waCommon_WACommon_proto_enumTypes[3]
+}
+
+func (x Mention_MentionType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *Mention_MentionType) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
 	}
-	return ""
+	*x = Mention_MentionType(num)
+	return nil
+}
+
+// Deprecated: Use Mention_MentionType.Descriptor instead.
+func (Mention_MentionType) EnumDescriptor() ([]byte, []int) {
+	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{2, 0}
 }
 
 type Command struct {
@@ -337,7 +269,7 @@ type Command struct {
 
 func (x *Command) Reset() {
 	*x = Command{}
-	mi := &file_waCommon_WACommon_proto_msgTypes[1]
+	mi := &file_waCommon_WACommon_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -349,7 +281,7 @@ func (x *Command) String() string {
 func (*Command) ProtoMessage() {}
 
 func (x *Command) ProtoReflect() protoreflect.Message {
-	mi := &file_waCommon_WACommon_proto_msgTypes[1]
+	mi := &file_waCommon_WACommon_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -362,7 +294,7 @@ func (x *Command) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Command.ProtoReflect.Descriptor instead.
 func (*Command) Descriptor() ([]byte, []int) {
-	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{1}
+	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Command) GetCommandType() Command_CommandType {
@@ -391,6 +323,74 @@ func (x *Command) GetValidationToken() string {
 		return *x.ValidationToken
 	}
 	return ""
+}
+
+type LimitSharing struct {
+	state                        protoimpl.MessageState `protogen:"open.v1"`
+	SharingLimited               *bool                  `protobuf:"varint,1,opt,name=sharingLimited" json:"sharingLimited,omitempty"`
+	Trigger                      *LimitSharing_Trigger  `protobuf:"varint,2,opt,name=trigger,enum=WACommon.LimitSharing_Trigger" json:"trigger,omitempty"`
+	LimitSharingSettingTimestamp *int64                 `protobuf:"varint,3,opt,name=limitSharingSettingTimestamp" json:"limitSharingSettingTimestamp,omitempty"`
+	InitiatedByMe                *bool                  `protobuf:"varint,4,opt,name=initiatedByMe" json:"initiatedByMe,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
+}
+
+func (x *LimitSharing) Reset() {
+	*x = LimitSharing{}
+	mi := &file_waCommon_WACommon_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LimitSharing) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LimitSharing) ProtoMessage() {}
+
+func (x *LimitSharing) ProtoReflect() protoreflect.Message {
+	mi := &file_waCommon_WACommon_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LimitSharing.ProtoReflect.Descriptor instead.
+func (*LimitSharing) Descriptor() ([]byte, []int) {
+	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *LimitSharing) GetSharingLimited() bool {
+	if x != nil && x.SharingLimited != nil {
+		return *x.SharingLimited
+	}
+	return false
+}
+
+func (x *LimitSharing) GetTrigger() LimitSharing_Trigger {
+	if x != nil && x.Trigger != nil {
+		return *x.Trigger
+	}
+	return LimitSharing_UNKNOWN
+}
+
+func (x *LimitSharing) GetLimitSharingSettingTimestamp() int64 {
+	if x != nil && x.LimitSharingSettingTimestamp != nil {
+		return *x.LimitSharingSettingTimestamp
+	}
+	return 0
+}
+
+func (x *LimitSharing) GetInitiatedByMe() bool {
+	if x != nil && x.InitiatedByMe != nil {
+		return *x.InitiatedByMe
+	}
+	return false
 }
 
 type Mention struct {
@@ -461,6 +461,74 @@ func (x *Mention) GetLength() uint32 {
 	return 0
 }
 
+type MessageKey struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RemoteJID     *string                `protobuf:"bytes,1,opt,name=remoteJID" json:"remoteJID,omitempty"`
+	FromMe        *bool                  `protobuf:"varint,2,opt,name=fromMe" json:"fromMe,omitempty"`
+	ID            *string                `protobuf:"bytes,3,opt,name=ID" json:"ID,omitempty"`
+	Participant   *string                `protobuf:"bytes,4,opt,name=participant" json:"participant,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MessageKey) Reset() {
+	*x = MessageKey{}
+	mi := &file_waCommon_WACommon_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MessageKey) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MessageKey) ProtoMessage() {}
+
+func (x *MessageKey) ProtoReflect() protoreflect.Message {
+	mi := &file_waCommon_WACommon_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MessageKey.ProtoReflect.Descriptor instead.
+func (*MessageKey) Descriptor() ([]byte, []int) {
+	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *MessageKey) GetRemoteJID() string {
+	if x != nil && x.RemoteJID != nil {
+		return *x.RemoteJID
+	}
+	return ""
+}
+
+func (x *MessageKey) GetFromMe() bool {
+	if x != nil && x.FromMe != nil {
+		return *x.FromMe
+	}
+	return false
+}
+
+func (x *MessageKey) GetID() string {
+	if x != nil && x.ID != nil {
+		return *x.ID
+	}
+	return ""
+}
+
+func (x *MessageKey) GetParticipant() string {
+	if x != nil && x.Participant != nil {
+		return *x.Participant
+	}
+	return ""
+}
+
 type MessageText struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Text          *string                `protobuf:"bytes,1,opt,name=text" json:"text,omitempty"`
@@ -473,7 +541,7 @@ type MessageText struct {
 
 func (x *MessageText) Reset() {
 	*x = MessageText{}
-	mi := &file_waCommon_WACommon_proto_msgTypes[3]
+	mi := &file_waCommon_WACommon_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -485,7 +553,7 @@ func (x *MessageText) String() string {
 func (*MessageText) ProtoMessage() {}
 
 func (x *MessageText) ProtoReflect() protoreflect.Message {
-	mi := &file_waCommon_WACommon_proto_msgTypes[3]
+	mi := &file_waCommon_WACommon_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -498,7 +566,7 @@ func (x *MessageText) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageText.ProtoReflect.Descriptor instead.
 func (*MessageText) Descriptor() ([]byte, []int) {
-	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{3}
+	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *MessageText) GetText() string {
@@ -539,7 +607,7 @@ type SubProtocol struct {
 
 func (x *SubProtocol) Reset() {
 	*x = SubProtocol{}
-	mi := &file_waCommon_WACommon_proto_msgTypes[4]
+	mi := &file_waCommon_WACommon_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -551,7 +619,7 @@ func (x *SubProtocol) String() string {
 func (*SubProtocol) ProtoMessage() {}
 
 func (x *SubProtocol) ProtoReflect() protoreflect.Message {
-	mi := &file_waCommon_WACommon_proto_msgTypes[4]
+	mi := &file_waCommon_WACommon_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -564,7 +632,7 @@ func (x *SubProtocol) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubProtocol.ProtoReflect.Descriptor instead.
 func (*SubProtocol) Descriptor() ([]byte, []int) {
-	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{4}
+	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SubProtocol) GetPayload() []byte {
@@ -581,85 +649,11 @@ func (x *SubProtocol) GetVersion() int32 {
 	return 0
 }
 
-type LimitSharing struct {
-	state                        protoimpl.MessageState `protogen:"open.v1"`
-	SharingLimited               *bool                  `protobuf:"varint,1,opt,name=sharingLimited" json:"sharingLimited,omitempty"`
-	Trigger                      *LimitSharing_Trigger  `protobuf:"varint,2,opt,name=trigger,enum=WACommon.LimitSharing_Trigger" json:"trigger,omitempty"`
-	LimitSharingSettingTimestamp *int64                 `protobuf:"varint,3,opt,name=limitSharingSettingTimestamp" json:"limitSharingSettingTimestamp,omitempty"`
-	InitiatedByMe                *bool                  `protobuf:"varint,4,opt,name=initiatedByMe" json:"initiatedByMe,omitempty"`
-	unknownFields                protoimpl.UnknownFields
-	sizeCache                    protoimpl.SizeCache
-}
-
-func (x *LimitSharing) Reset() {
-	*x = LimitSharing{}
-	mi := &file_waCommon_WACommon_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LimitSharing) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LimitSharing) ProtoMessage() {}
-
-func (x *LimitSharing) ProtoReflect() protoreflect.Message {
-	mi := &file_waCommon_WACommon_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LimitSharing.ProtoReflect.Descriptor instead.
-func (*LimitSharing) Descriptor() ([]byte, []int) {
-	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *LimitSharing) GetSharingLimited() bool {
-	if x != nil && x.SharingLimited != nil {
-		return *x.SharingLimited
-	}
-	return false
-}
-
-func (x *LimitSharing) GetTrigger() LimitSharing_Trigger {
-	if x != nil && x.Trigger != nil {
-		return *x.Trigger
-	}
-	return LimitSharing_UNKNOWN
-}
-
-func (x *LimitSharing) GetLimitSharingSettingTimestamp() int64 {
-	if x != nil && x.LimitSharingSettingTimestamp != nil {
-		return *x.LimitSharingSettingTimestamp
-	}
-	return 0
-}
-
-func (x *LimitSharing) GetInitiatedByMe() bool {
-	if x != nil && x.InitiatedByMe != nil {
-		return *x.InitiatedByMe
-	}
-	return false
-}
-
 var File_waCommon_WACommon_proto protoreflect.FileDescriptor
 
 const file_waCommon_WACommon_proto_rawDesc = "" +
 	"\n" +
-	"\x17waCommon/WACommon.proto\x12\bWACommon\"t\n" +
-	"\n" +
-	"MessageKey\x12\x1c\n" +
-	"\tremoteJID\x18\x01 \x01(\tR\tremoteJID\x12\x16\n" +
-	"\x06fromMe\x18\x02 \x01(\bR\x06fromMe\x12\x0e\n" +
-	"\x02ID\x18\x03 \x01(\tR\x02ID\x12 \n" +
-	"\vparticipant\x18\x04 \x01(\tR\vparticipant\"\xe5\x01\n" +
+	"\x17waCommon/WACommon.proto\x12\bWACommon\"\xe5\x01\n" +
 	"\aCommand\x12?\n" +
 	"\vcommandType\x18\x01 \x01(\x0e2\x1d.WACommon.Command.CommandTypeR\vcommandType\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\rR\x06offset\x12\x16\n" +
@@ -671,22 +665,7 @@ const file_waCommon_WACommon_proto_rawDesc = "" +
 	"\x06SILENT\x10\x02\x12\x06\n" +
 	"\x02AI\x10\x03\x12\x0e\n" +
 	"\n" +
-	"AI_IMAGINE\x10\x04\"\xba\x01\n" +
-	"\aMention\x12?\n" +
-	"\vmentionType\x18\x01 \x01(\x0e2\x1d.WACommon.Mention.MentionTypeR\vmentionType\x12\"\n" +
-	"\fmentionedJID\x18\x02 \x01(\tR\fmentionedJID\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\rR\x06offset\x12\x16\n" +
-	"\x06length\x18\x04 \x01(\rR\x06length\"\x1a\n" +
-	"\vMentionType\x12\v\n" +
-	"\aPROFILE\x10\x00\"\xa3\x01\n" +
-	"\vMessageText\x12\x12\n" +
-	"\x04text\x18\x01 \x01(\tR\x04text\x12\"\n" +
-	"\fmentionedJID\x18\x02 \x03(\tR\fmentionedJID\x12-\n" +
-	"\bcommands\x18\x03 \x03(\v2\x11.WACommon.CommandR\bcommands\x12-\n" +
-	"\bmentions\x18\x04 \x03(\v2\x11.WACommon.MentionR\bmentions\"A\n" +
-	"\vSubProtocol\x12\x18\n" +
-	"\apayload\x18\x01 \x01(\fR\apayload\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\x05R\aversion\"\xb4\x02\n" +
+	"AI_IMAGINE\x10\x04\"\xb4\x02\n" +
 	"\fLimitSharing\x12&\n" +
 	"\x0esharingLimited\x18\x01 \x01(\bR\x0esharingLimited\x128\n" +
 	"\atrigger\x18\x02 \x01(\x0e2\x1e.WACommon.LimitSharing.TriggerR\atrigger\x12B\n" +
@@ -696,7 +675,28 @@ const file_waCommon_WACommon_proto_rawDesc = "" +
 	"\aUNKNOWN\x10\x00\x12\x10\n" +
 	"\fCHAT_SETTING\x10\x01\x12\x1b\n" +
 	"\x17BIZ_SUPPORTS_FB_HOSTING\x10\x02\x12\x11\n" +
-	"\rUNKNOWN_GROUP\x10\x03*F\n" +
+	"\rUNKNOWN_GROUP\x10\x03\"\xba\x01\n" +
+	"\aMention\x12?\n" +
+	"\vmentionType\x18\x01 \x01(\x0e2\x1d.WACommon.Mention.MentionTypeR\vmentionType\x12\"\n" +
+	"\fmentionedJID\x18\x02 \x01(\tR\fmentionedJID\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\rR\x06offset\x12\x16\n" +
+	"\x06length\x18\x04 \x01(\rR\x06length\"\x1a\n" +
+	"\vMentionType\x12\v\n" +
+	"\aPROFILE\x10\x00\"t\n" +
+	"\n" +
+	"MessageKey\x12\x1c\n" +
+	"\tremoteJID\x18\x01 \x01(\tR\tremoteJID\x12\x16\n" +
+	"\x06fromMe\x18\x02 \x01(\bR\x06fromMe\x12\x0e\n" +
+	"\x02ID\x18\x03 \x01(\tR\x02ID\x12 \n" +
+	"\vparticipant\x18\x04 \x01(\tR\vparticipant\"\xa3\x01\n" +
+	"\vMessageText\x12\x12\n" +
+	"\x04text\x18\x01 \x01(\tR\x04text\x12\"\n" +
+	"\fmentionedJID\x18\x02 \x03(\tR\fmentionedJID\x12-\n" +
+	"\bcommands\x18\x03 \x03(\v2\x11.WACommon.CommandR\bcommands\x12-\n" +
+	"\bmentions\x18\x04 \x03(\v2\x11.WACommon.MentionR\bmentions\"A\n" +
+	"\vSubProtocol\x12\x18\n" +
+	"\apayload\x18\x01 \x01(\fR\apayload\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\x05R\aversion*F\n" +
 	"\x13FutureProofBehavior\x12\x0f\n" +
 	"\vPLACEHOLDER\x10\x00\x12\x12\n" +
 	"\x0eNO_PLACEHOLDER\x10\x01\x12\n" +
@@ -720,21 +720,21 @@ var file_waCommon_WACommon_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_waCommon_WACommon_proto_goTypes = []any{
 	(FutureProofBehavior)(0),  // 0: WACommon.FutureProofBehavior
 	(Command_CommandType)(0),  // 1: WACommon.Command.CommandType
-	(Mention_MentionType)(0),  // 2: WACommon.Mention.MentionType
-	(LimitSharing_Trigger)(0), // 3: WACommon.LimitSharing.Trigger
-	(*MessageKey)(nil),        // 4: WACommon.MessageKey
-	(*Command)(nil),           // 5: WACommon.Command
+	(LimitSharing_Trigger)(0), // 2: WACommon.LimitSharing.Trigger
+	(Mention_MentionType)(0),  // 3: WACommon.Mention.MentionType
+	(*Command)(nil),           // 4: WACommon.Command
+	(*LimitSharing)(nil),      // 5: WACommon.LimitSharing
 	(*Mention)(nil),           // 6: WACommon.Mention
-	(*MessageText)(nil),       // 7: WACommon.MessageText
-	(*SubProtocol)(nil),       // 8: WACommon.SubProtocol
-	(*LimitSharing)(nil),      // 9: WACommon.LimitSharing
+	(*MessageKey)(nil),        // 7: WACommon.MessageKey
+	(*MessageText)(nil),       // 8: WACommon.MessageText
+	(*SubProtocol)(nil),       // 9: WACommon.SubProtocol
 }
 var file_waCommon_WACommon_proto_depIdxs = []int32{
 	1, // 0: WACommon.Command.commandType:type_name -> WACommon.Command.CommandType
-	2, // 1: WACommon.Mention.mentionType:type_name -> WACommon.Mention.MentionType
-	5, // 2: WACommon.MessageText.commands:type_name -> WACommon.Command
-	6, // 3: WACommon.MessageText.mentions:type_name -> WACommon.Mention
-	3, // 4: WACommon.LimitSharing.trigger:type_name -> WACommon.LimitSharing.Trigger
+	2, // 1: WACommon.LimitSharing.trigger:type_name -> WACommon.LimitSharing.Trigger
+	3, // 2: WACommon.Mention.mentionType:type_name -> WACommon.Mention.MentionType
+	4, // 3: WACommon.MessageText.commands:type_name -> WACommon.Command
+	6, // 4: WACommon.MessageText.mentions:type_name -> WACommon.Mention
 	5, // [5:5] is the sub-list for method output_type
 	5, // [5:5] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name

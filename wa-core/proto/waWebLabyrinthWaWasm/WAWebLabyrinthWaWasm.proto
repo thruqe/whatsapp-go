@@ -2,9 +2,60 @@ syntax = "proto2";
 package WAWebLabyrinthWaWasm;
 option go_package = "go.mau.fi/whatsmeow/proto/waWebLabyrinthWaWasm";
 
+message BackwardEdge {
+	optional bytes encryptedPrevEpochAnonId = 1;
+	optional bytes encryptedPrevEpochRootKey = 2;
+	optional bytes prevEpochRootKeyFingerprint = 3;
+}
+
 message CreateBackupInput {
 	required string recoveryCode = 1;
 	required uint64 userID = 2;
+}
+
+message CreateBackupOutput {
+	optional DeviceOutput device = 1;
+	optional VirtualDeviceOutput virtualDevice = 2;
+	optional Epoch0Output epoch0 = 3;
+	optional bytes mailboxRootKey = 4;
+	optional string error = 5;
+}
+
+message DecryptMessageInput {
+	required bytes epochRootKey = 1;
+	required bytes epochAnonID = 2;
+	required string threadID = 3;
+	required int32 encryptionVersion = 4;
+	required bytes ciphertext = 5;
+}
+
+message DecryptMessageOutput {
+	optional bytes plaintextPayload = 1;
+	optional string error = 2;
+}
+
+message DeriveMessageKeyInput {
+	required bytes epochRootKey = 1;
+	required bytes epochAnonID = 2;
+	required string threadID = 3;
+}
+
+message DeriveMessageKeyOutput {
+	optional bytes messageKey = 1;
+	optional string error = 2;
+}
+
+message DeviceOutput {
+	required bytes publicKey = 1;
+	required bytes epochAuthPublicKey = 2;
+	required bytes epochAuthPublicKeySig = 3;
+	required bytes epochStoragePublicKey = 4;
+	required bytes epochStoragePublicKeySig = 5;
+	repeated int32 supportedEncryptionVersions = 6;
+	required bytes encryptionVersionSignature = 7;
+	required int32 clientVersion = 8;
+	required bytes ocmfClientState = 9;
+	optional bytes epochStoragePrivateKey = 10;
 }
 
 message EncryptMessageInput {
@@ -21,35 +72,13 @@ message EncryptMessageInput {
 	required string stanzaID = 11;
 }
 
-message DecryptMessageInput {
-	required bytes epochRootKey = 1;
-	required bytes epochAnonID = 2;
-	required string threadID = 3;
-	required int32 encryptionVersion = 4;
-	required bytes ciphertext = 5;
-}
-
-message OrfThreadIdInput {
-	required bytes orfClientState = 1;
-	required string threadID = 2;
-}
-
-message DeriveMessageKeyInput {
-	required bytes epochRootKey = 1;
-	required bytes epochAnonID = 2;
-	required string threadID = 3;
-}
-
-message DeviceOutput {
-	required bytes publicKey = 1;
-	required bytes epochAuthPublicKey = 2;
-	required bytes epochAuthPublicKeySig = 3;
-	required bytes epochStoragePublicKey = 4;
-	required bytes epochStoragePublicKeySig = 5;
-	repeated int32 supportedEncryptionVersions = 6;
-	required bytes encryptionVersionSignature = 7;
-	required int32 clientVersion = 8;
-	required bytes ocmfClientState = 9;
+message EncryptMessageOutput {
+	optional bytes encryptedProtobuf = 1;
+	optional bytes orfThreadID = 2;
+	optional string valueSecretRef = 3;
+	optional uint64 offlineThreadingID = 4;
+	optional uint64 timestampMS = 5;
+	optional string error = 7;
 }
 
 message EncryptedSecretValuesOutput {
@@ -63,16 +92,6 @@ message EncryptedSecretValuesOutput {
 	required bytes encryptedEpochRootKey = 8;
 }
 
-message VirtualDeviceOutput {
-	required bytes vdID = 1;
-	required bytes vdPublicKey = 2;
-	required bytes vdEpochStoragePublicKey = 3;
-	required bytes vdEpochStoragePublicKeySig = 4;
-	required bytes ocmfRotationToken = 5;
-	required bytes deviceEpochHmac = 6;
-	required EncryptedSecretValuesOutput encryptedSecretValues = 7;
-}
-
 message Epoch0Output {
 	required uint64 epochFbid = 1;
 	required bytes epochAnonID = 2;
@@ -83,42 +102,25 @@ message Epoch0Output {
 	optional bytes epochRootKey = 7;
 }
 
-message CreateBackupOutput {
-	optional DeviceOutput device = 1;
-	optional VirtualDeviceOutput virtualDevice = 2;
-	optional Epoch0Output epoch0 = 3;
-	optional bytes mailboxRootKey = 4;
-	optional string error = 5;
+message LabyrinthWaCommand {
+	oneof commandInput {
+		CreateBackupInput createBackupInput = 1;
+		EncryptMessageInput encryptMessageInput = 2;
+		DecryptMessageInput decryptMessageInput = 3;
+		OrfThreadIdInput orfThreadIDInput = 4;
+		DeriveMessageKeyInput deriveMessageKeyInput = 5;
+		RotateEpochInput rotateEpochInput = 6;
+	}
 }
 
-message EncryptMessageOutput {
-	optional bytes encryptedProtobuf = 1;
-	optional bytes orfThreadID = 2;
-	optional string valueSecretRef = 3;
-	optional uint64 offlineThreadingID = 4;
-	optional uint64 timestampMS = 5;
-	optional string error = 7;
-}
-
-message DecryptMessageOutput {
-	optional bytes plaintextPayload = 1;
-	optional string error = 2;
+message OrfThreadIdInput {
+	required bytes orfClientState = 1;
+	required string threadID = 2;
 }
 
 message OrfThreadIdOutput {
 	optional bytes orfThreadID = 1;
 	optional string error = 2;
-}
-
-message DeriveMessageKeyOutput {
-	optional bytes messageKey = 1;
-	optional string error = 2;
-}
-
-message RotateEpochMemberInput {
-	required uint64 deviceID = 1;
-	required bytes epochStoragePublicKey = 2;
-	required bytes devicePublicKey = 3;
 }
 
 message RotateEpochInput {
@@ -136,6 +138,12 @@ message RotateEpochMemberEdge {
 	optional bytes deviceEpochHmac = 3;
 }
 
+message RotateEpochMemberInput {
+	required uint64 deviceID = 1;
+	required bytes epochStoragePublicKey = 2;
+	required bytes devicePublicKey = 3;
+}
+
 message RotateEpochOutput {
 	optional bytes newEpochRootKey = 1;
 	optional uint64 newEpochAnonID = 2;
@@ -144,15 +152,15 @@ message RotateEpochOutput {
 	repeated RotateEpochMemberEdge memberEdges = 5;
 	optional bytes epochRootKeyFingerprint = 6;
 	optional string error = 7;
+	optional uint64 newEpochFbid = 8;
 }
 
-message LabyrinthWaCommand {
-	oneof commandInput {
-		CreateBackupInput createBackupInput = 1;
-		EncryptMessageInput encryptMessageInput = 2;
-		DecryptMessageInput decryptMessageInput = 3;
-		OrfThreadIdInput orfThreadIDInput = 4;
-		DeriveMessageKeyInput deriveMessageKeyInput = 5;
-		RotateEpochInput rotateEpochInput = 6;
-	}
+message VirtualDeviceOutput {
+	required bytes vdID = 1;
+	required bytes vdPublicKey = 2;
+	required bytes vdEpochStoragePublicKey = 3;
+	required bytes vdEpochStoragePublicKeySig = 4;
+	required bytes ocmfRotationToken = 5;
+	required bytes deviceEpochHmac = 6;
+	required EncryptedSecretValuesOutput encryptedSecretValues = 7;
 }

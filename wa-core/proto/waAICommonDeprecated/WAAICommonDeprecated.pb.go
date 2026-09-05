@@ -7,6 +7,7 @@
 package waAICommonDeprecated
 
 import (
+	_ "go.mau.fi/whatsmeow/proto/waAICommon"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -157,65 +158,6 @@ func (AIRichResponseSubMessageType) EnumDescriptor() ([]byte, []int) {
 	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{1}
 }
 
-type AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment int32
-
-const (
-	AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED  AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment = 0
-	AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment = 1
-	AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED   AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment = 2
-)
-
-// Enum value maps for AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment.
-var (
-	AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment_name = map[int32]string{
-		0: "AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED",
-		1: "AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED",
-		2: "AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED",
-	}
-	AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment_value = map[string]int32{
-		"AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED":  0,
-		"AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED": 1,
-		"AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED":   2,
-	}
-)
-
-func (x AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Enum() *AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment {
-	p := new(AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment)
-	*p = x
-	return p
-}
-
-func (x AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Descriptor() protoreflect.EnumDescriptor {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_enumTypes[2].Descriptor()
-}
-
-func (AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Type() protoreflect.EnumType {
-	return &file_waAICommonDeprecated_WAAICommonDeprecated_proto_enumTypes[2]
-}
-
-func (x AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Do not use.
-func (x *AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) UnmarshalJSON(b []byte) error {
-	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
-	if err != nil {
-		return err
-	}
-	*x = AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment(num)
-	return nil
-}
-
-// Deprecated: Use AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment.Descriptor instead.
-func (AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) EnumDescriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{0, 0}
-}
-
 type AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType int32
 
 const (
@@ -258,11 +200,11 @@ func (x AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) String() str
 }
 
 func (AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) Descriptor() protoreflect.EnumDescriptor {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_enumTypes[3].Descriptor()
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_enumTypes[2].Descriptor()
 }
 
 func (AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) Type() protoreflect.EnumType {
-	return &file_waAICommonDeprecated_WAAICommonDeprecated_proto_enumTypes[3]
+	return &file_waAICommonDeprecated_WAAICommonDeprecated_proto_enumTypes[2]
 }
 
 func (x AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) Number() protoreflect.EnumNumber {
@@ -281,6 +223,62 @@ func (x *AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) UnmarshalJS
 
 // Deprecated: Use AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType.Descriptor instead.
 func (AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType) EnumDescriptor() ([]byte, []int) {
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{0, 0}
+}
+
+type AIRichResponseContentItemsMetadata_ContentType int32
+
+const (
+	AIRichResponseContentItemsMetadata_DEFAULT  AIRichResponseContentItemsMetadata_ContentType = 0
+	AIRichResponseContentItemsMetadata_CAROUSEL AIRichResponseContentItemsMetadata_ContentType = 1
+)
+
+// Enum value maps for AIRichResponseContentItemsMetadata_ContentType.
+var (
+	AIRichResponseContentItemsMetadata_ContentType_name = map[int32]string{
+		0: "DEFAULT",
+		1: "CAROUSEL",
+	}
+	AIRichResponseContentItemsMetadata_ContentType_value = map[string]int32{
+		"DEFAULT":  0,
+		"CAROUSEL": 1,
+	}
+)
+
+func (x AIRichResponseContentItemsMetadata_ContentType) Enum() *AIRichResponseContentItemsMetadata_ContentType {
+	p := new(AIRichResponseContentItemsMetadata_ContentType)
+	*p = x
+	return p
+}
+
+func (x AIRichResponseContentItemsMetadata_ContentType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AIRichResponseContentItemsMetadata_ContentType) Descriptor() protoreflect.EnumDescriptor {
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_enumTypes[3].Descriptor()
+}
+
+func (AIRichResponseContentItemsMetadata_ContentType) Type() protoreflect.EnumType {
+	return &file_waAICommonDeprecated_WAAICommonDeprecated_proto_enumTypes[3]
+}
+
+func (x AIRichResponseContentItemsMetadata_ContentType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *AIRichResponseContentItemsMetadata_ContentType) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = AIRichResponseContentItemsMetadata_ContentType(num)
+	return nil
+}
+
+// Deprecated: Use AIRichResponseContentItemsMetadata_ContentType.Descriptor instead.
+func (AIRichResponseContentItemsMetadata_ContentType) EnumDescriptor() ([]byte, []int) {
 	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{1, 0}
 }
 
@@ -343,128 +341,63 @@ func (AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType) EnumDescr
 	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{2, 0}
 }
 
-type AIRichResponseContentItemsMetadata_ContentType int32
+type AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment int32
 
 const (
-	AIRichResponseContentItemsMetadata_DEFAULT  AIRichResponseContentItemsMetadata_ContentType = 0
-	AIRichResponseContentItemsMetadata_CAROUSEL AIRichResponseContentItemsMetadata_ContentType = 1
+	AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED  AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment = 0
+	AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment = 1
+	AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED   AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment = 2
 )
 
-// Enum value maps for AIRichResponseContentItemsMetadata_ContentType.
+// Enum value maps for AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment.
 var (
-	AIRichResponseContentItemsMetadata_ContentType_name = map[int32]string{
-		0: "DEFAULT",
-		1: "CAROUSEL",
+	AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment_name = map[int32]string{
+		0: "AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED",
+		1: "AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED",
+		2: "AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED",
 	}
-	AIRichResponseContentItemsMetadata_ContentType_value = map[string]int32{
-		"DEFAULT":  0,
-		"CAROUSEL": 1,
+	AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment_value = map[string]int32{
+		"AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED":  0,
+		"AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED": 1,
+		"AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED":   2,
 	}
 )
 
-func (x AIRichResponseContentItemsMetadata_ContentType) Enum() *AIRichResponseContentItemsMetadata_ContentType {
-	p := new(AIRichResponseContentItemsMetadata_ContentType)
+func (x AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Enum() *AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment {
+	p := new(AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment)
 	*p = x
 	return p
 }
 
-func (x AIRichResponseContentItemsMetadata_ContentType) String() string {
+func (x AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (AIRichResponseContentItemsMetadata_ContentType) Descriptor() protoreflect.EnumDescriptor {
+func (AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Descriptor() protoreflect.EnumDescriptor {
 	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_enumTypes[5].Descriptor()
 }
 
-func (AIRichResponseContentItemsMetadata_ContentType) Type() protoreflect.EnumType {
+func (AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Type() protoreflect.EnumType {
 	return &file_waAICommonDeprecated_WAAICommonDeprecated_proto_enumTypes[5]
 }
 
-func (x AIRichResponseContentItemsMetadata_ContentType) Number() protoreflect.EnumNumber {
+func (x AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
 // Deprecated: Do not use.
-func (x *AIRichResponseContentItemsMetadata_ContentType) UnmarshalJSON(b []byte) error {
+func (x *AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) UnmarshalJSON(b []byte) error {
 	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
 	if err != nil {
 		return err
 	}
-	*x = AIRichResponseContentItemsMetadata_ContentType(num)
+	*x = AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment(num)
 	return nil
 }
 
-// Deprecated: Use AIRichResponseContentItemsMetadata_ContentType.Descriptor instead.
-func (AIRichResponseContentItemsMetadata_ContentType) EnumDescriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{3, 0}
-}
-
-type AIRichResponseInlineImageMetadata struct {
-	state         protoimpl.MessageState                                          `protogen:"open.v1"`
-	ImageURL      *AIRichResponseImageURL                                         `protobuf:"bytes,1,opt,name=imageURL" json:"imageURL,omitempty"`
-	ImageText     *string                                                         `protobuf:"bytes,2,opt,name=imageText" json:"imageText,omitempty"`
-	Alignment     *AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment `protobuf:"varint,3,opt,name=alignment,enum=WAAICommonDeprecated.AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment" json:"alignment,omitempty"`
-	TapLinkURL    *string                                                         `protobuf:"bytes,4,opt,name=tapLinkURL" json:"tapLinkURL,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseInlineImageMetadata) Reset() {
-	*x = AIRichResponseInlineImageMetadata{}
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseInlineImageMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseInlineImageMetadata) ProtoMessage() {}
-
-func (x *AIRichResponseInlineImageMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseInlineImageMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseInlineImageMetadata) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *AIRichResponseInlineImageMetadata) GetImageURL() *AIRichResponseImageURL {
-	if x != nil {
-		return x.ImageURL
-	}
-	return nil
-}
-
-func (x *AIRichResponseInlineImageMetadata) GetImageText() string {
-	if x != nil && x.ImageText != nil {
-		return *x.ImageText
-	}
-	return ""
-}
-
-func (x *AIRichResponseInlineImageMetadata) GetAlignment() AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment {
-	if x != nil && x.Alignment != nil {
-		return *x.Alignment
-	}
-	return AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED
-}
-
-func (x *AIRichResponseInlineImageMetadata) GetTapLinkURL() string {
-	if x != nil && x.TapLinkURL != nil {
-		return *x.TapLinkURL
-	}
-	return ""
+// Deprecated: Use AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment.Descriptor instead.
+func (AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment) EnumDescriptor() ([]byte, []int) {
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{5, 0}
 }
 
 type AIRichResponseCodeMetadata struct {
@@ -477,7 +410,7 @@ type AIRichResponseCodeMetadata struct {
 
 func (x *AIRichResponseCodeMetadata) Reset() {
 	*x = AIRichResponseCodeMetadata{}
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[1]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -489,7 +422,7 @@ func (x *AIRichResponseCodeMetadata) String() string {
 func (*AIRichResponseCodeMetadata) ProtoMessage() {}
 
 func (x *AIRichResponseCodeMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[1]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -502,7 +435,7 @@ func (x *AIRichResponseCodeMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AIRichResponseCodeMetadata.ProtoReflect.Descriptor instead.
 func (*AIRichResponseCodeMetadata) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{1}
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AIRichResponseCodeMetadata) GetCodeLanguage() string {
@@ -517,6 +450,58 @@ func (x *AIRichResponseCodeMetadata) GetCodeBlocks() []*AIRichResponseCodeMetada
 		return x.CodeBlocks
 	}
 	return nil
+}
+
+type AIRichResponseContentItemsMetadata struct {
+	state         protoimpl.MessageState                                                  `protogen:"open.v1"`
+	ItemsMetadata []*AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata `protobuf:"bytes,1,rep,name=itemsMetadata" json:"itemsMetadata,omitempty"`
+	ContentType   *AIRichResponseContentItemsMetadata_ContentType                         `protobuf:"varint,2,opt,name=contentType,enum=WAAICommonDeprecated.AIRichResponseContentItemsMetadata_ContentType" json:"contentType,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AIRichResponseContentItemsMetadata) Reset() {
+	*x = AIRichResponseContentItemsMetadata{}
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AIRichResponseContentItemsMetadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AIRichResponseContentItemsMetadata) ProtoMessage() {}
+
+func (x *AIRichResponseContentItemsMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AIRichResponseContentItemsMetadata.ProtoReflect.Descriptor instead.
+func (*AIRichResponseContentItemsMetadata) Descriptor() ([]byte, []int) {
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *AIRichResponseContentItemsMetadata) GetItemsMetadata() []*AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata {
+	if x != nil {
+		return x.ItemsMetadata
+	}
+	return nil
+}
+
+func (x *AIRichResponseContentItemsMetadata) GetContentType() AIRichResponseContentItemsMetadata_ContentType {
+	if x != nil && x.ContentType != nil {
+		return *x.ContentType
+	}
+	return AIRichResponseContentItemsMetadata_DEFAULT
 }
 
 type AIRichResponseDynamicMetadata struct {
@@ -587,28 +572,28 @@ func (x *AIRichResponseDynamicMetadata) GetLoopCount() uint32 {
 	return 0
 }
 
-type AIRichResponseContentItemsMetadata struct {
-	state         protoimpl.MessageState                                                  `protogen:"open.v1"`
-	ItemsMetadata []*AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata `protobuf:"bytes,1,rep,name=itemsMetadata" json:"itemsMetadata,omitempty"`
-	ContentType   *AIRichResponseContentItemsMetadata_ContentType                         `protobuf:"varint,2,opt,name=contentType,enum=WAAICommonDeprecated.AIRichResponseContentItemsMetadata_ContentType" json:"contentType,omitempty"`
+type AIRichResponseGridImageMetadata struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	GridImageURL  *AIRichResponseImageURL   `protobuf:"bytes,1,opt,name=gridImageURL" json:"gridImageURL,omitempty"`
+	ImageURLs     []*AIRichResponseImageURL `protobuf:"bytes,2,rep,name=imageURLs" json:"imageURLs,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AIRichResponseContentItemsMetadata) Reset() {
-	*x = AIRichResponseContentItemsMetadata{}
+func (x *AIRichResponseGridImageMetadata) Reset() {
+	*x = AIRichResponseGridImageMetadata{}
 	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AIRichResponseContentItemsMetadata) String() string {
+func (x *AIRichResponseGridImageMetadata) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AIRichResponseContentItemsMetadata) ProtoMessage() {}
+func (*AIRichResponseGridImageMetadata) ProtoMessage() {}
 
-func (x *AIRichResponseContentItemsMetadata) ProtoReflect() protoreflect.Message {
+func (x *AIRichResponseGridImageMetadata) ProtoReflect() protoreflect.Message {
 	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -620,23 +605,23 @@ func (x *AIRichResponseContentItemsMetadata) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AIRichResponseContentItemsMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseContentItemsMetadata) Descriptor() ([]byte, []int) {
+// Deprecated: Use AIRichResponseGridImageMetadata.ProtoReflect.Descriptor instead.
+func (*AIRichResponseGridImageMetadata) Descriptor() ([]byte, []int) {
 	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *AIRichResponseContentItemsMetadata) GetItemsMetadata() []*AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata {
+func (x *AIRichResponseGridImageMetadata) GetGridImageURL() *AIRichResponseImageURL {
 	if x != nil {
-		return x.ItemsMetadata
+		return x.GridImageURL
 	}
 	return nil
 }
 
-func (x *AIRichResponseContentItemsMetadata) GetContentType() AIRichResponseContentItemsMetadata_ContentType {
-	if x != nil && x.ContentType != nil {
-		return *x.ContentType
+func (x *AIRichResponseGridImageMetadata) GetImageURLs() []*AIRichResponseImageURL {
+	if x != nil {
+		return x.ImageURLs
 	}
-	return AIRichResponseContentItemsMetadata_DEFAULT
+	return nil
 }
 
 type AIRichResponseImageURL struct {
@@ -699,28 +684,30 @@ func (x *AIRichResponseImageURL) GetSourceURL() string {
 	return ""
 }
 
-type AIRichResponseGridImageMetadata struct {
-	state         protoimpl.MessageState    `protogen:"open.v1"`
-	GridImageURL  *AIRichResponseImageURL   `protobuf:"bytes,1,opt,name=gridImageURL" json:"gridImageURL,omitempty"`
-	ImageURLs     []*AIRichResponseImageURL `protobuf:"bytes,2,rep,name=imageURLs" json:"imageURLs,omitempty"`
+type AIRichResponseInlineImageMetadata struct {
+	state         protoimpl.MessageState                                          `protogen:"open.v1"`
+	ImageURL      *AIRichResponseImageURL                                         `protobuf:"bytes,1,opt,name=imageURL" json:"imageURL,omitempty"`
+	ImageText     *string                                                         `protobuf:"bytes,2,opt,name=imageText" json:"imageText,omitempty"`
+	Alignment     *AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment `protobuf:"varint,3,opt,name=alignment,enum=WAAICommonDeprecated.AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment" json:"alignment,omitempty"`
+	TapLinkURL    *string                                                         `protobuf:"bytes,4,opt,name=tapLinkURL" json:"tapLinkURL,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AIRichResponseGridImageMetadata) Reset() {
-	*x = AIRichResponseGridImageMetadata{}
+func (x *AIRichResponseInlineImageMetadata) Reset() {
+	*x = AIRichResponseInlineImageMetadata{}
 	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AIRichResponseGridImageMetadata) String() string {
+func (x *AIRichResponseInlineImageMetadata) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AIRichResponseGridImageMetadata) ProtoMessage() {}
+func (*AIRichResponseInlineImageMetadata) ProtoMessage() {}
 
-func (x *AIRichResponseGridImageMetadata) ProtoReflect() protoreflect.Message {
+func (x *AIRichResponseInlineImageMetadata) ProtoReflect() protoreflect.Message {
 	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -732,73 +719,35 @@ func (x *AIRichResponseGridImageMetadata) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AIRichResponseGridImageMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseGridImageMetadata) Descriptor() ([]byte, []int) {
+// Deprecated: Use AIRichResponseInlineImageMetadata.ProtoReflect.Descriptor instead.
+func (*AIRichResponseInlineImageMetadata) Descriptor() ([]byte, []int) {
 	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *AIRichResponseGridImageMetadata) GetGridImageURL() *AIRichResponseImageURL {
+func (x *AIRichResponseInlineImageMetadata) GetImageURL() *AIRichResponseImageURL {
 	if x != nil {
-		return x.GridImageURL
+		return x.ImageURL
 	}
 	return nil
 }
 
-func (x *AIRichResponseGridImageMetadata) GetImageURLs() []*AIRichResponseImageURL {
-	if x != nil {
-		return x.ImageURLs
+func (x *AIRichResponseInlineImageMetadata) GetImageText() string {
+	if x != nil && x.ImageText != nil {
+		return *x.ImageText
 	}
-	return nil
+	return ""
 }
 
-type AIRichResponseTableMetadata struct {
-	state         protoimpl.MessageState                                `protogen:"open.v1"`
-	Rows          []*AIRichResponseTableMetadata_AIRichResponseTableRow `protobuf:"bytes,1,rep,name=rows" json:"rows,omitempty"`
-	Title         *string                                               `protobuf:"bytes,2,opt,name=title" json:"title,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseTableMetadata) Reset() {
-	*x = AIRichResponseTableMetadata{}
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseTableMetadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseTableMetadata) ProtoMessage() {}
-
-func (x *AIRichResponseTableMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+func (x *AIRichResponseInlineImageMetadata) GetAlignment() AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment {
+	if x != nil && x.Alignment != nil {
+		return *x.Alignment
 	}
-	return mi.MessageOf(x)
+	return AIRichResponseInlineImageMetadata_AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED
 }
 
-// Deprecated: Use AIRichResponseTableMetadata.ProtoReflect.Descriptor instead.
-func (*AIRichResponseTableMetadata) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *AIRichResponseTableMetadata) GetRows() []*AIRichResponseTableMetadata_AIRichResponseTableRow {
-	if x != nil {
-		return x.Rows
-	}
-	return nil
-}
-
-func (x *AIRichResponseTableMetadata) GetTitle() string {
-	if x != nil && x.Title != nil {
-		return *x.Title
+func (x *AIRichResponseInlineImageMetadata) GetTapLinkURL() string {
+	if x != nil && x.TapLinkURL != nil {
+		return *x.TapLinkURL
 	}
 	return ""
 }
@@ -813,7 +762,7 @@ type AIRichResponseLatexMetadata struct {
 
 func (x *AIRichResponseLatexMetadata) Reset() {
 	*x = AIRichResponseLatexMetadata{}
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[7]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -825,7 +774,7 @@ func (x *AIRichResponseLatexMetadata) String() string {
 func (*AIRichResponseLatexMetadata) ProtoMessage() {}
 
 func (x *AIRichResponseLatexMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[7]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -838,7 +787,7 @@ func (x *AIRichResponseLatexMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AIRichResponseLatexMetadata.ProtoReflect.Descriptor instead.
 func (*AIRichResponseLatexMetadata) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{7}
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AIRichResponseLatexMetadata) GetText() string {
@@ -869,7 +818,7 @@ type AIRichResponseMapMetadata struct {
 
 func (x *AIRichResponseMapMetadata) Reset() {
 	*x = AIRichResponseMapMetadata{}
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[8]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -881,7 +830,7 @@ func (x *AIRichResponseMapMetadata) String() string {
 func (*AIRichResponseMapMetadata) ProtoMessage() {}
 
 func (x *AIRichResponseMapMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[8]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -894,7 +843,7 @@ func (x *AIRichResponseMapMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AIRichResponseMapMetadata.ProtoReflect.Descriptor instead.
 func (*AIRichResponseMapMetadata) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{8}
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AIRichResponseMapMetadata) GetCenterLatitude() float64 {
@@ -957,7 +906,7 @@ type AIRichResponseSubMessage struct {
 
 func (x *AIRichResponseSubMessage) Reset() {
 	*x = AIRichResponseSubMessage{}
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[9]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -969,7 +918,7 @@ func (x *AIRichResponseSubMessage) String() string {
 func (*AIRichResponseSubMessage) ProtoMessage() {}
 
 func (x *AIRichResponseSubMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[9]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -982,7 +931,7 @@ func (x *AIRichResponseSubMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AIRichResponseSubMessage.ProtoReflect.Descriptor instead.
 func (*AIRichResponseSubMessage) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{9}
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *AIRichResponseSubMessage) GetMessageType() AIRichResponseSubMessageType {
@@ -1055,6 +1004,58 @@ func (x *AIRichResponseSubMessage) GetContentItemsMetadata() *AIRichResponseCont
 	return nil
 }
 
+type AIRichResponseTableMetadata struct {
+	state         protoimpl.MessageState                                `protogen:"open.v1"`
+	Rows          []*AIRichResponseTableMetadata_AIRichResponseTableRow `protobuf:"bytes,1,rep,name=rows" json:"rows,omitempty"`
+	Title         *string                                               `protobuf:"bytes,2,opt,name=title" json:"title,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AIRichResponseTableMetadata) Reset() {
+	*x = AIRichResponseTableMetadata{}
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AIRichResponseTableMetadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AIRichResponseTableMetadata) ProtoMessage() {}
+
+func (x *AIRichResponseTableMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AIRichResponseTableMetadata.ProtoReflect.Descriptor instead.
+func (*AIRichResponseTableMetadata) Descriptor() ([]byte, []int) {
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *AIRichResponseTableMetadata) GetRows() []*AIRichResponseTableMetadata_AIRichResponseTableRow {
+	if x != nil {
+		return x.Rows
+	}
+	return nil
+}
+
+func (x *AIRichResponseTableMetadata) GetTitle() string {
+	if x != nil && x.Title != nil {
+		return *x.Title
+	}
+	return ""
+}
+
 type AIRichResponseCodeMetadata_AIRichResponseCodeBlock struct {
 	state         protoimpl.MessageState                                      `protogen:"open.v1"`
 	HighlightType *AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType `protobuf:"varint,1,opt,name=highlightType,enum=WAAICommonDeprecated.AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType" json:"highlightType,omitempty"`
@@ -1090,7 +1091,7 @@ func (x *AIRichResponseCodeMetadata_AIRichResponseCodeBlock) ProtoReflect() prot
 
 // Deprecated: Use AIRichResponseCodeMetadata_AIRichResponseCodeBlock.ProtoReflect.Descriptor instead.
 func (*AIRichResponseCodeMetadata_AIRichResponseCodeBlock) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{1, 0}
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{0, 0}
 }
 
 func (x *AIRichResponseCodeMetadata_AIRichResponseCodeBlock) GetHighlightType() AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType {
@@ -1144,7 +1145,7 @@ func (x *AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata) P
 
 // Deprecated: Use AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata.ProtoReflect.Descriptor instead.
 func (*AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{3, 0}
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{1, 0}
 }
 
 func (x *AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata) GetAIRichResponseContentItem() isAIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata_AIRichResponseContentItem {
@@ -1211,7 +1212,7 @@ func (x *AIRichResponseContentItemsMetadata_AIRichResponseReelItem) ProtoReflect
 
 // Deprecated: Use AIRichResponseContentItemsMetadata_AIRichResponseReelItem.ProtoReflect.Descriptor instead.
 func (*AIRichResponseContentItemsMetadata_AIRichResponseReelItem) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{3, 1}
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{1, 1}
 }
 
 func (x *AIRichResponseContentItemsMetadata_AIRichResponseReelItem) GetTitle() string {
@@ -1242,58 +1243,6 @@ func (x *AIRichResponseContentItemsMetadata_AIRichResponseReelItem) GetVideoURL(
 	return ""
 }
 
-type AIRichResponseTableMetadata_AIRichResponseTableRow struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []string               `protobuf:"bytes,1,rep,name=items" json:"items,omitempty"`
-	IsHeading     *bool                  `protobuf:"varint,2,opt,name=isHeading" json:"isHeading,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRichResponseTableMetadata_AIRichResponseTableRow) Reset() {
-	*x = AIRichResponseTableMetadata_AIRichResponseTableRow{}
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[13]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRichResponseTableMetadata_AIRichResponseTableRow) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRichResponseTableMetadata_AIRichResponseTableRow) ProtoMessage() {}
-
-func (x *AIRichResponseTableMetadata_AIRichResponseTableRow) ProtoReflect() protoreflect.Message {
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[13]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRichResponseTableMetadata_AIRichResponseTableRow.ProtoReflect.Descriptor instead.
-func (*AIRichResponseTableMetadata_AIRichResponseTableRow) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{6, 0}
-}
-
-func (x *AIRichResponseTableMetadata_AIRichResponseTableRow) GetItems() []string {
-	if x != nil {
-		return x.Items
-	}
-	return nil
-}
-
-func (x *AIRichResponseTableMetadata_AIRichResponseTableRow) GetIsHeading() bool {
-	if x != nil && x.IsHeading != nil {
-		return *x.IsHeading
-	}
-	return false
-}
-
 type AIRichResponseLatexMetadata_AIRichResponseLatexExpression struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	LatexExpression      *string                `protobuf:"bytes,1,opt,name=latexExpression" json:"latexExpression,omitempty"`
@@ -1311,7 +1260,7 @@ type AIRichResponseLatexMetadata_AIRichResponseLatexExpression struct {
 
 func (x *AIRichResponseLatexMetadata_AIRichResponseLatexExpression) Reset() {
 	*x = AIRichResponseLatexMetadata_AIRichResponseLatexExpression{}
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[14]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1323,7 +1272,7 @@ func (x *AIRichResponseLatexMetadata_AIRichResponseLatexExpression) String() str
 func (*AIRichResponseLatexMetadata_AIRichResponseLatexExpression) ProtoMessage() {}
 
 func (x *AIRichResponseLatexMetadata_AIRichResponseLatexExpression) ProtoReflect() protoreflect.Message {
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[14]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1336,7 +1285,7 @@ func (x *AIRichResponseLatexMetadata_AIRichResponseLatexExpression) ProtoReflect
 
 // Deprecated: Use AIRichResponseLatexMetadata_AIRichResponseLatexExpression.ProtoReflect.Descriptor instead.
 func (*AIRichResponseLatexMetadata_AIRichResponseLatexExpression) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{7, 0}
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{6, 0}
 }
 
 func (x *AIRichResponseLatexMetadata_AIRichResponseLatexExpression) GetLatexExpression() string {
@@ -1415,7 +1364,7 @@ type AIRichResponseMapMetadata_AIRichResponseMapAnnotation struct {
 
 func (x *AIRichResponseMapMetadata_AIRichResponseMapAnnotation) Reset() {
 	*x = AIRichResponseMapMetadata_AIRichResponseMapAnnotation{}
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[15]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1427,7 +1376,7 @@ func (x *AIRichResponseMapMetadata_AIRichResponseMapAnnotation) String() string 
 func (*AIRichResponseMapMetadata_AIRichResponseMapAnnotation) ProtoMessage() {}
 
 func (x *AIRichResponseMapMetadata_AIRichResponseMapAnnotation) ProtoReflect() protoreflect.Message {
-	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[15]
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1440,7 +1389,7 @@ func (x *AIRichResponseMapMetadata_AIRichResponseMapAnnotation) ProtoReflect() p
 
 // Deprecated: Use AIRichResponseMapMetadata_AIRichResponseMapAnnotation.ProtoReflect.Descriptor instead.
 func (*AIRichResponseMapMetadata_AIRichResponseMapAnnotation) Descriptor() ([]byte, []int) {
-	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{8, 0}
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{7, 0}
 }
 
 func (x *AIRichResponseMapMetadata_AIRichResponseMapAnnotation) GetAnnotationNumber() uint32 {
@@ -1478,22 +1427,63 @@ func (x *AIRichResponseMapMetadata_AIRichResponseMapAnnotation) GetBody() string
 	return ""
 }
 
+type AIRichResponseTableMetadata_AIRichResponseTableRow struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []string               `protobuf:"bytes,1,rep,name=items" json:"items,omitempty"`
+	IsHeading     *bool                  `protobuf:"varint,2,opt,name=isHeading" json:"isHeading,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AIRichResponseTableMetadata_AIRichResponseTableRow) Reset() {
+	*x = AIRichResponseTableMetadata_AIRichResponseTableRow{}
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AIRichResponseTableMetadata_AIRichResponseTableRow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AIRichResponseTableMetadata_AIRichResponseTableRow) ProtoMessage() {}
+
+func (x *AIRichResponseTableMetadata_AIRichResponseTableRow) ProtoReflect() protoreflect.Message {
+	mi := &file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AIRichResponseTableMetadata_AIRichResponseTableRow.ProtoReflect.Descriptor instead.
+func (*AIRichResponseTableMetadata_AIRichResponseTableRow) Descriptor() ([]byte, []int) {
+	return file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDescGZIP(), []int{9, 0}
+}
+
+func (x *AIRichResponseTableMetadata_AIRichResponseTableRow) GetItems() []string {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *AIRichResponseTableMetadata_AIRichResponseTableRow) GetIsHeading() bool {
+	if x != nil && x.IsHeading != nil {
+		return *x.IsHeading
+	}
+	return false
+}
+
 var File_waAICommonDeprecated_WAAICommonDeprecated_proto protoreflect.FileDescriptor
 
 const file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDesc = "" +
 	"\n" +
-	"/waAICommonDeprecated/WAAICommonDeprecated.proto\x12\x14WAAICommonDeprecated\"\xd9\x03\n" +
-	"!AIRichResponseInlineImageMetadata\x12H\n" +
-	"\bimageURL\x18\x01 \x01(\v2,.WAAICommonDeprecated.AIRichResponseImageURLR\bimageURL\x12\x1c\n" +
-	"\timageText\x18\x02 \x01(\tR\timageText\x12r\n" +
-	"\talignment\x18\x03 \x01(\x0e2T.WAAICommonDeprecated.AIRichResponseInlineImageMetadata.AIRichResponseImageAlignmentR\talignment\x12\x1e\n" +
-	"\n" +
-	"tapLinkURL\x18\x04 \x01(\tR\n" +
-	"tapLinkURL\"\xb7\x01\n" +
-	"\x1cAIRichResponseImageAlignment\x121\n" +
-	"-AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED\x10\x00\x122\n" +
-	".AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED\x10\x01\x120\n" +
-	",AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED\x10\x02\"\x8f\x05\n" +
+	"/waAICommonDeprecated/WAAICommonDeprecated.proto\x12\x14WAAICommonDeprecated\x1a'waAICommon/WAWebProtobufsAICommon.proto\"\x8f\x05\n" +
 	"\x1aAIRichResponseCodeMetadata\x12\"\n" +
 	"\fcodeLanguage\x18\x01 \x01(\tR\fcodeLanguage\x12h\n" +
 	"\n" +
@@ -1508,16 +1498,7 @@ const file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDesc = "" +
 	"&AI_RICH_RESPONSE_CODE_HIGHLIGHT_METHOD\x10\x02\x12*\n" +
 	"&AI_RICH_RESPONSE_CODE_HIGHLIGHT_STRING\x10\x03\x12*\n" +
 	"&AI_RICH_RESPONSE_CODE_HIGHLIGHT_NUMBER\x10\x04\x12+\n" +
-	"'AI_RICH_RESPONSE_CODE_HIGHLIGHT_COMMENT\x10\x05\"\x90\x03\n" +
-	"\x1dAIRichResponseDynamicMetadata\x12i\n" +
-	"\x04type\x18\x01 \x01(\x0e2U.WAAICommonDeprecated.AIRichResponseDynamicMetadata.AIRichResponseDynamicMetadataTypeR\x04type\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\x04R\aversion\x12\x10\n" +
-	"\x03URL\x18\x03 \x01(\tR\x03URL\x12\x1c\n" +
-	"\tloopCount\x18\x04 \x01(\rR\tloopCount\"\xb9\x01\n" +
-	"!AIRichResponseDynamicMetadataType\x122\n" +
-	".AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_UNKNOWN\x10\x00\x120\n" +
-	",AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_IMAGE\x10\x01\x12.\n" +
-	"*AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_GIF\x10\x02\"\x84\x05\n" +
+	"'AI_RICH_RESPONSE_CODE_HIGHLIGHT_COMMENT\x10\x05\"\x84\x05\n" +
 	"\"AIRichResponseContentItemsMetadata\x12\x80\x01\n" +
 	"\ritemsMetadata\x18\x01 \x03(\v2Z.WAAICommonDeprecated.AIRichResponseContentItemsMetadata.AIRichResponseContentItemMetadataR\ritemsMetadata\x12f\n" +
 	"\vcontentType\x18\x02 \x01(\x0e2D.WAAICommonDeprecated.AIRichResponseContentItemsMetadata.ContentTypeR\vcontentType\x1a\xaf\x01\n" +
@@ -1531,20 +1512,34 @@ const file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDesc = "" +
 	"\bvideoURL\x18\x04 \x01(\tR\bvideoURL\"(\n" +
 	"\vContentType\x12\v\n" +
 	"\aDEFAULT\x10\x00\x12\f\n" +
-	"\bCAROUSEL\x10\x01\"\x8a\x01\n" +
+	"\bCAROUSEL\x10\x01\"\x90\x03\n" +
+	"\x1dAIRichResponseDynamicMetadata\x12i\n" +
+	"\x04type\x18\x01 \x01(\x0e2U.WAAICommonDeprecated.AIRichResponseDynamicMetadata.AIRichResponseDynamicMetadataTypeR\x04type\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\x04R\aversion\x12\x10\n" +
+	"\x03URL\x18\x03 \x01(\tR\x03URL\x12\x1c\n" +
+	"\tloopCount\x18\x04 \x01(\rR\tloopCount\"\xb9\x01\n" +
+	"!AIRichResponseDynamicMetadataType\x122\n" +
+	".AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_UNKNOWN\x10\x00\x120\n" +
+	",AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_IMAGE\x10\x01\x12.\n" +
+	"*AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_GIF\x10\x02\"\xbf\x01\n" +
+	"\x1fAIRichResponseGridImageMetadata\x12P\n" +
+	"\fgridImageURL\x18\x01 \x01(\v2,.WAAICommonDeprecated.AIRichResponseImageURLR\fgridImageURL\x12J\n" +
+	"\timageURLs\x18\x02 \x03(\v2,.WAAICommonDeprecated.AIRichResponseImageURLR\timageURLs\"\x8a\x01\n" +
 	"\x16AIRichResponseImageURL\x12(\n" +
 	"\x0fimagePreviewURL\x18\x01 \x01(\tR\x0fimagePreviewURL\x12(\n" +
 	"\x0fimageHighResURL\x18\x02 \x01(\tR\x0fimageHighResURL\x12\x1c\n" +
-	"\tsourceURL\x18\x03 \x01(\tR\tsourceURL\"\xbf\x01\n" +
-	"\x1fAIRichResponseGridImageMetadata\x12P\n" +
-	"\fgridImageURL\x18\x01 \x01(\v2,.WAAICommonDeprecated.AIRichResponseImageURLR\fgridImageURL\x12J\n" +
-	"\timageURLs\x18\x02 \x03(\v2,.WAAICommonDeprecated.AIRichResponseImageURLR\timageURLs\"\xdf\x01\n" +
-	"\x1bAIRichResponseTableMetadata\x12\\\n" +
-	"\x04rows\x18\x01 \x03(\v2H.WAAICommonDeprecated.AIRichResponseTableMetadata.AIRichResponseTableRowR\x04rows\x12\x14\n" +
-	"\x05title\x18\x02 \x01(\tR\x05title\x1aL\n" +
-	"\x16AIRichResponseTableRow\x12\x14\n" +
-	"\x05items\x18\x01 \x03(\tR\x05items\x12\x1c\n" +
-	"\tisHeading\x18\x02 \x01(\bR\tisHeading\"\x90\x04\n" +
+	"\tsourceURL\x18\x03 \x01(\tR\tsourceURL\"\xd9\x03\n" +
+	"!AIRichResponseInlineImageMetadata\x12H\n" +
+	"\bimageURL\x18\x01 \x01(\v2,.WAAICommonDeprecated.AIRichResponseImageURLR\bimageURL\x12\x1c\n" +
+	"\timageText\x18\x02 \x01(\tR\timageText\x12r\n" +
+	"\talignment\x18\x03 \x01(\x0e2T.WAAICommonDeprecated.AIRichResponseInlineImageMetadata.AIRichResponseImageAlignmentR\talignment\x12\x1e\n" +
+	"\n" +
+	"tapLinkURL\x18\x04 \x01(\tR\n" +
+	"tapLinkURL\"\xb7\x01\n" +
+	"\x1cAIRichResponseImageAlignment\x121\n" +
+	"-AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED\x10\x00\x122\n" +
+	".AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED\x10\x01\x120\n" +
+	",AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED\x10\x02\"\x90\x04\n" +
 	"\x1bAIRichResponseLatexMetadata\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x12q\n" +
 	"\vexpressions\x18\x02 \x03(\v2O.WAAICommonDeprecated.AIRichResponseLatexMetadata.AIRichResponseLatexExpressionR\vexpressions\x1a\xe9\x02\n" +
@@ -1584,7 +1579,13 @@ const file_waAICommonDeprecated_WAAICommonDeprecated_proto_rawDesc = "" +
 	"\rlatexMetadata\x18\b \x01(\v21.WAAICommonDeprecated.AIRichResponseLatexMetadataR\rlatexMetadata\x12Q\n" +
 	"\vmapMetadata\x18\t \x01(\v2/.WAAICommonDeprecated.AIRichResponseMapMetadataR\vmapMetadata\x12l\n" +
 	"\x14contentItemsMetadata\x18\n" +
-	" \x01(\v28.WAAICommonDeprecated.AIRichResponseContentItemsMetadataR\x14contentItemsMetadata*b\n" +
+	" \x01(\v28.WAAICommonDeprecated.AIRichResponseContentItemsMetadataR\x14contentItemsMetadata\"\xdf\x01\n" +
+	"\x1bAIRichResponseTableMetadata\x12\\\n" +
+	"\x04rows\x18\x01 \x03(\v2H.WAAICommonDeprecated.AIRichResponseTableMetadata.AIRichResponseTableRowR\x04rows\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x1aL\n" +
+	"\x16AIRichResponseTableRow\x12\x14\n" +
+	"\x05items\x18\x01 \x03(\tR\x05items\x12\x1c\n" +
+	"\tisHeading\x18\x02 \x01(\bR\tisHeading*b\n" +
 	"\x19AIRichResponseMessageType\x12!\n" +
 	"\x1dAI_RICH_RESPONSE_TYPE_UNKNOWN\x10\x00\x12\"\n" +
 	"\x1eAI_RICH_RESPONSE_TYPE_STANDARD\x10\x01*\xca\x02\n" +
@@ -1617,49 +1618,49 @@ var file_waAICommonDeprecated_WAAICommonDeprecated_proto_msgTypes = make([]proto
 var file_waAICommonDeprecated_WAAICommonDeprecated_proto_goTypes = []any{
 	(AIRichResponseMessageType)(0),                                               // 0: WAAICommonDeprecated.AIRichResponseMessageType
 	(AIRichResponseSubMessageType)(0),                                            // 1: WAAICommonDeprecated.AIRichResponseSubMessageType
-	(AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment)(0),          // 2: WAAICommonDeprecated.AIRichResponseInlineImageMetadata.AIRichResponseImageAlignment
-	(AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType)(0),              // 3: WAAICommonDeprecated.AIRichResponseCodeMetadata.AIRichResponseCodeHighlightType
+	(AIRichResponseCodeMetadata_AIRichResponseCodeHighlightType)(0),              // 2: WAAICommonDeprecated.AIRichResponseCodeMetadata.AIRichResponseCodeHighlightType
+	(AIRichResponseContentItemsMetadata_ContentType)(0),                          // 3: WAAICommonDeprecated.AIRichResponseContentItemsMetadata.ContentType
 	(AIRichResponseDynamicMetadata_AIRichResponseDynamicMetadataType)(0),         // 4: WAAICommonDeprecated.AIRichResponseDynamicMetadata.AIRichResponseDynamicMetadataType
-	(AIRichResponseContentItemsMetadata_ContentType)(0),                          // 5: WAAICommonDeprecated.AIRichResponseContentItemsMetadata.ContentType
-	(*AIRichResponseInlineImageMetadata)(nil),                                    // 6: WAAICommonDeprecated.AIRichResponseInlineImageMetadata
-	(*AIRichResponseCodeMetadata)(nil),                                           // 7: WAAICommonDeprecated.AIRichResponseCodeMetadata
+	(AIRichResponseInlineImageMetadata_AIRichResponseImageAlignment)(0),          // 5: WAAICommonDeprecated.AIRichResponseInlineImageMetadata.AIRichResponseImageAlignment
+	(*AIRichResponseCodeMetadata)(nil),                                           // 6: WAAICommonDeprecated.AIRichResponseCodeMetadata
+	(*AIRichResponseContentItemsMetadata)(nil),                                   // 7: WAAICommonDeprecated.AIRichResponseContentItemsMetadata
 	(*AIRichResponseDynamicMetadata)(nil),                                        // 8: WAAICommonDeprecated.AIRichResponseDynamicMetadata
-	(*AIRichResponseContentItemsMetadata)(nil),                                   // 9: WAAICommonDeprecated.AIRichResponseContentItemsMetadata
+	(*AIRichResponseGridImageMetadata)(nil),                                      // 9: WAAICommonDeprecated.AIRichResponseGridImageMetadata
 	(*AIRichResponseImageURL)(nil),                                               // 10: WAAICommonDeprecated.AIRichResponseImageURL
-	(*AIRichResponseGridImageMetadata)(nil),                                      // 11: WAAICommonDeprecated.AIRichResponseGridImageMetadata
-	(*AIRichResponseTableMetadata)(nil),                                          // 12: WAAICommonDeprecated.AIRichResponseTableMetadata
-	(*AIRichResponseLatexMetadata)(nil),                                          // 13: WAAICommonDeprecated.AIRichResponseLatexMetadata
-	(*AIRichResponseMapMetadata)(nil),                                            // 14: WAAICommonDeprecated.AIRichResponseMapMetadata
-	(*AIRichResponseSubMessage)(nil),                                             // 15: WAAICommonDeprecated.AIRichResponseSubMessage
+	(*AIRichResponseInlineImageMetadata)(nil),                                    // 11: WAAICommonDeprecated.AIRichResponseInlineImageMetadata
+	(*AIRichResponseLatexMetadata)(nil),                                          // 12: WAAICommonDeprecated.AIRichResponseLatexMetadata
+	(*AIRichResponseMapMetadata)(nil),                                            // 13: WAAICommonDeprecated.AIRichResponseMapMetadata
+	(*AIRichResponseSubMessage)(nil),                                             // 14: WAAICommonDeprecated.AIRichResponseSubMessage
+	(*AIRichResponseTableMetadata)(nil),                                          // 15: WAAICommonDeprecated.AIRichResponseTableMetadata
 	(*AIRichResponseCodeMetadata_AIRichResponseCodeBlock)(nil),                   // 16: WAAICommonDeprecated.AIRichResponseCodeMetadata.AIRichResponseCodeBlock
 	(*AIRichResponseContentItemsMetadata_AIRichResponseContentItemMetadata)(nil), // 17: WAAICommonDeprecated.AIRichResponseContentItemsMetadata.AIRichResponseContentItemMetadata
 	(*AIRichResponseContentItemsMetadata_AIRichResponseReelItem)(nil),            // 18: WAAICommonDeprecated.AIRichResponseContentItemsMetadata.AIRichResponseReelItem
-	(*AIRichResponseTableMetadata_AIRichResponseTableRow)(nil),                   // 19: WAAICommonDeprecated.AIRichResponseTableMetadata.AIRichResponseTableRow
-	(*AIRichResponseLatexMetadata_AIRichResponseLatexExpression)(nil),            // 20: WAAICommonDeprecated.AIRichResponseLatexMetadata.AIRichResponseLatexExpression
-	(*AIRichResponseMapMetadata_AIRichResponseMapAnnotation)(nil),                // 21: WAAICommonDeprecated.AIRichResponseMapMetadata.AIRichResponseMapAnnotation
+	(*AIRichResponseLatexMetadata_AIRichResponseLatexExpression)(nil),            // 19: WAAICommonDeprecated.AIRichResponseLatexMetadata.AIRichResponseLatexExpression
+	(*AIRichResponseMapMetadata_AIRichResponseMapAnnotation)(nil),                // 20: WAAICommonDeprecated.AIRichResponseMapMetadata.AIRichResponseMapAnnotation
+	(*AIRichResponseTableMetadata_AIRichResponseTableRow)(nil),                   // 21: WAAICommonDeprecated.AIRichResponseTableMetadata.AIRichResponseTableRow
 }
 var file_waAICommonDeprecated_WAAICommonDeprecated_proto_depIdxs = []int32{
-	10, // 0: WAAICommonDeprecated.AIRichResponseInlineImageMetadata.imageURL:type_name -> WAAICommonDeprecated.AIRichResponseImageURL
-	2,  // 1: WAAICommonDeprecated.AIRichResponseInlineImageMetadata.alignment:type_name -> WAAICommonDeprecated.AIRichResponseInlineImageMetadata.AIRichResponseImageAlignment
-	16, // 2: WAAICommonDeprecated.AIRichResponseCodeMetadata.codeBlocks:type_name -> WAAICommonDeprecated.AIRichResponseCodeMetadata.AIRichResponseCodeBlock
+	16, // 0: WAAICommonDeprecated.AIRichResponseCodeMetadata.codeBlocks:type_name -> WAAICommonDeprecated.AIRichResponseCodeMetadata.AIRichResponseCodeBlock
+	17, // 1: WAAICommonDeprecated.AIRichResponseContentItemsMetadata.itemsMetadata:type_name -> WAAICommonDeprecated.AIRichResponseContentItemsMetadata.AIRichResponseContentItemMetadata
+	3,  // 2: WAAICommonDeprecated.AIRichResponseContentItemsMetadata.contentType:type_name -> WAAICommonDeprecated.AIRichResponseContentItemsMetadata.ContentType
 	4,  // 3: WAAICommonDeprecated.AIRichResponseDynamicMetadata.type:type_name -> WAAICommonDeprecated.AIRichResponseDynamicMetadata.AIRichResponseDynamicMetadataType
-	17, // 4: WAAICommonDeprecated.AIRichResponseContentItemsMetadata.itemsMetadata:type_name -> WAAICommonDeprecated.AIRichResponseContentItemsMetadata.AIRichResponseContentItemMetadata
-	5,  // 5: WAAICommonDeprecated.AIRichResponseContentItemsMetadata.contentType:type_name -> WAAICommonDeprecated.AIRichResponseContentItemsMetadata.ContentType
-	10, // 6: WAAICommonDeprecated.AIRichResponseGridImageMetadata.gridImageURL:type_name -> WAAICommonDeprecated.AIRichResponseImageURL
-	10, // 7: WAAICommonDeprecated.AIRichResponseGridImageMetadata.imageURLs:type_name -> WAAICommonDeprecated.AIRichResponseImageURL
-	19, // 8: WAAICommonDeprecated.AIRichResponseTableMetadata.rows:type_name -> WAAICommonDeprecated.AIRichResponseTableMetadata.AIRichResponseTableRow
-	20, // 9: WAAICommonDeprecated.AIRichResponseLatexMetadata.expressions:type_name -> WAAICommonDeprecated.AIRichResponseLatexMetadata.AIRichResponseLatexExpression
-	21, // 10: WAAICommonDeprecated.AIRichResponseMapMetadata.annotations:type_name -> WAAICommonDeprecated.AIRichResponseMapMetadata.AIRichResponseMapAnnotation
-	1,  // 11: WAAICommonDeprecated.AIRichResponseSubMessage.messageType:type_name -> WAAICommonDeprecated.AIRichResponseSubMessageType
-	11, // 12: WAAICommonDeprecated.AIRichResponseSubMessage.gridImageMetadata:type_name -> WAAICommonDeprecated.AIRichResponseGridImageMetadata
-	6,  // 13: WAAICommonDeprecated.AIRichResponseSubMessage.imageMetadata:type_name -> WAAICommonDeprecated.AIRichResponseInlineImageMetadata
-	7,  // 14: WAAICommonDeprecated.AIRichResponseSubMessage.codeMetadata:type_name -> WAAICommonDeprecated.AIRichResponseCodeMetadata
-	12, // 15: WAAICommonDeprecated.AIRichResponseSubMessage.tableMetadata:type_name -> WAAICommonDeprecated.AIRichResponseTableMetadata
-	8,  // 16: WAAICommonDeprecated.AIRichResponseSubMessage.dynamicMetadata:type_name -> WAAICommonDeprecated.AIRichResponseDynamicMetadata
-	13, // 17: WAAICommonDeprecated.AIRichResponseSubMessage.latexMetadata:type_name -> WAAICommonDeprecated.AIRichResponseLatexMetadata
-	14, // 18: WAAICommonDeprecated.AIRichResponseSubMessage.mapMetadata:type_name -> WAAICommonDeprecated.AIRichResponseMapMetadata
-	9,  // 19: WAAICommonDeprecated.AIRichResponseSubMessage.contentItemsMetadata:type_name -> WAAICommonDeprecated.AIRichResponseContentItemsMetadata
-	3,  // 20: WAAICommonDeprecated.AIRichResponseCodeMetadata.AIRichResponseCodeBlock.highlightType:type_name -> WAAICommonDeprecated.AIRichResponseCodeMetadata.AIRichResponseCodeHighlightType
+	10, // 4: WAAICommonDeprecated.AIRichResponseGridImageMetadata.gridImageURL:type_name -> WAAICommonDeprecated.AIRichResponseImageURL
+	10, // 5: WAAICommonDeprecated.AIRichResponseGridImageMetadata.imageURLs:type_name -> WAAICommonDeprecated.AIRichResponseImageURL
+	10, // 6: WAAICommonDeprecated.AIRichResponseInlineImageMetadata.imageURL:type_name -> WAAICommonDeprecated.AIRichResponseImageURL
+	5,  // 7: WAAICommonDeprecated.AIRichResponseInlineImageMetadata.alignment:type_name -> WAAICommonDeprecated.AIRichResponseInlineImageMetadata.AIRichResponseImageAlignment
+	19, // 8: WAAICommonDeprecated.AIRichResponseLatexMetadata.expressions:type_name -> WAAICommonDeprecated.AIRichResponseLatexMetadata.AIRichResponseLatexExpression
+	20, // 9: WAAICommonDeprecated.AIRichResponseMapMetadata.annotations:type_name -> WAAICommonDeprecated.AIRichResponseMapMetadata.AIRichResponseMapAnnotation
+	1,  // 10: WAAICommonDeprecated.AIRichResponseSubMessage.messageType:type_name -> WAAICommonDeprecated.AIRichResponseSubMessageType
+	9,  // 11: WAAICommonDeprecated.AIRichResponseSubMessage.gridImageMetadata:type_name -> WAAICommonDeprecated.AIRichResponseGridImageMetadata
+	11, // 12: WAAICommonDeprecated.AIRichResponseSubMessage.imageMetadata:type_name -> WAAICommonDeprecated.AIRichResponseInlineImageMetadata
+	6,  // 13: WAAICommonDeprecated.AIRichResponseSubMessage.codeMetadata:type_name -> WAAICommonDeprecated.AIRichResponseCodeMetadata
+	15, // 14: WAAICommonDeprecated.AIRichResponseSubMessage.tableMetadata:type_name -> WAAICommonDeprecated.AIRichResponseTableMetadata
+	8,  // 15: WAAICommonDeprecated.AIRichResponseSubMessage.dynamicMetadata:type_name -> WAAICommonDeprecated.AIRichResponseDynamicMetadata
+	12, // 16: WAAICommonDeprecated.AIRichResponseSubMessage.latexMetadata:type_name -> WAAICommonDeprecated.AIRichResponseLatexMetadata
+	13, // 17: WAAICommonDeprecated.AIRichResponseSubMessage.mapMetadata:type_name -> WAAICommonDeprecated.AIRichResponseMapMetadata
+	7,  // 18: WAAICommonDeprecated.AIRichResponseSubMessage.contentItemsMetadata:type_name -> WAAICommonDeprecated.AIRichResponseContentItemsMetadata
+	21, // 19: WAAICommonDeprecated.AIRichResponseTableMetadata.rows:type_name -> WAAICommonDeprecated.AIRichResponseTableMetadata.AIRichResponseTableRow
+	2,  // 20: WAAICommonDeprecated.AIRichResponseCodeMetadata.AIRichResponseCodeBlock.highlightType:type_name -> WAAICommonDeprecated.AIRichResponseCodeMetadata.AIRichResponseCodeHighlightType
 	18, // 21: WAAICommonDeprecated.AIRichResponseContentItemsMetadata.AIRichResponseContentItemMetadata.reelItem:type_name -> WAAICommonDeprecated.AIRichResponseContentItemsMetadata.AIRichResponseReelItem
 	22, // [22:22] is the sub-list for method output_type
 	22, // [22:22] is the sub-list for method input_type

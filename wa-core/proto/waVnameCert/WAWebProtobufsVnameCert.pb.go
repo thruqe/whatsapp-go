@@ -183,7 +183,7 @@ func (x *BizIdentityInfo_ActualActorsType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use BizIdentityInfo_ActualActorsType.Descriptor instead.
 func (BizIdentityInfo_ActualActorsType) EnumDescriptor() ([]byte, []int) {
-	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{1, 0}
+	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{2, 0}
 }
 
 type BizIdentityInfo_HostStorageType int32
@@ -239,7 +239,7 @@ func (x *BizIdentityInfo_HostStorageType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use BizIdentityInfo_HostStorageType.Descriptor instead.
 func (BizIdentityInfo_HostStorageType) EnumDescriptor() ([]byte, []int) {
-	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{1, 1}
+	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{2, 1}
 }
 
 type BizIdentityInfo_VerifiedLevelValue int32
@@ -298,7 +298,7 @@ func (x *BizIdentityInfo_VerifiedLevelValue) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use BizIdentityInfo_VerifiedLevelValue.Descriptor instead.
 func (BizIdentityInfo_VerifiedLevelValue) EnumDescriptor() ([]byte, []int) {
-	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{1, 2}
+	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{2, 2}
 }
 
 type BizAccountLinkInfo struct {
@@ -377,6 +377,58 @@ func (x *BizAccountLinkInfo) GetAccountType() BizAccountLinkInfo_AccountType {
 	return BizAccountLinkInfo_ENTERPRISE
 }
 
+type BizAccountPayload struct {
+	state           protoimpl.MessageState   `protogen:"open.v1"`
+	VnameCert       *VerifiedNameCertificate `protobuf:"bytes,1,opt,name=vnameCert" json:"vnameCert,omitempty"`
+	BizAcctLinkInfo []byte                   `protobuf:"bytes,2,opt,name=bizAcctLinkInfo" json:"bizAcctLinkInfo,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *BizAccountPayload) Reset() {
+	*x = BizAccountPayload{}
+	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BizAccountPayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BizAccountPayload) ProtoMessage() {}
+
+func (x *BizAccountPayload) ProtoReflect() protoreflect.Message {
+	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BizAccountPayload.ProtoReflect.Descriptor instead.
+func (*BizAccountPayload) Descriptor() ([]byte, []int) {
+	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *BizAccountPayload) GetVnameCert() *VerifiedNameCertificate {
+	if x != nil {
+		return x.VnameCert
+	}
+	return nil
+}
+
+func (x *BizAccountPayload) GetBizAcctLinkInfo() []byte {
+	if x != nil {
+		return x.BizAcctLinkInfo
+	}
+	return nil
+}
+
 type BizIdentityInfo struct {
 	state           protoimpl.MessageState              `protogen:"open.v1"`
 	Vlevel          *BizIdentityInfo_VerifiedLevelValue `protobuf:"varint,1,opt,name=vlevel,enum=WAWebProtobufsVnameCert.BizIdentityInfo_VerifiedLevelValue" json:"vlevel,omitempty"`
@@ -393,7 +445,7 @@ type BizIdentityInfo struct {
 
 func (x *BizIdentityInfo) Reset() {
 	*x = BizIdentityInfo{}
-	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[1]
+	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -405,7 +457,7 @@ func (x *BizIdentityInfo) String() string {
 func (*BizIdentityInfo) ProtoMessage() {}
 
 func (x *BizIdentityInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[1]
+	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -418,7 +470,7 @@ func (x *BizIdentityInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BizIdentityInfo.ProtoReflect.Descriptor instead.
 func (*BizIdentityInfo) Descriptor() ([]byte, []int) {
-	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{1}
+	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *BizIdentityInfo) GetVlevel() BizIdentityInfo_VerifiedLevelValue {
@@ -488,7 +540,7 @@ type LocalizedName struct {
 
 func (x *LocalizedName) Reset() {
 	*x = LocalizedName{}
-	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[2]
+	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -500,7 +552,7 @@ func (x *LocalizedName) String() string {
 func (*LocalizedName) ProtoMessage() {}
 
 func (x *LocalizedName) ProtoReflect() protoreflect.Message {
-	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[2]
+	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -513,7 +565,7 @@ func (x *LocalizedName) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocalizedName.ProtoReflect.Descriptor instead.
 func (*LocalizedName) Descriptor() ([]byte, []int) {
-	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{2}
+	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *LocalizedName) GetLg() string {
@@ -548,7 +600,7 @@ type VerifiedNameCertificate struct {
 
 func (x *VerifiedNameCertificate) Reset() {
 	*x = VerifiedNameCertificate{}
-	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[3]
+	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -560,7 +612,7 @@ func (x *VerifiedNameCertificate) String() string {
 func (*VerifiedNameCertificate) ProtoMessage() {}
 
 func (x *VerifiedNameCertificate) ProtoReflect() protoreflect.Message {
-	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[3]
+	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -573,7 +625,7 @@ func (x *VerifiedNameCertificate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifiedNameCertificate.ProtoReflect.Descriptor instead.
 func (*VerifiedNameCertificate) Descriptor() ([]byte, []int) {
-	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{3}
+	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *VerifiedNameCertificate) GetDetails() []byte {
@@ -593,58 +645,6 @@ func (x *VerifiedNameCertificate) GetSignature() []byte {
 func (x *VerifiedNameCertificate) GetServerSignature() []byte {
 	if x != nil {
 		return x.ServerSignature
-	}
-	return nil
-}
-
-type BizAccountPayload struct {
-	state           protoimpl.MessageState   `protogen:"open.v1"`
-	VnameCert       *VerifiedNameCertificate `protobuf:"bytes,1,opt,name=vnameCert" json:"vnameCert,omitempty"`
-	BizAcctLinkInfo []byte                   `protobuf:"bytes,2,opt,name=bizAcctLinkInfo" json:"bizAcctLinkInfo,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *BizAccountPayload) Reset() {
-	*x = BizAccountPayload{}
-	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BizAccountPayload) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BizAccountPayload) ProtoMessage() {}
-
-func (x *BizAccountPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_waVnameCert_WAWebProtobufsVnameCert_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BizAccountPayload.ProtoReflect.Descriptor instead.
-func (*BizAccountPayload) Descriptor() ([]byte, []int) {
-	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *BizAccountPayload) GetVnameCert() *VerifiedNameCertificate {
-	if x != nil {
-		return x.VnameCert
-	}
-	return nil
-}
-
-func (x *BizAccountPayload) GetBizAcctLinkInfo() []byte {
-	if x != nil {
-		return x.BizAcctLinkInfo
 	}
 	return nil
 }
@@ -687,7 +687,7 @@ func (x *VerifiedNameCertificate_Details) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifiedNameCertificate_Details.ProtoReflect.Descriptor instead.
 func (*VerifiedNameCertificate_Details) Descriptor() ([]byte, []int) {
-	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{3, 0}
+	return file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescGZIP(), []int{4, 0}
 }
 
 func (x *VerifiedNameCertificate_Details) GetSerial() uint64 {
@@ -742,7 +742,10 @@ const file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDesc = "" +
 	"\x0fHostStorageType\x12\x0e\n" +
 	"\n" +
 	"ON_PREMISE\x10\x00\x12\f\n" +
-	"\bFACEBOOK\x10\x01\"\x81\x05\n" +
+	"\bFACEBOOK\x10\x01\"\x8d\x01\n" +
+	"\x11BizAccountPayload\x12N\n" +
+	"\tvnameCert\x18\x01 \x01(\v20.WAWebProtobufsVnameCert.VerifiedNameCertificateR\tvnameCert\x12(\n" +
+	"\x0fbizAcctLinkInfo\x18\x02 \x01(\fR\x0fbizAcctLinkInfo\"\x81\x05\n" +
 	"\x0fBizIdentityInfo\x12S\n" +
 	"\x06vlevel\x18\x01 \x01(\x0e2;.WAWebProtobufsVnameCert.BizIdentityInfo.VerifiedLevelValueR\x06vlevel\x12N\n" +
 	"\tvnameCert\x18\x02 \x01(\v20.WAWebProtobufsVnameCert.VerifiedNameCertificateR\tvnameCert\x12\x16\n" +
@@ -777,10 +780,7 @@ const file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDesc = "" +
 	"\fverifiedName\x18\x04 \x01(\tR\fverifiedName\x12N\n" +
 	"\x0elocalizedNames\x18\b \x03(\v2&.WAWebProtobufsVnameCert.LocalizedNameR\x0elocalizedNames\x12\x1c\n" +
 	"\tissueTime\x18\n" +
-	" \x01(\x04R\tissueTime\"\x8d\x01\n" +
-	"\x11BizAccountPayload\x12N\n" +
-	"\tvnameCert\x18\x01 \x01(\v20.WAWebProtobufsVnameCert.VerifiedNameCertificateR\tvnameCert\x12(\n" +
-	"\x0fbizAcctLinkInfo\x18\x02 \x01(\fR\x0fbizAcctLinkInfoB'Z%go.mau.fi/whatsmeow/proto/waVnameCert"
+	" \x01(\x04R\tissueTimeB'Z%go.mau.fi/whatsmeow/proto/waVnameCert"
 
 var (
 	file_waVnameCert_WAWebProtobufsVnameCert_proto_rawDescOnce sync.Once
@@ -803,21 +803,21 @@ var file_waVnameCert_WAWebProtobufsVnameCert_proto_goTypes = []any{
 	(BizIdentityInfo_HostStorageType)(0),    // 3: WAWebProtobufsVnameCert.BizIdentityInfo.HostStorageType
 	(BizIdentityInfo_VerifiedLevelValue)(0), // 4: WAWebProtobufsVnameCert.BizIdentityInfo.VerifiedLevelValue
 	(*BizAccountLinkInfo)(nil),              // 5: WAWebProtobufsVnameCert.BizAccountLinkInfo
-	(*BizIdentityInfo)(nil),                 // 6: WAWebProtobufsVnameCert.BizIdentityInfo
-	(*LocalizedName)(nil),                   // 7: WAWebProtobufsVnameCert.LocalizedName
-	(*VerifiedNameCertificate)(nil),         // 8: WAWebProtobufsVnameCert.VerifiedNameCertificate
-	(*BizAccountPayload)(nil),               // 9: WAWebProtobufsVnameCert.BizAccountPayload
+	(*BizAccountPayload)(nil),               // 6: WAWebProtobufsVnameCert.BizAccountPayload
+	(*BizIdentityInfo)(nil),                 // 7: WAWebProtobufsVnameCert.BizIdentityInfo
+	(*LocalizedName)(nil),                   // 8: WAWebProtobufsVnameCert.LocalizedName
+	(*VerifiedNameCertificate)(nil),         // 9: WAWebProtobufsVnameCert.VerifiedNameCertificate
 	(*VerifiedNameCertificate_Details)(nil), // 10: WAWebProtobufsVnameCert.VerifiedNameCertificate.Details
 }
 var file_waVnameCert_WAWebProtobufsVnameCert_proto_depIdxs = []int32{
 	1, // 0: WAWebProtobufsVnameCert.BizAccountLinkInfo.hostStorage:type_name -> WAWebProtobufsVnameCert.BizAccountLinkInfo.HostStorageType
 	0, // 1: WAWebProtobufsVnameCert.BizAccountLinkInfo.accountType:type_name -> WAWebProtobufsVnameCert.BizAccountLinkInfo.AccountType
-	4, // 2: WAWebProtobufsVnameCert.BizIdentityInfo.vlevel:type_name -> WAWebProtobufsVnameCert.BizIdentityInfo.VerifiedLevelValue
-	8, // 3: WAWebProtobufsVnameCert.BizIdentityInfo.vnameCert:type_name -> WAWebProtobufsVnameCert.VerifiedNameCertificate
-	3, // 4: WAWebProtobufsVnameCert.BizIdentityInfo.hostStorage:type_name -> WAWebProtobufsVnameCert.BizIdentityInfo.HostStorageType
-	2, // 5: WAWebProtobufsVnameCert.BizIdentityInfo.actualActors:type_name -> WAWebProtobufsVnameCert.BizIdentityInfo.ActualActorsType
-	8, // 6: WAWebProtobufsVnameCert.BizAccountPayload.vnameCert:type_name -> WAWebProtobufsVnameCert.VerifiedNameCertificate
-	7, // 7: WAWebProtobufsVnameCert.VerifiedNameCertificate.Details.localizedNames:type_name -> WAWebProtobufsVnameCert.LocalizedName
+	9, // 2: WAWebProtobufsVnameCert.BizAccountPayload.vnameCert:type_name -> WAWebProtobufsVnameCert.VerifiedNameCertificate
+	4, // 3: WAWebProtobufsVnameCert.BizIdentityInfo.vlevel:type_name -> WAWebProtobufsVnameCert.BizIdentityInfo.VerifiedLevelValue
+	9, // 4: WAWebProtobufsVnameCert.BizIdentityInfo.vnameCert:type_name -> WAWebProtobufsVnameCert.VerifiedNameCertificate
+	3, // 5: WAWebProtobufsVnameCert.BizIdentityInfo.hostStorage:type_name -> WAWebProtobufsVnameCert.BizIdentityInfo.HostStorageType
+	2, // 6: WAWebProtobufsVnameCert.BizIdentityInfo.actualActors:type_name -> WAWebProtobufsVnameCert.BizIdentityInfo.ActualActorsType
+	8, // 7: WAWebProtobufsVnameCert.VerifiedNameCertificate.Details.localizedNames:type_name -> WAWebProtobufsVnameCert.LocalizedName
 	8, // [8:8] is the sub-list for method output_type
 	8, // [8:8] is the sub-list for method input_type
 	8, // [8:8] is the sub-list for extension type_name

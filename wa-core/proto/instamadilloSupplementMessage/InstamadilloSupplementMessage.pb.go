@@ -22,31 +22,31 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type SupplementMessagePayload struct {
-	state                          protoimpl.MessageState    `protogen:"open.v1"`
-	TargetMessageOtid              *string                   `protobuf:"bytes,1,opt,name=targetMessageOtid" json:"targetMessageOtid,omitempty"`
-	UniquingKeyForSupplementalData *string                   `protobuf:"bytes,2,opt,name=uniquingKeyForSupplementalData" json:"uniquingKeyForSupplementalData,omitempty"`
-	Content                        *SupplementMessageContent `protobuf:"bytes,3,opt,name=content" json:"content,omitempty"`
-	TargetMessageWaServerTimeSec   *string                   `protobuf:"bytes,4,opt,name=targetMessageWaServerTimeSec" json:"targetMessageWaServerTimeSec,omitempty"`
-	TargetWaThreadID               *string                   `protobuf:"bytes,5,opt,name=targetWaThreadID" json:"targetWaThreadID,omitempty"`
-	unknownFields                  protoimpl.UnknownFields
-	sizeCache                      protoimpl.SizeCache
+type ContentView struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Seen          *bool                  `protobuf:"varint,1,opt,name=seen" json:"seen,omitempty"`
+	Screenshotted *bool                  `protobuf:"varint,2,opt,name=screenshotted" json:"screenshotted,omitempty"`
+	Replayed      *bool                  `protobuf:"varint,3,opt,name=replayed" json:"replayed,omitempty"`
+	Mimetype      *string                `protobuf:"bytes,4,opt,name=mimetype" json:"mimetype,omitempty"`
+	ObjectID      *string                `protobuf:"bytes,5,opt,name=objectID" json:"objectID,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SupplementMessagePayload) Reset() {
-	*x = SupplementMessagePayload{}
+func (x *ContentView) Reset() {
+	*x = ContentView{}
 	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SupplementMessagePayload) String() string {
+func (x *ContentView) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SupplementMessagePayload) ProtoMessage() {}
+func (*ContentView) ProtoMessage() {}
 
-func (x *SupplementMessagePayload) ProtoReflect() protoreflect.Message {
+func (x *ContentView) ProtoReflect() protoreflect.Message {
 	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -58,42 +58,318 @@ func (x *SupplementMessagePayload) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SupplementMessagePayload.ProtoReflect.Descriptor instead.
-func (*SupplementMessagePayload) Descriptor() ([]byte, []int) {
+// Deprecated: Use ContentView.ProtoReflect.Descriptor instead.
+func (*ContentView) Descriptor() ([]byte, []int) {
 	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *SupplementMessagePayload) GetTargetMessageOtid() string {
-	if x != nil && x.TargetMessageOtid != nil {
-		return *x.TargetMessageOtid
+func (x *ContentView) GetSeen() bool {
+	if x != nil && x.Seen != nil {
+		return *x.Seen
+	}
+	return false
+}
+
+func (x *ContentView) GetScreenshotted() bool {
+	if x != nil && x.Screenshotted != nil {
+		return *x.Screenshotted
+	}
+	return false
+}
+
+func (x *ContentView) GetReplayed() bool {
+	if x != nil && x.Replayed != nil {
+		return *x.Replayed
+	}
+	return false
+}
+
+func (x *ContentView) GetMimetype() string {
+	if x != nil && x.Mimetype != nil {
+		return *x.Mimetype
 	}
 	return ""
 }
 
-func (x *SupplementMessagePayload) GetUniquingKeyForSupplementalData() string {
-	if x != nil && x.UniquingKeyForSupplementalData != nil {
-		return *x.UniquingKeyForSupplementalData
+func (x *ContentView) GetObjectID() string {
+	if x != nil && x.ObjectID != nil {
+		return *x.ObjectID
 	}
 	return ""
 }
 
-func (x *SupplementMessagePayload) GetContent() *SupplementMessageContent {
+type EditText struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NewContent    *string                `protobuf:"bytes,1,opt,name=newContent" json:"newContent,omitempty"`
+	EditCount     *int32                 `protobuf:"varint,2,opt,name=editCount" json:"editCount,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EditText) Reset() {
+	*x = EditText{}
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EditText) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EditText) ProtoMessage() {}
+
+func (x *EditText) ProtoReflect() protoreflect.Message {
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[1]
 	if x != nil {
-		return x.Content
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EditText.ProtoReflect.Descriptor instead.
+func (*EditText) Descriptor() ([]byte, []int) {
+	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *EditText) GetNewContent() string {
+	if x != nil && x.NewContent != nil {
+		return *x.NewContent
+	}
+	return ""
+}
+
+func (x *EditText) GetEditCount() int32 {
+	if x != nil && x.EditCount != nil {
+		return *x.EditCount
+	}
+	return 0
+}
+
+type MediaInterventions struct {
+	state            protoimpl.MessageState                            `protogen:"open.v1"`
+	MediaID          *string                                           `protobuf:"bytes,1,opt,name=mediaID" json:"mediaID,omitempty"`
+	InterventionType *instamadilloCoreTypeMedia.Media_InterventionType `protobuf:"varint,2,opt,name=interventionType,enum=InstamadilloCoreTypeMedia.Media_InterventionType" json:"interventionType,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *MediaInterventions) Reset() {
+	*x = MediaInterventions{}
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MediaInterventions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MediaInterventions) ProtoMessage() {}
+
+func (x *MediaInterventions) ProtoReflect() protoreflect.Message {
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MediaInterventions.ProtoReflect.Descriptor instead.
+func (*MediaInterventions) Descriptor() ([]byte, []int) {
+	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *MediaInterventions) GetMediaID() string {
+	if x != nil && x.MediaID != nil {
+		return *x.MediaID
+	}
+	return ""
+}
+
+func (x *MediaInterventions) GetInterventionType() instamadilloCoreTypeMedia.Media_InterventionType {
+	if x != nil && x.InterventionType != nil {
+		return *x.InterventionType
+	}
+	return instamadilloCoreTypeMedia.Media_InterventionType(0)
+}
+
+type MediaReaction struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MediaID       *string                `protobuf:"bytes,1,opt,name=mediaID" json:"mediaID,omitempty"`
+	Reaction      *Reaction              `protobuf:"bytes,2,opt,name=reaction" json:"reaction,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MediaReaction) Reset() {
+	*x = MediaReaction{}
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MediaReaction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MediaReaction) ProtoMessage() {}
+
+func (x *MediaReaction) ProtoReflect() protoreflect.Message {
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MediaReaction.ProtoReflect.Descriptor instead.
+func (*MediaReaction) Descriptor() ([]byte, []int) {
+	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *MediaReaction) GetMediaID() string {
+	if x != nil && x.MediaID != nil {
+		return *x.MediaID
+	}
+	return ""
+}
+
+func (x *MediaReaction) GetReaction() *Reaction {
+	if x != nil {
+		return x.Reaction
 	}
 	return nil
 }
 
-func (x *SupplementMessagePayload) GetTargetMessageWaServerTimeSec() string {
-	if x != nil && x.TargetMessageWaServerTimeSec != nil {
-		return *x.TargetMessageWaServerTimeSec
+type OriginalTransportPayload struct {
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	OriginalTransportPayload []byte                 `protobuf:"bytes,1,opt,name=originalTransportPayload" json:"originalTransportPayload,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *OriginalTransportPayload) Reset() {
+	*x = OriginalTransportPayload{}
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OriginalTransportPayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OriginalTransportPayload) ProtoMessage() {}
+
+func (x *OriginalTransportPayload) ProtoReflect() protoreflect.Message {
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OriginalTransportPayload.ProtoReflect.Descriptor instead.
+func (*OriginalTransportPayload) Descriptor() ([]byte, []int) {
+	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *OriginalTransportPayload) GetOriginalTransportPayload() []byte {
+	if x != nil {
+		return x.OriginalTransportPayload
+	}
+	return nil
+}
+
+type Reaction struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ReactionType   *string                `protobuf:"bytes,1,opt,name=reactionType" json:"reactionType,omitempty"`
+	ReactionStatus *string                `protobuf:"bytes,2,opt,name=reactionStatus" json:"reactionStatus,omitempty"`
+	Emoji          *string                `protobuf:"bytes,3,opt,name=emoji" json:"emoji,omitempty"`
+	SuperReactType *string                `protobuf:"bytes,4,opt,name=superReactType" json:"superReactType,omitempty"`
+	ActionLogOtid  *string                `protobuf:"bytes,5,opt,name=actionLogOtid" json:"actionLogOtid,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *Reaction) Reset() {
+	*x = Reaction{}
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Reaction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Reaction) ProtoMessage() {}
+
+func (x *Reaction) ProtoReflect() protoreflect.Message {
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Reaction.ProtoReflect.Descriptor instead.
+func (*Reaction) Descriptor() ([]byte, []int) {
+	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Reaction) GetReactionType() string {
+	if x != nil && x.ReactionType != nil {
+		return *x.ReactionType
 	}
 	return ""
 }
 
-func (x *SupplementMessagePayload) GetTargetWaThreadID() string {
-	if x != nil && x.TargetWaThreadID != nil {
-		return *x.TargetWaThreadID
+func (x *Reaction) GetReactionStatus() string {
+	if x != nil && x.ReactionStatus != nil {
+		return *x.ReactionStatus
+	}
+	return ""
+}
+
+func (x *Reaction) GetEmoji() string {
+	if x != nil && x.Emoji != nil {
+		return *x.Emoji
+	}
+	return ""
+}
+
+func (x *Reaction) GetSuperReactType() string {
+	if x != nil && x.SuperReactType != nil {
+		return *x.SuperReactType
+	}
+	return ""
+}
+
+func (x *Reaction) GetActionLogOtid() string {
+	if x != nil && x.ActionLogOtid != nil {
+		return *x.ActionLogOtid
 	}
 	return ""
 }
@@ -115,7 +391,7 @@ type SupplementMessageContent struct {
 
 func (x *SupplementMessageContent) Reset() {
 	*x = SupplementMessageContent{}
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[1]
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -127,7 +403,7 @@ func (x *SupplementMessageContent) String() string {
 func (*SupplementMessageContent) ProtoMessage() {}
 
 func (x *SupplementMessageContent) ProtoReflect() protoreflect.Message {
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[1]
+	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -140,7 +416,7 @@ func (x *SupplementMessageContent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SupplementMessageContent.ProtoReflect.Descriptor instead.
 func (*SupplementMessageContent) Descriptor() ([]byte, []int) {
-	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{1}
+	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SupplementMessageContent) GetSupplementMessageContent() isSupplementMessageContent_SupplementMessageContent {
@@ -247,328 +523,31 @@ func (*SupplementMessageContent_OriginalTransportPayload) isSupplementMessageCon
 func (*SupplementMessageContent_MediaInterventions) isSupplementMessageContent_SupplementMessageContent() {
 }
 
-type MediaReaction struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MediaID       *string                `protobuf:"bytes,1,opt,name=mediaID" json:"mediaID,omitempty"`
-	Reaction      *Reaction              `protobuf:"bytes,2,opt,name=reaction" json:"reaction,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+type SupplementMessagePayload struct {
+	state                          protoimpl.MessageState    `protogen:"open.v1"`
+	TargetMessageOtid              *string                   `protobuf:"bytes,1,opt,name=targetMessageOtid" json:"targetMessageOtid,omitempty"`
+	UniquingKeyForSupplementalData *string                   `protobuf:"bytes,2,opt,name=uniquingKeyForSupplementalData" json:"uniquingKeyForSupplementalData,omitempty"`
+	Content                        *SupplementMessageContent `protobuf:"bytes,3,opt,name=content" json:"content,omitempty"`
+	TargetMessageWaServerTimeSec   *string                   `protobuf:"bytes,4,opt,name=targetMessageWaServerTimeSec" json:"targetMessageWaServerTimeSec,omitempty"`
+	TargetWaThreadID               *string                   `protobuf:"bytes,5,opt,name=targetWaThreadID" json:"targetWaThreadID,omitempty"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
 }
 
-func (x *MediaReaction) Reset() {
-	*x = MediaReaction{}
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MediaReaction) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MediaReaction) ProtoMessage() {}
-
-func (x *MediaReaction) ProtoReflect() protoreflect.Message {
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MediaReaction.ProtoReflect.Descriptor instead.
-func (*MediaReaction) Descriptor() ([]byte, []int) {
-	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *MediaReaction) GetMediaID() string {
-	if x != nil && x.MediaID != nil {
-		return *x.MediaID
-	}
-	return ""
-}
-
-func (x *MediaReaction) GetReaction() *Reaction {
-	if x != nil {
-		return x.Reaction
-	}
-	return nil
-}
-
-type Reaction struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	ReactionType   *string                `protobuf:"bytes,1,opt,name=reactionType" json:"reactionType,omitempty"`
-	ReactionStatus *string                `protobuf:"bytes,2,opt,name=reactionStatus" json:"reactionStatus,omitempty"`
-	Emoji          *string                `protobuf:"bytes,3,opt,name=emoji" json:"emoji,omitempty"`
-	SuperReactType *string                `protobuf:"bytes,4,opt,name=superReactType" json:"superReactType,omitempty"`
-	ActionLogOtid  *string                `protobuf:"bytes,5,opt,name=actionLogOtid" json:"actionLogOtid,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *Reaction) Reset() {
-	*x = Reaction{}
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Reaction) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Reaction) ProtoMessage() {}
-
-func (x *Reaction) ProtoReflect() protoreflect.Message {
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Reaction.ProtoReflect.Descriptor instead.
-func (*Reaction) Descriptor() ([]byte, []int) {
-	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *Reaction) GetReactionType() string {
-	if x != nil && x.ReactionType != nil {
-		return *x.ReactionType
-	}
-	return ""
-}
-
-func (x *Reaction) GetReactionStatus() string {
-	if x != nil && x.ReactionStatus != nil {
-		return *x.ReactionStatus
-	}
-	return ""
-}
-
-func (x *Reaction) GetEmoji() string {
-	if x != nil && x.Emoji != nil {
-		return *x.Emoji
-	}
-	return ""
-}
-
-func (x *Reaction) GetSuperReactType() string {
-	if x != nil && x.SuperReactType != nil {
-		return *x.SuperReactType
-	}
-	return ""
-}
-
-func (x *Reaction) GetActionLogOtid() string {
-	if x != nil && x.ActionLogOtid != nil {
-		return *x.ActionLogOtid
-	}
-	return ""
-}
-
-type ContentView struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Seen          *bool                  `protobuf:"varint,1,opt,name=seen" json:"seen,omitempty"`
-	Screenshotted *bool                  `protobuf:"varint,2,opt,name=screenshotted" json:"screenshotted,omitempty"`
-	Replayed      *bool                  `protobuf:"varint,3,opt,name=replayed" json:"replayed,omitempty"`
-	Mimetype      *string                `protobuf:"bytes,4,opt,name=mimetype" json:"mimetype,omitempty"`
-	ObjectID      *string                `protobuf:"bytes,5,opt,name=objectID" json:"objectID,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ContentView) Reset() {
-	*x = ContentView{}
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ContentView) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ContentView) ProtoMessage() {}
-
-func (x *ContentView) ProtoReflect() protoreflect.Message {
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ContentView.ProtoReflect.Descriptor instead.
-func (*ContentView) Descriptor() ([]byte, []int) {
-	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *ContentView) GetSeen() bool {
-	if x != nil && x.Seen != nil {
-		return *x.Seen
-	}
-	return false
-}
-
-func (x *ContentView) GetScreenshotted() bool {
-	if x != nil && x.Screenshotted != nil {
-		return *x.Screenshotted
-	}
-	return false
-}
-
-func (x *ContentView) GetReplayed() bool {
-	if x != nil && x.Replayed != nil {
-		return *x.Replayed
-	}
-	return false
-}
-
-func (x *ContentView) GetMimetype() string {
-	if x != nil && x.Mimetype != nil {
-		return *x.Mimetype
-	}
-	return ""
-}
-
-func (x *ContentView) GetObjectID() string {
-	if x != nil && x.ObjectID != nil {
-		return *x.ObjectID
-	}
-	return ""
-}
-
-type EditText struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NewContent    *string                `protobuf:"bytes,1,opt,name=newContent" json:"newContent,omitempty"`
-	EditCount     *int32                 `protobuf:"varint,2,opt,name=editCount" json:"editCount,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *EditText) Reset() {
-	*x = EditText{}
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *EditText) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EditText) ProtoMessage() {}
-
-func (x *EditText) ProtoReflect() protoreflect.Message {
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EditText.ProtoReflect.Descriptor instead.
-func (*EditText) Descriptor() ([]byte, []int) {
-	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *EditText) GetNewContent() string {
-	if x != nil && x.NewContent != nil {
-		return *x.NewContent
-	}
-	return ""
-}
-
-func (x *EditText) GetEditCount() int32 {
-	if x != nil && x.EditCount != nil {
-		return *x.EditCount
-	}
-	return 0
-}
-
-type OriginalTransportPayload struct {
-	state                    protoimpl.MessageState `protogen:"open.v1"`
-	OriginalTransportPayload []byte                 `protobuf:"bytes,1,opt,name=originalTransportPayload" json:"originalTransportPayload,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
-}
-
-func (x *OriginalTransportPayload) Reset() {
-	*x = OriginalTransportPayload{}
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *OriginalTransportPayload) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*OriginalTransportPayload) ProtoMessage() {}
-
-func (x *OriginalTransportPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use OriginalTransportPayload.ProtoReflect.Descriptor instead.
-func (*OriginalTransportPayload) Descriptor() ([]byte, []int) {
-	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *OriginalTransportPayload) GetOriginalTransportPayload() []byte {
-	if x != nil {
-		return x.OriginalTransportPayload
-	}
-	return nil
-}
-
-type MediaInterventions struct {
-	state            protoimpl.MessageState                            `protogen:"open.v1"`
-	MediaID          *string                                           `protobuf:"bytes,1,opt,name=mediaID" json:"mediaID,omitempty"`
-	InterventionType *instamadilloCoreTypeMedia.Media_InterventionType `protobuf:"varint,2,opt,name=interventionType,enum=InstamadilloCoreTypeMedia.Media_InterventionType" json:"interventionType,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *MediaInterventions) Reset() {
-	*x = MediaInterventions{}
+func (x *SupplementMessagePayload) Reset() {
+	*x = SupplementMessagePayload{}
 	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *MediaInterventions) String() string {
+func (x *SupplementMessagePayload) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MediaInterventions) ProtoMessage() {}
+func (*SupplementMessagePayload) ProtoMessage() {}
 
-func (x *MediaInterventions) ProtoReflect() protoreflect.Message {
+func (x *SupplementMessagePayload) ProtoReflect() protoreflect.Message {
 	mi := &file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -580,53 +559,51 @@ func (x *MediaInterventions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MediaInterventions.ProtoReflect.Descriptor instead.
-func (*MediaInterventions) Descriptor() ([]byte, []int) {
+// Deprecated: Use SupplementMessagePayload.ProtoReflect.Descriptor instead.
+func (*SupplementMessagePayload) Descriptor() ([]byte, []int) {
 	return file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *MediaInterventions) GetMediaID() string {
-	if x != nil && x.MediaID != nil {
-		return *x.MediaID
+func (x *SupplementMessagePayload) GetTargetMessageOtid() string {
+	if x != nil && x.TargetMessageOtid != nil {
+		return *x.TargetMessageOtid
 	}
 	return ""
 }
 
-func (x *MediaInterventions) GetInterventionType() instamadilloCoreTypeMedia.Media_InterventionType {
-	if x != nil && x.InterventionType != nil {
-		return *x.InterventionType
+func (x *SupplementMessagePayload) GetUniquingKeyForSupplementalData() string {
+	if x != nil && x.UniquingKeyForSupplementalData != nil {
+		return *x.UniquingKeyForSupplementalData
 	}
-	return instamadilloCoreTypeMedia.Media_InterventionType(0)
+	return ""
+}
+
+func (x *SupplementMessagePayload) GetContent() *SupplementMessageContent {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *SupplementMessagePayload) GetTargetMessageWaServerTimeSec() string {
+	if x != nil && x.TargetMessageWaServerTimeSec != nil {
+		return *x.TargetMessageWaServerTimeSec
+	}
+	return ""
+}
+
+func (x *SupplementMessagePayload) GetTargetWaThreadID() string {
+	if x != nil && x.TargetWaThreadID != nil {
+		return *x.TargetWaThreadID
+	}
+	return ""
 }
 
 var File_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto protoreflect.FileDescriptor
 
 const file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDesc = "" +
 	"\n" +
-	"AinstamadilloSupplementMessage/InstamadilloSupplementMessage.proto\x12\x1dInstamadilloSupplementMessage\x1a9instamadilloCoreTypeMedia/InstamadilloCoreTypeMedia.proto\"\xd3\x02\n" +
-	"\x18SupplementMessagePayload\x12,\n" +
-	"\x11targetMessageOtid\x18\x01 \x01(\tR\x11targetMessageOtid\x12F\n" +
-	"\x1euniquingKeyForSupplementalData\x18\x02 \x01(\tR\x1euniquingKeyForSupplementalData\x12Q\n" +
-	"\acontent\x18\x03 \x01(\v27.InstamadilloSupplementMessage.SupplementMessageContentR\acontent\x12B\n" +
-	"\x1ctargetMessageWaServerTimeSec\x18\x04 \x01(\tR\x1ctargetMessageWaServerTimeSec\x12*\n" +
-	"\x10targetWaThreadID\x18\x05 \x01(\tR\x10targetWaThreadID\"\xc6\x04\n" +
-	"\x18SupplementMessageContent\x12E\n" +
-	"\breaction\x18\x01 \x01(\v2'.InstamadilloSupplementMessage.ReactionH\x00R\breaction\x12N\n" +
-	"\vcontentView\x18\x02 \x01(\v2*.InstamadilloSupplementMessage.ContentViewH\x00R\vcontentView\x12E\n" +
-	"\beditText\x18\x03 \x01(\v2'.InstamadilloSupplementMessage.EditTextH\x00R\beditText\x12T\n" +
-	"\rmediaReaction\x18\x04 \x01(\v2,.InstamadilloSupplementMessage.MediaReactionH\x00R\rmediaReaction\x12u\n" +
-	"\x18originalTransportPayload\x18\x05 \x01(\v27.InstamadilloSupplementMessage.OriginalTransportPayloadH\x00R\x18originalTransportPayload\x12c\n" +
-	"\x12mediaInterventions\x18\x06 \x01(\v21.InstamadilloSupplementMessage.MediaInterventionsH\x00R\x12mediaInterventionsB\x1a\n" +
-	"\x18supplementMessageContent\"n\n" +
-	"\rMediaReaction\x12\x18\n" +
-	"\amediaID\x18\x01 \x01(\tR\amediaID\x12C\n" +
-	"\breaction\x18\x02 \x01(\v2'.InstamadilloSupplementMessage.ReactionR\breaction\"\xba\x01\n" +
-	"\bReaction\x12\"\n" +
-	"\freactionType\x18\x01 \x01(\tR\freactionType\x12&\n" +
-	"\x0ereactionStatus\x18\x02 \x01(\tR\x0ereactionStatus\x12\x14\n" +
-	"\x05emoji\x18\x03 \x01(\tR\x05emoji\x12&\n" +
-	"\x0esuperReactType\x18\x04 \x01(\tR\x0esuperReactType\x12$\n" +
-	"\ractionLogOtid\x18\x05 \x01(\tR\ractionLogOtid\"\x9b\x01\n" +
+	"AinstamadilloSupplementMessage/InstamadilloSupplementMessage.proto\x12\x1dInstamadilloSupplementMessage\x1a9instamadilloCoreTypeMedia/InstamadilloCoreTypeMedia.proto\"\x9b\x01\n" +
 	"\vContentView\x12\x12\n" +
 	"\x04seen\x18\x01 \x01(\bR\x04seen\x12$\n" +
 	"\rscreenshotted\x18\x02 \x01(\bR\rscreenshotted\x12\x1a\n" +
@@ -637,12 +614,35 @@ const file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_raw
 	"\n" +
 	"newContent\x18\x01 \x01(\tR\n" +
 	"newContent\x12\x1c\n" +
-	"\teditCount\x18\x02 \x01(\x05R\teditCount\"V\n" +
-	"\x18OriginalTransportPayload\x12:\n" +
-	"\x18originalTransportPayload\x18\x01 \x01(\fR\x18originalTransportPayload\"\x8d\x01\n" +
+	"\teditCount\x18\x02 \x01(\x05R\teditCount\"\x8d\x01\n" +
 	"\x12MediaInterventions\x12\x18\n" +
 	"\amediaID\x18\x01 \x01(\tR\amediaID\x12]\n" +
-	"\x10interventionType\x18\x02 \x01(\x0e21.InstamadilloCoreTypeMedia.Media.InterventionTypeR\x10interventionTypeB9Z7go.mau.fi/whatsmeow/proto/instamadilloSupplementMessage"
+	"\x10interventionType\x18\x02 \x01(\x0e21.InstamadilloCoreTypeMedia.Media.InterventionTypeR\x10interventionType\"n\n" +
+	"\rMediaReaction\x12\x18\n" +
+	"\amediaID\x18\x01 \x01(\tR\amediaID\x12C\n" +
+	"\breaction\x18\x02 \x01(\v2'.InstamadilloSupplementMessage.ReactionR\breaction\"V\n" +
+	"\x18OriginalTransportPayload\x12:\n" +
+	"\x18originalTransportPayload\x18\x01 \x01(\fR\x18originalTransportPayload\"\xba\x01\n" +
+	"\bReaction\x12\"\n" +
+	"\freactionType\x18\x01 \x01(\tR\freactionType\x12&\n" +
+	"\x0ereactionStatus\x18\x02 \x01(\tR\x0ereactionStatus\x12\x14\n" +
+	"\x05emoji\x18\x03 \x01(\tR\x05emoji\x12&\n" +
+	"\x0esuperReactType\x18\x04 \x01(\tR\x0esuperReactType\x12$\n" +
+	"\ractionLogOtid\x18\x05 \x01(\tR\ractionLogOtid\"\xc6\x04\n" +
+	"\x18SupplementMessageContent\x12E\n" +
+	"\breaction\x18\x01 \x01(\v2'.InstamadilloSupplementMessage.ReactionH\x00R\breaction\x12N\n" +
+	"\vcontentView\x18\x02 \x01(\v2*.InstamadilloSupplementMessage.ContentViewH\x00R\vcontentView\x12E\n" +
+	"\beditText\x18\x03 \x01(\v2'.InstamadilloSupplementMessage.EditTextH\x00R\beditText\x12T\n" +
+	"\rmediaReaction\x18\x04 \x01(\v2,.InstamadilloSupplementMessage.MediaReactionH\x00R\rmediaReaction\x12u\n" +
+	"\x18originalTransportPayload\x18\x05 \x01(\v27.InstamadilloSupplementMessage.OriginalTransportPayloadH\x00R\x18originalTransportPayload\x12c\n" +
+	"\x12mediaInterventions\x18\x06 \x01(\v21.InstamadilloSupplementMessage.MediaInterventionsH\x00R\x12mediaInterventionsB\x1a\n" +
+	"\x18supplementMessageContent\"\xd3\x02\n" +
+	"\x18SupplementMessagePayload\x12,\n" +
+	"\x11targetMessageOtid\x18\x01 \x01(\tR\x11targetMessageOtid\x12F\n" +
+	"\x1euniquingKeyForSupplementalData\x18\x02 \x01(\tR\x1euniquingKeyForSupplementalData\x12Q\n" +
+	"\acontent\x18\x03 \x01(\v27.InstamadilloSupplementMessage.SupplementMessageContentR\acontent\x12B\n" +
+	"\x1ctargetMessageWaServerTimeSec\x18\x04 \x01(\tR\x1ctargetMessageWaServerTimeSec\x12*\n" +
+	"\x10targetWaThreadID\x18\x05 \x01(\tR\x10targetWaThreadIDB9Z7go.mau.fi/whatsmeow/proto/instamadilloSupplementMessage"
 
 var (
 	file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawDescOnce sync.Once
@@ -658,26 +658,26 @@ func file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_rawD
 
 var file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_goTypes = []any{
-	(*SupplementMessagePayload)(nil),                      // 0: InstamadilloSupplementMessage.SupplementMessagePayload
-	(*SupplementMessageContent)(nil),                      // 1: InstamadilloSupplementMessage.SupplementMessageContent
-	(*MediaReaction)(nil),                                 // 2: InstamadilloSupplementMessage.MediaReaction
-	(*Reaction)(nil),                                      // 3: InstamadilloSupplementMessage.Reaction
-	(*ContentView)(nil),                                   // 4: InstamadilloSupplementMessage.ContentView
-	(*EditText)(nil),                                      // 5: InstamadilloSupplementMessage.EditText
-	(*OriginalTransportPayload)(nil),                      // 6: InstamadilloSupplementMessage.OriginalTransportPayload
-	(*MediaInterventions)(nil),                            // 7: InstamadilloSupplementMessage.MediaInterventions
+	(*ContentView)(nil),                                   // 0: InstamadilloSupplementMessage.ContentView
+	(*EditText)(nil),                                      // 1: InstamadilloSupplementMessage.EditText
+	(*MediaInterventions)(nil),                            // 2: InstamadilloSupplementMessage.MediaInterventions
+	(*MediaReaction)(nil),                                 // 3: InstamadilloSupplementMessage.MediaReaction
+	(*OriginalTransportPayload)(nil),                      // 4: InstamadilloSupplementMessage.OriginalTransportPayload
+	(*Reaction)(nil),                                      // 5: InstamadilloSupplementMessage.Reaction
+	(*SupplementMessageContent)(nil),                      // 6: InstamadilloSupplementMessage.SupplementMessageContent
+	(*SupplementMessagePayload)(nil),                      // 7: InstamadilloSupplementMessage.SupplementMessagePayload
 	(instamadilloCoreTypeMedia.Media_InterventionType)(0), // 8: InstamadilloCoreTypeMedia.Media.InterventionType
 }
 var file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_depIdxs = []int32{
-	1, // 0: InstamadilloSupplementMessage.SupplementMessagePayload.content:type_name -> InstamadilloSupplementMessage.SupplementMessageContent
-	3, // 1: InstamadilloSupplementMessage.SupplementMessageContent.reaction:type_name -> InstamadilloSupplementMessage.Reaction
-	4, // 2: InstamadilloSupplementMessage.SupplementMessageContent.contentView:type_name -> InstamadilloSupplementMessage.ContentView
-	5, // 3: InstamadilloSupplementMessage.SupplementMessageContent.editText:type_name -> InstamadilloSupplementMessage.EditText
-	2, // 4: InstamadilloSupplementMessage.SupplementMessageContent.mediaReaction:type_name -> InstamadilloSupplementMessage.MediaReaction
-	6, // 5: InstamadilloSupplementMessage.SupplementMessageContent.originalTransportPayload:type_name -> InstamadilloSupplementMessage.OriginalTransportPayload
-	7, // 6: InstamadilloSupplementMessage.SupplementMessageContent.mediaInterventions:type_name -> InstamadilloSupplementMessage.MediaInterventions
-	3, // 7: InstamadilloSupplementMessage.MediaReaction.reaction:type_name -> InstamadilloSupplementMessage.Reaction
-	8, // 8: InstamadilloSupplementMessage.MediaInterventions.interventionType:type_name -> InstamadilloCoreTypeMedia.Media.InterventionType
+	8, // 0: InstamadilloSupplementMessage.MediaInterventions.interventionType:type_name -> InstamadilloCoreTypeMedia.Media.InterventionType
+	5, // 1: InstamadilloSupplementMessage.MediaReaction.reaction:type_name -> InstamadilloSupplementMessage.Reaction
+	5, // 2: InstamadilloSupplementMessage.SupplementMessageContent.reaction:type_name -> InstamadilloSupplementMessage.Reaction
+	0, // 3: InstamadilloSupplementMessage.SupplementMessageContent.contentView:type_name -> InstamadilloSupplementMessage.ContentView
+	1, // 4: InstamadilloSupplementMessage.SupplementMessageContent.editText:type_name -> InstamadilloSupplementMessage.EditText
+	3, // 5: InstamadilloSupplementMessage.SupplementMessageContent.mediaReaction:type_name -> InstamadilloSupplementMessage.MediaReaction
+	4, // 6: InstamadilloSupplementMessage.SupplementMessageContent.originalTransportPayload:type_name -> InstamadilloSupplementMessage.OriginalTransportPayload
+	2, // 7: InstamadilloSupplementMessage.SupplementMessageContent.mediaInterventions:type_name -> InstamadilloSupplementMessage.MediaInterventions
+	6, // 8: InstamadilloSupplementMessage.SupplementMessagePayload.content:type_name -> InstamadilloSupplementMessage.SupplementMessageContent
 	9, // [9:9] is the sub-list for method output_type
 	9, // [9:9] is the sub-list for method input_type
 	9, // [9:9] is the sub-list for extension type_name
@@ -690,7 +690,7 @@ func file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_init
 	if File_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto != nil {
 		return
 	}
-	file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[1].OneofWrappers = []any{
+	file_instamadilloSupplementMessage_InstamadilloSupplementMessage_proto_msgTypes[6].OneofWrappers = []any{
 		(*SupplementMessageContent_Reaction)(nil),
 		(*SupplementMessageContent_ContentView)(nil),
 		(*SupplementMessageContent_EditText)(nil),
