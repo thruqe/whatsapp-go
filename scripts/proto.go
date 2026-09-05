@@ -258,34 +258,34 @@ func syncProtosFromWaProto(rootDir, protoDir string) error {
 
 	// 1. Locate or fetch WAProto.proto
 	protoSource := ""
+	var cleanupTemp func()
+
 	localWaProto := filepath.Join(rootDir, "..", "wa-proto")
 	if stat, err := os.Stat(filepath.Join(localWaProto, "WAProto.proto")); err == nil && !stat.IsDir() {
-		protoSource = filepath.Join(localWaProto, "WAProto.proto")
-		fmt.Printf("Using local WAProto schema from %s\n", protoSource)
-	} else {
-		// Download from GitHub
+		localPath := filepath.Join(localWaProto, "WAProto.proto")
+		if isValidProtoSchema(localPath) {
+			protoSource = localPath
+			fmt.Printf("Using valid local WAProto schema from %s\n", protoSource)
+		}
+	}
+
+	if protoSource == "" {
+		// Download from GitHub with fallback
 		fmt.Println("Downloading latest WAProto.proto from github.com/Thruqe/wa-proto...")
-		tmpFile, err := os.CreateTemp("", "WAProto-*.proto")
+		downloadedPath, cleanup, err := fetchRemoteWaProto()
 		if err != nil {
-			return fmt.Errorf("failed creating temp file for WAProto.proto: %w", err)
+			return fmt.Errorf("failed fetching remote WAProto.proto: %w", err)
 		}
-		defer os.Remove(tmpFile.Name())
+		protoSource = downloadedPath
+		cleanupTemp = cleanup
+	}
+	if cleanupTemp != nil {
+		defer cleanupTemp()
+	}
 
-		resp, err := http.Get("https://raw.githubusercontent.com/Thruqe/wa-proto/main/WAProto.proto")
-		if err != nil {
-			return fmt.Errorf("failed downloading WAProto.proto from GitHub: %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("failed downloading WAProto.proto: HTTP %d", resp.StatusCode)
-		}
-
-		if _, err := io.Copy(tmpFile, resp.Body); err != nil {
-			return fmt.Errorf("failed saving downloaded WAProto.proto: %w", err)
-		}
-		_ = tmpFile.Close()
-		protoSource = tmpFile.Name()
+	// Validate protoSource has sufficient message definitions before continuing
+	if err := validateProtoSchema(protoSource); err != nil {
+		return fmt.Errorf("validation failed for %s: %w", protoSource, err)
 	}
 
 	// 2. Run wa-proto split command
@@ -314,4 +314,77 @@ func syncProtosFromWaProto(rootDir, protoDir string) error {
 	}
 
 	return nil
+}
+
+func countProtoMessages(filePath string) (int, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return 0, err
+	}
+	count := bytes.Count(data, []byte("\nmessage "))
+	if bytes.HasPrefix(data, []byte("message ")) {
+		count++
+	}
+	return count, nil
+}
+
+func isValidProtoSchema(filePath string) bool {
+	count, err := countProtoMessages(filePath)
+	return err == nil && count >= 50
+}
+
+func validateProtoSchema(filePath string) error {
+	count, err := countProtoMessages(filePath)
+	if err != nil {
+		return fmt.Errorf("reading schema: %w", err)
+	}
+	if count < 50 {
+		return fmt.Errorf("schema contains only %d message definitions (minimum 50 required)", count)
+	}
+	return nil
+}
+
+func fetchRemoteWaProto() (string, func(), error) {
+	urls := []string{
+		"https://raw.githubusercontent.com/Thruqe/wa-proto/main/WAProto.proto",
+		"https://raw.githubusercontent.com/Thruqe/wa-proto/v2.3000.1046900546/WAProto.proto",
+	}
+
+	for _, u := range urls {
+		tmpFile, err := os.CreateTemp("", "WAProto-*.proto")
+		if err != nil {
+			return "", nil, fmt.Errorf("creating temp file: %w", err)
+		}
+		cleanup := func() {
+			_ = os.Remove(tmpFile.Name())
+		}
+
+		resp, err := http.Get(u)
+		if err != nil {
+			cleanup()
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			cleanup()
+			continue
+		}
+
+		_, copyErr := io.Copy(tmpFile, resp.Body)
+		resp.Body.Close()
+		_ = tmpFile.Close()
+
+		if copyErr != nil {
+			cleanup()
+			continue
+		}
+
+		if isValidProtoSchema(tmpFile.Name()) {
+			return tmpFile.Name(), cleanup, nil
+		}
+		cleanup()
+	}
+
+	return "", nil, fmt.Errorf("all remote WAProto.proto sources failed or returned insufficient definitions")
 }
