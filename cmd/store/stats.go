@@ -236,27 +236,3 @@ func GetUserXP(ctx context.Context, s *sqlstore.SQLStore, userJID string) (*BotU
 	}
 	return &entry, nil
 }
-
-// GetGlobalLeaderboard retrieves top users globally by XP.
-func GetGlobalLeaderboard(ctx context.Context, s *sqlstore.SQLStore, limit int) ([]BotUserXP, error) {
-	if s == nil {
-		return nil, nil
-	}
-	gdb, err := GetORM(ctx, s)
-	if err != nil {
-		return nil, err
-	}
-	ourJID := ourJIDStr(s)
-
-	if limit <= 0 {
-		limit = 10
-	}
-
-	var list []BotUserXP
-	err = gdb.WithContext(ctx).
-		Where("our_jid = ?", ourJID).
-		Order("xp DESC").
-		Limit(limit).
-		Find(&list).Error
-	return list, err
-}

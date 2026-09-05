@@ -27,6 +27,7 @@ const (
 	BotNamePromptDismissedKey  = "botname_prompt_dismissed"
 	BotNameAwaitingInputPrefix = "botname_awaiting_input:"
 	WizardSessionTTL           = 5 * time.Minute
+	StpackSessionTTL           = 5 * time.Minute
 )
 
 type UserAFKState struct {
@@ -36,6 +37,12 @@ type UserAFKState struct {
 
 type WizardSession struct {
 	Step      string
+	UpdatedAt time.Time
+}
+
+type StpackSession struct {
+	Step      int
+	Author    string
 	UpdatedAt time.Time
 }
 
@@ -68,6 +75,9 @@ var (
 
 	BotWizardMu        sync.RWMutex
 	PendingWizardState = make(map[string]WizardSession)
+
+	StpackSessionMu       sync.RWMutex
+	PendingStpackSessions = make(map[string]StpackSession)
 
 	SupportedTimezones = []string{
 		"Africa/Abidjan",
