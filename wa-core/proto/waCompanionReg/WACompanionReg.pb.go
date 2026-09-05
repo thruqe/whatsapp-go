@@ -49,6 +49,7 @@ const (
 	DeviceProps_VR                DeviceProps_PlatformType = 22
 	DeviceProps_CLOUD_API         DeviceProps_PlatformType = 23
 	DeviceProps_SMARTGLASSES      DeviceProps_PlatformType = 24
+	DeviceProps_PLATFORMTYPE_WAIL DeviceProps_PlatformType = 25
 )
 
 // Enum value maps for DeviceProps_PlatformType.
@@ -79,6 +80,7 @@ var (
 		22: "VR",
 		23: "CLOUD_API",
 		24: "SMARTGLASSES",
+		25: "PLATFORMTYPE_WAIL",
 	}
 	DeviceProps_PlatformType_value = map[string]int32{
 		"UNKNOWN":           0,
@@ -106,6 +108,7 @@ var (
 		"VR":                22,
 		"CLOUD_API":         23,
 		"SMARTGLASSES":      24,
+		"PLATFORMTYPE_WAIL": 25,
 	}
 )
 
@@ -143,7 +146,195 @@ func (x *DeviceProps_PlatformType) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use DeviceProps_PlatformType.Descriptor instead.
 func (DeviceProps_PlatformType) EnumDescriptor() ([]byte, []int) {
-	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{0, 0}
+	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{3, 0}
+}
+
+type ClientPairingProps struct {
+	state                          protoimpl.MessageState `protogen:"open.v1"`
+	IsChatDbLidMigrated            *bool                  `protobuf:"varint,1,opt,name=isChatDbLidMigrated" json:"isChatDbLidMigrated,omitempty"`
+	IsSyncdPureLidSession          *bool                  `protobuf:"varint,2,opt,name=isSyncdPureLidSession" json:"isSyncdPureLidSession,omitempty"`
+	IsSyncdSnapshotRecoveryEnabled *bool                  `protobuf:"varint,3,opt,name=isSyncdSnapshotRecoveryEnabled" json:"isSyncdSnapshotRecoveryEnabled,omitempty"`
+	IsHsThumbnailSyncEnabled       *bool                  `protobuf:"varint,4,opt,name=isHsThumbnailSyncEnabled" json:"isHsThumbnailSyncEnabled,omitempty"`
+	SubscriptionSyncPayload        []byte                 `protobuf:"bytes,5,opt,name=subscriptionSyncPayload" json:"subscriptionSyncPayload,omitempty"`
+	IsBotJidDbMigrated             *bool                  `protobuf:"varint,6,opt,name=isBotJidDbMigrated" json:"isBotJidDbMigrated,omitempty"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
+}
+
+func (x *ClientPairingProps) Reset() {
+	*x = ClientPairingProps{}
+	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClientPairingProps) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClientPairingProps) ProtoMessage() {}
+
+func (x *ClientPairingProps) ProtoReflect() protoreflect.Message {
+	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClientPairingProps.ProtoReflect.Descriptor instead.
+func (*ClientPairingProps) Descriptor() ([]byte, []int) {
+	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ClientPairingProps) GetIsChatDbLidMigrated() bool {
+	if x != nil && x.IsChatDbLidMigrated != nil {
+		return *x.IsChatDbLidMigrated
+	}
+	return false
+}
+
+func (x *ClientPairingProps) GetIsSyncdPureLidSession() bool {
+	if x != nil && x.IsSyncdPureLidSession != nil {
+		return *x.IsSyncdPureLidSession
+	}
+	return false
+}
+
+func (x *ClientPairingProps) GetIsSyncdSnapshotRecoveryEnabled() bool {
+	if x != nil && x.IsSyncdSnapshotRecoveryEnabled != nil {
+		return *x.IsSyncdSnapshotRecoveryEnabled
+	}
+	return false
+}
+
+func (x *ClientPairingProps) GetIsHsThumbnailSyncEnabled() bool {
+	if x != nil && x.IsHsThumbnailSyncEnabled != nil {
+		return *x.IsHsThumbnailSyncEnabled
+	}
+	return false
+}
+
+func (x *ClientPairingProps) GetSubscriptionSyncPayload() []byte {
+	if x != nil {
+		return x.SubscriptionSyncPayload
+	}
+	return nil
+}
+
+func (x *ClientPairingProps) GetIsBotJidDbMigrated() bool {
+	if x != nil && x.IsBotJidDbMigrated != nil {
+		return *x.IsBotJidDbMigrated
+	}
+	return false
+}
+
+type CompanionCommitment struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Hash          []byte                 `protobuf:"bytes,1,opt,name=hash" json:"hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompanionCommitment) Reset() {
+	*x = CompanionCommitment{}
+	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompanionCommitment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompanionCommitment) ProtoMessage() {}
+
+func (x *CompanionCommitment) ProtoReflect() protoreflect.Message {
+	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompanionCommitment.ProtoReflect.Descriptor instead.
+func (*CompanionCommitment) Descriptor() ([]byte, []int) {
+	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *CompanionCommitment) GetHash() []byte {
+	if x != nil {
+		return x.Hash
+	}
+	return nil
+}
+
+type CompanionEphemeralIdentity struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	PublicKey     []byte                    `protobuf:"bytes,1,opt,name=publicKey" json:"publicKey,omitempty"`
+	DeviceType    *DeviceProps_PlatformType `protobuf:"varint,2,opt,name=deviceType,enum=WACompanionReg.DeviceProps_PlatformType" json:"deviceType,omitempty"`
+	Ref           *string                   `protobuf:"bytes,3,opt,name=ref" json:"ref,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompanionEphemeralIdentity) Reset() {
+	*x = CompanionEphemeralIdentity{}
+	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompanionEphemeralIdentity) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompanionEphemeralIdentity) ProtoMessage() {}
+
+func (x *CompanionEphemeralIdentity) ProtoReflect() protoreflect.Message {
+	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompanionEphemeralIdentity.ProtoReflect.Descriptor instead.
+func (*CompanionEphemeralIdentity) Descriptor() ([]byte, []int) {
+	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *CompanionEphemeralIdentity) GetPublicKey() []byte {
+	if x != nil {
+		return x.PublicKey
+	}
+	return nil
+}
+
+func (x *CompanionEphemeralIdentity) GetDeviceType() DeviceProps_PlatformType {
+	if x != nil && x.DeviceType != nil {
+		return *x.DeviceType
+	}
+	return DeviceProps_UNKNOWN
+}
+
+func (x *CompanionEphemeralIdentity) GetRef() string {
+	if x != nil && x.Ref != nil {
+		return *x.Ref
+	}
+	return ""
 }
 
 type DeviceProps struct {
@@ -159,7 +350,7 @@ type DeviceProps struct {
 
 func (x *DeviceProps) Reset() {
 	*x = DeviceProps{}
-	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[0]
+	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -171,7 +362,7 @@ func (x *DeviceProps) String() string {
 func (*DeviceProps) ProtoMessage() {}
 
 func (x *DeviceProps) ProtoReflect() protoreflect.Message {
-	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[0]
+	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -184,7 +375,7 @@ func (x *DeviceProps) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceProps.ProtoReflect.Descriptor instead.
 func (*DeviceProps) Descriptor() ([]byte, []int) {
-	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{0}
+	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *DeviceProps) GetOs() string {
@@ -222,184 +413,28 @@ func (x *DeviceProps) GetHistorySyncConfig() *DeviceProps_HistorySyncConfig {
 	return nil
 }
 
-type CompanionEphemeralIdentity struct {
-	state         protoimpl.MessageState    `protogen:"open.v1"`
-	PublicKey     []byte                    `protobuf:"bytes,1,opt,name=publicKey" json:"publicKey,omitempty"`
-	DeviceType    *DeviceProps_PlatformType `protobuf:"varint,2,opt,name=deviceType,enum=WACompanionReg.DeviceProps_PlatformType" json:"deviceType,omitempty"`
-	Ref           *string                   `protobuf:"bytes,3,opt,name=ref" json:"ref,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+type EncryptedPairingRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	EncryptedPayload []byte                 `protobuf:"bytes,1,opt,name=encryptedPayload" json:"encryptedPayload,omitempty"`
+	IV               []byte                 `protobuf:"bytes,2,opt,name=IV" json:"IV,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
-func (x *CompanionEphemeralIdentity) Reset() {
-	*x = CompanionEphemeralIdentity{}
-	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CompanionEphemeralIdentity) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CompanionEphemeralIdentity) ProtoMessage() {}
-
-func (x *CompanionEphemeralIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CompanionEphemeralIdentity.ProtoReflect.Descriptor instead.
-func (*CompanionEphemeralIdentity) Descriptor() ([]byte, []int) {
-	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *CompanionEphemeralIdentity) GetPublicKey() []byte {
-	if x != nil {
-		return x.PublicKey
-	}
-	return nil
-}
-
-func (x *CompanionEphemeralIdentity) GetDeviceType() DeviceProps_PlatformType {
-	if x != nil && x.DeviceType != nil {
-		return *x.DeviceType
-	}
-	return DeviceProps_UNKNOWN
-}
-
-func (x *CompanionEphemeralIdentity) GetRef() string {
-	if x != nil && x.Ref != nil {
-		return *x.Ref
-	}
-	return ""
-}
-
-type CompanionCommitment struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Hash          []byte                 `protobuf:"bytes,1,opt,name=hash" json:"hash,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CompanionCommitment) Reset() {
-	*x = CompanionCommitment{}
-	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CompanionCommitment) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CompanionCommitment) ProtoMessage() {}
-
-func (x *CompanionCommitment) ProtoReflect() protoreflect.Message {
-	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CompanionCommitment.ProtoReflect.Descriptor instead.
-func (*CompanionCommitment) Descriptor() ([]byte, []int) {
-	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *CompanionCommitment) GetHash() []byte {
-	if x != nil {
-		return x.Hash
-	}
-	return nil
-}
-
-type ProloguePayload struct {
-	state                      protoimpl.MessageState `protogen:"open.v1"`
-	CompanionEphemeralIdentity []byte                 `protobuf:"bytes,1,opt,name=companionEphemeralIdentity" json:"companionEphemeralIdentity,omitempty"`
-	Commitment                 *CompanionCommitment   `protobuf:"bytes,2,opt,name=commitment" json:"commitment,omitempty"`
-	unknownFields              protoimpl.UnknownFields
-	sizeCache                  protoimpl.SizeCache
-}
-
-func (x *ProloguePayload) Reset() {
-	*x = ProloguePayload{}
-	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ProloguePayload) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ProloguePayload) ProtoMessage() {}
-
-func (x *ProloguePayload) ProtoReflect() protoreflect.Message {
-	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ProloguePayload.ProtoReflect.Descriptor instead.
-func (*ProloguePayload) Descriptor() ([]byte, []int) {
-	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *ProloguePayload) GetCompanionEphemeralIdentity() []byte {
-	if x != nil {
-		return x.CompanionEphemeralIdentity
-	}
-	return nil
-}
-
-func (x *ProloguePayload) GetCommitment() *CompanionCommitment {
-	if x != nil {
-		return x.Commitment
-	}
-	return nil
-}
-
-type PrimaryEphemeralIdentity struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PublicKey     []byte                 `protobuf:"bytes,1,opt,name=publicKey" json:"publicKey,omitempty"`
-	Nonce         []byte                 `protobuf:"bytes,2,opt,name=nonce" json:"nonce,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *PrimaryEphemeralIdentity) Reset() {
-	*x = PrimaryEphemeralIdentity{}
+func (x *EncryptedPairingRequest) Reset() {
+	*x = EncryptedPairingRequest{}
 	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PrimaryEphemeralIdentity) String() string {
+func (x *EncryptedPairingRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PrimaryEphemeralIdentity) ProtoMessage() {}
+func (*EncryptedPairingRequest) ProtoMessage() {}
 
-func (x *PrimaryEphemeralIdentity) ProtoReflect() protoreflect.Message {
+func (x *EncryptedPairingRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -411,21 +446,21 @@ func (x *PrimaryEphemeralIdentity) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrimaryEphemeralIdentity.ProtoReflect.Descriptor instead.
-func (*PrimaryEphemeralIdentity) Descriptor() ([]byte, []int) {
+// Deprecated: Use EncryptedPairingRequest.ProtoReflect.Descriptor instead.
+func (*EncryptedPairingRequest) Descriptor() ([]byte, []int) {
 	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *PrimaryEphemeralIdentity) GetPublicKey() []byte {
+func (x *EncryptedPairingRequest) GetEncryptedPayload() []byte {
 	if x != nil {
-		return x.PublicKey
+		return x.EncryptedPayload
 	}
 	return nil
 }
 
-func (x *PrimaryEphemeralIdentity) GetNonce() []byte {
+func (x *EncryptedPairingRequest) GetIV() []byte {
 	if x != nil {
-		return x.Nonce
+		return x.IV
 	}
 	return nil
 }
@@ -490,28 +525,28 @@ func (x *PairingRequest) GetAdvSecret() []byte {
 	return nil
 }
 
-type EncryptedPairingRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	EncryptedPayload []byte                 `protobuf:"bytes,1,opt,name=encryptedPayload" json:"encryptedPayload,omitempty"`
-	IV               []byte                 `protobuf:"bytes,2,opt,name=IV" json:"IV,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+type PrimaryEphemeralIdentity struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PublicKey     []byte                 `protobuf:"bytes,1,opt,name=publicKey" json:"publicKey,omitempty"`
+	Nonce         []byte                 `protobuf:"bytes,2,opt,name=nonce" json:"nonce,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *EncryptedPairingRequest) Reset() {
-	*x = EncryptedPairingRequest{}
+func (x *PrimaryEphemeralIdentity) Reset() {
+	*x = PrimaryEphemeralIdentity{}
 	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *EncryptedPairingRequest) String() string {
+func (x *PrimaryEphemeralIdentity) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*EncryptedPairingRequest) ProtoMessage() {}
+func (*PrimaryEphemeralIdentity) ProtoMessage() {}
 
-func (x *EncryptedPairingRequest) ProtoReflect() protoreflect.Message {
+func (x *PrimaryEphemeralIdentity) ProtoReflect() protoreflect.Message {
 	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -523,50 +558,47 @@ func (x *EncryptedPairingRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EncryptedPairingRequest.ProtoReflect.Descriptor instead.
-func (*EncryptedPairingRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use PrimaryEphemeralIdentity.ProtoReflect.Descriptor instead.
+func (*PrimaryEphemeralIdentity) Descriptor() ([]byte, []int) {
 	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *EncryptedPairingRequest) GetEncryptedPayload() []byte {
+func (x *PrimaryEphemeralIdentity) GetPublicKey() []byte {
 	if x != nil {
-		return x.EncryptedPayload
+		return x.PublicKey
 	}
 	return nil
 }
 
-func (x *EncryptedPairingRequest) GetIV() []byte {
+func (x *PrimaryEphemeralIdentity) GetNonce() []byte {
 	if x != nil {
-		return x.IV
+		return x.Nonce
 	}
 	return nil
 }
 
-type ClientPairingProps struct {
-	state                          protoimpl.MessageState `protogen:"open.v1"`
-	IsChatDbLidMigrated            *bool                  `protobuf:"varint,1,opt,name=isChatDbLidMigrated" json:"isChatDbLidMigrated,omitempty"`
-	IsSyncdPureLidSession          *bool                  `protobuf:"varint,2,opt,name=isSyncdPureLidSession" json:"isSyncdPureLidSession,omitempty"`
-	IsSyncdSnapshotRecoveryEnabled *bool                  `protobuf:"varint,3,opt,name=isSyncdSnapshotRecoveryEnabled" json:"isSyncdSnapshotRecoveryEnabled,omitempty"`
-	IsHsThumbnailSyncEnabled       *bool                  `protobuf:"varint,4,opt,name=isHsThumbnailSyncEnabled" json:"isHsThumbnailSyncEnabled,omitempty"`
-	SubscriptionSyncPayload        []byte                 `protobuf:"bytes,5,opt,name=subscriptionSyncPayload" json:"subscriptionSyncPayload,omitempty"`
-	unknownFields                  protoimpl.UnknownFields
-	sizeCache                      protoimpl.SizeCache
+type ProloguePayload struct {
+	state                      protoimpl.MessageState `protogen:"open.v1"`
+	CompanionEphemeralIdentity []byte                 `protobuf:"bytes,1,opt,name=companionEphemeralIdentity" json:"companionEphemeralIdentity,omitempty"`
+	Commitment                 *CompanionCommitment   `protobuf:"bytes,2,opt,name=commitment" json:"commitment,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
 }
 
-func (x *ClientPairingProps) Reset() {
-	*x = ClientPairingProps{}
+func (x *ProloguePayload) Reset() {
+	*x = ProloguePayload{}
 	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ClientPairingProps) String() string {
+func (x *ProloguePayload) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ClientPairingProps) ProtoMessage() {}
+func (*ProloguePayload) ProtoMessage() {}
 
-func (x *ClientPairingProps) ProtoReflect() protoreflect.Message {
+func (x *ProloguePayload) ProtoReflect() protoreflect.Message {
 	mi := &file_waCompanionReg_WACompanionReg_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -578,42 +610,21 @@ func (x *ClientPairingProps) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClientPairingProps.ProtoReflect.Descriptor instead.
-func (*ClientPairingProps) Descriptor() ([]byte, []int) {
+// Deprecated: Use ProloguePayload.ProtoReflect.Descriptor instead.
+func (*ProloguePayload) Descriptor() ([]byte, []int) {
 	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *ClientPairingProps) GetIsChatDbLidMigrated() bool {
-	if x != nil && x.IsChatDbLidMigrated != nil {
-		return *x.IsChatDbLidMigrated
-	}
-	return false
-}
-
-func (x *ClientPairingProps) GetIsSyncdPureLidSession() bool {
-	if x != nil && x.IsSyncdPureLidSession != nil {
-		return *x.IsSyncdPureLidSession
-	}
-	return false
-}
-
-func (x *ClientPairingProps) GetIsSyncdSnapshotRecoveryEnabled() bool {
-	if x != nil && x.IsSyncdSnapshotRecoveryEnabled != nil {
-		return *x.IsSyncdSnapshotRecoveryEnabled
-	}
-	return false
-}
-
-func (x *ClientPairingProps) GetIsHsThumbnailSyncEnabled() bool {
-	if x != nil && x.IsHsThumbnailSyncEnabled != nil {
-		return *x.IsHsThumbnailSyncEnabled
-	}
-	return false
-}
-
-func (x *ClientPairingProps) GetSubscriptionSyncPayload() []byte {
+func (x *ProloguePayload) GetCompanionEphemeralIdentity() []byte {
 	if x != nil {
-		return x.SubscriptionSyncPayload
+		return x.CompanionEphemeralIdentity
+	}
+	return nil
+}
+
+func (x *ProloguePayload) GetCommitment() *CompanionCommitment {
+	if x != nil {
+		return x.Commitment
 	}
 	return nil
 }
@@ -644,6 +655,7 @@ type DeviceProps_HistorySyncConfig struct {
 	SupportHatchHistory                      *bool                  `protobuf:"varint,22,opt,name=supportHatchHistory" json:"supportHatchHistory,omitempty"`
 	SupportedBotChannelFbids                 []string               `protobuf:"bytes,23,rep,name=supportedBotChannelFbids" json:"supportedBotChannelFbids,omitempty"`
 	SupportInlineContacts                    *bool                  `protobuf:"varint,24,opt,name=supportInlineContacts" json:"supportInlineContacts,omitempty"`
+	SupportNewsletter                        *bool                  `protobuf:"varint,25,opt,name=supportNewsletter" json:"supportNewsletter,omitempty"`
 	unknownFields                            protoimpl.UnknownFields
 	sizeCache                                protoimpl.SizeCache
 }
@@ -675,7 +687,7 @@ func (x *DeviceProps_HistorySyncConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceProps_HistorySyncConfig.ProtoReflect.Descriptor instead.
 func (*DeviceProps_HistorySyncConfig) Descriptor() ([]byte, []int) {
-	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{0, 0}
+	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{3, 0}
 }
 
 func (x *DeviceProps_HistorySyncConfig) GetFullSyncDaysLimit() uint32 {
@@ -846,6 +858,13 @@ func (x *DeviceProps_HistorySyncConfig) GetSupportInlineContacts() bool {
 	return false
 }
 
+func (x *DeviceProps_HistorySyncConfig) GetSupportNewsletter() bool {
+	if x != nil && x.SupportNewsletter != nil {
+		return *x.SupportNewsletter
+	}
+	return false
+}
+
 type DeviceProps_AppVersion struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Primary       *uint32                `protobuf:"varint,1,opt,name=primary" json:"primary,omitempty"`
@@ -884,7 +903,7 @@ func (x *DeviceProps_AppVersion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceProps_AppVersion.ProtoReflect.Descriptor instead.
 func (*DeviceProps_AppVersion) Descriptor() ([]byte, []int) {
-	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{0, 1}
+	return file_waCompanionReg_WACompanionReg_proto_rawDescGZIP(), []int{3, 1}
 }
 
 func (x *DeviceProps_AppVersion) GetPrimary() uint32 {
@@ -926,14 +945,28 @@ var File_waCompanionReg_WACompanionReg_proto protoreflect.FileDescriptor
 
 const file_waCompanionReg_WACompanionReg_proto_rawDesc = "" +
 	"\n" +
-	"#waCompanionReg/WACompanionReg.proto\x12\x0eWACompanionReg\"\xa3\x11\n" +
+	"#waCompanionReg/WACompanionReg.proto\x12\x0eWACompanionReg\"\xea\x02\n" +
+	"\x12ClientPairingProps\x120\n" +
+	"\x13isChatDbLidMigrated\x18\x01 \x01(\bR\x13isChatDbLidMigrated\x124\n" +
+	"\x15isSyncdPureLidSession\x18\x02 \x01(\bR\x15isSyncdPureLidSession\x12F\n" +
+	"\x1eisSyncdSnapshotRecoveryEnabled\x18\x03 \x01(\bR\x1eisSyncdSnapshotRecoveryEnabled\x12:\n" +
+	"\x18isHsThumbnailSyncEnabled\x18\x04 \x01(\bR\x18isHsThumbnailSyncEnabled\x128\n" +
+	"\x17subscriptionSyncPayload\x18\x05 \x01(\fR\x17subscriptionSyncPayload\x12.\n" +
+	"\x12isBotJidDbMigrated\x18\x06 \x01(\bR\x12isBotJidDbMigrated\")\n" +
+	"\x13CompanionCommitment\x12\x12\n" +
+	"\x04hash\x18\x01 \x01(\fR\x04hash\"\x96\x01\n" +
+	"\x1aCompanionEphemeralIdentity\x12\x1c\n" +
+	"\tpublicKey\x18\x01 \x01(\fR\tpublicKey\x12H\n" +
+	"\n" +
+	"deviceType\x18\x02 \x01(\x0e2(.WACompanionReg.DeviceProps.PlatformTypeR\n" +
+	"deviceType\x12\x10\n" +
+	"\x03ref\x18\x03 \x01(\tR\x03ref\"\xe8\x11\n" +
 	"\vDeviceProps\x12\x0e\n" +
 	"\x02os\x18\x01 \x01(\tR\x02os\x12@\n" +
 	"\aversion\x18\x02 \x01(\v2&.WACompanionReg.DeviceProps.AppVersionR\aversion\x12L\n" +
 	"\fplatformType\x18\x03 \x01(\x0e2(.WACompanionReg.DeviceProps.PlatformTypeR\fplatformType\x12(\n" +
 	"\x0frequireFullSync\x18\x04 \x01(\bR\x0frequireFullSync\x12[\n" +
-	"\x11historySyncConfig\x18\x05 \x01(\v2-.WACompanionReg.DeviceProps.HistorySyncConfigR\x11historySyncConfig\x1a\xed\n" +
-	"\n" +
+	"\x11historySyncConfig\x18\x05 \x01(\v2-.WACompanionReg.DeviceProps.HistorySyncConfigR\x11historySyncConfig\x1a\x9b\v\n" +
 	"\x11HistorySyncConfig\x12,\n" +
 	"\x11fullSyncDaysLimit\x18\x01 \x01(\rR\x11fullSyncDaysLimit\x120\n" +
 	"\x13fullSyncSizeMbLimit\x18\x02 \x01(\rR\x13fullSyncSizeMbLimit\x12&\n" +
@@ -959,7 +992,8 @@ const file_waCompanionReg_WACompanionReg_proto_rawDesc = "" +
 	"\x13supportManusHistory\x18\x15 \x01(\bR\x13supportManusHistory\x120\n" +
 	"\x13supportHatchHistory\x18\x16 \x01(\bR\x13supportHatchHistory\x12:\n" +
 	"\x18supportedBotChannelFbids\x18\x17 \x03(\tR\x18supportedBotChannelFbids\x124\n" +
-	"\x15supportInlineContacts\x18\x18 \x01(\bR\x15supportInlineContacts\x1a\x9a\x01\n" +
+	"\x15supportInlineContacts\x18\x18 \x01(\bR\x15supportInlineContacts\x12,\n" +
+	"\x11supportNewsletter\x18\x19 \x01(\bR\x11supportNewsletter\x1a\x9a\x01\n" +
 	"\n" +
 	"AppVersion\x12\x18\n" +
 	"\aprimary\x18\x01 \x01(\rR\aprimary\x12\x1c\n" +
@@ -968,7 +1002,7 @@ const file_waCompanionReg_WACompanionReg_proto_rawDesc = "" +
 	"\n" +
 	"quaternary\x18\x04 \x01(\rR\n" +
 	"quaternary\x12\x18\n" +
-	"\aquinary\x18\x05 \x01(\rR\aquinary\"\xdf\x02\n" +
+	"\aquinary\x18\x05 \x01(\rR\aquinary\"\xf6\x02\n" +
 	"\fPlatformType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\n" +
 	"\n" +
@@ -998,36 +1032,23 @@ const file_waCompanionReg_WACompanionReg_proto_rawDesc = "" +
 	"\x03UWP\x10\x15\x12\x06\n" +
 	"\x02VR\x10\x16\x12\r\n" +
 	"\tCLOUD_API\x10\x17\x12\x10\n" +
-	"\fSMARTGLASSES\x10\x18\"\x96\x01\n" +
-	"\x1aCompanionEphemeralIdentity\x12\x1c\n" +
-	"\tpublicKey\x18\x01 \x01(\fR\tpublicKey\x12H\n" +
-	"\n" +
-	"deviceType\x18\x02 \x01(\x0e2(.WACompanionReg.DeviceProps.PlatformTypeR\n" +
-	"deviceType\x12\x10\n" +
-	"\x03ref\x18\x03 \x01(\tR\x03ref\")\n" +
-	"\x13CompanionCommitment\x12\x12\n" +
-	"\x04hash\x18\x01 \x01(\fR\x04hash\"\x96\x01\n" +
+	"\fSMARTGLASSES\x10\x18\x12\x15\n" +
+	"\x11PLATFORMTYPE_WAIL\x10\x19\"U\n" +
+	"\x17EncryptedPairingRequest\x12*\n" +
+	"\x10encryptedPayload\x18\x01 \x01(\fR\x10encryptedPayload\x12\x0e\n" +
+	"\x02IV\x18\x02 \x01(\fR\x02IV\"\x92\x01\n" +
+	"\x0ePairingRequest\x12.\n" +
+	"\x12companionPublicKey\x18\x01 \x01(\fR\x12companionPublicKey\x122\n" +
+	"\x14companionIdentityKey\x18\x02 \x01(\fR\x14companionIdentityKey\x12\x1c\n" +
+	"\tadvSecret\x18\x03 \x01(\fR\tadvSecret\"N\n" +
+	"\x18PrimaryEphemeralIdentity\x12\x1c\n" +
+	"\tpublicKey\x18\x01 \x01(\fR\tpublicKey\x12\x14\n" +
+	"\x05nonce\x18\x02 \x01(\fR\x05nonce\"\x96\x01\n" +
 	"\x0fProloguePayload\x12>\n" +
 	"\x1acompanionEphemeralIdentity\x18\x01 \x01(\fR\x1acompanionEphemeralIdentity\x12C\n" +
 	"\n" +
 	"commitment\x18\x02 \x01(\v2#.WACompanionReg.CompanionCommitmentR\n" +
-	"commitment\"N\n" +
-	"\x18PrimaryEphemeralIdentity\x12\x1c\n" +
-	"\tpublicKey\x18\x01 \x01(\fR\tpublicKey\x12\x14\n" +
-	"\x05nonce\x18\x02 \x01(\fR\x05nonce\"\x92\x01\n" +
-	"\x0ePairingRequest\x12.\n" +
-	"\x12companionPublicKey\x18\x01 \x01(\fR\x12companionPublicKey\x122\n" +
-	"\x14companionIdentityKey\x18\x02 \x01(\fR\x14companionIdentityKey\x12\x1c\n" +
-	"\tadvSecret\x18\x03 \x01(\fR\tadvSecret\"U\n" +
-	"\x17EncryptedPairingRequest\x12*\n" +
-	"\x10encryptedPayload\x18\x01 \x01(\fR\x10encryptedPayload\x12\x0e\n" +
-	"\x02IV\x18\x02 \x01(\fR\x02IV\"\xba\x02\n" +
-	"\x12ClientPairingProps\x120\n" +
-	"\x13isChatDbLidMigrated\x18\x01 \x01(\bR\x13isChatDbLidMigrated\x124\n" +
-	"\x15isSyncdPureLidSession\x18\x02 \x01(\bR\x15isSyncdPureLidSession\x12F\n" +
-	"\x1eisSyncdSnapshotRecoveryEnabled\x18\x03 \x01(\bR\x1eisSyncdSnapshotRecoveryEnabled\x12:\n" +
-	"\x18isHsThumbnailSyncEnabled\x18\x04 \x01(\bR\x18isHsThumbnailSyncEnabled\x128\n" +
-	"\x17subscriptionSyncPayload\x18\x05 \x01(\fR\x17subscriptionSyncPayloadB*Z(go.mau.fi/whatsmeow/proto/waCompanionReg"
+	"commitmentB*Z(go.mau.fi/whatsmeow/proto/waCompanionReg"
 
 var (
 	file_waCompanionReg_WACompanionReg_proto_rawDescOnce sync.Once
@@ -1045,23 +1066,23 @@ var file_waCompanionReg_WACompanionReg_proto_enumTypes = make([]protoimpl.EnumIn
 var file_waCompanionReg_WACompanionReg_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_waCompanionReg_WACompanionReg_proto_goTypes = []any{
 	(DeviceProps_PlatformType)(0),         // 0: WACompanionReg.DeviceProps.PlatformType
-	(*DeviceProps)(nil),                   // 1: WACompanionReg.DeviceProps
-	(*CompanionEphemeralIdentity)(nil),    // 2: WACompanionReg.CompanionEphemeralIdentity
-	(*CompanionCommitment)(nil),           // 3: WACompanionReg.CompanionCommitment
-	(*ProloguePayload)(nil),               // 4: WACompanionReg.ProloguePayload
-	(*PrimaryEphemeralIdentity)(nil),      // 5: WACompanionReg.PrimaryEphemeralIdentity
+	(*ClientPairingProps)(nil),            // 1: WACompanionReg.ClientPairingProps
+	(*CompanionCommitment)(nil),           // 2: WACompanionReg.CompanionCommitment
+	(*CompanionEphemeralIdentity)(nil),    // 3: WACompanionReg.CompanionEphemeralIdentity
+	(*DeviceProps)(nil),                   // 4: WACompanionReg.DeviceProps
+	(*EncryptedPairingRequest)(nil),       // 5: WACompanionReg.EncryptedPairingRequest
 	(*PairingRequest)(nil),                // 6: WACompanionReg.PairingRequest
-	(*EncryptedPairingRequest)(nil),       // 7: WACompanionReg.EncryptedPairingRequest
-	(*ClientPairingProps)(nil),            // 8: WACompanionReg.ClientPairingProps
+	(*PrimaryEphemeralIdentity)(nil),      // 7: WACompanionReg.PrimaryEphemeralIdentity
+	(*ProloguePayload)(nil),               // 8: WACompanionReg.ProloguePayload
 	(*DeviceProps_HistorySyncConfig)(nil), // 9: WACompanionReg.DeviceProps.HistorySyncConfig
 	(*DeviceProps_AppVersion)(nil),        // 10: WACompanionReg.DeviceProps.AppVersion
 }
 var file_waCompanionReg_WACompanionReg_proto_depIdxs = []int32{
-	10, // 0: WACompanionReg.DeviceProps.version:type_name -> WACompanionReg.DeviceProps.AppVersion
-	0,  // 1: WACompanionReg.DeviceProps.platformType:type_name -> WACompanionReg.DeviceProps.PlatformType
-	9,  // 2: WACompanionReg.DeviceProps.historySyncConfig:type_name -> WACompanionReg.DeviceProps.HistorySyncConfig
-	0,  // 3: WACompanionReg.CompanionEphemeralIdentity.deviceType:type_name -> WACompanionReg.DeviceProps.PlatformType
-	3,  // 4: WACompanionReg.ProloguePayload.commitment:type_name -> WACompanionReg.CompanionCommitment
+	0,  // 0: WACompanionReg.CompanionEphemeralIdentity.deviceType:type_name -> WACompanionReg.DeviceProps.PlatformType
+	10, // 1: WACompanionReg.DeviceProps.version:type_name -> WACompanionReg.DeviceProps.AppVersion
+	0,  // 2: WACompanionReg.DeviceProps.platformType:type_name -> WACompanionReg.DeviceProps.PlatformType
+	9,  // 3: WACompanionReg.DeviceProps.historySyncConfig:type_name -> WACompanionReg.DeviceProps.HistorySyncConfig
+	2,  // 4: WACompanionReg.ProloguePayload.commitment:type_name -> WACompanionReg.CompanionCommitment
 	5,  // [5:5] is the sub-list for method output_type
 	5,  // [5:5] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name

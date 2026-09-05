@@ -21,85 +21,17 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type Reportable struct {
-	state                   protoimpl.MessageState `protogen:"open.v1"`
-	MinVersion              uint32                 `protobuf:"varint,1,opt,name=minVersion,proto3" json:"minVersion,omitempty"`
-	MaxVersion              uint32                 `protobuf:"varint,2,opt,name=maxVersion,proto3" json:"maxVersion,omitempty"`
-	NotReportableMinVersion uint32                 `protobuf:"varint,3,opt,name=notReportableMinVersion,proto3" json:"notReportableMinVersion,omitempty"`
-	Never                   bool                   `protobuf:"varint,4,opt,name=never,proto3" json:"never,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
-}
-
-func (x *Reportable) Reset() {
-	*x = Reportable{}
-	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Reportable) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Reportable) ProtoMessage() {}
-
-func (x *Reportable) ProtoReflect() protoreflect.Message {
-	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Reportable.ProtoReflect.Descriptor instead.
-func (*Reportable) Descriptor() ([]byte, []int) {
-	return file_waReporting_WAWebProtobufsReporting_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *Reportable) GetMinVersion() uint32 {
-	if x != nil {
-		return x.MinVersion
-	}
-	return 0
-}
-
-func (x *Reportable) GetMaxVersion() uint32 {
-	if x != nil {
-		return x.MaxVersion
-	}
-	return 0
-}
-
-func (x *Reportable) GetNotReportableMinVersion() uint32 {
-	if x != nil {
-		return x.NotReportableMinVersion
-	}
-	return 0
-}
-
-func (x *Reportable) GetNever() bool {
-	if x != nil {
-		return x.Never
-	}
-	return false
-}
-
 type Config struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Field         map[uint32]*Field      `protobuf:"bytes,1,rep,name=field,proto3" json:"field,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Version       uint32                 `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
+	Field         map[uint32]*Field      `protobuf:"bytes,1,rep,name=field" json:"field,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Version       *uint32                `protobuf:"varint,2,opt,name=version" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Config) Reset() {
 	*x = Config{}
-	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[1]
+	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -111,7 +43,7 @@ func (x *Config) String() string {
 func (*Config) ProtoMessage() {}
 
 func (x *Config) ProtoReflect() protoreflect.Message {
-	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[1]
+	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -124,7 +56,7 @@ func (x *Config) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Config.ProtoReflect.Descriptor instead.
 func (*Config) Descriptor() ([]byte, []int) {
-	return file_waReporting_WAWebProtobufsReporting_proto_rawDescGZIP(), []int{1}
+	return file_waReporting_WAWebProtobufsReporting_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Config) GetField() map[uint32]*Field {
@@ -135,26 +67,26 @@ func (x *Config) GetField() map[uint32]*Field {
 }
 
 func (x *Config) GetVersion() uint32 {
-	if x != nil {
-		return x.Version
+	if x != nil && x.Version != nil {
+		return *x.Version
 	}
 	return 0
 }
 
 type Field struct {
 	state                   protoimpl.MessageState `protogen:"open.v1"`
-	MinVersion              uint32                 `protobuf:"varint,1,opt,name=minVersion,proto3" json:"minVersion,omitempty"`
-	MaxVersion              uint32                 `protobuf:"varint,2,opt,name=maxVersion,proto3" json:"maxVersion,omitempty"`
-	NotReportableMinVersion uint32                 `protobuf:"varint,3,opt,name=notReportableMinVersion,proto3" json:"notReportableMinVersion,omitempty"`
-	IsMessage               bool                   `protobuf:"varint,4,opt,name=isMessage,proto3" json:"isMessage,omitempty"`
-	Subfield                map[uint32]*Field      `protobuf:"bytes,5,rep,name=subfield,proto3" json:"subfield,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	MinVersion              *uint32                `protobuf:"varint,1,opt,name=minVersion" json:"minVersion,omitempty"`
+	MaxVersion              *uint32                `protobuf:"varint,2,opt,name=maxVersion" json:"maxVersion,omitempty"`
+	NotReportableMinVersion *uint32                `protobuf:"varint,3,opt,name=notReportableMinVersion" json:"notReportableMinVersion,omitempty"`
+	IsMessage               *bool                  `protobuf:"varint,4,opt,name=isMessage" json:"isMessage,omitempty"`
+	Subfield                map[uint32]*Field      `protobuf:"bytes,5,rep,name=subfield" json:"subfield,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
 
 func (x *Field) Reset() {
 	*x = Field{}
-	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[2]
+	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -166,7 +98,7 @@ func (x *Field) String() string {
 func (*Field) ProtoMessage() {}
 
 func (x *Field) ProtoReflect() protoreflect.Message {
-	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[2]
+	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -179,33 +111,33 @@ func (x *Field) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Field.ProtoReflect.Descriptor instead.
 func (*Field) Descriptor() ([]byte, []int) {
-	return file_waReporting_WAWebProtobufsReporting_proto_rawDescGZIP(), []int{2}
+	return file_waReporting_WAWebProtobufsReporting_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Field) GetMinVersion() uint32 {
-	if x != nil {
-		return x.MinVersion
+	if x != nil && x.MinVersion != nil {
+		return *x.MinVersion
 	}
 	return 0
 }
 
 func (x *Field) GetMaxVersion() uint32 {
-	if x != nil {
-		return x.MaxVersion
+	if x != nil && x.MaxVersion != nil {
+		return *x.MaxVersion
 	}
 	return 0
 }
 
 func (x *Field) GetNotReportableMinVersion() uint32 {
-	if x != nil {
-		return x.NotReportableMinVersion
+	if x != nil && x.NotReportableMinVersion != nil {
+		return *x.NotReportableMinVersion
 	}
 	return 0
 }
 
 func (x *Field) GetIsMessage() bool {
-	if x != nil {
-		return x.IsMessage
+	if x != nil && x.IsMessage != nil {
+		return *x.IsMessage
 	}
 	return false
 }
@@ -217,21 +149,79 @@ func (x *Field) GetSubfield() map[uint32]*Field {
 	return nil
 }
 
+type Reportable struct {
+	state                   protoimpl.MessageState `protogen:"open.v1"`
+	MinVersion              *uint32                `protobuf:"varint,1,opt,name=minVersion" json:"minVersion,omitempty"`
+	MaxVersion              *uint32                `protobuf:"varint,2,opt,name=maxVersion" json:"maxVersion,omitempty"`
+	NotReportableMinVersion *uint32                `protobuf:"varint,3,opt,name=notReportableMinVersion" json:"notReportableMinVersion,omitempty"`
+	Never                   *bool                  `protobuf:"varint,4,opt,name=never" json:"never,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *Reportable) Reset() {
+	*x = Reportable{}
+	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Reportable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Reportable) ProtoMessage() {}
+
+func (x *Reportable) ProtoReflect() protoreflect.Message {
+	mi := &file_waReporting_WAWebProtobufsReporting_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Reportable.ProtoReflect.Descriptor instead.
+func (*Reportable) Descriptor() ([]byte, []int) {
+	return file_waReporting_WAWebProtobufsReporting_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Reportable) GetMinVersion() uint32 {
+	if x != nil && x.MinVersion != nil {
+		return *x.MinVersion
+	}
+	return 0
+}
+
+func (x *Reportable) GetMaxVersion() uint32 {
+	if x != nil && x.MaxVersion != nil {
+		return *x.MaxVersion
+	}
+	return 0
+}
+
+func (x *Reportable) GetNotReportableMinVersion() uint32 {
+	if x != nil && x.NotReportableMinVersion != nil {
+		return *x.NotReportableMinVersion
+	}
+	return 0
+}
+
+func (x *Reportable) GetNever() bool {
+	if x != nil && x.Never != nil {
+		return *x.Never
+	}
+	return false
+}
+
 var File_waReporting_WAWebProtobufsReporting_proto protoreflect.FileDescriptor
 
 const file_waReporting_WAWebProtobufsReporting_proto_rawDesc = "" +
 	"\n" +
-	")waReporting/WAWebProtobufsReporting.proto\x12\x17WAWebProtobufsReporting\"\x9c\x01\n" +
-	"\n" +
-	"Reportable\x12\x1e\n" +
-	"\n" +
-	"minVersion\x18\x01 \x01(\rR\n" +
-	"minVersion\x12\x1e\n" +
-	"\n" +
-	"maxVersion\x18\x02 \x01(\rR\n" +
-	"maxVersion\x128\n" +
-	"\x17notReportableMinVersion\x18\x03 \x01(\rR\x17notReportableMinVersion\x12\x14\n" +
-	"\x05never\x18\x04 \x01(\bR\x05never\"\xbe\x01\n" +
+	")waReporting/WAWebProtobufsReporting.proto\x12\x17WAWebProtobufsReporting\"\xbe\x01\n" +
 	"\x06Config\x12@\n" +
 	"\x05field\x18\x01 \x03(\v2*.WAWebProtobufsReporting.Config.FieldEntryR\x05field\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\rR\aversion\x1aX\n" +
@@ -251,7 +241,17 @@ const file_waReporting_WAWebProtobufsReporting_proto_rawDesc = "" +
 	"\bsubfield\x18\x05 \x03(\v2,.WAWebProtobufsReporting.Field.SubfieldEntryR\bsubfield\x1a[\n" +
 	"\rSubfieldEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\rR\x03key\x124\n" +
-	"\x05value\x18\x02 \x01(\v2\x1e.WAWebProtobufsReporting.FieldR\x05value:\x028\x01B'Z%go.mau.fi/whatsmeow/proto/waReportingb\x06proto3"
+	"\x05value\x18\x02 \x01(\v2\x1e.WAWebProtobufsReporting.FieldR\x05value:\x028\x01\"\x9c\x01\n" +
+	"\n" +
+	"Reportable\x12\x1e\n" +
+	"\n" +
+	"minVersion\x18\x01 \x01(\rR\n" +
+	"minVersion\x12\x1e\n" +
+	"\n" +
+	"maxVersion\x18\x02 \x01(\rR\n" +
+	"maxVersion\x128\n" +
+	"\x17notReportableMinVersion\x18\x03 \x01(\rR\x17notReportableMinVersion\x12\x14\n" +
+	"\x05never\x18\x04 \x01(\bR\x05neverB'Z%go.mau.fi/whatsmeow/proto/waReporting"
 
 var (
 	file_waReporting_WAWebProtobufsReporting_proto_rawDescOnce sync.Once
@@ -267,17 +267,17 @@ func file_waReporting_WAWebProtobufsReporting_proto_rawDescGZIP() []byte {
 
 var file_waReporting_WAWebProtobufsReporting_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_waReporting_WAWebProtobufsReporting_proto_goTypes = []any{
-	(*Reportable)(nil), // 0: WAWebProtobufsReporting.Reportable
-	(*Config)(nil),     // 1: WAWebProtobufsReporting.Config
-	(*Field)(nil),      // 2: WAWebProtobufsReporting.Field
+	(*Config)(nil),     // 0: WAWebProtobufsReporting.Config
+	(*Field)(nil),      // 1: WAWebProtobufsReporting.Field
+	(*Reportable)(nil), // 2: WAWebProtobufsReporting.Reportable
 	nil,                // 3: WAWebProtobufsReporting.Config.FieldEntry
 	nil,                // 4: WAWebProtobufsReporting.Field.SubfieldEntry
 }
 var file_waReporting_WAWebProtobufsReporting_proto_depIdxs = []int32{
 	3, // 0: WAWebProtobufsReporting.Config.field:type_name -> WAWebProtobufsReporting.Config.FieldEntry
 	4, // 1: WAWebProtobufsReporting.Field.subfield:type_name -> WAWebProtobufsReporting.Field.SubfieldEntry
-	2, // 2: WAWebProtobufsReporting.Config.FieldEntry.value:type_name -> WAWebProtobufsReporting.Field
-	2, // 3: WAWebProtobufsReporting.Field.SubfieldEntry.value:type_name -> WAWebProtobufsReporting.Field
+	1, // 2: WAWebProtobufsReporting.Config.FieldEntry.value:type_name -> WAWebProtobufsReporting.Field
+	1, // 3: WAWebProtobufsReporting.Field.SubfieldEntry.value:type_name -> WAWebProtobufsReporting.Field
 	4, // [4:4] is the sub-list for method output_type
 	4, // [4:4] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name

@@ -2,6 +2,8 @@ syntax = "proto2";
 package WAStatusAttributions;
 option go_package = "go.mau.fi/whatsmeow/proto/waStatusAttributions";
 
+import "waArmadilloBackupCommon/WAArmadilloBackupCommon.proto";
+
 message StatusAttribution {
 	enum Type {
 		UNKNOWN = 0;
@@ -15,6 +17,8 @@ message StatusAttribution {
 		LAYOUTS = 8;
 		NEWSLETTER_STATUS = 9;
 		STATUS_CLOSE_SHARING = 10;
+		PAID_PARTNERSHIP = 11;
+		USERNAME_STATUS = 12;
 	}
 
 	message AiCreatedAttribution {
@@ -51,6 +55,8 @@ message StatusAttribution {
 			SHARECHAT = 9;
 			GOOGLE_PHOTOS = 10;
 			SOUNDCLOUD = 11;
+			SHAZAM = 12;
+			PICSART = 13;
 		}
 
 		optional string actionURL = 1;
@@ -92,6 +98,8 @@ message StatusAttribution {
 		optional bool isExplicit = 6;
 	}
 
+	optional Type type = 1;
+	optional string actionURL = 2;
 	oneof attributionData {
 		StatusReshare statusReshare = 3;
 		ExternalShare externalShare = 4;
@@ -100,7 +108,4 @@ message StatusAttribution {
 		RLAttribution rlAttribution = 7;
 		AiCreatedAttribution aiCreatedAttribution = 8;
 	}
-
-	optional Type type = 1;
-	optional string actionURL = 2;
 }

@@ -2,6 +2,8 @@ syntax = "proto2";
 package WAAICommonDeprecated;
 option go_package = "go.mau.fi/whatsmeow/proto/waAICommonDeprecated";
 
+import "waAICommon/WAWebProtobufsAICommon.proto";
+
 enum AIRichResponseMessageType {
 	AI_RICH_RESPONSE_TYPE_UNKNOWN = 0;
 	AI_RICH_RESPONSE_TYPE_STANDARD = 1;
@@ -18,19 +20,6 @@ enum AIRichResponseSubMessageType {
 	AI_RICH_RESPONSE_MAP = 7;
 	AI_RICH_RESPONSE_LATEX = 8;
 	AI_RICH_RESPONSE_CONTENT_ITEMS = 9;
-}
-
-message AIRichResponseInlineImageMetadata {
-	enum AIRichResponseImageAlignment {
-		AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED = 0;
-		AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED = 1;
-		AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED = 2;
-	}
-
-	optional AIRichResponseImageURL imageURL = 1;
-	optional string imageText = 2;
-	optional AIRichResponseImageAlignment alignment = 3;
-	optional string tapLinkURL = 4;
 }
 
 message AIRichResponseCodeMetadata {
@@ -50,19 +39,6 @@ message AIRichResponseCodeMetadata {
 
 	optional string codeLanguage = 1;
 	repeated AIRichResponseCodeBlock codeBlocks = 2;
-}
-
-message AIRichResponseDynamicMetadata {
-	enum AIRichResponseDynamicMetadataType {
-		AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_UNKNOWN = 0;
-		AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_IMAGE = 1;
-		AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_GIF = 2;
-	}
-
-	optional AIRichResponseDynamicMetadataType type = 1;
-	optional uint64 version = 2;
-	optional string URL = 3;
-	optional uint32 loopCount = 4;
 }
 
 message AIRichResponseContentItemsMetadata {
@@ -88,10 +64,17 @@ message AIRichResponseContentItemsMetadata {
 	optional ContentType contentType = 2;
 }
 
-message AIRichResponseImageURL {
-	optional string imagePreviewURL = 1;
-	optional string imageHighResURL = 2;
-	optional string sourceURL = 3;
+message AIRichResponseDynamicMetadata {
+	enum AIRichResponseDynamicMetadataType {
+		AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_UNKNOWN = 0;
+		AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_IMAGE = 1;
+		AI_RICH_RESPONSE_DYNAMIC_METADATA_TYPE_GIF = 2;
+	}
+
+	optional AIRichResponseDynamicMetadataType type = 1;
+	optional uint64 version = 2;
+	optional string URL = 3;
+	optional uint32 loopCount = 4;
 }
 
 message AIRichResponseGridImageMetadata {
@@ -99,14 +82,23 @@ message AIRichResponseGridImageMetadata {
 	repeated AIRichResponseImageURL imageURLs = 2;
 }
 
-message AIRichResponseTableMetadata {
-	message AIRichResponseTableRow {
-		repeated string items = 1;
-		optional bool isHeading = 2;
+message AIRichResponseImageURL {
+	optional string imagePreviewURL = 1;
+	optional string imageHighResURL = 2;
+	optional string sourceURL = 3;
+}
+
+message AIRichResponseInlineImageMetadata {
+	enum AIRichResponseImageAlignment {
+		AI_RICH_RESPONSE_IMAGE_LAYOUT_LEADING_ALIGNED = 0;
+		AI_RICH_RESPONSE_IMAGE_LAYOUT_TRAILING_ALIGNED = 1;
+		AI_RICH_RESPONSE_IMAGE_LAYOUT_CENTER_ALIGNED = 2;
 	}
 
-	repeated AIRichResponseTableRow rows = 1;
-	optional string title = 2;
+	optional AIRichResponseImageURL imageURL = 1;
+	optional string imageText = 2;
+	optional AIRichResponseImageAlignment alignment = 3;
+	optional string tapLinkURL = 4;
 }
 
 message AIRichResponseLatexMetadata {
@@ -154,4 +146,14 @@ message AIRichResponseSubMessage {
 	optional AIRichResponseLatexMetadata latexMetadata = 8;
 	optional AIRichResponseMapMetadata mapMetadata = 9;
 	optional AIRichResponseContentItemsMetadata contentItemsMetadata = 10;
+}
+
+message AIRichResponseTableMetadata {
+	message AIRichResponseTableRow {
+		repeated string items = 1;
+		optional bool isHeading = 2;
+	}
+
+	repeated AIRichResponseTableRow rows = 1;
+	optional string title = 2;
 }

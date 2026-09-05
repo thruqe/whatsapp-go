@@ -2,8 +2,314 @@ syntax = "proto2";
 package WAWebProtobufsWeb;
 option go_package = "go.mau.fi/whatsmeow/proto/waWeb";
 
-import "waE2E/WAWebProtobufsE2E.proto";
 import "waCommon/WACommon.proto";
+import "waE2E/WAWebProtobufsE2E.proto";
+
+message Citation {
+	required string title = 1;
+	required string subtitle = 2;
+	required string cmsID = 3;
+	required string imageURL = 4;
+}
+
+message CommentMetadata {
+	optional WACommon.MessageKey commentParentKey = 1;
+	optional uint32 replyCount = 2;
+}
+
+message EventAdditionalMetadata {
+	optional bool isStale = 1;
+}
+
+message EventResponse {
+	optional WACommon.MessageKey eventResponseMessageKey = 1;
+	optional int64 timestampMS = 2;
+	optional WAWebProtobufsE2E.EventResponseMessage eventResponseMessage = 3;
+	optional bool unread = 4;
+}
+
+message GroupHistoryBundleInfo {
+	enum ProcessState {
+		NOT_INJECTED = 0;
+		INJECTED = 1;
+		INJECTED_PARTIAL = 2;
+		INJECTION_FAILED = 3;
+		INJECTION_FAILED_NO_RETRY = 4;
+		DEDUPED = 5;
+	}
+
+	optional WAWebProtobufsE2E.MessageHistoryBundle deprecatedMessageHistoryBundle = 1;
+	optional ProcessState processState = 2;
+}
+
+message GroupHistoryIndividualMessageInfo {
+	optional WACommon.MessageKey bundleMessageKey = 1;
+	optional bool editedAfterReceivedAsHistory = 2;
+}
+
+message InteractiveMessageAdditionalMetadata {
+	optional bool isGalaxyFlowCompleted = 1;
+}
+
+message KeepInChat {
+	optional WAWebProtobufsE2E.KeepType keepType = 1;
+	optional int64 serverTimestamp = 2;
+	optional WACommon.MessageKey key = 3;
+	optional string deviceJID = 4;
+	optional int64 clientTimestampMS = 5;
+	optional int64 serverTimestampMS = 6;
+}
+
+message LegacyMessage {
+	optional WAWebProtobufsE2E.EventResponseMessage eventResponseMessage = 1;
+	optional WAWebProtobufsE2E.PollVoteMessage pollVote = 2;
+}
+
+message MediaData {
+	optional string localPath = 1;
+}
+
+message MessageAddOn {
+	enum MessageAddOnType {
+		UNDEFINED = 0;
+		REACTION = 1;
+		EVENT_RESPONSE = 2;
+		POLL_UPDATE = 3;
+		PIN_IN_CHAT = 4;
+	}
+
+	optional MessageAddOnType messageAddOnType = 1;
+	optional WAWebProtobufsE2E.Message messageAddOn = 2;
+	optional int64 senderTimestampMS = 3;
+	optional int64 serverTimestampMS = 4;
+	optional WebMessageInfo.Status status = 5;
+	optional MessageAddOnContextInfo addOnContextInfo = 6;
+	optional WACommon.MessageKey messageAddOnKey = 7;
+	optional LegacyMessage legacyMessage = 8;
+}
+
+message MessageAddOnContextInfo {
+	optional uint32 messageAddOnDurationInSecs = 1;
+	optional WAWebProtobufsE2E.MessageContextInfo.MessageAddonExpiryType messageAddOnExpiryType = 2;
+}
+
+message NotificationMessageInfo {
+	optional WACommon.MessageKey key = 1;
+	optional WAWebProtobufsE2E.Message message = 2;
+	optional uint64 messageTimestamp = 3;
+	optional string participant = 4;
+}
+
+message PaymentInfo {
+	enum TxnStatus {
+		UNKNOWN = 0;
+		PENDING_SETUP = 1;
+		PENDING_RECEIVER_SETUP = 2;
+		INIT = 3;
+		SUCCESS = 4;
+		COMPLETED = 5;
+		FAILED = 6;
+		FAILED_RISK = 7;
+		FAILED_PROCESSING = 8;
+		FAILED_RECEIVER_PROCESSING = 9;
+		FAILED_DA = 10;
+		FAILED_DA_FINAL = 11;
+		REFUNDED_TXN = 12;
+		REFUND_FAILED = 13;
+		REFUND_FAILED_PROCESSING = 14;
+		REFUND_FAILED_DA = 15;
+		EXPIRED_TXN = 16;
+		AUTH_CANCELED = 17;
+		AUTH_CANCEL_FAILED_PROCESSING = 18;
+		AUTH_CANCEL_FAILED = 19;
+		COLLECT_INIT = 20;
+		COLLECT_SUCCESS = 21;
+		COLLECT_FAILED = 22;
+		COLLECT_FAILED_RISK = 23;
+		COLLECT_REJECTED = 24;
+		COLLECT_EXPIRED = 25;
+		COLLECT_CANCELED = 26;
+		COLLECT_CANCELLING = 27;
+		IN_REVIEW = 28;
+		REVERSAL_SUCCESS = 29;
+		REVERSAL_PENDING = 30;
+		REFUND_PENDING = 31;
+	}
+
+	enum Status {
+		UNKNOWN_STATUS = 0;
+		PROCESSING = 1;
+		SENT = 2;
+		NEED_TO_ACCEPT = 3;
+		COMPLETE = 4;
+		COULD_NOT_COMPLETE = 5;
+		REFUNDED = 6;
+		EXPIRED = 7;
+		REJECTED = 8;
+		CANCELLED = 9;
+		WAITING_FOR_PAYER = 10;
+		WAITING = 11;
+	}
+
+	enum Currency {
+		UNKNOWN_CURRENCY = 0;
+		INR = 1;
+	}
+
+	optional Currency currencyDeprecated = 1;
+	optional uint64 amount1000 = 2;
+	optional string receiverJID = 3;
+	optional Status status = 4;
+	optional uint64 transactionTimestamp = 5;
+	optional WACommon.MessageKey requestMessageKey = 6;
+	optional uint64 expiryTimestamp = 7;
+	optional bool futureproofed = 8;
+	optional string currency = 9;
+	optional TxnStatus txnStatus = 10;
+	optional bool useNoviFiatFormat = 11;
+	optional WAWebProtobufsE2E.Money primaryAmount = 12;
+	optional WAWebProtobufsE2E.Money exchangeAmount = 13;
+}
+
+message PhotoChange {
+	optional bytes oldPhoto = 1;
+	optional bytes newPhoto = 2;
+	optional uint32 newPhotoID = 3;
+}
+
+message PinInChat {
+	enum Type {
+		UNKNOWN_TYPE = 0;
+		PIN_FOR_ALL = 1;
+		UNPIN_FOR_ALL = 2;
+	}
+
+	optional Type type = 1;
+	optional WACommon.MessageKey key = 2;
+	optional int64 senderTimestampMS = 3;
+	optional int64 serverTimestampMS = 4;
+	optional MessageAddOnContextInfo messageAddOnContextInfo = 5;
+}
+
+message PollAdditionalMetadata {
+	message PollNameHashHistoryEntry {
+		optional string editStanzaID = 1;
+		optional bytes pollNameHash = 2;
+	}
+
+	optional bool pollInvalidated = 1;
+	repeated PollNameHashHistoryEntry pollNameHashHistory = 2;
+}
+
+message PollUpdate {
+	optional WACommon.MessageKey pollUpdateMessageKey = 1;
+	optional WAWebProtobufsE2E.PollVoteMessage vote = 2;
+	optional int64 senderTimestampMS = 3;
+	optional int64 serverTimestampMS = 4;
+	optional bool unread = 5;
+	optional WAWebProtobufsE2E.PollUpdateMessageMetadata metadata = 6;
+}
+
+message PremiumMessageInfo {
+	optional string serverCampaignID = 1;
+}
+
+message QuarantinedMessage {
+	optional bytes originalData = 1;
+	optional string extractedText = 2;
+}
+
+message Reaction {
+	optional WACommon.MessageKey key = 1;
+	optional string text = 2;
+	optional string groupingKey = 3;
+	optional int64 senderTimestampMS = 4;
+	optional bool unread = 5;
+}
+
+message ReportingTokenInfo {
+	optional bytes reportingTag = 1;
+	optional uint64 reportingTagTimestamp = 2;
+}
+
+message ScheduledMessageMetadata {
+	optional string revealKeyID = 1;
+	optional bytes revealKey = 2;
+	optional uint64 scheduledTime = 3;
+}
+
+message StatusMentionMessage {
+	optional WAWebProtobufsE2E.Message quotedStatus = 1;
+}
+
+message StatusPSA {
+	required uint64 campaignID = 44;
+	optional uint64 campaignExpirationTimestamp = 45;
+}
+
+message UserReceipt {
+	required string userJID = 1;
+	optional int64 receiptTimestamp = 2;
+	optional int64 readTimestamp = 3;
+	optional int64 playedTimestamp = 4;
+	repeated string pendingDeviceJID = 5;
+	repeated string deliveredDeviceJID = 6;
+}
+
+message WebFeatures {
+	enum Flag {
+		NOT_STARTED = 0;
+		FORCE_UPGRADE = 1;
+		DEVELOPMENT = 2;
+		PRODUCTION = 3;
+	}
+
+	optional Flag labelsDisplay = 1;
+	optional Flag voipIndividualOutgoing = 2;
+	optional Flag groupsV3 = 3;
+	optional Flag groupsV3Create = 4;
+	optional Flag changeNumberV2 = 5;
+	optional Flag queryStatusV3Thumbnail = 6;
+	optional Flag liveLocations = 7;
+	optional Flag queryVname = 8;
+	optional Flag voipIndividualIncoming = 9;
+	optional Flag quickRepliesQuery = 10;
+	optional Flag payments = 11;
+	optional Flag stickerPackQuery = 12;
+	optional Flag liveLocationsFinal = 13;
+	optional Flag labelsEdit = 14;
+	optional Flag mediaUpload = 15;
+	optional Flag mediaUploadRichQuickReplies = 18;
+	optional Flag vnameV2 = 19;
+	optional Flag videoPlaybackURL = 20;
+	optional Flag statusRanking = 21;
+	optional Flag voipIndividualVideo = 22;
+	optional Flag thirdPartyStickers = 23;
+	optional Flag frequentlyForwardedSetting = 24;
+	optional Flag groupsV4JoinPermission = 25;
+	optional Flag recentStickers = 26;
+	optional Flag catalog = 27;
+	optional Flag starredStickers = 28;
+	optional Flag voipGroupCall = 29;
+	optional Flag templateMessage = 30;
+	optional Flag templateMessageInteractivity = 31;
+	optional Flag ephemeralMessages = 32;
+	optional Flag e2ENotificationSync = 33;
+	optional Flag recentStickersV2 = 34;
+	optional Flag recentStickersV3 = 36;
+	optional Flag userNotice = 37;
+	optional Flag support = 39;
+	optional Flag groupUiiCleanup = 40;
+	optional Flag groupDogfoodingInternalOnly = 41;
+	optional Flag settingsSync = 42;
+	optional Flag archiveV2 = 43;
+	optional Flag ephemeralAllowGroupMembers = 44;
+	optional Flag ephemeral24HDuration = 45;
+	optional Flag mdForceUpgrade = 46;
+	optional Flag disappearingMode = 47;
+	optional Flag externalMdOptInAvailable = 48;
+	optional Flag noDeleteMessageTimeLimit = 49;
+}
 
 message WebMessageInfo {
 	enum BizPrivacyStatus {
@@ -329,315 +635,9 @@ message WebMessageInfo {
 	repeated string decisionSources = 83;
 }
 
-message PaymentInfo {
-	enum TxnStatus {
-		UNKNOWN = 0;
-		PENDING_SETUP = 1;
-		PENDING_RECEIVER_SETUP = 2;
-		INIT = 3;
-		SUCCESS = 4;
-		COMPLETED = 5;
-		FAILED = 6;
-		FAILED_RISK = 7;
-		FAILED_PROCESSING = 8;
-		FAILED_RECEIVER_PROCESSING = 9;
-		FAILED_DA = 10;
-		FAILED_DA_FINAL = 11;
-		REFUNDED_TXN = 12;
-		REFUND_FAILED = 13;
-		REFUND_FAILED_PROCESSING = 14;
-		REFUND_FAILED_DA = 15;
-		EXPIRED_TXN = 16;
-		AUTH_CANCELED = 17;
-		AUTH_CANCEL_FAILED_PROCESSING = 18;
-		AUTH_CANCEL_FAILED = 19;
-		COLLECT_INIT = 20;
-		COLLECT_SUCCESS = 21;
-		COLLECT_FAILED = 22;
-		COLLECT_FAILED_RISK = 23;
-		COLLECT_REJECTED = 24;
-		COLLECT_EXPIRED = 25;
-		COLLECT_CANCELED = 26;
-		COLLECT_CANCELLING = 27;
-		IN_REVIEW = 28;
-		REVERSAL_SUCCESS = 29;
-		REVERSAL_PENDING = 30;
-		REFUND_PENDING = 31;
-	}
-
-	enum Status {
-		UNKNOWN_STATUS = 0;
-		PROCESSING = 1;
-		SENT = 2;
-		NEED_TO_ACCEPT = 3;
-		COMPLETE = 4;
-		COULD_NOT_COMPLETE = 5;
-		REFUNDED = 6;
-		EXPIRED = 7;
-		REJECTED = 8;
-		CANCELLED = 9;
-		WAITING_FOR_PAYER = 10;
-		WAITING = 11;
-	}
-
-	enum Currency {
-		UNKNOWN_CURRENCY = 0;
-		INR = 1;
-	}
-
-	optional Currency currencyDeprecated = 1;
-	optional uint64 amount1000 = 2;
-	optional string receiverJID = 3;
-	optional Status status = 4;
-	optional uint64 transactionTimestamp = 5;
-	optional WACommon.MessageKey requestMessageKey = 6;
-	optional uint64 expiryTimestamp = 7;
-	optional bool futureproofed = 8;
-	optional string currency = 9;
-	optional TxnStatus txnStatus = 10;
-	optional bool useNoviFiatFormat = 11;
-	optional WAWebProtobufsE2E.Money primaryAmount = 12;
-	optional WAWebProtobufsE2E.Money exchangeAmount = 13;
-}
-
-message WebFeatures {
-	enum Flag {
-		NOT_STARTED = 0;
-		FORCE_UPGRADE = 1;
-		DEVELOPMENT = 2;
-		PRODUCTION = 3;
-	}
-
-	optional Flag labelsDisplay = 1;
-	optional Flag voipIndividualOutgoing = 2;
-	optional Flag groupsV3 = 3;
-	optional Flag groupsV3Create = 4;
-	optional Flag changeNumberV2 = 5;
-	optional Flag queryStatusV3Thumbnail = 6;
-	optional Flag liveLocations = 7;
-	optional Flag queryVname = 8;
-	optional Flag voipIndividualIncoming = 9;
-	optional Flag quickRepliesQuery = 10;
-	optional Flag payments = 11;
-	optional Flag stickerPackQuery = 12;
-	optional Flag liveLocationsFinal = 13;
-	optional Flag labelsEdit = 14;
-	optional Flag mediaUpload = 15;
-	optional Flag mediaUploadRichQuickReplies = 18;
-	optional Flag vnameV2 = 19;
-	optional Flag videoPlaybackURL = 20;
-	optional Flag statusRanking = 21;
-	optional Flag voipIndividualVideo = 22;
-	optional Flag thirdPartyStickers = 23;
-	optional Flag frequentlyForwardedSetting = 24;
-	optional Flag groupsV4JoinPermission = 25;
-	optional Flag recentStickers = 26;
-	optional Flag catalog = 27;
-	optional Flag starredStickers = 28;
-	optional Flag voipGroupCall = 29;
-	optional Flag templateMessage = 30;
-	optional Flag templateMessageInteractivity = 31;
-	optional Flag ephemeralMessages = 32;
-	optional Flag e2ENotificationSync = 33;
-	optional Flag recentStickersV2 = 34;
-	optional Flag recentStickersV3 = 36;
-	optional Flag userNotice = 37;
-	optional Flag support = 39;
-	optional Flag groupUiiCleanup = 40;
-	optional Flag groupDogfoodingInternalOnly = 41;
-	optional Flag settingsSync = 42;
-	optional Flag archiveV2 = 43;
-	optional Flag ephemeralAllowGroupMembers = 44;
-	optional Flag ephemeral24HDuration = 45;
-	optional Flag mdForceUpgrade = 46;
-	optional Flag disappearingMode = 47;
-	optional Flag externalMdOptInAvailable = 48;
-	optional Flag noDeleteMessageTimeLimit = 49;
-}
-
-message PinInChat {
-	enum Type {
-		UNKNOWN_TYPE = 0;
-		PIN_FOR_ALL = 1;
-		UNPIN_FOR_ALL = 2;
-	}
-
-	optional Type type = 1;
-	optional WACommon.MessageKey key = 2;
-	optional int64 senderTimestampMS = 3;
-	optional int64 serverTimestampMS = 4;
-	optional MessageAddOnContextInfo messageAddOnContextInfo = 5;
-}
-
-message MessageAddOn {
-	enum MessageAddOnType {
-		UNDEFINED = 0;
-		REACTION = 1;
-		EVENT_RESPONSE = 2;
-		POLL_UPDATE = 3;
-		PIN_IN_CHAT = 4;
-	}
-
-	optional MessageAddOnType messageAddOnType = 1;
-	optional WAWebProtobufsE2E.Message messageAddOn = 2;
-	optional int64 senderTimestampMS = 3;
-	optional int64 serverTimestampMS = 4;
-	optional WebMessageInfo.Status status = 5;
-	optional MessageAddOnContextInfo addOnContextInfo = 6;
-	optional WACommon.MessageKey messageAddOnKey = 7;
-	optional LegacyMessage legacyMessage = 8;
-}
-
-message GroupHistoryBundleInfo {
-	enum ProcessState {
-		NOT_INJECTED = 0;
-		INJECTED = 1;
-		INJECTED_PARTIAL = 2;
-		INJECTION_FAILED = 3;
-		INJECTION_FAILED_NO_RETRY = 4;
-		DEDUPED = 5;
-	}
-
-	optional WAWebProtobufsE2E.MessageHistoryBundle deprecatedMessageHistoryBundle = 1;
-	optional ProcessState processState = 2;
-}
-
-message CommentMetadata {
-	optional WACommon.MessageKey commentParentKey = 1;
-	optional uint32 replyCount = 2;
-}
-
 message WebNotificationsInfo {
 	optional uint64 timestamp = 2;
 	optional uint32 unreadChats = 3;
 	optional uint32 notifyMessageCount = 4;
 	repeated WebMessageInfo notifyMessages = 5;
-}
-
-message NotificationMessageInfo {
-	optional WACommon.MessageKey key = 1;
-	optional WAWebProtobufsE2E.Message message = 2;
-	optional uint64 messageTimestamp = 3;
-	optional string participant = 4;
-}
-
-message ReportingTokenInfo {
-	optional bytes reportingTag = 1;
-	optional uint64 reportingTagTimestamp = 2;
-}
-
-message MediaData {
-	optional string localPath = 1;
-}
-
-message PhotoChange {
-	optional bytes oldPhoto = 1;
-	optional bytes newPhoto = 2;
-	optional uint32 newPhotoID = 3;
-}
-
-message StatusPSA {
-	required uint64 campaignID = 44;
-	optional uint64 campaignExpirationTimestamp = 45;
-}
-
-message UserReceipt {
-	required string userJID = 1;
-	optional int64 receiptTimestamp = 2;
-	optional int64 readTimestamp = 3;
-	optional int64 playedTimestamp = 4;
-	repeated string pendingDeviceJID = 5;
-	repeated string deliveredDeviceJID = 6;
-}
-
-message Reaction {
-	optional WACommon.MessageKey key = 1;
-	optional string text = 2;
-	optional string groupingKey = 3;
-	optional int64 senderTimestampMS = 4;
-	optional bool unread = 5;
-}
-
-message PollUpdate {
-	optional WACommon.MessageKey pollUpdateMessageKey = 1;
-	optional WAWebProtobufsE2E.PollVoteMessage vote = 2;
-	optional int64 senderTimestampMS = 3;
-	optional int64 serverTimestampMS = 4;
-	optional bool unread = 5;
-	optional WAWebProtobufsE2E.PollUpdateMessageMetadata metadata = 6;
-}
-
-message PollAdditionalMetadata {
-	message PollNameHashHistoryEntry {
-		optional string editStanzaID = 1;
-		optional bytes pollNameHash = 2;
-	}
-
-	optional bool pollInvalidated = 1;
-	repeated PollNameHashHistoryEntry pollNameHashHistory = 2;
-}
-
-message InteractiveMessageAdditionalMetadata {
-	optional bool isGalaxyFlowCompleted = 1;
-}
-
-message EventAdditionalMetadata {
-	optional bool isStale = 1;
-}
-
-message KeepInChat {
-	optional WAWebProtobufsE2E.KeepType keepType = 1;
-	optional int64 serverTimestamp = 2;
-	optional WACommon.MessageKey key = 3;
-	optional string deviceJID = 4;
-	optional int64 clientTimestampMS = 5;
-	optional int64 serverTimestampMS = 6;
-}
-
-message MessageAddOnContextInfo {
-	optional uint32 messageAddOnDurationInSecs = 1;
-	optional WAWebProtobufsE2E.MessageContextInfo.MessageAddonExpiryType messageAddOnExpiryType = 2;
-}
-
-message PremiumMessageInfo {
-	optional string serverCampaignID = 1;
-}
-
-message EventResponse {
-	optional WACommon.MessageKey eventResponseMessageKey = 1;
-	optional int64 timestampMS = 2;
-	optional WAWebProtobufsE2E.EventResponseMessage eventResponseMessage = 3;
-	optional bool unread = 4;
-}
-
-message LegacyMessage {
-	optional WAWebProtobufsE2E.EventResponseMessage eventResponseMessage = 1;
-	optional WAWebProtobufsE2E.PollVoteMessage pollVote = 2;
-}
-
-message StatusMentionMessage {
-	optional WAWebProtobufsE2E.Message quotedStatus = 1;
-}
-
-message Citation {
-	required string title = 1;
-	required string subtitle = 2;
-	required string cmsID = 3;
-	required string imageURL = 4;
-}
-
-message GroupHistoryIndividualMessageInfo {
-	optional WACommon.MessageKey bundleMessageKey = 1;
-	optional bool editedAfterReceivedAsHistory = 2;
-}
-
-message QuarantinedMessage {
-	optional bytes originalData = 1;
-	optional string extractedText = 2;
-}
-
-message ScheduledMessageMetadata {
-	optional string revealKeyID = 1;
-	optional bytes revealKey = 2;
-	optional uint64 scheduledTime = 3;
 }

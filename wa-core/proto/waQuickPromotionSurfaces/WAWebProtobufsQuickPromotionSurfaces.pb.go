@@ -24,9 +24,10 @@ const (
 type QP_FilterResult int32
 
 const (
-	QP_TRUE    QP_FilterResult = 1
-	QP_FALSE   QP_FilterResult = 2
-	QP_UNKNOWN QP_FilterResult = 3
+	QP_TRUE                     QP_FilterResult = 1
+	QP_FALSE                    QP_FilterResult = 2
+	QP_UNKNOWN                  QP_FilterResult = 3
+	QP_FILTERRESULT_UNSPECIFIED QP_FilterResult = 0
 )
 
 // Enum value maps for QP_FilterResult.
@@ -35,11 +36,13 @@ var (
 		1: "TRUE",
 		2: "FALSE",
 		3: "UNKNOWN",
+		0: "FILTERRESULT_UNSPECIFIED",
 	}
 	QP_FilterResult_value = map[string]int32{
-		"TRUE":    1,
-		"FALSE":   2,
-		"UNKNOWN": 3,
+		"TRUE":                     1,
+		"FALSE":                    2,
+		"UNKNOWN":                  3,
+		"FILTERRESULT_UNSPECIFIED": 0,
 	}
 )
 
@@ -83,8 +86,9 @@ func (QP_FilterResult) EnumDescriptor() ([]byte, []int) {
 type QP_FilterClientNotSupportedConfig int32
 
 const (
-	QP_PASS_BY_DEFAULT QP_FilterClientNotSupportedConfig = 1
-	QP_FAIL_BY_DEFAULT QP_FilterClientNotSupportedConfig = 2
+	QP_PASS_BY_DEFAULT                        QP_FilterClientNotSupportedConfig = 1
+	QP_FAIL_BY_DEFAULT                        QP_FilterClientNotSupportedConfig = 2
+	QP_FILTERCLIENTNOTSUPPORTEDCONFIG_UNKNOWN QP_FilterClientNotSupportedConfig = 0
 )
 
 // Enum value maps for QP_FilterClientNotSupportedConfig.
@@ -92,10 +96,12 @@ var (
 	QP_FilterClientNotSupportedConfig_name = map[int32]string{
 		1: "PASS_BY_DEFAULT",
 		2: "FAIL_BY_DEFAULT",
+		0: "FILTERCLIENTNOTSUPPORTEDCONFIG_UNKNOWN",
 	}
 	QP_FilterClientNotSupportedConfig_value = map[string]int32{
-		"PASS_BY_DEFAULT": 1,
-		"FAIL_BY_DEFAULT": 2,
+		"PASS_BY_DEFAULT":                        1,
+		"FAIL_BY_DEFAULT":                        2,
+		"FILTERCLIENTNOTSUPPORTEDCONFIG_UNKNOWN": 0,
 	}
 )
 
@@ -139,9 +145,10 @@ func (QP_FilterClientNotSupportedConfig) EnumDescriptor() ([]byte, []int) {
 type QP_ClauseType int32
 
 const (
-	QP_AND QP_ClauseType = 1
-	QP_OR  QP_ClauseType = 2
-	QP_NOR QP_ClauseType = 3
+	QP_AND                QP_ClauseType = 1
+	QP_OR                 QP_ClauseType = 2
+	QP_NOR                QP_ClauseType = 3
+	QP_CLAUSETYPE_UNKNOWN QP_ClauseType = 0
 )
 
 // Enum value maps for QP_ClauseType.
@@ -150,11 +157,13 @@ var (
 		1: "AND",
 		2: "OR",
 		3: "NOR",
+		0: "CLAUSETYPE_UNKNOWN",
 	}
 	QP_ClauseType_value = map[string]int32{
-		"AND": 1,
-		"OR":  2,
-		"NOR": 3,
+		"AND":                1,
+		"OR":                 2,
+		"NOR":                3,
+		"CLAUSETYPE_UNKNOWN": 0,
 	}
 )
 
@@ -415,7 +424,7 @@ var File_waQuickPromotionSurfaces_WAWebProtobufsQuickPromotionSurfaces_proto pro
 
 const file_waQuickPromotionSurfaces_WAWebProtobufsQuickPromotionSurfaces_proto_rawDesc = "" +
 	"\n" +
-	"CwaQuickPromotionSurfaces/WAWebProtobufsQuickPromotionSurfaces.proto\x12$WAWebProtobufsQuickPromotionSurfaces\"\xcf\x06\n" +
+	"CwaQuickPromotionSurfaces/WAWebProtobufsQuickPromotionSurfaces.proto\x12$WAWebProtobufsQuickPromotionSurfaces\"\xb1\a\n" +
 	"\x02QP\x1a\xff\x01\n" +
 	"\fFilterClause\x12S\n" +
 	"\n" +
@@ -434,19 +443,22 @@ const file_waQuickPromotionSurfaces_WAWebProtobufsQuickPromotionSurfaces_proto_r
 	"\x18clientNotSupportedConfig\x18\x04 \x02(\x0e2G.WAWebProtobufsQuickPromotionSurfaces.QP.FilterClientNotSupportedConfigR\x18clientNotSupportedConfig\x1a:\n" +
 	"\x10FilterParameters\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value\"0\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"N\n" +
 	"\fFilterResult\x12\b\n" +
 	"\x04TRUE\x10\x01\x12\t\n" +
 	"\x05FALSE\x10\x02\x12\v\n" +
-	"\aUNKNOWN\x10\x03\"J\n" +
+	"\aUNKNOWN\x10\x03\x12\x1c\n" +
+	"\x18FILTERRESULT_UNSPECIFIED\x10\x00\"v\n" +
 	"\x1eFilterClientNotSupportedConfig\x12\x13\n" +
 	"\x0fPASS_BY_DEFAULT\x10\x01\x12\x13\n" +
-	"\x0fFAIL_BY_DEFAULT\x10\x02\"&\n" +
+	"\x0fFAIL_BY_DEFAULT\x10\x02\x12*\n" +
+	"&FILTERCLIENTNOTSUPPORTEDCONFIG_UNKNOWN\x10\x00\">\n" +
 	"\n" +
 	"ClauseType\x12\a\n" +
 	"\x03AND\x10\x01\x12\x06\n" +
 	"\x02OR\x10\x02\x12\a\n" +
-	"\x03NOR\x10\x03B4Z2go.mau.fi/whatsmeow/proto/waQuickPromotionSurfaces"
+	"\x03NOR\x10\x03\x12\x16\n" +
+	"\x12CLAUSETYPE_UNKNOWN\x10\x00B4Z2go.mau.fi/whatsmeow/proto/waQuickPromotionSurfaces"
 
 var (
 	file_waQuickPromotionSurfaces_WAWebProtobufsQuickPromotionSurfaces_proto_rawDescOnce sync.Once

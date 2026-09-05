@@ -74,31 +74,30 @@ func (x *SyncdMutation_SyncdOperation) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use SyncdMutation_SyncdOperation.Descriptor instead.
 func (SyncdMutation_SyncdOperation) EnumDescriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{0, 0}
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{5, 0}
 }
 
-type SyncdMutation struct {
-	state         protoimpl.MessageState        `protogen:"open.v1"`
-	Operation     *SyncdMutation_SyncdOperation `protobuf:"varint,1,opt,name=operation,enum=WAWebProtobufsServerSync.SyncdMutation_SyncdOperation" json:"operation,omitempty"`
-	Record        *SyncdRecord                  `protobuf:"bytes,2,opt,name=record" json:"record,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+type CoexStateSync struct {
+	state               protoimpl.MessageState               `protogen:"open.v1"`
+	CollectionMutations []*CoexStateSync_CollectionMutations `protobuf:"bytes,1,rep,name=collectionMutations" json:"collectionMutations,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
-func (x *SyncdMutation) Reset() {
-	*x = SyncdMutation{}
+func (x *CoexStateSync) Reset() {
+	*x = CoexStateSync{}
 	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SyncdMutation) String() string {
+func (x *CoexStateSync) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SyncdMutation) ProtoMessage() {}
+func (*CoexStateSync) ProtoMessage() {}
 
-func (x *SyncdMutation) ProtoReflect() protoreflect.Message {
+func (x *CoexStateSync) ProtoReflect() protoreflect.Message {
 	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -110,67 +109,16 @@ func (x *SyncdMutation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SyncdMutation.ProtoReflect.Descriptor instead.
-func (*SyncdMutation) Descriptor() ([]byte, []int) {
+// Deprecated: Use CoexStateSync.ProtoReflect.Descriptor instead.
+func (*CoexStateSync) Descriptor() ([]byte, []int) {
 	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *SyncdMutation) GetOperation() SyncdMutation_SyncdOperation {
-	if x != nil && x.Operation != nil {
-		return *x.Operation
-	}
-	return SyncdMutation_SET
-}
-
-func (x *SyncdMutation) GetRecord() *SyncdRecord {
+func (x *CoexStateSync) GetCollectionMutations() []*CoexStateSync_CollectionMutations {
 	if x != nil {
-		return x.Record
+		return x.CollectionMutations
 	}
 	return nil
-}
-
-type SyncdVersion struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Version       *uint64                `protobuf:"varint,1,opt,name=version" json:"version,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SyncdVersion) Reset() {
-	*x = SyncdVersion{}
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SyncdVersion) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SyncdVersion) ProtoMessage() {}
-
-func (x *SyncdVersion) ProtoReflect() protoreflect.Message {
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SyncdVersion.ProtoReflect.Descriptor instead.
-func (*SyncdVersion) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *SyncdVersion) GetVersion() uint64 {
-	if x != nil && x.Version != nil {
-		return *x.Version
-	}
-	return 0
 }
 
 type ExitCode struct {
@@ -183,7 +131,7 @@ type ExitCode struct {
 
 func (x *ExitCode) Reset() {
 	*x = ExitCode{}
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[2]
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -195,7 +143,7 @@ func (x *ExitCode) String() string {
 func (*ExitCode) ProtoMessage() {}
 
 func (x *ExitCode) ProtoReflect() protoreflect.Message {
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[2]
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -208,7 +156,7 @@ func (x *ExitCode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExitCode.ProtoReflect.Descriptor instead.
 func (*ExitCode) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{2}
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ExitCode) GetCode() uint64 {
@@ -225,198 +173,6 @@ func (x *ExitCode) GetText() string {
 	return ""
 }
 
-type SyncdIndex struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Blob          []byte                 `protobuf:"bytes,1,opt,name=blob" json:"blob,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SyncdIndex) Reset() {
-	*x = SyncdIndex{}
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SyncdIndex) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SyncdIndex) ProtoMessage() {}
-
-func (x *SyncdIndex) ProtoReflect() protoreflect.Message {
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SyncdIndex.ProtoReflect.Descriptor instead.
-func (*SyncdIndex) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *SyncdIndex) GetBlob() []byte {
-	if x != nil {
-		return x.Blob
-	}
-	return nil
-}
-
-type SyncdValue struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Blob          []byte                 `protobuf:"bytes,1,opt,name=blob" json:"blob,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SyncdValue) Reset() {
-	*x = SyncdValue{}
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SyncdValue) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SyncdValue) ProtoMessage() {}
-
-func (x *SyncdValue) ProtoReflect() protoreflect.Message {
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SyncdValue.ProtoReflect.Descriptor instead.
-func (*SyncdValue) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *SyncdValue) GetBlob() []byte {
-	if x != nil {
-		return x.Blob
-	}
-	return nil
-}
-
-type KeyId struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ID            []byte                 `protobuf:"bytes,1,opt,name=ID" json:"ID,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *KeyId) Reset() {
-	*x = KeyId{}
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *KeyId) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*KeyId) ProtoMessage() {}
-
-func (x *KeyId) ProtoReflect() protoreflect.Message {
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use KeyId.ProtoReflect.Descriptor instead.
-func (*KeyId) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *KeyId) GetID() []byte {
-	if x != nil {
-		return x.ID
-	}
-	return nil
-}
-
-type SyncdRecord struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Index         *SyncdIndex            `protobuf:"bytes,1,opt,name=index" json:"index,omitempty"`
-	Value         *SyncdValue            `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
-	KeyID         *KeyId                 `protobuf:"bytes,3,opt,name=keyID" json:"keyID,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SyncdRecord) Reset() {
-	*x = SyncdRecord{}
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SyncdRecord) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SyncdRecord) ProtoMessage() {}
-
-func (x *SyncdRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SyncdRecord.ProtoReflect.Descriptor instead.
-func (*SyncdRecord) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *SyncdRecord) GetIndex() *SyncdIndex {
-	if x != nil {
-		return x.Index
-	}
-	return nil
-}
-
-func (x *SyncdRecord) GetValue() *SyncdValue {
-	if x != nil {
-		return x.Value
-	}
-	return nil
-}
-
-func (x *SyncdRecord) GetKeyID() *KeyId {
-	if x != nil {
-		return x.KeyID
-	}
-	return nil
-}
-
 type ExternalBlobReference struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MediaKey      []byte                 `protobuf:"bytes,1,opt,name=mediaKey" json:"mediaKey,omitempty"`
@@ -431,7 +187,7 @@ type ExternalBlobReference struct {
 
 func (x *ExternalBlobReference) Reset() {
 	*x = ExternalBlobReference{}
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[7]
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -443,7 +199,7 @@ func (x *ExternalBlobReference) String() string {
 func (*ExternalBlobReference) ProtoMessage() {}
 
 func (x *ExternalBlobReference) ProtoReflect() protoreflect.Message {
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[7]
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -456,7 +212,7 @@ func (x *ExternalBlobReference) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExternalBlobReference.ProtoReflect.Descriptor instead.
 func (*ExternalBlobReference) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{7}
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ExternalBlobReference) GetMediaKey() []byte {
@@ -501,31 +257,28 @@ func (x *ExternalBlobReference) GetFileEncSHA256() []byte {
 	return nil
 }
 
-type SyncdSnapshot struct {
+type KeyId struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Version       *SyncdVersion          `protobuf:"bytes,1,opt,name=version" json:"version,omitempty"`
-	Records       []*SyncdRecord         `protobuf:"bytes,2,rep,name=records" json:"records,omitempty"`
-	Mac           []byte                 `protobuf:"bytes,3,opt,name=mac" json:"mac,omitempty"`
-	KeyID         *KeyId                 `protobuf:"bytes,4,opt,name=keyID" json:"keyID,omitempty"`
+	ID            []byte                 `protobuf:"bytes,1,opt,name=ID" json:"ID,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SyncdSnapshot) Reset() {
-	*x = SyncdSnapshot{}
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[8]
+func (x *KeyId) Reset() {
+	*x = KeyId{}
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SyncdSnapshot) String() string {
+func (x *KeyId) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SyncdSnapshot) ProtoMessage() {}
+func (*KeyId) ProtoMessage() {}
 
-func (x *SyncdSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[8]
+func (x *KeyId) ProtoReflect() protoreflect.Message {
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -536,35 +289,110 @@ func (x *SyncdSnapshot) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SyncdSnapshot.ProtoReflect.Descriptor instead.
-func (*SyncdSnapshot) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{8}
+// Deprecated: Use KeyId.ProtoReflect.Descriptor instead.
+func (*KeyId) Descriptor() ([]byte, []int) {
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *SyncdSnapshot) GetVersion() *SyncdVersion {
+func (x *KeyId) GetID() []byte {
 	if x != nil {
-		return x.Version
+		return x.ID
 	}
 	return nil
 }
 
-func (x *SyncdSnapshot) GetRecords() []*SyncdRecord {
+type SyncdIndex struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Blob          []byte                 `protobuf:"bytes,1,opt,name=blob" json:"blob,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncdIndex) Reset() {
+	*x = SyncdIndex{}
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncdIndex) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncdIndex) ProtoMessage() {}
+
+func (x *SyncdIndex) ProtoReflect() protoreflect.Message {
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[4]
 	if x != nil {
-		return x.Records
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncdIndex.ProtoReflect.Descriptor instead.
+func (*SyncdIndex) Descriptor() ([]byte, []int) {
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *SyncdIndex) GetBlob() []byte {
+	if x != nil {
+		return x.Blob
 	}
 	return nil
 }
 
-func (x *SyncdSnapshot) GetMac() []byte {
-	if x != nil {
-		return x.Mac
-	}
-	return nil
+type SyncdMutation struct {
+	state         protoimpl.MessageState        `protogen:"open.v1"`
+	Operation     *SyncdMutation_SyncdOperation `protobuf:"varint,1,opt,name=operation,enum=WAWebProtobufsServerSync.SyncdMutation_SyncdOperation" json:"operation,omitempty"`
+	Record        *SyncdRecord                  `protobuf:"bytes,2,opt,name=record" json:"record,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SyncdSnapshot) GetKeyID() *KeyId {
+func (x *SyncdMutation) Reset() {
+	*x = SyncdMutation{}
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncdMutation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncdMutation) ProtoMessage() {}
+
+func (x *SyncdMutation) ProtoReflect() protoreflect.Message {
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[5]
 	if x != nil {
-		return x.KeyID
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncdMutation.ProtoReflect.Descriptor instead.
+func (*SyncdMutation) Descriptor() ([]byte, []int) {
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SyncdMutation) GetOperation() SyncdMutation_SyncdOperation {
+	if x != nil && x.Operation != nil {
+		return *x.Operation
+	}
+	return SyncdMutation_SET
+}
+
+func (x *SyncdMutation) GetRecord() *SyncdRecord {
+	if x != nil {
+		return x.Record
 	}
 	return nil
 }
@@ -578,7 +406,7 @@ type SyncdMutations struct {
 
 func (x *SyncdMutations) Reset() {
 	*x = SyncdMutations{}
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[9]
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -590,7 +418,7 @@ func (x *SyncdMutations) String() string {
 func (*SyncdMutations) ProtoMessage() {}
 
 func (x *SyncdMutations) ProtoReflect() protoreflect.Message {
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[9]
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -603,7 +431,7 @@ func (x *SyncdMutations) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncdMutations.ProtoReflect.Descriptor instead.
 func (*SyncdMutations) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{9}
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SyncdMutations) GetMutations() []*SyncdMutation {
@@ -630,7 +458,7 @@ type SyncdPatch struct {
 
 func (x *SyncdPatch) Reset() {
 	*x = SyncdPatch{}
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[10]
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -642,7 +470,7 @@ func (x *SyncdPatch) String() string {
 func (*SyncdPatch) ProtoMessage() {}
 
 func (x *SyncdPatch) ProtoReflect() protoreflect.Message {
-	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[10]
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -655,7 +483,7 @@ func (x *SyncdPatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncdPatch.ProtoReflect.Descriptor instead.
 func (*SyncdPatch) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{10}
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SyncdPatch) GetVersion() *SyncdVersion {
@@ -721,27 +549,199 @@ func (x *SyncdPatch) GetClientDebugData() []byte {
 	return nil
 }
 
-type CoexStateSync struct {
-	state               protoimpl.MessageState               `protogen:"open.v1"`
-	CollectionMutations []*CoexStateSync_CollectionMutations `protobuf:"bytes,1,rep,name=collectionMutations" json:"collectionMutations,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+type SyncdRecord struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Index         *SyncdIndex            `protobuf:"bytes,1,opt,name=index" json:"index,omitempty"`
+	Value         *SyncdValue            `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
+	KeyID         *KeyId                 `protobuf:"bytes,3,opt,name=keyID" json:"keyID,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CoexStateSync) Reset() {
-	*x = CoexStateSync{}
+func (x *SyncdRecord) Reset() {
+	*x = SyncdRecord{}
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncdRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncdRecord) ProtoMessage() {}
+
+func (x *SyncdRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncdRecord.ProtoReflect.Descriptor instead.
+func (*SyncdRecord) Descriptor() ([]byte, []int) {
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SyncdRecord) GetIndex() *SyncdIndex {
+	if x != nil {
+		return x.Index
+	}
+	return nil
+}
+
+func (x *SyncdRecord) GetValue() *SyncdValue {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *SyncdRecord) GetKeyID() *KeyId {
+	if x != nil {
+		return x.KeyID
+	}
+	return nil
+}
+
+type SyncdSnapshot struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       *SyncdVersion          `protobuf:"bytes,1,opt,name=version" json:"version,omitempty"`
+	Records       []*SyncdRecord         `protobuf:"bytes,2,rep,name=records" json:"records,omitempty"`
+	Mac           []byte                 `protobuf:"bytes,3,opt,name=mac" json:"mac,omitempty"`
+	KeyID         *KeyId                 `protobuf:"bytes,4,opt,name=keyID" json:"keyID,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncdSnapshot) Reset() {
+	*x = SyncdSnapshot{}
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncdSnapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncdSnapshot) ProtoMessage() {}
+
+func (x *SyncdSnapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncdSnapshot.ProtoReflect.Descriptor instead.
+func (*SyncdSnapshot) Descriptor() ([]byte, []int) {
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SyncdSnapshot) GetVersion() *SyncdVersion {
+	if x != nil {
+		return x.Version
+	}
+	return nil
+}
+
+func (x *SyncdSnapshot) GetRecords() []*SyncdRecord {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+func (x *SyncdSnapshot) GetMac() []byte {
+	if x != nil {
+		return x.Mac
+	}
+	return nil
+}
+
+func (x *SyncdSnapshot) GetKeyID() *KeyId {
+	if x != nil {
+		return x.KeyID
+	}
+	return nil
+}
+
+type SyncdValue struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Blob          []byte                 `protobuf:"bytes,1,opt,name=blob" json:"blob,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncdValue) Reset() {
+	*x = SyncdValue{}
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncdValue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncdValue) ProtoMessage() {}
+
+func (x *SyncdValue) ProtoReflect() protoreflect.Message {
+	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncdValue.ProtoReflect.Descriptor instead.
+func (*SyncdValue) Descriptor() ([]byte, []int) {
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SyncdValue) GetBlob() []byte {
+	if x != nil {
+		return x.Blob
+	}
+	return nil
+}
+
+type SyncdVersion struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       *uint64                `protobuf:"varint,1,opt,name=version" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncdVersion) Reset() {
+	*x = SyncdVersion{}
 	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CoexStateSync) String() string {
+func (x *SyncdVersion) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CoexStateSync) ProtoMessage() {}
+func (*SyncdVersion) ProtoMessage() {}
 
-func (x *CoexStateSync) ProtoReflect() protoreflect.Message {
+func (x *SyncdVersion) ProtoReflect() protoreflect.Message {
 	mi := &file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -753,16 +753,16 @@ func (x *CoexStateSync) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CoexStateSync.ProtoReflect.Descriptor instead.
-func (*CoexStateSync) Descriptor() ([]byte, []int) {
+// Deprecated: Use SyncdVersion.ProtoReflect.Descriptor instead.
+func (*SyncdVersion) Descriptor() ([]byte, []int) {
 	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *CoexStateSync) GetCollectionMutations() []*CoexStateSync_CollectionMutations {
-	if x != nil {
-		return x.CollectionMutations
+func (x *SyncdVersion) GetVersion() uint64 {
+	if x != nil && x.Version != nil {
+		return *x.Version
 	}
-	return nil
+	return 0
 }
 
 type CoexStateSync_CollectionMutations struct {
@@ -800,7 +800,7 @@ func (x *CoexStateSync_CollectionMutations) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use CoexStateSync_CollectionMutations.ProtoReflect.Descriptor instead.
 func (*CoexStateSync_CollectionMutations) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{11, 0}
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{0, 0}
 }
 
 func (x *CoexStateSync_CollectionMutations) GetCollection() string {
@@ -854,7 +854,7 @@ func (x *CoexStateSync_Mutation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CoexStateSync_Mutation.ProtoReflect.Descriptor instead.
 func (*CoexStateSync_Mutation) Descriptor() ([]byte, []int) {
-	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{11, 1}
+	return file_waServerSync_WAWebProtobufsServerSync_proto_rawDescGZIP(), []int{0, 1}
 }
 
 func (x *CoexStateSync_Mutation) GetIndex() *SyncdIndex {
@@ -889,31 +889,22 @@ var File_waServerSync_WAWebProtobufsServerSync_proto protoreflect.FileDescriptor
 
 const file_waServerSync_WAWebProtobufsServerSync_proto_rawDesc = "" +
 	"\n" +
-	"+waServerSync/WAWebProtobufsServerSync.proto\x12\x18WAWebProtobufsServerSync\"\xcb\x01\n" +
-	"\rSyncdMutation\x12T\n" +
-	"\toperation\x18\x01 \x01(\x0e26.WAWebProtobufsServerSync.SyncdMutation.SyncdOperationR\toperation\x12=\n" +
-	"\x06record\x18\x02 \x01(\v2%.WAWebProtobufsServerSync.SyncdRecordR\x06record\"%\n" +
-	"\x0eSyncdOperation\x12\a\n" +
-	"\x03SET\x10\x00\x12\n" +
+	"+waServerSync/WAWebProtobufsServerSync.proto\x12\x18WAWebProtobufsServerSync\"\x85\x04\n" +
+	"\rCoexStateSync\x12m\n" +
+	"\x13collectionMutations\x18\x01 \x03(\v2;.WAWebProtobufsServerSync.CoexStateSync.CollectionMutationsR\x13collectionMutations\x1a\x85\x01\n" +
+	"\x13CollectionMutations\x12\x1e\n" +
 	"\n" +
-	"\x06REMOVE\x10\x01\"(\n" +
-	"\fSyncdVersion\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\x04R\aversion\"2\n" +
+	"collection\x18\x01 \x01(\tR\n" +
+	"collection\x12N\n" +
+	"\tmutations\x18\x02 \x03(\v20.WAWebProtobufsServerSync.CoexStateSync.MutationR\tmutations\x1a\xfc\x01\n" +
+	"\bMutation\x12:\n" +
+	"\x05index\x18\x01 \x01(\v2$.WAWebProtobufsServerSync.SyncdIndexR\x05index\x12:\n" +
+	"\x05value\x18\x02 \x01(\v2$.WAWebProtobufsServerSync.SyncdValueR\x05value\x12\"\n" +
+	"\fdirtyVersion\x18\x03 \x01(\x04R\fdirtyVersion\x12T\n" +
+	"\toperation\x18\x04 \x01(\x0e26.WAWebProtobufsServerSync.SyncdMutation.SyncdOperationR\toperation\"2\n" +
 	"\bExitCode\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\x04R\x04code\x12\x12\n" +
-	"\x04text\x18\x02 \x01(\tR\x04text\" \n" +
-	"\n" +
-	"SyncdIndex\x12\x12\n" +
-	"\x04blob\x18\x01 \x01(\fR\x04blob\" \n" +
-	"\n" +
-	"SyncdValue\x12\x12\n" +
-	"\x04blob\x18\x01 \x01(\fR\x04blob\"\x17\n" +
-	"\x05KeyId\x12\x0e\n" +
-	"\x02ID\x18\x01 \x01(\fR\x02ID\"\xbc\x01\n" +
-	"\vSyncdRecord\x12:\n" +
-	"\x05index\x18\x01 \x01(\v2$.WAWebProtobufsServerSync.SyncdIndexR\x05index\x12:\n" +
-	"\x05value\x18\x02 \x01(\v2$.WAWebProtobufsServerSync.SyncdValueR\x05value\x125\n" +
-	"\x05keyID\x18\x03 \x01(\v2\x1f.WAWebProtobufsServerSync.KeyIdR\x05keyID\"\xd7\x01\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\"\xd7\x01\n" +
 	"\x15ExternalBlobReference\x12\x1a\n" +
 	"\bmediaKey\x18\x01 \x01(\fR\bmediaKey\x12\x1e\n" +
 	"\n" +
@@ -924,12 +915,19 @@ const file_waServerSync_WAWebProtobufsServerSync_proto_rawDesc = "" +
 	"\n" +
 	"fileSHA256\x18\x05 \x01(\fR\n" +
 	"fileSHA256\x12$\n" +
-	"\rfileEncSHA256\x18\x06 \x01(\fR\rfileEncSHA256\"\xdb\x01\n" +
-	"\rSyncdSnapshot\x12@\n" +
-	"\aversion\x18\x01 \x01(\v2&.WAWebProtobufsServerSync.SyncdVersionR\aversion\x12?\n" +
-	"\arecords\x18\x02 \x03(\v2%.WAWebProtobufsServerSync.SyncdRecordR\arecords\x12\x10\n" +
-	"\x03mac\x18\x03 \x01(\fR\x03mac\x125\n" +
-	"\x05keyID\x18\x04 \x01(\v2\x1f.WAWebProtobufsServerSync.KeyIdR\x05keyID\"W\n" +
+	"\rfileEncSHA256\x18\x06 \x01(\fR\rfileEncSHA256\"\x17\n" +
+	"\x05KeyId\x12\x0e\n" +
+	"\x02ID\x18\x01 \x01(\fR\x02ID\" \n" +
+	"\n" +
+	"SyncdIndex\x12\x12\n" +
+	"\x04blob\x18\x01 \x01(\fR\x04blob\"\xcb\x01\n" +
+	"\rSyncdMutation\x12T\n" +
+	"\toperation\x18\x01 \x01(\x0e26.WAWebProtobufsServerSync.SyncdMutation.SyncdOperationR\toperation\x12=\n" +
+	"\x06record\x18\x02 \x01(\v2%.WAWebProtobufsServerSync.SyncdRecordR\x06record\"%\n" +
+	"\x0eSyncdOperation\x12\a\n" +
+	"\x03SET\x10\x00\x12\n" +
+	"\n" +
+	"\x06REMOVE\x10\x01\"W\n" +
 	"\x0eSyncdMutations\x12E\n" +
 	"\tmutations\x18\x01 \x03(\v2'.WAWebProtobufsServerSync.SyncdMutationR\tmutations\"\xf5\x03\n" +
 	"\n" +
@@ -942,19 +940,21 @@ const file_waServerSync_WAWebProtobufsServerSync_proto_rawDesc = "" +
 	"\x05keyID\x18\x06 \x01(\v2\x1f.WAWebProtobufsServerSync.KeyIdR\x05keyID\x12>\n" +
 	"\bexitCode\x18\a \x01(\v2\".WAWebProtobufsServerSync.ExitCodeR\bexitCode\x12 \n" +
 	"\vdeviceIndex\x18\b \x01(\rR\vdeviceIndex\x12(\n" +
-	"\x0fclientDebugData\x18\t \x01(\fR\x0fclientDebugData\"\x85\x04\n" +
-	"\rCoexStateSync\x12m\n" +
-	"\x13collectionMutations\x18\x01 \x03(\v2;.WAWebProtobufsServerSync.CoexStateSync.CollectionMutationsR\x13collectionMutations\x1a\x85\x01\n" +
-	"\x13CollectionMutations\x12\x1e\n" +
-	"\n" +
-	"collection\x18\x01 \x01(\tR\n" +
-	"collection\x12N\n" +
-	"\tmutations\x18\x02 \x03(\v20.WAWebProtobufsServerSync.CoexStateSync.MutationR\tmutations\x1a\xfc\x01\n" +
-	"\bMutation\x12:\n" +
+	"\x0fclientDebugData\x18\t \x01(\fR\x0fclientDebugData\"\xbc\x01\n" +
+	"\vSyncdRecord\x12:\n" +
 	"\x05index\x18\x01 \x01(\v2$.WAWebProtobufsServerSync.SyncdIndexR\x05index\x12:\n" +
-	"\x05value\x18\x02 \x01(\v2$.WAWebProtobufsServerSync.SyncdValueR\x05value\x12\"\n" +
-	"\fdirtyVersion\x18\x03 \x01(\x04R\fdirtyVersion\x12T\n" +
-	"\toperation\x18\x04 \x01(\x0e26.WAWebProtobufsServerSync.SyncdMutation.SyncdOperationR\toperationB(Z&go.mau.fi/whatsmeow/proto/waServerSync"
+	"\x05value\x18\x02 \x01(\v2$.WAWebProtobufsServerSync.SyncdValueR\x05value\x125\n" +
+	"\x05keyID\x18\x03 \x01(\v2\x1f.WAWebProtobufsServerSync.KeyIdR\x05keyID\"\xdb\x01\n" +
+	"\rSyncdSnapshot\x12@\n" +
+	"\aversion\x18\x01 \x01(\v2&.WAWebProtobufsServerSync.SyncdVersionR\aversion\x12?\n" +
+	"\arecords\x18\x02 \x03(\v2%.WAWebProtobufsServerSync.SyncdRecordR\arecords\x12\x10\n" +
+	"\x03mac\x18\x03 \x01(\fR\x03mac\x125\n" +
+	"\x05keyID\x18\x04 \x01(\v2\x1f.WAWebProtobufsServerSync.KeyIdR\x05keyID\" \n" +
+	"\n" +
+	"SyncdValue\x12\x12\n" +
+	"\x04blob\x18\x01 \x01(\fR\x04blob\"(\n" +
+	"\fSyncdVersion\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\x04R\aversionB(Z&go.mau.fi/whatsmeow/proto/waServerSync"
 
 var (
 	file_waServerSync_WAWebProtobufsServerSync_proto_rawDescOnce sync.Once
@@ -972,40 +972,40 @@ var file_waServerSync_WAWebProtobufsServerSync_proto_enumTypes = make([]protoimp
 var file_waServerSync_WAWebProtobufsServerSync_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_waServerSync_WAWebProtobufsServerSync_proto_goTypes = []any{
 	(SyncdMutation_SyncdOperation)(0),         // 0: WAWebProtobufsServerSync.SyncdMutation.SyncdOperation
-	(*SyncdMutation)(nil),                     // 1: WAWebProtobufsServerSync.SyncdMutation
-	(*SyncdVersion)(nil),                      // 2: WAWebProtobufsServerSync.SyncdVersion
-	(*ExitCode)(nil),                          // 3: WAWebProtobufsServerSync.ExitCode
-	(*SyncdIndex)(nil),                        // 4: WAWebProtobufsServerSync.SyncdIndex
-	(*SyncdValue)(nil),                        // 5: WAWebProtobufsServerSync.SyncdValue
-	(*KeyId)(nil),                             // 6: WAWebProtobufsServerSync.KeyId
-	(*SyncdRecord)(nil),                       // 7: WAWebProtobufsServerSync.SyncdRecord
-	(*ExternalBlobReference)(nil),             // 8: WAWebProtobufsServerSync.ExternalBlobReference
-	(*SyncdSnapshot)(nil),                     // 9: WAWebProtobufsServerSync.SyncdSnapshot
-	(*SyncdMutations)(nil),                    // 10: WAWebProtobufsServerSync.SyncdMutations
-	(*SyncdPatch)(nil),                        // 11: WAWebProtobufsServerSync.SyncdPatch
-	(*CoexStateSync)(nil),                     // 12: WAWebProtobufsServerSync.CoexStateSync
+	(*CoexStateSync)(nil),                     // 1: WAWebProtobufsServerSync.CoexStateSync
+	(*ExitCode)(nil),                          // 2: WAWebProtobufsServerSync.ExitCode
+	(*ExternalBlobReference)(nil),             // 3: WAWebProtobufsServerSync.ExternalBlobReference
+	(*KeyId)(nil),                             // 4: WAWebProtobufsServerSync.KeyId
+	(*SyncdIndex)(nil),                        // 5: WAWebProtobufsServerSync.SyncdIndex
+	(*SyncdMutation)(nil),                     // 6: WAWebProtobufsServerSync.SyncdMutation
+	(*SyncdMutations)(nil),                    // 7: WAWebProtobufsServerSync.SyncdMutations
+	(*SyncdPatch)(nil),                        // 8: WAWebProtobufsServerSync.SyncdPatch
+	(*SyncdRecord)(nil),                       // 9: WAWebProtobufsServerSync.SyncdRecord
+	(*SyncdSnapshot)(nil),                     // 10: WAWebProtobufsServerSync.SyncdSnapshot
+	(*SyncdValue)(nil),                        // 11: WAWebProtobufsServerSync.SyncdValue
+	(*SyncdVersion)(nil),                      // 12: WAWebProtobufsServerSync.SyncdVersion
 	(*CoexStateSync_CollectionMutations)(nil), // 13: WAWebProtobufsServerSync.CoexStateSync.CollectionMutations
 	(*CoexStateSync_Mutation)(nil),            // 14: WAWebProtobufsServerSync.CoexStateSync.Mutation
 }
 var file_waServerSync_WAWebProtobufsServerSync_proto_depIdxs = []int32{
-	0,  // 0: WAWebProtobufsServerSync.SyncdMutation.operation:type_name -> WAWebProtobufsServerSync.SyncdMutation.SyncdOperation
-	7,  // 1: WAWebProtobufsServerSync.SyncdMutation.record:type_name -> WAWebProtobufsServerSync.SyncdRecord
-	4,  // 2: WAWebProtobufsServerSync.SyncdRecord.index:type_name -> WAWebProtobufsServerSync.SyncdIndex
-	5,  // 3: WAWebProtobufsServerSync.SyncdRecord.value:type_name -> WAWebProtobufsServerSync.SyncdValue
-	6,  // 4: WAWebProtobufsServerSync.SyncdRecord.keyID:type_name -> WAWebProtobufsServerSync.KeyId
-	2,  // 5: WAWebProtobufsServerSync.SyncdSnapshot.version:type_name -> WAWebProtobufsServerSync.SyncdVersion
-	7,  // 6: WAWebProtobufsServerSync.SyncdSnapshot.records:type_name -> WAWebProtobufsServerSync.SyncdRecord
-	6,  // 7: WAWebProtobufsServerSync.SyncdSnapshot.keyID:type_name -> WAWebProtobufsServerSync.KeyId
-	1,  // 8: WAWebProtobufsServerSync.SyncdMutations.mutations:type_name -> WAWebProtobufsServerSync.SyncdMutation
-	2,  // 9: WAWebProtobufsServerSync.SyncdPatch.version:type_name -> WAWebProtobufsServerSync.SyncdVersion
-	1,  // 10: WAWebProtobufsServerSync.SyncdPatch.mutations:type_name -> WAWebProtobufsServerSync.SyncdMutation
-	8,  // 11: WAWebProtobufsServerSync.SyncdPatch.externalMutations:type_name -> WAWebProtobufsServerSync.ExternalBlobReference
-	6,  // 12: WAWebProtobufsServerSync.SyncdPatch.keyID:type_name -> WAWebProtobufsServerSync.KeyId
-	3,  // 13: WAWebProtobufsServerSync.SyncdPatch.exitCode:type_name -> WAWebProtobufsServerSync.ExitCode
-	13, // 14: WAWebProtobufsServerSync.CoexStateSync.collectionMutations:type_name -> WAWebProtobufsServerSync.CoexStateSync.CollectionMutations
+	13, // 0: WAWebProtobufsServerSync.CoexStateSync.collectionMutations:type_name -> WAWebProtobufsServerSync.CoexStateSync.CollectionMutations
+	0,  // 1: WAWebProtobufsServerSync.SyncdMutation.operation:type_name -> WAWebProtobufsServerSync.SyncdMutation.SyncdOperation
+	9,  // 2: WAWebProtobufsServerSync.SyncdMutation.record:type_name -> WAWebProtobufsServerSync.SyncdRecord
+	6,  // 3: WAWebProtobufsServerSync.SyncdMutations.mutations:type_name -> WAWebProtobufsServerSync.SyncdMutation
+	12, // 4: WAWebProtobufsServerSync.SyncdPatch.version:type_name -> WAWebProtobufsServerSync.SyncdVersion
+	6,  // 5: WAWebProtobufsServerSync.SyncdPatch.mutations:type_name -> WAWebProtobufsServerSync.SyncdMutation
+	3,  // 6: WAWebProtobufsServerSync.SyncdPatch.externalMutations:type_name -> WAWebProtobufsServerSync.ExternalBlobReference
+	4,  // 7: WAWebProtobufsServerSync.SyncdPatch.keyID:type_name -> WAWebProtobufsServerSync.KeyId
+	2,  // 8: WAWebProtobufsServerSync.SyncdPatch.exitCode:type_name -> WAWebProtobufsServerSync.ExitCode
+	5,  // 9: WAWebProtobufsServerSync.SyncdRecord.index:type_name -> WAWebProtobufsServerSync.SyncdIndex
+	11, // 10: WAWebProtobufsServerSync.SyncdRecord.value:type_name -> WAWebProtobufsServerSync.SyncdValue
+	4,  // 11: WAWebProtobufsServerSync.SyncdRecord.keyID:type_name -> WAWebProtobufsServerSync.KeyId
+	12, // 12: WAWebProtobufsServerSync.SyncdSnapshot.version:type_name -> WAWebProtobufsServerSync.SyncdVersion
+	9,  // 13: WAWebProtobufsServerSync.SyncdSnapshot.records:type_name -> WAWebProtobufsServerSync.SyncdRecord
+	4,  // 14: WAWebProtobufsServerSync.SyncdSnapshot.keyID:type_name -> WAWebProtobufsServerSync.KeyId
 	14, // 15: WAWebProtobufsServerSync.CoexStateSync.CollectionMutations.mutations:type_name -> WAWebProtobufsServerSync.CoexStateSync.Mutation
-	4,  // 16: WAWebProtobufsServerSync.CoexStateSync.Mutation.index:type_name -> WAWebProtobufsServerSync.SyncdIndex
-	5,  // 17: WAWebProtobufsServerSync.CoexStateSync.Mutation.value:type_name -> WAWebProtobufsServerSync.SyncdValue
+	5,  // 16: WAWebProtobufsServerSync.CoexStateSync.Mutation.index:type_name -> WAWebProtobufsServerSync.SyncdIndex
+	11, // 17: WAWebProtobufsServerSync.CoexStateSync.Mutation.value:type_name -> WAWebProtobufsServerSync.SyncdValue
 	0,  // 18: WAWebProtobufsServerSync.CoexStateSync.Mutation.operation:type_name -> WAWebProtobufsServerSync.SyncdMutation.SyncdOperation
 	19, // [19:19] is the sub-list for method output_type
 	19, // [19:19] is the sub-list for method input_type

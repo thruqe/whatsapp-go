@@ -7,6 +7,7 @@
 package waStatusAttributions
 
 import (
+	_ "go.mau.fi/whatsmeow/proto/waArmadilloBackupCommon"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -35,6 +36,8 @@ const (
 	StatusAttribution_LAYOUTS              StatusAttribution_Type = 8
 	StatusAttribution_NEWSLETTER_STATUS    StatusAttribution_Type = 9
 	StatusAttribution_STATUS_CLOSE_SHARING StatusAttribution_Type = 10
+	StatusAttribution_PAID_PARTNERSHIP     StatusAttribution_Type = 11
+	StatusAttribution_USERNAME_STATUS      StatusAttribution_Type = 12
 )
 
 // Enum value maps for StatusAttribution_Type.
@@ -51,6 +54,8 @@ var (
 		8:  "LAYOUTS",
 		9:  "NEWSLETTER_STATUS",
 		10: "STATUS_CLOSE_SHARING",
+		11: "PAID_PARTNERSHIP",
+		12: "USERNAME_STATUS",
 	}
 	StatusAttribution_Type_value = map[string]int32{
 		"UNKNOWN":              0,
@@ -64,6 +69,8 @@ var (
 		"LAYOUTS":              8,
 		"NEWSLETTER_STATUS":    9,
 		"STATUS_CLOSE_SHARING": 10,
+		"PAID_PARTNERSHIP":     11,
+		"USERNAME_STATUS":      12,
 	}
 )
 
@@ -237,6 +244,8 @@ const (
 	StatusAttribution_ExternalShare_SHARECHAT     StatusAttribution_ExternalShare_Source = 9
 	StatusAttribution_ExternalShare_GOOGLE_PHOTOS StatusAttribution_ExternalShare_Source = 10
 	StatusAttribution_ExternalShare_SOUNDCLOUD    StatusAttribution_ExternalShare_Source = 11
+	StatusAttribution_ExternalShare_SHAZAM        StatusAttribution_ExternalShare_Source = 12
+	StatusAttribution_ExternalShare_PICSART       StatusAttribution_ExternalShare_Source = 13
 )
 
 // Enum value maps for StatusAttribution_ExternalShare_Source.
@@ -254,6 +263,8 @@ var (
 		9:  "SHARECHAT",
 		10: "GOOGLE_PHOTOS",
 		11: "SOUNDCLOUD",
+		12: "SHAZAM",
+		13: "PICSART",
 	}
 	StatusAttribution_ExternalShare_Source_value = map[string]int32{
 		"UNKNOWN":       0,
@@ -268,6 +279,8 @@ var (
 		"SHARECHAT":     9,
 		"GOOGLE_PHOTOS": 10,
 		"SOUNDCLOUD":    11,
+		"SHAZAM":        12,
+		"PICSART":       13,
 	}
 )
 
@@ -374,7 +387,9 @@ func (StatusAttribution_StatusReshare_Source) EnumDescriptor() ([]byte, []int) {
 }
 
 type StatusAttribution struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state     protoimpl.MessageState  `protogen:"open.v1"`
+	Type      *StatusAttribution_Type `protobuf:"varint,1,opt,name=type,enum=WAStatusAttributions.StatusAttribution_Type" json:"type,omitempty"`
+	ActionURL *string                 `protobuf:"bytes,2,opt,name=actionURL" json:"actionURL,omitempty"`
 	// Types that are valid to be assigned to AttributionData:
 	//
 	//	*StatusAttribution_StatusReshare_
@@ -384,8 +399,6 @@ type StatusAttribution struct {
 	//	*StatusAttribution_RlAttribution
 	//	*StatusAttribution_AiCreatedAttribution_
 	AttributionData isStatusAttribution_AttributionData `protobuf_oneof:"attributionData"`
-	Type            *StatusAttribution_Type             `protobuf:"varint,1,opt,name=type,enum=WAStatusAttributions.StatusAttribution_Type" json:"type,omitempty"`
-	ActionURL       *string                             `protobuf:"bytes,2,opt,name=actionURL" json:"actionURL,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -418,6 +431,20 @@ func (x *StatusAttribution) ProtoReflect() protoreflect.Message {
 // Deprecated: Use StatusAttribution.ProtoReflect.Descriptor instead.
 func (*StatusAttribution) Descriptor() ([]byte, []int) {
 	return file_waStatusAttributions_WAStatusAttributions_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *StatusAttribution) GetType() StatusAttribution_Type {
+	if x != nil && x.Type != nil {
+		return *x.Type
+	}
+	return StatusAttribution_UNKNOWN
+}
+
+func (x *StatusAttribution) GetActionURL() string {
+	if x != nil && x.ActionURL != nil {
+		return *x.ActionURL
+	}
+	return ""
 }
 
 func (x *StatusAttribution) GetAttributionData() isStatusAttribution_AttributionData {
@@ -479,20 +506,6 @@ func (x *StatusAttribution) GetAiCreatedAttribution() *StatusAttribution_AiCreat
 		}
 	}
 	return nil
-}
-
-func (x *StatusAttribution) GetType() StatusAttribution_Type {
-	if x != nil && x.Type != nil {
-		return *x.Type
-	}
-	return StatusAttribution_UNKNOWN
-}
-
-func (x *StatusAttribution) GetActionURL() string {
-	if x != nil && x.ActionURL != nil {
-		return *x.ActionURL
-	}
-	return ""
 }
 
 type isStatusAttribution_AttributionData interface {
@@ -943,16 +956,16 @@ var File_waStatusAttributions_WAStatusAttributions_proto protoreflect.FileDescri
 
 const file_waStatusAttributions_WAStatusAttributions_proto_rawDesc = "" +
 	"\n" +
-	"/waStatusAttributions/WAStatusAttributions.proto\x12\x14WAStatusAttributions\"\xb2\x12\n" +
-	"\x11StatusAttribution\x12]\n" +
+	"/waStatusAttributions/WAStatusAttributions.proto\x12\x14WAStatusAttributions\x1a5waArmadilloBackupCommon/WAArmadilloBackupCommon.proto\"\xf6\x12\n" +
+	"\x11StatusAttribution\x12@\n" +
+	"\x04type\x18\x01 \x01(\x0e2,.WAStatusAttributions.StatusAttribution.TypeR\x04type\x12\x1c\n" +
+	"\tactionURL\x18\x02 \x01(\tR\tactionURL\x12]\n" +
 	"\rstatusReshare\x18\x03 \x01(\v25.WAStatusAttributions.StatusAttribution.StatusReshareH\x00R\rstatusReshare\x12]\n" +
 	"\rexternalShare\x18\x04 \x01(\v25.WAStatusAttributions.StatusAttribution.ExternalShareH\x00R\rexternalShare\x12E\n" +
 	"\x05music\x18\x05 \x01(\v2-.WAStatusAttributions.StatusAttribution.MusicH\x00R\x05music\x12W\n" +
 	"\vgroupStatus\x18\x06 \x01(\v23.WAStatusAttributions.StatusAttribution.GroupStatusH\x00R\vgroupStatus\x12]\n" +
 	"\rrlAttribution\x18\a \x01(\v25.WAStatusAttributions.StatusAttribution.RLAttributionH\x00R\rrlAttribution\x12r\n" +
-	"\x14aiCreatedAttribution\x18\b \x01(\v2<.WAStatusAttributions.StatusAttribution.AiCreatedAttributionH\x00R\x14aiCreatedAttribution\x12@\n" +
-	"\x04type\x18\x01 \x01(\x0e2,.WAStatusAttributions.StatusAttribution.TypeR\x04type\x12\x1c\n" +
-	"\tactionURL\x18\x02 \x01(\tR\tactionURL\x1a\x9e\x01\n" +
+	"\x14aiCreatedAttribution\x18\b \x01(\v2<.WAStatusAttributions.StatusAttribution.AiCreatedAttributionH\x00R\x14aiCreatedAttribution\x1a\x9e\x01\n" +
 	"\x14AiCreatedAttribution\x12[\n" +
 	"\x06source\x18\x01 \x01(\x0e2C.WAStatusAttributions.StatusAttribution.AiCreatedAttribution.SourceR\x06source\")\n" +
 	"\x06Source\x12\v\n" +
@@ -964,12 +977,12 @@ const file_waStatusAttributions_WAStatusAttributions_proto_rawDesc = "" +
 	"\aUNKNOWN\x10\x00\x12\x18\n" +
 	"\x14RAY_BAN_META_GLASSES\x10\x01\x12\x17\n" +
 	"\x13OAKLEY_META_GLASSES\x10\x02\x12\x15\n" +
-	"\x11HYPERNOVA_GLASSES\x10\x03\x1a\x8a\x03\n" +
+	"\x11HYPERNOVA_GLASSES\x10\x03\x1a\xa3\x03\n" +
 	"\rExternalShare\x12\x1c\n" +
 	"\tactionURL\x18\x01 \x01(\tR\tactionURL\x12T\n" +
 	"\x06source\x18\x02 \x01(\x0e2<.WAStatusAttributions.StatusAttribution.ExternalShare.SourceR\x06source\x12\x1a\n" +
 	"\bduration\x18\x03 \x01(\x05R\bduration\x12,\n" +
-	"\x11actionFallbackURL\x18\x04 \x01(\tR\x11actionFallbackURL\"\xba\x01\n" +
+	"\x11actionFallbackURL\x18\x04 \x01(\tR\x11actionFallbackURL\"\xd3\x01\n" +
 	"\x06Source\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\r\n" +
 	"\tINSTAGRAM\x10\x01\x12\f\n" +
@@ -984,7 +997,10 @@ const file_waStatusAttributions_WAStatusAttributions_proto_rawDesc = "" +
 	"\rGOOGLE_PHOTOS\x10\n" +
 	"\x12\x0e\n" +
 	"\n" +
-	"SOUNDCLOUD\x10\v\x1a\xcc\x03\n" +
+	"SOUNDCLOUD\x10\v\x12\n" +
+	"\n" +
+	"\x06SHAZAM\x10\f\x12\v\n" +
+	"\aPICSART\x10\r\x1a\xcc\x03\n" +
 	"\rStatusReshare\x12T\n" +
 	"\x06source\x18\x01 \x01(\x0e2<.WAStatusAttributions.StatusAttribution.StatusReshare.SourceR\x06source\x12Z\n" +
 	"\bmetadata\x18\x02 \x01(\v2>.WAStatusAttributions.StatusAttribution.StatusReshare.MetadataR\bmetadata\x1a\xa4\x01\n" +
@@ -1013,7 +1029,7 @@ const file_waStatusAttributions_WAStatusAttributions_proto_rawDesc = "" +
 	"\x11artistAttribution\x18\x05 \x01(\tR\x11artistAttribution\x12\x1e\n" +
 	"\n" +
 	"isExplicit\x18\x06 \x01(\bR\n" +
-	"isExplicit\"\xc7\x01\n" +
+	"isExplicit\"\xf2\x01\n" +
 	"\x04Type\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\v\n" +
 	"\aRESHARE\x10\x01\x12\x12\n" +
@@ -1027,7 +1043,9 @@ const file_waStatusAttributions_WAStatusAttributions_proto_rawDesc = "" +
 	"\aLAYOUTS\x10\b\x12\x15\n" +
 	"\x11NEWSLETTER_STATUS\x10\t\x12\x18\n" +
 	"\x14STATUS_CLOSE_SHARING\x10\n" +
-	"B\x11\n" +
+	"\x12\x14\n" +
+	"\x10PAID_PARTNERSHIP\x10\v\x12\x13\n" +
+	"\x0fUSERNAME_STATUS\x10\fB\x11\n" +
 	"\x0fattributionDataB0Z.go.mau.fi/whatsmeow/proto/waStatusAttributions"
 
 var (
@@ -1060,13 +1078,13 @@ var file_waStatusAttributions_WAStatusAttributions_proto_goTypes = []any{
 	(*StatusAttribution_StatusReshare_Metadata)(nil),   // 12: WAStatusAttributions.StatusAttribution.StatusReshare.Metadata
 }
 var file_waStatusAttributions_WAStatusAttributions_proto_depIdxs = []int32{
-	9,  // 0: WAStatusAttributions.StatusAttribution.statusReshare:type_name -> WAStatusAttributions.StatusAttribution.StatusReshare
-	8,  // 1: WAStatusAttributions.StatusAttribution.externalShare:type_name -> WAStatusAttributions.StatusAttribution.ExternalShare
-	11, // 2: WAStatusAttributions.StatusAttribution.music:type_name -> WAStatusAttributions.StatusAttribution.Music
-	10, // 3: WAStatusAttributions.StatusAttribution.groupStatus:type_name -> WAStatusAttributions.StatusAttribution.GroupStatus
-	7,  // 4: WAStatusAttributions.StatusAttribution.rlAttribution:type_name -> WAStatusAttributions.StatusAttribution.RLAttribution
-	6,  // 5: WAStatusAttributions.StatusAttribution.aiCreatedAttribution:type_name -> WAStatusAttributions.StatusAttribution.AiCreatedAttribution
-	0,  // 6: WAStatusAttributions.StatusAttribution.type:type_name -> WAStatusAttributions.StatusAttribution.Type
+	0,  // 0: WAStatusAttributions.StatusAttribution.type:type_name -> WAStatusAttributions.StatusAttribution.Type
+	9,  // 1: WAStatusAttributions.StatusAttribution.statusReshare:type_name -> WAStatusAttributions.StatusAttribution.StatusReshare
+	8,  // 2: WAStatusAttributions.StatusAttribution.externalShare:type_name -> WAStatusAttributions.StatusAttribution.ExternalShare
+	11, // 3: WAStatusAttributions.StatusAttribution.music:type_name -> WAStatusAttributions.StatusAttribution.Music
+	10, // 4: WAStatusAttributions.StatusAttribution.groupStatus:type_name -> WAStatusAttributions.StatusAttribution.GroupStatus
+	7,  // 5: WAStatusAttributions.StatusAttribution.rlAttribution:type_name -> WAStatusAttributions.StatusAttribution.RLAttribution
+	6,  // 6: WAStatusAttributions.StatusAttribution.aiCreatedAttribution:type_name -> WAStatusAttributions.StatusAttribution.AiCreatedAttribution
 	1,  // 7: WAStatusAttributions.StatusAttribution.AiCreatedAttribution.source:type_name -> WAStatusAttributions.StatusAttribution.AiCreatedAttribution.Source
 	2,  // 8: WAStatusAttributions.StatusAttribution.RLAttribution.source:type_name -> WAStatusAttributions.StatusAttribution.RLAttribution.Source
 	3,  // 9: WAStatusAttributions.StatusAttribution.ExternalShare.source:type_name -> WAStatusAttributions.StatusAttribution.ExternalShare.Source

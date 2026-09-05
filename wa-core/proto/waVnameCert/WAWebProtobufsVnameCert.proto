@@ -19,6 +19,11 @@ message BizAccountLinkInfo {
 	optional AccountType accountType = 5;
 }
 
+message BizAccountPayload {
+	optional VerifiedNameCertificate vnameCert = 1;
+	optional bytes bizAcctLinkInfo = 2;
+}
+
 message BizIdentityInfo {
 	enum ActualActorsType {
 		SELF = 0;
@@ -64,9 +69,4 @@ message VerifiedNameCertificate {
 	optional bytes details = 1;
 	optional bytes signature = 2;
 	optional bytes serverSignature = 3;
-}
-
-message BizAccountPayload {
-	optional VerifiedNameCertificate vnameCert = 1;
-	optional bytes bizAcctLinkInfo = 2;
 }

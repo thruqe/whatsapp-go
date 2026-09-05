@@ -24,8 +24,9 @@ const (
 type ADVEncryptionType int32
 
 const (
-	ADVEncryptionType_E2EE   ADVEncryptionType = 0
-	ADVEncryptionType_HOSTED ADVEncryptionType = 1
+	ADVEncryptionType_E2EE     ADVEncryptionType = 0
+	ADVEncryptionType_HOSTED   ADVEncryptionType = 1
+	ADVEncryptionType_NON_E2EE ADVEncryptionType = 2
 )
 
 // Enum value maps for ADVEncryptionType.
@@ -33,10 +34,12 @@ var (
 	ADVEncryptionType_name = map[int32]string{
 		0: "E2EE",
 		1: "HOSTED",
+		2: "NON_E2EE",
 	}
 	ADVEncryptionType_value = map[string]int32{
-		"E2EE":   0,
-		"HOSTED": 1,
+		"E2EE":     0,
+		"HOSTED":   1,
+		"NON_E2EE": 2,
 	}
 )
 
@@ -77,142 +80,6 @@ func (ADVEncryptionType) EnumDescriptor() ([]byte, []int) {
 	return file_waAdv_WAAdv_proto_rawDescGZIP(), []int{0}
 }
 
-type ADVKeyIndexList struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RawID         *uint32                `protobuf:"varint,1,opt,name=rawID" json:"rawID,omitempty"`
-	Timestamp     *uint64                `protobuf:"varint,2,opt,name=timestamp" json:"timestamp,omitempty"`
-	CurrentIndex  *uint32                `protobuf:"varint,3,opt,name=currentIndex" json:"currentIndex,omitempty"`
-	ValidIndexes  []uint32               `protobuf:"varint,4,rep,packed,name=validIndexes" json:"validIndexes,omitempty"`
-	AccountType   *ADVEncryptionType     `protobuf:"varint,5,opt,name=accountType,enum=WAAdv.ADVEncryptionType" json:"accountType,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ADVKeyIndexList) Reset() {
-	*x = ADVKeyIndexList{}
-	mi := &file_waAdv_WAAdv_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ADVKeyIndexList) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ADVKeyIndexList) ProtoMessage() {}
-
-func (x *ADVKeyIndexList) ProtoReflect() protoreflect.Message {
-	mi := &file_waAdv_WAAdv_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ADVKeyIndexList.ProtoReflect.Descriptor instead.
-func (*ADVKeyIndexList) Descriptor() ([]byte, []int) {
-	return file_waAdv_WAAdv_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *ADVKeyIndexList) GetRawID() uint32 {
-	if x != nil && x.RawID != nil {
-		return *x.RawID
-	}
-	return 0
-}
-
-func (x *ADVKeyIndexList) GetTimestamp() uint64 {
-	if x != nil && x.Timestamp != nil {
-		return *x.Timestamp
-	}
-	return 0
-}
-
-func (x *ADVKeyIndexList) GetCurrentIndex() uint32 {
-	if x != nil && x.CurrentIndex != nil {
-		return *x.CurrentIndex
-	}
-	return 0
-}
-
-func (x *ADVKeyIndexList) GetValidIndexes() []uint32 {
-	if x != nil {
-		return x.ValidIndexes
-	}
-	return nil
-}
-
-func (x *ADVKeyIndexList) GetAccountType() ADVEncryptionType {
-	if x != nil && x.AccountType != nil {
-		return *x.AccountType
-	}
-	return ADVEncryptionType_E2EE
-}
-
-type ADVSignedKeyIndexList struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	Details             []byte                 `protobuf:"bytes,1,opt,name=details" json:"details,omitempty"`
-	AccountSignature    []byte                 `protobuf:"bytes,2,opt,name=accountSignature" json:"accountSignature,omitempty"`
-	AccountSignatureKey []byte                 `protobuf:"bytes,3,opt,name=accountSignatureKey" json:"accountSignatureKey,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
-}
-
-func (x *ADVSignedKeyIndexList) Reset() {
-	*x = ADVSignedKeyIndexList{}
-	mi := &file_waAdv_WAAdv_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ADVSignedKeyIndexList) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ADVSignedKeyIndexList) ProtoMessage() {}
-
-func (x *ADVSignedKeyIndexList) ProtoReflect() protoreflect.Message {
-	mi := &file_waAdv_WAAdv_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ADVSignedKeyIndexList.ProtoReflect.Descriptor instead.
-func (*ADVSignedKeyIndexList) Descriptor() ([]byte, []int) {
-	return file_waAdv_WAAdv_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *ADVSignedKeyIndexList) GetDetails() []byte {
-	if x != nil {
-		return x.Details
-	}
-	return nil
-}
-
-func (x *ADVSignedKeyIndexList) GetAccountSignature() []byte {
-	if x != nil {
-		return x.AccountSignature
-	}
-	return nil
-}
-
-func (x *ADVSignedKeyIndexList) GetAccountSignatureKey() []byte {
-	if x != nil {
-		return x.AccountSignatureKey
-	}
-	return nil
-}
-
 type ADVDeviceIdentity struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RawID         *uint32                `protobuf:"varint,1,opt,name=rawID" json:"rawID,omitempty"`
@@ -226,7 +93,7 @@ type ADVDeviceIdentity struct {
 
 func (x *ADVDeviceIdentity) Reset() {
 	*x = ADVDeviceIdentity{}
-	mi := &file_waAdv_WAAdv_proto_msgTypes[2]
+	mi := &file_waAdv_WAAdv_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -238,7 +105,7 @@ func (x *ADVDeviceIdentity) String() string {
 func (*ADVDeviceIdentity) ProtoMessage() {}
 
 func (x *ADVDeviceIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_waAdv_WAAdv_proto_msgTypes[2]
+	mi := &file_waAdv_WAAdv_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -251,7 +118,7 @@ func (x *ADVDeviceIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ADVDeviceIdentity.ProtoReflect.Descriptor instead.
 func (*ADVDeviceIdentity) Descriptor() ([]byte, []int) {
-	return file_waAdv_WAAdv_proto_rawDescGZIP(), []int{2}
+	return file_waAdv_WAAdv_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ADVDeviceIdentity) GetRawID() uint32 {
@@ -289,6 +156,82 @@ func (x *ADVDeviceIdentity) GetDeviceType() ADVEncryptionType {
 	return ADVEncryptionType_E2EE
 }
 
+type ADVKeyIndexList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RawID         *uint32                `protobuf:"varint,1,opt,name=rawID" json:"rawID,omitempty"`
+	Timestamp     *uint64                `protobuf:"varint,2,opt,name=timestamp" json:"timestamp,omitempty"`
+	CurrentIndex  *uint32                `protobuf:"varint,3,opt,name=currentIndex" json:"currentIndex,omitempty"`
+	ValidIndexes  []uint32               `protobuf:"varint,4,rep,packed,name=validIndexes" json:"validIndexes,omitempty"`
+	AccountType   *ADVEncryptionType     `protobuf:"varint,5,opt,name=accountType,enum=WAAdv.ADVEncryptionType" json:"accountType,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ADVKeyIndexList) Reset() {
+	*x = ADVKeyIndexList{}
+	mi := &file_waAdv_WAAdv_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ADVKeyIndexList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ADVKeyIndexList) ProtoMessage() {}
+
+func (x *ADVKeyIndexList) ProtoReflect() protoreflect.Message {
+	mi := &file_waAdv_WAAdv_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ADVKeyIndexList.ProtoReflect.Descriptor instead.
+func (*ADVKeyIndexList) Descriptor() ([]byte, []int) {
+	return file_waAdv_WAAdv_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ADVKeyIndexList) GetRawID() uint32 {
+	if x != nil && x.RawID != nil {
+		return *x.RawID
+	}
+	return 0
+}
+
+func (x *ADVKeyIndexList) GetTimestamp() uint64 {
+	if x != nil && x.Timestamp != nil {
+		return *x.Timestamp
+	}
+	return 0
+}
+
+func (x *ADVKeyIndexList) GetCurrentIndex() uint32 {
+	if x != nil && x.CurrentIndex != nil {
+		return *x.CurrentIndex
+	}
+	return 0
+}
+
+func (x *ADVKeyIndexList) GetValidIndexes() []uint32 {
+	if x != nil {
+		return x.ValidIndexes
+	}
+	return nil
+}
+
+func (x *ADVKeyIndexList) GetAccountType() ADVEncryptionType {
+	if x != nil && x.AccountType != nil {
+		return *x.AccountType
+	}
+	return ADVEncryptionType_E2EE
+}
+
 type ADVSignedDeviceIdentity struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Details             []byte                 `protobuf:"bytes,1,opt,name=details" json:"details,omitempty"`
@@ -301,7 +244,7 @@ type ADVSignedDeviceIdentity struct {
 
 func (x *ADVSignedDeviceIdentity) Reset() {
 	*x = ADVSignedDeviceIdentity{}
-	mi := &file_waAdv_WAAdv_proto_msgTypes[3]
+	mi := &file_waAdv_WAAdv_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -313,7 +256,7 @@ func (x *ADVSignedDeviceIdentity) String() string {
 func (*ADVSignedDeviceIdentity) ProtoMessage() {}
 
 func (x *ADVSignedDeviceIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_waAdv_WAAdv_proto_msgTypes[3]
+	mi := &file_waAdv_WAAdv_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -326,7 +269,7 @@ func (x *ADVSignedDeviceIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ADVSignedDeviceIdentity.ProtoReflect.Descriptor instead.
 func (*ADVSignedDeviceIdentity) Descriptor() ([]byte, []int) {
-	return file_waAdv_WAAdv_proto_rawDescGZIP(), []int{3}
+	return file_waAdv_WAAdv_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ADVSignedDeviceIdentity) GetDetails() []byte {
@@ -368,7 +311,7 @@ type ADVSignedDeviceIdentityHMAC struct {
 
 func (x *ADVSignedDeviceIdentityHMAC) Reset() {
 	*x = ADVSignedDeviceIdentityHMAC{}
-	mi := &file_waAdv_WAAdv_proto_msgTypes[4]
+	mi := &file_waAdv_WAAdv_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -380,7 +323,7 @@ func (x *ADVSignedDeviceIdentityHMAC) String() string {
 func (*ADVSignedDeviceIdentityHMAC) ProtoMessage() {}
 
 func (x *ADVSignedDeviceIdentityHMAC) ProtoReflect() protoreflect.Message {
-	mi := &file_waAdv_WAAdv_proto_msgTypes[4]
+	mi := &file_waAdv_WAAdv_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -393,7 +336,7 @@ func (x *ADVSignedDeviceIdentityHMAC) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ADVSignedDeviceIdentityHMAC.ProtoReflect.Descriptor instead.
 func (*ADVSignedDeviceIdentityHMAC) Descriptor() ([]byte, []int) {
-	return file_waAdv_WAAdv_proto_rawDescGZIP(), []int{4}
+	return file_waAdv_WAAdv_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ADVSignedDeviceIdentityHMAC) GetDetails() []byte {
@@ -417,21 +360,71 @@ func (x *ADVSignedDeviceIdentityHMAC) GetAccountType() ADVEncryptionType {
 	return ADVEncryptionType_E2EE
 }
 
+type ADVSignedKeyIndexList struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Details             []byte                 `protobuf:"bytes,1,opt,name=details" json:"details,omitempty"`
+	AccountSignature    []byte                 `protobuf:"bytes,2,opt,name=accountSignature" json:"accountSignature,omitempty"`
+	AccountSignatureKey []byte                 `protobuf:"bytes,3,opt,name=accountSignatureKey" json:"accountSignatureKey,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *ADVSignedKeyIndexList) Reset() {
+	*x = ADVSignedKeyIndexList{}
+	mi := &file_waAdv_WAAdv_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ADVSignedKeyIndexList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ADVSignedKeyIndexList) ProtoMessage() {}
+
+func (x *ADVSignedKeyIndexList) ProtoReflect() protoreflect.Message {
+	mi := &file_waAdv_WAAdv_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ADVSignedKeyIndexList.ProtoReflect.Descriptor instead.
+func (*ADVSignedKeyIndexList) Descriptor() ([]byte, []int) {
+	return file_waAdv_WAAdv_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ADVSignedKeyIndexList) GetDetails() []byte {
+	if x != nil {
+		return x.Details
+	}
+	return nil
+}
+
+func (x *ADVSignedKeyIndexList) GetAccountSignature() []byte {
+	if x != nil {
+		return x.AccountSignature
+	}
+	return nil
+}
+
+func (x *ADVSignedKeyIndexList) GetAccountSignatureKey() []byte {
+	if x != nil {
+		return x.AccountSignatureKey
+	}
+	return nil
+}
+
 var File_waAdv_WAAdv_proto protoreflect.FileDescriptor
 
 const file_waAdv_WAAdv_proto_rawDesc = "" +
 	"\n" +
-	"\x11waAdv/WAAdv.proto\x12\x05WAAdv\"\xcd\x01\n" +
-	"\x0fADVKeyIndexList\x12\x14\n" +
-	"\x05rawID\x18\x01 \x01(\rR\x05rawID\x12\x1c\n" +
-	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\x12\"\n" +
-	"\fcurrentIndex\x18\x03 \x01(\rR\fcurrentIndex\x12&\n" +
-	"\fvalidIndexes\x18\x04 \x03(\rB\x02\x10\x01R\fvalidIndexes\x12:\n" +
-	"\vaccountType\x18\x05 \x01(\x0e2\x18.WAAdv.ADVEncryptionTypeR\vaccountType\"\x8f\x01\n" +
-	"\x15ADVSignedKeyIndexList\x12\x18\n" +
-	"\adetails\x18\x01 \x01(\fR\adetails\x12*\n" +
-	"\x10accountSignature\x18\x02 \x01(\fR\x10accountSignature\x120\n" +
-	"\x13accountSignatureKey\x18\x03 \x01(\fR\x13accountSignatureKey\"\xd9\x01\n" +
+	"\x11waAdv/WAAdv.proto\x12\x05WAAdv\"\xd9\x01\n" +
 	"\x11ADVDeviceIdentity\x12\x14\n" +
 	"\x05rawID\x18\x01 \x01(\rR\x05rawID\x12\x1c\n" +
 	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\x12\x1a\n" +
@@ -439,7 +432,13 @@ const file_waAdv_WAAdv_proto_rawDesc = "" +
 	"\vaccountType\x18\x04 \x01(\x0e2\x18.WAAdv.ADVEncryptionTypeR\vaccountType\x128\n" +
 	"\n" +
 	"deviceType\x18\x05 \x01(\x0e2\x18.WAAdv.ADVEncryptionTypeR\n" +
-	"deviceType\"\xbb\x01\n" +
+	"deviceType\"\xcd\x01\n" +
+	"\x0fADVKeyIndexList\x12\x14\n" +
+	"\x05rawID\x18\x01 \x01(\rR\x05rawID\x12\x1c\n" +
+	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\x12\"\n" +
+	"\fcurrentIndex\x18\x03 \x01(\rR\fcurrentIndex\x12&\n" +
+	"\fvalidIndexes\x18\x04 \x03(\rB\x02\x10\x01R\fvalidIndexes\x12:\n" +
+	"\vaccountType\x18\x05 \x01(\x0e2\x18.WAAdv.ADVEncryptionTypeR\vaccountType\"\xbb\x01\n" +
 	"\x17ADVSignedDeviceIdentity\x12\x18\n" +
 	"\adetails\x18\x01 \x01(\fR\adetails\x120\n" +
 	"\x13accountSignatureKey\x18\x02 \x01(\fR\x13accountSignatureKey\x12*\n" +
@@ -448,11 +447,16 @@ const file_waAdv_WAAdv_proto_rawDesc = "" +
 	"\x1bADVSignedDeviceIdentityHMAC\x12\x18\n" +
 	"\adetails\x18\x01 \x01(\fR\adetails\x12\x12\n" +
 	"\x04HMAC\x18\x02 \x01(\fR\x04HMAC\x12:\n" +
-	"\vaccountType\x18\x03 \x01(\x0e2\x18.WAAdv.ADVEncryptionTypeR\vaccountType*)\n" +
+	"\vaccountType\x18\x03 \x01(\x0e2\x18.WAAdv.ADVEncryptionTypeR\vaccountType\"\x8f\x01\n" +
+	"\x15ADVSignedKeyIndexList\x12\x18\n" +
+	"\adetails\x18\x01 \x01(\fR\adetails\x12*\n" +
+	"\x10accountSignature\x18\x02 \x01(\fR\x10accountSignature\x120\n" +
+	"\x13accountSignatureKey\x18\x03 \x01(\fR\x13accountSignatureKey*7\n" +
 	"\x11ADVEncryptionType\x12\b\n" +
 	"\x04E2EE\x10\x00\x12\n" +
 	"\n" +
-	"\x06HOSTED\x10\x01B!Z\x1fgo.mau.fi/whatsmeow/proto/waAdv"
+	"\x06HOSTED\x10\x01\x12\f\n" +
+	"\bNON_E2EE\x10\x02B!Z\x1fgo.mau.fi/whatsmeow/proto/waAdv"
 
 var (
 	file_waAdv_WAAdv_proto_rawDescOnce sync.Once
@@ -470,16 +474,16 @@ var file_waAdv_WAAdv_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_waAdv_WAAdv_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_waAdv_WAAdv_proto_goTypes = []any{
 	(ADVEncryptionType)(0),              // 0: WAAdv.ADVEncryptionType
-	(*ADVKeyIndexList)(nil),             // 1: WAAdv.ADVKeyIndexList
-	(*ADVSignedKeyIndexList)(nil),       // 2: WAAdv.ADVSignedKeyIndexList
-	(*ADVDeviceIdentity)(nil),           // 3: WAAdv.ADVDeviceIdentity
-	(*ADVSignedDeviceIdentity)(nil),     // 4: WAAdv.ADVSignedDeviceIdentity
-	(*ADVSignedDeviceIdentityHMAC)(nil), // 5: WAAdv.ADVSignedDeviceIdentityHMAC
+	(*ADVDeviceIdentity)(nil),           // 1: WAAdv.ADVDeviceIdentity
+	(*ADVKeyIndexList)(nil),             // 2: WAAdv.ADVKeyIndexList
+	(*ADVSignedDeviceIdentity)(nil),     // 3: WAAdv.ADVSignedDeviceIdentity
+	(*ADVSignedDeviceIdentityHMAC)(nil), // 4: WAAdv.ADVSignedDeviceIdentityHMAC
+	(*ADVSignedKeyIndexList)(nil),       // 5: WAAdv.ADVSignedKeyIndexList
 }
 var file_waAdv_WAAdv_proto_depIdxs = []int32{
-	0, // 0: WAAdv.ADVKeyIndexList.accountType:type_name -> WAAdv.ADVEncryptionType
-	0, // 1: WAAdv.ADVDeviceIdentity.accountType:type_name -> WAAdv.ADVEncryptionType
-	0, // 2: WAAdv.ADVDeviceIdentity.deviceType:type_name -> WAAdv.ADVEncryptionType
+	0, // 0: WAAdv.ADVDeviceIdentity.accountType:type_name -> WAAdv.ADVEncryptionType
+	0, // 1: WAAdv.ADVDeviceIdentity.deviceType:type_name -> WAAdv.ADVEncryptionType
+	0, // 2: WAAdv.ADVKeyIndexList.accountType:type_name -> WAAdv.ADVEncryptionType
 	0, // 3: WAAdv.ADVSignedDeviceIdentityHMAC.accountType:type_name -> WAAdv.ADVEncryptionType
 	4, // [4:4] is the sub-list for method output_type
 	4, // [4:4] is the sub-list for method input_type
