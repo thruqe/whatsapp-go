@@ -103,9 +103,9 @@ jobs:
               --title "feat(proto): update wa-core protobuf definitions to v${VERSION}" \
               --body "$PR_BODY" \
               --base master \
-              --head "${BRANCH_NAME}" || {
-                echo "::warning::Could not create PR automatically (check Repository Settings -> Actions -> General -> Workflow permissions -> 'Allow GitHub Actions to create and approve pull requests'). Branch '${BRANCH_NAME}' has been pushed."
-              }
+              --head "${BRANCH_NAME}" \
+            && echo "Pull request created for branch '${BRANCH_NAME}'." \
+            || echo "::warning::PR creation skipped — GitHub Actions is not permitted to create pull requests in this repository. Enable it under Settings → Actions → General → 'Allow GitHub Actions to create and approve pull requests'. Branch '${BRANCH_NAME}' has been pushed successfully and can be used to open a PR manually."
           else
             echo "Pull request for ${BRANCH_NAME} already exists."
           fi
