@@ -43,6 +43,10 @@ jobs:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install Tools
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+
       - name: Run Protobuf Sync
         run: |
           task proto:sync
