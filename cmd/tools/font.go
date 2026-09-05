@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sync"
 
-	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
 
 	"go.mau.fi/whatsmeow"
@@ -18,14 +17,6 @@ func init() {
 			SetFontStyle(style)
 		}
 	})
-}
-
-// FormatTextResponseRaw formats a text response with monospace/active font format, removing asterisks and emojis.
-func FormatTextResponseRaw(text string) string {
-	text = strings.ReplaceAll(text, "*", "")
-	text = utils.RemoveEmojis(text)
-	text = strings.ReplaceAll(text, "```", "")
-	return ConvertFontStyle(text)
 }
 
 // ToSmallCaps converts a string to Unicode small-caps formatting.

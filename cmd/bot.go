@@ -75,11 +75,6 @@ func NewBot(cfg BotConfig) *Bot {
 	}
 }
 
-// GroupManager returns the Bot's associated group state manager.
-func (b *Bot) GroupManager() *GroupManager {
-	return b.groupManager
-}
-
 // Start boots the WhatsApp client, initializes the WebSocket API server, and enters the event loop.
 func (b *Bot) Start(ctx context.Context) error {
 	if b.cfg.Session == "" {

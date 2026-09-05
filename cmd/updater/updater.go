@@ -479,12 +479,6 @@ func formatBytes(b int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-// FetchRemoteVersion fetches the latest version string from the remote repository.
-func FetchRemoteVersion() (string, error) {
-	ch := GetStoredChannel()
-	return New(Options{Channel: ch}).FetchRemoteVersion(context.Background())
-}
-
 // FetchRemoteVersion fetches the latest version string using the Updater's configured HTTP client and context.
 func (u *Updater) FetchRemoteVersion(ctx context.Context) (string, error) {
 	if u.opts.Channel == "beta" {
@@ -630,16 +624,6 @@ func (u *Updater) Check(ctx context.Context) (*UpdateResult, error) {
 	}
 
 	return res, nil
-}
-
-// PerformUpdate downloads the system-matching release and replaces the binary using DefaultUpdater.
-func PerformUpdate(isBeta bool) (*UpdateResult, error) {
-	ch := "stable"
-	if isBeta {
-		ch = "beta"
-	}
-	_ = SetStoredChannel(ch)
-	return New(Options{Channel: ch}).Upgrade(context.Background(), isBeta)
 }
 
 // Upgrade checks, downloads, and performs an atomic upgrade of the binary release.

@@ -133,25 +133,3 @@ func RecordRecentMessage(evt *events.Message) {
 	defer recentMessages.mu.Unlock()
 	recentMessages.messages[evt.Info.Chat] = evt
 }
-
-// GetRecentMessage returns the most recent message event recorded for a chat JID.
-func GetRecentMessage(chat types.JID) (*events.Message, bool) {
-	recentMessages.mu.RLock()
-	defer recentMessages.mu.RUnlock()
-	evt, ok := recentMessages.messages[chat]
-	return evt, ok
-}
-
-// DismissBotNamePrompt marks the bot name setup prompt as dismissed.
-func DismissBotNamePrompt(ctx context.Context, s *StoreWrapper) {
-	if s != nil {
-		_ = s.PutSetting(ctx, "bot_name_dismissed", "true")
-	}
-}
-
-// ResetBotNamePromptDismissed clears the bot name setup prompt dismissal state.
-func ResetBotNamePromptDismissed(ctx context.Context, s *StoreWrapper) {
-	if s != nil {
-		_ = s.DeleteSetting(ctx, "bot_name_dismissed")
-	}
-}

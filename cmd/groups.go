@@ -641,27 +641,3 @@ func (gm *GroupManager) handlePictureEvent(ctx context.Context, p *events.Pictur
 		gm.mu.Unlock()
 	}
 }
-
-// IsAdmin checks if a user is an admin in the specified group using cached metadata.
-func (gm *GroupManager) IsAdmin(groupJID, userJID types.JID) bool {
-	if userJID.IsEmpty() {
-		return false
-	}
-	gm.mu.RLock()
-	defer gm.mu.RUnlock()
-	g, ok := gm.groups[groupJID]
-	if !ok {
-		return false
-	}
-	cleanUser := userJID.ToNonAD()
-	for _, p := range g.Participants {
-		cleanPJID := p.JID.ToNonAD()
-		cleanPLID := p.LID.ToNonAD()
-		matches := (!cleanPJID.IsEmpty() && (cleanPJID == cleanUser || (cleanPJID.User == cleanUser.User && (cleanPJID.Server == cleanUser.Server || cleanUser.Server == "")))) ||
-			(!cleanPLID.IsEmpty() && (cleanPLID == cleanUser || (cleanPLID.User == cleanUser.User && (cleanPLID.Server == cleanUser.Server || cleanUser.Server == ""))))
-		if matches {
-			return p.IsAdmin || p.IsSuperAdmin
-		}
-	}
-	return false
-}

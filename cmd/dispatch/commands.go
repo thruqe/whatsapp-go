@@ -33,13 +33,6 @@ func NewText(initial ...string) *TextBuilder {
 	return utils.NewText(initial...)
 }
 
-// NewTextf constructs a fluent text message builder with initial formatted content.
-func NewTextf(format string, args ...any) *TextBuilder {
-	b := utils.NewText()
-	b.Textf(format, args...)
-	return b
-}
-
 var (
 	// Sprintf is an alias for standard string formatting.
 	Sprintf = utils.Sprintf

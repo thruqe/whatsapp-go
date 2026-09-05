@@ -52,6 +52,9 @@ func init() {
 	dispatch.RegisterPreInterceptor("settings_afk", func(c *dispatch.Context, text string) bool {
 		return HandleAFKAutoResponse(c.Ctx, c.Client, c.Evt, text)
 	})
+	dispatch.RegisterPreInterceptor("settings_stpack", func(c *dispatch.Context, text string) bool {
+		return HandlePendingStpackInput(c, text)
+	})
 
 	dispatch.Register(&dispatch.Command{
 		Name:        "afk",
@@ -177,18 +180,11 @@ func init() {
 		Handler:     handleAutoReadCmd,
 	})
 	dispatch.Register(&dispatch.Command{
-		Name:        "setpack",
-		Alias:       "stickerpack, packname",
-		Description: "View or configure the default sticker pack name",
+		Name:        "stpack",
+		Description: "Configure default sticker pack author and pack name",
 		Category:    "settings",
-		Handler:     handleSetPack,
-	})
-	dispatch.Register(&dispatch.Command{
-		Name:        "setauthor",
-		Alias:       "stickerauthor, author",
-		Description: "View or configure the default sticker author/publisher",
-		Category:    "settings",
-		Handler:     handleSetAuthor,
+		IsPublic:    false,
+		Handler:     handleStpack,
 	})
 }
 
@@ -900,15 +896,6 @@ func GetSessionAuthDir(client *whatsmeow.Client) string {
 		}
 	}
 	return filepath.Join(baseAuth, "default")
-}
-
-func GetSessionMediaDir(client *whatsmeow.Client, subdirs ...string) string {
-	base := filepath.Join(GetSessionAuthDir(client), "media")
-	if len(subdirs) > 0 {
-		elem := append([]string{base}, subdirs...)
-		return filepath.Join(elem...)
-	}
-	return base
 }
 
 func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, isVideo bool) (string, error) {
@@ -1715,54 +1702,127 @@ func handlePrefix(ctx *dispatch.Context) error {
 	return ctx.Replyf("Prefix updated to: %s", strings.Join(display, ", "))
 }
 
-func handleSetPack(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleStpack(ctx *dispatch.Context) error {
+	_, ok := dispatch.GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
-	}
-
-	if ctx.RawArgs == "" {
-		pack, _ := s.GetSetting(ctx.Ctx, "sticker_pack")
-		if pack == "" {
-			pack = ctx.GetBotName()
-		}
-		return ctx.Replyf("Current default sticker pack: %q\nUsage: %ssetpack [name]", pack, ctx.GetPrefix())
 	}
 
 	if !ctx.IsSudo() {
 		return ctx.Reply("Only owner/sudo users can modify default sticker pack.")
 	}
 
-	newPack := strings.TrimSpace(ctx.RawArgs)
-	if err := s.PutSetting(ctx.Ctx, "sticker_pack", newPack); err != nil {
-		return ctx.Reply("Failed to update default sticker pack.")
+	key := ctx.Chat.ToNonAD().String() + ":" + ctx.Sender.ToNonAD().String()
+	StpackSessionMu.Lock()
+	PendingStpackSessions[key] = StpackSession{
+		Step:      1,
+		UpdatedAt: time.Now(),
 	}
-	return ctx.Replyf("Default sticker pack updated to: %q", newPack)
+	StpackSessionMu.Unlock()
+
+	return ctx.Reply("Type sticker pack author name")
 }
 
-func handleSetAuthor(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
-	if !ok {
-		return ctx.Reply("Settings store unavailable.")
+func HandlePendingStpackInput(ctx *dispatch.Context, text string) bool {
+	if ctx == nil || ctx.Client == nil || ctx.Sender.User == "" {
+		return false
 	}
 
-	if ctx.RawArgs == "" {
-		author, _ := s.GetSetting(ctx.Ctx, "sticker_author")
-		if author == "" {
-			author = "WhatsRook"
-		}
-		return ctx.Replyf("Current default sticker author: %q\nUsage: %ssetauthor [name]", author, ctx.GetPrefix())
+	key := ctx.Chat.ToNonAD().String() + ":" + ctx.Sender.ToNonAD().String()
+	StpackSessionMu.RLock()
+	session, exists := PendingStpackSessions[key]
+	StpackSessionMu.RUnlock()
+
+	if !exists {
+		return false
+	}
+
+	if time.Since(session.UpdatedAt) > StpackSessionTTL {
+		StpackSessionMu.Lock()
+		delete(PendingStpackSessions, key)
+		StpackSessionMu.Unlock()
+		return false
 	}
 
 	if !ctx.IsSudo() {
-		return ctx.Reply("Only owner/sudo users can modify default sticker author.")
+		return false
 	}
 
-	newAuthor := strings.TrimSpace(ctx.RawArgs)
-	if err := s.PutSetting(ctx.Ctx, "sticker_author", newAuthor); err != nil {
-		return ctx.Reply("Failed to update default sticker author.")
+	trimmed := strings.TrimSpace(text)
+	lower := strings.ToLower(trimmed)
+
+	if lower == "cancel" || lower == ".cancel" || lower == "!cancel" || lower == ctx.GetPrefix()+"cancel" || lower == "exit" {
+		StpackSessionMu.Lock()
+		delete(PendingStpackSessions, key)
+		StpackSessionMu.Unlock()
+		_ = ctx.Reply("Cancelled.")
+		return true
 	}
-	return ctx.Replyf("Default sticker author updated to: %q", newAuthor)
+
+	var prefixes []string
+	if s, ok := dispatch.GetSQLStore(ctx.Client); ok {
+		if p, err := s.GetSetting(ctx.Ctx, "prefix"); err == nil && strings.TrimSpace(p) != "" {
+			prefixes = strings.Fields(p)
+		}
+	}
+	if len(prefixes) == 0 {
+		prefixes = []string{"."}
+	}
+	for _, pref := range prefixes {
+		if pref != "" && strings.HasPrefix(trimmed, pref) {
+			if strings.EqualFold(trimmed, pref+"stpack") || strings.HasPrefix(strings.ToLower(trimmed), pref+"stpack ") {
+				session.Step = 1
+				session.Author = ""
+				session.UpdatedAt = time.Now()
+				StpackSessionMu.Lock()
+				PendingStpackSessions[key] = session
+				StpackSessionMu.Unlock()
+				_ = ctx.Reply("Type sticker pack author name")
+				return true
+			}
+			StpackSessionMu.Lock()
+			delete(PendingStpackSessions, key)
+			StpackSessionMu.Unlock()
+			return false
+		}
+	}
+
+	if trimmed == "" {
+		return false
+	}
+
+	switch session.Step {
+	case 1:
+		session.Author = trimmed
+		session.Step = 2
+		session.UpdatedAt = time.Now()
+		StpackSessionMu.Lock()
+		PendingStpackSessions[key] = session
+		StpackSessionMu.Unlock()
+
+		_ = ctx.Reply("Type sticker pack name")
+		return true
+
+	case 2:
+		packName := trimmed
+		s, ok := dispatch.GetStore(ctx)
+		if ok {
+			if err := s.PutSetting(ctx.Ctx, "sticker_author", session.Author); err != nil {
+				Logger.Error("failed to update sticker_author", "err", err)
+			}
+			if err := s.PutSetting(ctx.Ctx, "sticker_pack", packName); err != nil {
+				Logger.Error("failed to update sticker_pack", "err", err)
+			}
+		}
+		StpackSessionMu.Lock()
+		delete(PendingStpackSessions, key)
+		StpackSessionMu.Unlock()
+
+		_ = ctx.Reply("Done")
+		return true
+	}
+
+	return false
 }
 
 func handlePrivacy(ctx *dispatch.Context) error {
