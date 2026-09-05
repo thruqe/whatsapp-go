@@ -103,7 +103,9 @@ jobs:
               --title "feat(proto): update wa-core protobuf definitions to v${VERSION}" \
               --body "$PR_BODY" \
               --base master \
-              --head "${BRANCH_NAME}"
+              --head "${BRANCH_NAME}" || {
+                echo "::warning::Could not create PR automatically (check Repository Settings -> Actions -> General -> Workflow permissions -> 'Allow GitHub Actions to create and approve pull requests'). Branch '${BRANCH_NAME}' has been pushed."
+              }
           else
             echo "Pull request for ${BRANCH_NAME} already exists."
           fi
