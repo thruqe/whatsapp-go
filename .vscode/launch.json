@@ -26,8 +26,8 @@
       "trace": "verbose"
     },
     {
-      // ── Standby: interactive TUI session manager ─────────────────────────
-      "name": "WhatsRook: Standby (TUI)",
+      // ── Standby: no session provided; falls back to interactive stdin prompt
+      "name": "WhatsRook: Standby",
       "type": "go",
       "request": "launch",
       "mode": "debug",
@@ -39,7 +39,7 @@
         "VERBOSE": "true"
       },
       "envFile": "${workspaceFolder}/.env",
-      "args": ["standby"],
+      "args": [],
       "showLog": true,
       "trace": "verbose"
     },
@@ -57,7 +57,7 @@
         "VERBOSE": "true"
       },
       "envFile": "${workspaceFolder}/.env",
-      "args": ["-session", "${env:SESSION}", "-auth", "qr"],
+      "args": ["${env:SESSION}", "-auth", "qr"],
       "showLog": true,
       "trace": "verbose"
     },
@@ -75,7 +75,7 @@
         "VERBOSE": "true"
       },
       "envFile": "${workspaceFolder}/.env",
-      "args": ["-session", "${env:SESSION}", "-auth", "pair"],
+      "args": ["${env:SESSION}", "-auth", "pair"],
       "showLog": true,
       "trace": "verbose"
     },

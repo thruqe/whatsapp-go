@@ -296,7 +296,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 			}
 
 			for _, participant := range g.Join {
-				resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, participant)
+				resolvedJIDs, username := utils.ResolveMentionJIDs(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -333,7 +333,11 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				formatted := utils.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" || tag == "" {
-					mentions = append(mentions, resolvedJID.String())
+					for _, j := range resolvedJIDs {
+						if !j.IsEmpty() {
+							mentions = append(mentions, j.String())
+						}
+					}
 				}
 				if ownerJIDStr != "" && (strings.Contains(customMsg, "{owner}") || strings.Contains(customMsg, "{creator}")) {
 					mentions = append(mentions, ownerJIDStr)
@@ -408,7 +412,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					continue
 				}
 
-				resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, participant)
+				resolvedJIDs, username := utils.ResolveMentionJIDs(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -445,7 +449,11 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				formatted := utils.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" || tag == "" {
-					mentions = append(mentions, resolvedJID.String())
+					for _, j := range resolvedJIDs {
+						if !j.IsEmpty() {
+							mentions = append(mentions, j.String())
+						}
+					}
 				}
 				if ownerJIDStr != "" && (strings.Contains(customMsg, "{owner}") || strings.Contains(customMsg, "{creator}")) {
 					mentions = append(mentions, ownerJIDStr)
@@ -556,10 +564,10 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	// 5. Admin Promotions
 	if len(g.Promote) > 0 {
 		for _, userJID := range g.Promote {
-			resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, userJID)
+			resolvedJIDs, username := utils.ResolveMentionJIDs(ctx, cli, userJID)
 			logger.Debug("handleGroupEventsNotification: participant promoted to admin", "group", chatKey, "user", username, "actor", actorTag)
 			msgText := utils.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
-			mentions := []types.JID{resolvedJID}
+			mentions := resolvedJIDs
 			if actorJID != nil && !actorJID.IsEmpty() {
 				mentions = append(mentions, *actorJID)
 			}
@@ -570,10 +578,10 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	// 6. Admin Demotions
 	if len(g.Demote) > 0 {
 		for _, userJID := range g.Demote {
-			resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, userJID)
+			resolvedJIDs, username := utils.ResolveMentionJIDs(ctx, cli, userJID)
 			logger.Debug("handleGroupEventsNotification: admin demoted to member", "group", chatKey, "user", username, "actor", actorTag)
 			msgText := utils.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
-			mentions := []types.JID{resolvedJID}
+			mentions := resolvedJIDs
 			if actorJID != nil && !actorJID.IsEmpty() {
 				mentions = append(mentions, *actorJID)
 			}
@@ -800,7 +808,11 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 			continue
 		}
 
-		resolvedJID, username := utils.ResolveMentionRaw(ctx, cli, participant)
+		resolvedJIDs, username := utils.ResolveMentionJIDs(ctx, cli, participant)
+		resolvedJID := participant.ToNonAD()
+		if len(resolvedJIDs) > 0 {
+			resolvedJID = resolvedJIDs[0]
+		}
 
 		// Generate random 4-digit code
 		codeInt := rand.Intn(10000)
