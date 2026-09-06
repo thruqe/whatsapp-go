@@ -18,13 +18,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Setup Git User
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "Thruqe"
+          git config --global user.email "danielpeter0039@gmail.com"
 
       - name: Setup Go Toolchain
         uses: actions/setup-go@v5
@@ -41,7 +41,7 @@ jobs:
         uses: arduino/setup-task@v2
         with:
           version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          repo-token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Install Tools
         run: |
@@ -73,7 +73,7 @@ jobs:
       - name: Format & Create Pull Request
         if: steps.check-changes.outputs.has_changes == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.check-changes.outputs.version }}
           PR_BODY: |
             ### Automated WhatsApp Web Protobuf Sync
