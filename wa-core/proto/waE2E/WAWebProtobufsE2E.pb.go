@@ -1722,6 +1722,7 @@ type ContextInfo_DataSharingContext_DataSharingFlags int32
 const (
 	ContextInfo_DataSharingContext_SHOW_MM_DISCLOSURE_ON_CLICK ContextInfo_DataSharingContext_DataSharingFlags = 1
 	ContextInfo_DataSharingContext_SHOW_MM_DISCLOSURE_ON_READ  ContextInfo_DataSharingContext_DataSharingFlags = 2
+	ContextInfo_DataSharingContext_DATASHARINGFLAGS_UNKNOWN    ContextInfo_DataSharingContext_DataSharingFlags = 0
 )
 
 // Enum value maps for ContextInfo_DataSharingContext_DataSharingFlags.
@@ -1729,10 +1730,12 @@ var (
 	ContextInfo_DataSharingContext_DataSharingFlags_name = map[int32]string{
 		1: "SHOW_MM_DISCLOSURE_ON_CLICK",
 		2: "SHOW_MM_DISCLOSURE_ON_READ",
+		0: "DATASHARINGFLAGS_UNKNOWN",
 	}
 	ContextInfo_DataSharingContext_DataSharingFlags_value = map[string]int32{
 		"SHOW_MM_DISCLOSURE_ON_CLICK": 1,
 		"SHOW_MM_DISCLOSURE_ON_READ":  2,
+		"DATASHARINGFLAGS_UNKNOWN":    0,
 	}
 )
 
@@ -1776,9 +1779,10 @@ func (ContextInfo_DataSharingContext_DataSharingFlags) EnumDescriptor() ([]byte,
 type ContextInfo_ForwardedNewsletterMessageInfo_ContentType int32
 
 const (
-	ContextInfo_ForwardedNewsletterMessageInfo_UPDATE      ContextInfo_ForwardedNewsletterMessageInfo_ContentType = 1
-	ContextInfo_ForwardedNewsletterMessageInfo_UPDATE_CARD ContextInfo_ForwardedNewsletterMessageInfo_ContentType = 2
-	ContextInfo_ForwardedNewsletterMessageInfo_LINK_CARD   ContextInfo_ForwardedNewsletterMessageInfo_ContentType = 3
+	ContextInfo_ForwardedNewsletterMessageInfo_UPDATE              ContextInfo_ForwardedNewsletterMessageInfo_ContentType = 1
+	ContextInfo_ForwardedNewsletterMessageInfo_UPDATE_CARD         ContextInfo_ForwardedNewsletterMessageInfo_ContentType = 2
+	ContextInfo_ForwardedNewsletterMessageInfo_LINK_CARD           ContextInfo_ForwardedNewsletterMessageInfo_ContentType = 3
+	ContextInfo_ForwardedNewsletterMessageInfo_CONTENTTYPE_UNKNOWN ContextInfo_ForwardedNewsletterMessageInfo_ContentType = 0
 )
 
 // Enum value maps for ContextInfo_ForwardedNewsletterMessageInfo_ContentType.
@@ -1787,11 +1791,13 @@ var (
 		1: "UPDATE",
 		2: "UPDATE_CARD",
 		3: "LINK_CARD",
+		0: "CONTENTTYPE_UNKNOWN",
 	}
 	ContextInfo_ForwardedNewsletterMessageInfo_ContentType_value = map[string]int32{
-		"UPDATE":      1,
-		"UPDATE_CARD": 2,
-		"LINK_CARD":   3,
+		"UPDATE":              1,
+		"UPDATE_CARD":         2,
+		"LINK_CARD":           3,
+		"CONTENTTYPE_UNKNOWN": 0,
 	}
 )
 
@@ -2461,8 +2467,9 @@ func (GroupInviteMessage_GroupType) EnumDescriptor() ([]byte, []int) {
 type HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType int32
 
 const (
-	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_GREGORIAN   HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType = 1
-	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_SOLAR_HIJRI HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType = 2
+	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_GREGORIAN            HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType = 1
+	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_SOLAR_HIJRI          HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType = 2
+	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CALENDARTYPE_UNKNOWN HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType = 0
 )
 
 // Enum value maps for HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType.
@@ -2470,10 +2477,12 @@ var (
 	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType_name = map[int32]string{
 		1: "GREGORIAN",
 		2: "SOLAR_HIJRI",
+		0: "CALENDARTYPE_UNKNOWN",
 	}
 	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_CalendarType_value = map[string]int32{
-		"GREGORIAN":   1,
-		"SOLAR_HIJRI": 2,
+		"GREGORIAN":            1,
+		"SOLAR_HIJRI":          2,
+		"CALENDARTYPE_UNKNOWN": 0,
 	}
 )
 
@@ -2517,13 +2526,14 @@ func (HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeCom
 type HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType int32
 
 const (
-	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_MONDAY    HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 1
-	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_TUESDAY   HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 2
-	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_WEDNESDAY HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 3
-	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_THURSDAY  HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 4
-	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_FRIDAY    HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 5
-	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_SATURDAY  HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 6
-	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_SUNDAY    HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 7
+	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_MONDAY                HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 1
+	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_TUESDAY               HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 2
+	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_WEDNESDAY             HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 3
+	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_THURSDAY              HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 4
+	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_FRIDAY                HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 5
+	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_SATURDAY              HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 6
+	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_SUNDAY                HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 7
+	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DAYOFWEEKTYPE_UNKNOWN HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType = 0
 )
 
 // Enum value maps for HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType.
@@ -2536,15 +2546,17 @@ var (
 		5: "FRIDAY",
 		6: "SATURDAY",
 		7: "SUNDAY",
+		0: "DAYOFWEEKTYPE_UNKNOWN",
 	}
 	HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeComponent_DayOfWeekType_value = map[string]int32{
-		"MONDAY":    1,
-		"TUESDAY":   2,
-		"WEDNESDAY": 3,
-		"THURSDAY":  4,
-		"FRIDAY":    5,
-		"SATURDAY":  6,
-		"SUNDAY":    7,
+		"MONDAY":                1,
+		"TUESDAY":               2,
+		"WEDNESDAY":             3,
+		"THURSDAY":              4,
+		"FRIDAY":                5,
+		"SATURDAY":              6,
+		"SUNDAY":                7,
+		"DAYOFWEEKTYPE_UNKNOWN": 0,
 	}
 )
 
@@ -2588,9 +2600,10 @@ func (HighlyStructuredMessage_HSMLocalizableParameter_HSMDateTime_HSMDateTimeCom
 type HydratedTemplateButton_HydratedURLButton_WebviewPresentationType int32
 
 const (
-	HydratedTemplateButton_HydratedURLButton_FULL    HydratedTemplateButton_HydratedURLButton_WebviewPresentationType = 1
-	HydratedTemplateButton_HydratedURLButton_TALL    HydratedTemplateButton_HydratedURLButton_WebviewPresentationType = 2
-	HydratedTemplateButton_HydratedURLButton_COMPACT HydratedTemplateButton_HydratedURLButton_WebviewPresentationType = 3
+	HydratedTemplateButton_HydratedURLButton_FULL                            HydratedTemplateButton_HydratedURLButton_WebviewPresentationType = 1
+	HydratedTemplateButton_HydratedURLButton_TALL                            HydratedTemplateButton_HydratedURLButton_WebviewPresentationType = 2
+	HydratedTemplateButton_HydratedURLButton_COMPACT                         HydratedTemplateButton_HydratedURLButton_WebviewPresentationType = 3
+	HydratedTemplateButton_HydratedURLButton_WEBVIEWPRESENTATIONTYPE_UNKNOWN HydratedTemplateButton_HydratedURLButton_WebviewPresentationType = 0
 )
 
 // Enum value maps for HydratedTemplateButton_HydratedURLButton_WebviewPresentationType.
@@ -2599,11 +2612,13 @@ var (
 		1: "FULL",
 		2: "TALL",
 		3: "COMPACT",
+		0: "WEBVIEWPRESENTATIONTYPE_UNKNOWN",
 	}
 	HydratedTemplateButton_HydratedURLButton_WebviewPresentationType_value = map[string]int32{
-		"FULL":    1,
-		"TALL":    2,
-		"COMPACT": 3,
+		"FULL":                            1,
+		"TALL":                            2,
+		"COMPACT":                         3,
+		"WEBVIEWPRESENTATIONTYPE_UNKNOWN": 0,
 	}
 )
 
@@ -4366,8 +4381,9 @@ func (PaymentReminderMessage_ReminderFrequency) EnumDescriptor() ([]byte, []int)
 type PeerDataOperationRequestMessage_GalaxyFlowAction_GalaxyFlowActionType int32
 
 const (
-	PeerDataOperationRequestMessage_GalaxyFlowAction_NOTIFY_LAUNCH      PeerDataOperationRequestMessage_GalaxyFlowAction_GalaxyFlowActionType = 1
-	PeerDataOperationRequestMessage_GalaxyFlowAction_DOWNLOAD_RESPONSES PeerDataOperationRequestMessage_GalaxyFlowAction_GalaxyFlowActionType = 2
+	PeerDataOperationRequestMessage_GalaxyFlowAction_NOTIFY_LAUNCH                PeerDataOperationRequestMessage_GalaxyFlowAction_GalaxyFlowActionType = 1
+	PeerDataOperationRequestMessage_GalaxyFlowAction_DOWNLOAD_RESPONSES           PeerDataOperationRequestMessage_GalaxyFlowAction_GalaxyFlowActionType = 2
+	PeerDataOperationRequestMessage_GalaxyFlowAction_GALAXYFLOWACTIONTYPE_UNKNOWN PeerDataOperationRequestMessage_GalaxyFlowAction_GalaxyFlowActionType = 0
 )
 
 // Enum value maps for PeerDataOperationRequestMessage_GalaxyFlowAction_GalaxyFlowActionType.
@@ -4375,10 +4391,12 @@ var (
 	PeerDataOperationRequestMessage_GalaxyFlowAction_GalaxyFlowActionType_name = map[int32]string{
 		1: "NOTIFY_LAUNCH",
 		2: "DOWNLOAD_RESPONSES",
+		0: "GALAXYFLOWACTIONTYPE_UNKNOWN",
 	}
 	PeerDataOperationRequestMessage_GalaxyFlowAction_GalaxyFlowActionType_value = map[string]int32{
-		"NOTIFY_LAUNCH":      1,
-		"DOWNLOAD_RESPONSES": 2,
+		"NOTIFY_LAUNCH":                1,
+		"DOWNLOAD_RESPONSES":           2,
+		"GALAXYFLOWACTIONTYPE_UNKNOWN": 0,
 	}
 )
 
@@ -4422,12 +4440,13 @@ func (PeerDataOperationRequestMessage_GalaxyFlowAction_GalaxyFlowActionType) Enu
 type PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode int32
 
 const (
-	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_GENERATION_ERROR   PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 1
-	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CHUNK_CONSUMED     PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 2
-	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_TIMEOUT            PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 3
-	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SESSION_EXHAUSTED  PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 4
-	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CHUNK_EXHAUSTED    PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 5
-	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_DUPLICATED_REQUEST PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 6
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_GENERATION_ERROR                          PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 1
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CHUNK_CONSUMED                            PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 2
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_TIMEOUT                                   PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 3
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_SESSION_EXHAUSTED                         PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 4
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_CHUNK_EXHAUSTED                           PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 5
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_DUPLICATED_REQUEST                        PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 6
+	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HISTORYSYNCCHUNKRETRYRESPONSECODE_UNKNOWN PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode = 0
 )
 
 // Enum value maps for PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode.
@@ -4439,6 +4458,7 @@ var (
 		4: "SESSION_EXHAUSTED",
 		5: "CHUNK_EXHAUSTED",
 		6: "DUPLICATED_REQUEST",
+		0: "HISTORYSYNCCHUNKRETRYRESPONSECODE_UNKNOWN",
 	}
 	PeerDataOperationRequestResponseMessage_PeerDataOperationResult_HistorySyncChunkRetryResponseCode_value = map[string]int32{
 		"GENERATION_ERROR":   1,
@@ -4447,6 +4467,7 @@ var (
 		"SESSION_EXHAUSTED":  4,
 		"CHUNK_EXHAUSTED":    5,
 		"DUPLICATED_REQUEST": 6,
+		"HISTORYSYNCCHUNKRETRYRESPONSECODE_UNKNOWN": 0,
 	}
 )
 
@@ -14581,6 +14602,8 @@ type MsgOpaqueData struct {
 	SharableEventInviteIsCanceled    *bool                            `protobuf:"varint,58,opt,name=sharableEventInviteIsCanceled" json:"sharableEventInviteIsCanceled,omitempty"`
 	SharableEventInviteJpegThumbnail []byte                           `protobuf:"bytes,59,opt,name=sharableEventInviteJpegThumbnail" json:"sharableEventInviteJpegThumbnail,omitempty"`
 	SharableEventInviteCallLink      *string                          `protobuf:"bytes,60,opt,name=sharableEventInviteCallLink" json:"sharableEventInviteCallLink,omitempty"`
+	MediaPngThumbnail                *string                          `protobuf:"bytes,61,opt,name=mediaPngThumbnail" json:"mediaPngThumbnail,omitempty"`
+	QrUrl                            *string                          `protobuf:"bytes,62,opt,name=qrUrl" json:"qrUrl,omitempty"`
 	unknownFields                    protoimpl.UnknownFields
 	sizeCache                        protoimpl.SizeCache
 }
@@ -14996,6 +15019,20 @@ func (x *MsgOpaqueData) GetSharableEventInviteJpegThumbnail() []byte {
 func (x *MsgOpaqueData) GetSharableEventInviteCallLink() string {
 	if x != nil && x.SharableEventInviteCallLink != nil {
 		return *x.SharableEventInviteCallLink
+	}
+	return ""
+}
+
+func (x *MsgOpaqueData) GetMediaPngThumbnail() string {
+	if x != nil && x.MediaPngThumbnail != nil {
+		return *x.MediaPngThumbnail
+	}
+	return ""
+}
+
+func (x *MsgOpaqueData) GetQrUrl() string {
+	if x != nil && x.QrUrl != nil {
+		return *x.QrUrl
 	}
 	return ""
 }
@@ -27684,7 +27721,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x14ContactsArrayMessage\x12 \n" +
 	"\vdisplayName\x18\x01 \x01(\tR\vdisplayName\x12=\n" +
 	"\bcontacts\x18\x02 \x03(\v2!.WAWebProtobufsE2E.ContactMessageR\bcontacts\x12@\n" +
-	"\vcontextInfo\x18\x11 \x01(\v2\x1e.WAWebProtobufsE2E.ContextInfoR\vcontextInfo\"\xdeN\n" +
+	"\vcontextInfo\x18\x11 \x01(\v2\x1e.WAWebProtobufsE2E.ContextInfoR\vcontextInfo\"\x95O\n" +
 	"\vContextInfo\x12\x1a\n" +
 	"\bstanzaID\x18\x01 \x01(\tR\bstanzaID\x12 \n" +
 	"\vparticipant\x18\x02 \x01(\tR\vparticipant\x12@\n" +
@@ -27811,7 +27848,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\tlistEmoji\x18\x03 \x01(\tR\tlistEmoji\".\n" +
 	"\fAudienceType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\x11\n" +
-	"\rCLOSE_FRIENDS\x10\x01\x1a\xb8\x04\n" +
+	"\rCLOSE_FRIENDS\x10\x01\x1a\xd6\x04\n" +
 	"\x12DataSharingContext\x12*\n" +
 	"\x10showMmDisclosure\x18\x01 \x01(\bR\x10showMmDisclosure\x12D\n" +
 	"\x1dencryptedSignalTokenConsented\x18\x02 \x01(\tR\x1dencryptedSignalTokenConsented\x12\\\n" +
@@ -27827,22 +27864,24 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"stringData\x12\x18\n" +
 	"\aintData\x18\x03 \x01(\x03R\aintData\x12\x1c\n" +
 	"\tfloatData\x18\x04 \x01(\x02R\tfloatData\x12X\n" +
-	"\bcontents\x18\x05 \x01(\v2<.WAWebProtobufsE2E.ContextInfo.DataSharingContext.ParametersR\bcontents\"S\n" +
+	"\bcontents\x18\x05 \x01(\v2<.WAWebProtobufsE2E.ContextInfo.DataSharingContext.ParametersR\bcontents\"q\n" +
 	"\x10DataSharingFlags\x12\x1f\n" +
 	"\x1bSHOW_MM_DISCLOSURE_ON_CLICK\x10\x01\x12\x1e\n" +
-	"\x1aSHOW_MM_DISCLOSURE_ON_READ\x10\x02\x1a\x90\x03\n" +
+	"\x1aSHOW_MM_DISCLOSURE_ON_READ\x10\x02\x12\x1c\n" +
+	"\x18DATASHARINGFLAGS_UNKNOWN\x10\x00\x1a\xa9\x03\n" +
 	"\x1eForwardedNewsletterMessageInfo\x12$\n" +
 	"\rnewsletterJID\x18\x01 \x01(\tR\rnewsletterJID\x12(\n" +
 	"\x0fserverMessageID\x18\x02 \x01(\x05R\x0fserverMessageID\x12&\n" +
 	"\x0enewsletterName\x18\x03 \x01(\tR\x0enewsletterName\x12k\n" +
 	"\vcontentType\x18\x04 \x01(\x0e2I.WAWebProtobufsE2E.ContextInfo.ForwardedNewsletterMessageInfo.ContentTypeR\vcontentType\x12,\n" +
 	"\x11accessibilityText\x18\x05 \x01(\tR\x11accessibilityText\x12 \n" +
-	"\vprofileName\x18\x06 \x01(\tR\vprofileName\"9\n" +
+	"\vprofileName\x18\x06 \x01(\tR\vprofileName\"R\n" +
 	"\vContentType\x12\n" +
 	"\n" +
 	"\x06UPDATE\x10\x01\x12\x0f\n" +
 	"\vUPDATE_CARD\x10\x02\x12\r\n" +
-	"\tLINK_CARD\x10\x03\x1a\xf7\v\n" +
+	"\tLINK_CARD\x10\x03\x12\x17\n" +
+	"\x13CONTENTTYPE_UNKNOWN\x10\x00\x1a\xf7\v\n" +
 	"\x13ExternalAdReplyInfo\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12\x12\n" +
 	"\x04body\x18\x02 \x01(\tR\x04body\x12Z\n" +
@@ -28197,7 +28236,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\fgroupRootKey\x18\x01 \x01(\fR\fgroupRootKey\x12\x14\n" +
 	"\x05keyID\x18\x02 \x01(\tR\x05keyID\x12,\n" +
 	"\x11expiryTimestampMS\x18\x03 \x01(\x03R\x11expiryTimestampMS\x12.\n" +
-	"\x12createdTimestampMS\x18\x04 \x01(\x03R\x12createdTimestampMS\"\xe0\r\n" +
+	"\x12createdTimestampMS\x18\x04 \x01(\x03R\x12createdTimestampMS\"\x96\x0e\n" +
 	"\x17HighlyStructuredMessage\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12 \n" +
 	"\velementName\x18\x02 \x01(\tR\velementName\x12\x16\n" +
@@ -28211,15 +28250,15 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x11localizableParams\x18\x06 \x03(\v2B.WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameterR\x11localizableParams\x12(\n" +
 	"\x0fdeterministicLg\x18\a \x01(\tR\x0fdeterministicLg\x12(\n" +
 	"\x0fdeterministicLc\x18\b \x01(\tR\x0fdeterministicLc\x12D\n" +
-	"\vhydratedHsm\x18\t \x01(\v2\".WAWebProtobufsE2E.TemplateMessageR\vhydratedHsm\x1a\xa0\n" +
+	"\vhydratedHsm\x18\t \x01(\v2\".WAWebProtobufsE2E.TemplateMessageR\vhydratedHsm\x1a\xd6\n" +
 	"\n" +
 	"\x17HSMLocalizableParameter\x12\x18\n" +
 	"\adefault\x18\x01 \x01(\tR\adefault\x12l\n" +
 	"\bcurrency\x18\x02 \x01(\v2N.WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMCurrencyH\x00R\bcurrency\x12l\n" +
-	"\bdateTime\x18\x03 \x01(\v2N.WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTimeH\x00R\bdateTime\x1a\xad\a\n" +
+	"\bdateTime\x18\x03 \x01(\v2N.WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTimeH\x00R\bdateTime\x1a\xe3\a\n" +
 	"\vHSMDateTime\x12\x83\x01\n" +
 	"\tcomponent\x18\x01 \x01(\v2c.WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponentH\x00R\tcomponent\x12\x83\x01\n" +
-	"\tunixEpoch\x18\x02 \x01(\v2c.WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeUnixEpochH\x00R\tunixEpoch\x1a\xca\x04\n" +
+	"\tunixEpoch\x18\x02 \x01(\v2c.WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeUnixEpochH\x00R\tunixEpoch\x1a\x80\x05\n" +
 	"\x14HSMDateTimeComponent\x12\x8f\x01\n" +
 	"\tdayOfWeek\x18\x01 \x01(\x0e2q.WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.DayOfWeekTypeR\tdayOfWeek\x12\x12\n" +
 	"\x04year\x18\x02 \x01(\rR\x04year\x12\x14\n" +
@@ -28229,10 +28268,11 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"dayOfMonth\x12\x12\n" +
 	"\x04hour\x18\x05 \x01(\rR\x04hour\x12\x16\n" +
 	"\x06minute\x18\x06 \x01(\rR\x06minute\x12\x8c\x01\n" +
-	"\bcalendar\x18\a \x01(\x0e2p.WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.CalendarTypeR\bcalendar\".\n" +
+	"\bcalendar\x18\a \x01(\x0e2p.WAWebProtobufsE2E.HighlyStructuredMessage.HSMLocalizableParameter.HSMDateTime.HSMDateTimeComponent.CalendarTypeR\bcalendar\"H\n" +
 	"\fCalendarType\x12\r\n" +
 	"\tGREGORIAN\x10\x01\x12\x0f\n" +
-	"\vSOLAR_HIJRI\x10\x02\"k\n" +
+	"\vSOLAR_HIJRI\x10\x02\x12\x18\n" +
+	"\x14CALENDARTYPE_UNKNOWN\x10\x00\"\x86\x01\n" +
 	"\rDayOfWeekType\x12\n" +
 	"\n" +
 	"\x06MONDAY\x10\x01\x12\v\n" +
@@ -28243,7 +28283,8 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x06FRIDAY\x10\x05\x12\f\n" +
 	"\bSATURDAY\x10\x06\x12\n" +
 	"\n" +
-	"\x06SUNDAY\x10\a\x1a4\n" +
+	"\x06SUNDAY\x10\a\x12\x19\n" +
+	"\x15DAYOFWEEKTYPE_UNKNOWN\x10\x00\x1a4\n" +
 	"\x14HSMDateTimeUnixEpoch\x12\x1c\n" +
 	"\ttimestamp\x18\x01 \x01(\x03R\ttimestampB\x0f\n" +
 	"\rdatetimeOneof\x1aQ\n" +
@@ -28283,23 +28324,24 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x18peerDataRequestSessionID\x18\f \x01(\tR\x18peerDataRequestSessionID\x12\x91\x01\n" +
 	"&fullHistorySyncOnDemandRequestMetadata\x18\r \x01(\v29.WAWebProtobufsE2E.FullHistorySyncOnDemandRequestMetadataR&fullHistorySyncOnDemandRequestMetadata\x12\x1c\n" +
 	"\tencHandle\x18\x0e \x01(\tR\tencHandle\x12c\n" +
-	"\x13messageAccessStatus\x18\x0f \x01(\v21.WAWebProtobufsE2E.HistorySyncMessageAccessStatusR\x13messageAccessStatus\"\xd3\x06\n" +
+	"\x13messageAccessStatus\x18\x0f \x01(\v21.WAWebProtobufsE2E.HistorySyncMessageAccessStatusR\x13messageAccessStatus\"\xf8\x06\n" +
 	"\x16HydratedTemplateButton\x12\x14\n" +
 	"\x05index\x18\x04 \x01(\rR\x05index\x12p\n" +
 	"\x10quickReplyButton\x18\x01 \x01(\v2B.WAWebProtobufsE2E.HydratedTemplateButton.HydratedQuickReplyButtonH\x00R\x10quickReplyButton\x12[\n" +
 	"\turlButton\x18\x02 \x01(\v2;.WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButtonH\x00R\turlButton\x12^\n" +
 	"\n" +
 	"callButton\x18\x03 \x01(\v2<.WAWebProtobufsE2E.HydratedTemplateButton.HydratedCallButtonH\x00R\n" +
-	"callButton\x1a\xb9\x02\n" +
+	"callButton\x1a\xde\x02\n" +
 	"\x11HydratedURLButton\x12 \n" +
 	"\vdisplayText\x18\x01 \x01(\tR\vdisplayText\x12\x10\n" +
 	"\x03URL\x18\x02 \x01(\tR\x03URL\x12,\n" +
 	"\x11consentedUsersURL\x18\x03 \x01(\tR\x11consentedUsersURL\x12\x85\x01\n" +
-	"\x13webviewPresentation\x18\x04 \x01(\x0e2S.WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton.WebviewPresentationTypeR\x13webviewPresentation\":\n" +
+	"\x13webviewPresentation\x18\x04 \x01(\x0e2S.WAWebProtobufsE2E.HydratedTemplateButton.HydratedURLButton.WebviewPresentationTypeR\x13webviewPresentation\"_\n" +
 	"\x17WebviewPresentationType\x12\b\n" +
 	"\x04FULL\x10\x01\x12\b\n" +
 	"\x04TALL\x10\x02\x12\v\n" +
-	"\aCOMPACT\x10\x03\x1aX\n" +
+	"\aCOMPACT\x10\x03\x12#\n" +
+	"\x1fWEBVIEWPRESENTATIONTYPE_UNKNOWN\x10\x00\x1aX\n" +
 	"\x12HydratedCallButton\x12 \n" +
 	"\vdisplayText\x18\x01 \x01(\tR\vdisplayText\x12 \n" +
 	"\vphoneNumber\x18\x02 \x01(\tR\vphoneNumber\x1aL\n" +
@@ -28858,7 +28900,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x05Money\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\x03R\x05value\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\rR\x06offset\x12\"\n" +
-	"\fcurrencyCode\x18\x03 \x01(\tR\fcurrencyCode\"\xe3\x19\n" +
+	"\fcurrencyCode\x18\x03 \x01(\tR\fcurrencyCode\"\xa7\x1a\n" +
 	"\rMsgOpaqueData\x12\x12\n" +
 	"\x04body\x18\x01 \x01(\tR\x04body\x12\x18\n" +
 	"\acaption\x18\x03 \x01(\tR\acaption\x12\x10\n" +
@@ -28916,7 +28958,9 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x1asharableEventInviteCaption\x189 \x01(\tR\x1asharableEventInviteCaption\x12D\n" +
 	"\x1dsharableEventInviteIsCanceled\x18: \x01(\bR\x1dsharableEventInviteIsCanceled\x12J\n" +
 	" sharableEventInviteJpegThumbnail\x18; \x01(\fR sharableEventInviteJpegThumbnail\x12@\n" +
-	"\x1bsharableEventInviteCallLink\x18< \x01(\tR\x1bsharableEventInviteCallLink\x1a\xcb\x01\n" +
+	"\x1bsharableEventInviteCallLink\x18< \x01(\tR\x1bsharableEventInviteCallLink\x12,\n" +
+	"\x11mediaPngThumbnail\x18= \x01(\tR\x11mediaPngThumbnail\x12\x14\n" +
+	"\x05qrUrl\x18> \x01(\tR\x05qrUrl\x1a\xcb\x01\n" +
 	"\rEventLocation\x12(\n" +
 	"\x0fdegreesLatitude\x18\x01 \x01(\x01R\x0fdegreesLatitude\x12*\n" +
 	"\x10degreesLongitude\x18\x02 \x01(\x01R\x10degreesLongitude\x12\x12\n" +
@@ -29093,7 +29137,7 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x06WEEKLY\x10\x01\x12\r\n" +
 	"\tBI_WEEKLY\x10\x02\x12\v\n" +
 	"\aMONTHLY\x10\x03\x12\r\n" +
-	"\tQUARTERLY\x10\x04\"\xa9\x1c\n" +
+	"\tQUARTERLY\x10\x04\"\xcb\x1c\n" +
 	"\x1fPeerDataOperationRequestMessage\x12s\n" +
 	"\x1cpeerDataOperationRequestType\x18\x01 \x01(\x0e2/.WAWebProtobufsE2E.PeerDataOperationRequestTypeR\x1cpeerDataOperationRequestType\x12\x81\x01\n" +
 	"\x16requestStickerReupload\x18\x02 \x03(\v2I.WAWebProtobufsE2E.PeerDataOperationRequestMessage.RequestStickerReuploadR\x16requestStickerReupload\x12r\n" +
@@ -29107,16 +29151,17 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"'companionCanonicalUserNonceFetchRequest\x18\n" +
 	" \x01(\v2Z.WAWebProtobufsE2E.PeerDataOperationRequestMessage.CompanionCanonicalUserNonceFetchRequestR'companionCanonicalUserNonceFetchRequest\x12\xb1\x01\n" +
 	"&bizBroadcastInsightsContactListRequest\x18\v \x01(\v2Y.WAWebProtobufsE2E.PeerDataOperationRequestMessage.BizBroadcastInsightsContactListRequestR&bizBroadcastInsightsContactListRequest\x12\xa5\x01\n" +
-	"\"bizBroadcastInsightsRefreshRequest\x18\f \x01(\v2U.WAWebProtobufsE2E.PeerDataOperationRequestMessage.BizBroadcastInsightsRefreshRequestR\"bizBroadcastInsightsRefreshRequest\x1a\xcf\x02\n" +
+	"\"bizBroadcastInsightsRefreshRequest\x18\f \x01(\v2U.WAWebProtobufsE2E.PeerDataOperationRequestMessage.BizBroadcastInsightsRefreshRequestR\"bizBroadcastInsightsRefreshRequest\x1a\xf1\x02\n" +
 	"\x10GalaxyFlowAction\x12l\n" +
 	"\x04type\x18\x01 \x01(\x0e2X.WAWebProtobufsE2E.PeerDataOperationRequestMessage.GalaxyFlowAction.GalaxyFlowActionTypeR\x04type\x12\x16\n" +
 	"\x06flowID\x18\x02 \x01(\tR\x06flowID\x12\x1a\n" +
 	"\bstanzaID\x18\x03 \x01(\tR\bstanzaID\x12@\n" +
 	"\x1bgalaxyFlowDownloadRequestID\x18\x04 \x01(\tR\x1bgalaxyFlowDownloadRequestID\x12\x14\n" +
-	"\x05agmID\x18\x05 \x01(\tR\x05agmID\"A\n" +
+	"\x05agmID\x18\x05 \x01(\tR\x05agmID\"c\n" +
 	"\x14GalaxyFlowActionType\x12\x11\n" +
 	"\rNOTIFY_LAUNCH\x10\x01\x12\x16\n" +
-	"\x12DOWNLOAD_RESPONSES\x10\x02\x1aD\n" +
+	"\x12DOWNLOAD_RESPONSES\x10\x02\x12 \n" +
+	"\x1cGALAXYFLOWACTIONTYPE_UNKNOWN\x10\x00\x1aD\n" +
 	"\"BizBroadcastInsightsRefreshRequest\x12\x1e\n" +
 	"\n" +
 	"campaignID\x18\x01 \x01(\tR\n" +
@@ -29161,11 +29206,11 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\x16RequestStickerReupload\x12\x1e\n" +
 	"\n" +
 	"fileSHA256\x18\x01 \x01(\tR\n" +
-	"fileSHA256\"\xbb0\n" +
+	"fileSHA256\"\xea0\n" +
 	"'PeerDataOperationRequestResponseMessage\x12s\n" +
 	"\x1cpeerDataOperationRequestType\x18\x01 \x01(\x0e2/.WAWebProtobufsE2E.PeerDataOperationRequestTypeR\x1cpeerDataOperationRequestType\x12\x1a\n" +
 	"\bstanzaID\x18\x02 \x01(\tR\bstanzaID\x12\x8c\x01\n" +
-	"\x17peerDataOperationResult\x18\x03 \x03(\v2R.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResultR\x17peerDataOperationResult\x1a\xef-\n" +
+	"\x17peerDataOperationResult\x18\x03 \x03(\v2R.WAWebProtobufsE2E.PeerDataOperationRequestResponseMessage.PeerDataOperationResultR\x17peerDataOperationResult\x1a\x9e.\n" +
 	"\x17PeerDataOperationResult\x12[\n" +
 	"\x11mediaUploadResult\x18\x01 \x01(\x0e2-.WAMmsRetry.MediaRetryNotification.ResultTypeR\x11mediaUploadResult\x12I\n" +
 	"\x0estickerMessage\x18\x02 \x01(\v2!.WAWebProtobufsE2E.StickerMessageR\x0estickerMessage\x12\x98\x01\n" +
@@ -29268,14 +29313,15 @@ const file_waE2E_WAWebProtobufsE2E_proto_rawDesc = "" +
 	"\n" +
 	"thumbWidth\x18\x06 \x01(\x05R\n" +
 	"thumbWidth\x12 \n" +
-	"\vthumbHeight\x18\a \x01(\x05R\vthumbHeight\"\x9e\x01\n" +
+	"\vthumbHeight\x18\a \x01(\x05R\vthumbHeight\"\xcd\x01\n" +
 	"!HistorySyncChunkRetryResponseCode\x12\x14\n" +
 	"\x10GENERATION_ERROR\x10\x01\x12\x12\n" +
 	"\x0eCHUNK_CONSUMED\x10\x02\x12\v\n" +
 	"\aTIMEOUT\x10\x03\x12\x15\n" +
 	"\x11SESSION_EXHAUSTED\x10\x04\x12\x13\n" +
 	"\x0fCHUNK_EXHAUSTED\x10\x05\x12\x16\n" +
-	"\x12DUPLICATED_REQUEST\x10\x06\"\xa7\x02\n" +
+	"\x12DUPLICATED_REQUEST\x10\x06\x12-\n" +
+	")HISTORYSYNCCHUNKRETRYRESPONSECODE_UNKNOWN\x10\x00\"\xa7\x02\n" +
 	"#FullHistorySyncOnDemandResponseCode\x12\x13\n" +
 	"\x0fREQUEST_SUCCESS\x10\x00\x12\x18\n" +
 	"\x14REQUEST_TIME_EXPIRED\x10\x01\x12\x1c\n" +
