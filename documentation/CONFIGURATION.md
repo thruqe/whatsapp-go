@@ -6,7 +6,7 @@ whatsrook can be configured using environment variables from a `.env` file or th
 
 | Variable       | Flag             | Default   | Description                                                                                                           |
 | -------------- | ---------------- | --------- | --------------------------------------------------------------------------------------------------------------------- |
-| `SESSION`      | `-session`, `-s` | —         | Session identifier / phone number with country code.                                                                  |
+| `SESSION`      | `<phone>`        | —         | Session identifier / phone number with country code. Passed as a positional argument (before or after any flags).    |
 | `AUTH`         | `-auth`, `-a`    | `qr`      | Authentication method: `pair` or `qr`.                                                                                |
 | `CLIENT`       | `-client`, `-c`  | `default` | Target client identity platform: `default` (chrome), `android`, `ios`.                                                |
 | `DATABASE_URL` | `-db-url`, `-db` | `default` | Database: `default` (sqlite) or a PostgreSQL connection string (`postgres://user:pass@host:5432/db?sslmode=disable`). |
@@ -42,10 +42,10 @@ whatsrook supports two ways to authenticate a session: a pairing code, or a QR c
 
 ### 1. Pairing Code
 
-To use pairing-code auth, run with `-auth pair` (or `-a pair`) alongside your session phone number:
+To use pairing-code auth, pass your phone number as a positional argument alongside `-auth pair`:
 
 ```bash
-whatsrook -s 2348000000000 -auth pair
+whatsrook 2348000000000 -auth pair
 ```
 
 whatsrook will generate an 8-character pairing code (e.g. `ABCD-1234`). Enter this code on your phone under WhatsApp > Linked Devices > Link with phone number.
@@ -55,7 +55,7 @@ whatsrook will generate an 8-character pairing code (e.g. `ABCD-1234`). Enter th
 QR code auth is the default, so it's used whenever `-auth` isn't set to `pair`:
 
 ```bash
-whatsrook -s 2348000000000 -auth qr
+whatsrook 2348000000000 -auth qr
 ```
 
 An ASCII QR code will be displayed in your terminal, ready to scan using the WhatsApp mobile app.
@@ -64,16 +64,27 @@ An ASCII QR code will be displayed in your terminal, ready to scan using the Wha
 
 The session phone number is resolved in this order:
 
-1. CLI flag `-session` / `-s`
-2. A positional argument that looks like a phone number (7-15 digits, optional leading `+`) - e.g. `whatsrook 2348000000000`
-3. `SESSION` environment variable
+1. A positional argument that looks like a phone number (7–15 digits, optional leading `+`) — can appear anywhere in the argument list, before or after flags. e.g. `whatsrook 2348000000000` or `whatsrook -v 2348000000000`
+2. `SESSION` environment variable
+
+## Standby Mode
+
+When no phone number is provided (and no `SESSION` env var is set), whatsrook enters **standby mode**:
+
+- **Interactive terminal**: Lists any stored sessions and prompts for a phone number on stdin.
+- **Non-interactive / headless**: Starts a minimal HTTP server on a random port and waits for a signal. Useful for container deployments that inject `SESSION` at runtime.
+
+```bash
+# Enter standby (no phone given, SESSION env not set)
+whatsrook
+```
 
 ## Client Identity Emulation
 
 whatsrook can emulate different WhatsApp client platforms, which determines how your session appears to WhatsApp. This is controlled using the `CLIENT` variable or the `-client` / `-c` flag. Valid values are `android` and `ios`; anything else (including unset) resolves to `default` (chrome-like behavior).
 
 ```bash
-./bin/whatsrook -s 2348000000000 -client android
+./bin/whatsrook 2348000000000 -client android
 ```
 
 ## Logging Out
@@ -81,7 +92,7 @@ whatsrook can emulate different WhatsApp client platforms, which determines how 
 Pass `-logout` / `-l` (or set `LOGOUT=true`/`1`) to remove the session's stored credentials and terminate:
 
 ```bash
-whatsrook -s 2348000000000 -logout
+whatsrook 2348000000000 -logout
 ```
 
 ## Updating
@@ -179,7 +190,7 @@ DATABASE_URL="postgresql://postgres.[project-ref]:[YOUR-PASSWORD]@aws-0-[region]
 It can also be passed via the CLI flag:
 
 ```bash
-whatsrook -s 2348000000000 -db-url "postgresql://postgres.[project-ref]:[YOUR-PASSWORD]@aws-0-[region].pooler.supabase.com:5432/postgres?sslmode=require"
+whatsrook 2348000000000 -db-url "postgresql://postgres.[project-ref]:[YOUR-PASSWORD]@aws-0-[region].pooler.supabase.com:5432/postgres?sslmode=require"
 ```
 
 whatsrook will automatically connect over TLS, apply all required schema migrations, and manage device sessions.

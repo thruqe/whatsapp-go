@@ -7,19 +7,16 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
+	"strings"
 	"time"
 
 	"whatsrook"
-	"whatsrook/cmd/tui"
-	"whatsrook/cmd/updater"
 	"whatsrook/logger"
 )
 
 func runStandby(ctx context.Context, defaultDB string) error {
 	if isTerminalInteractive() {
-		return runInteractiveStandby(defaultDB)
+		return runInteractiveStandby(ctx, defaultDB)
 	}
 	return runHeadlessStandby(ctx)
 }
@@ -49,6 +46,72 @@ func runHeadlessStandby(ctx context.Context) error {
 	return nil
 }
 
+// runInteractiveStandby prints a prompt to stdin listing stored sessions and
+// waits for the user to type a phone number, then launches the bot with it.
+// On bot exit the prompt loops back so the user can pick again.
+func runInteractiveStandby(ctx context.Context, defaultDB string) error {
+	for {
+		listener, server, _, err := startStandbyHTTPServer()
+		if err != nil {
+			return err
+		}
+
+		dataDir := whatsrook.DefaultDataDir()
+		sessions, _ := whatsrook.ListStoredSessions(ctx, dataDir, defaultDB)
+
+		fmt.Println()
+		if len(sessions) > 0 {
+			fmt.Println("Stored sessions:")
+			for i, s := range sessions {
+				fmt.Printf("  [%d] +%s (%s)\n", i+1, s.User, s.Platform)
+			}
+			fmt.Println()
+		}
+		fmt.Print("Enter phone number to connect (or Ctrl+C to exit): ")
+
+		var phone string
+		if _, err := fmt.Scan(&phone); err != nil {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			_ = server.Shutdown(shutdownCtx)
+			_ = listener.Close()
+			cancel()
+			return nil
+		}
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_ = server.Shutdown(shutdownCtx)
+		_ = listener.Close()
+		cancel()
+
+		phone = strings.TrimSpace(phone)
+		if phone == "" {
+			continue
+		}
+
+		botCfg := BotConfig{
+			Session:         phone,
+			QRCode:          true,
+			ClientType:      whatsrook.ClientChrome,
+			Database:        defaultDB,
+			WSPort:          0,
+			AsyncMessageAck: true,
+		}
+
+		if err := launchBotWithConfig(ctx, botCfg); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+			if !errors.Is(err, whatsrook.ErrLoggedOut) {
+				logger.Warn("session disconnected, returning to standby", "err", err)
+			}
+		}
+
+		if ctx.Err() != nil {
+			return nil
+		}
+	}
+}
+
 func startStandbyHTTPServer() (net.Listener, *http.Server, int, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -73,59 +136,6 @@ func startStandbyHTTPServer() (net.Listener, *http.Server, int, error) {
 	}()
 
 	return listener, server, boundPort, nil
-}
-
-func runInteractiveStandby(defaultDB string) error {
-	for {
-		listener, server, boundPort, err := startStandbyHTTPServer()
-		if err != nil {
-			return err
-		}
-
-		tuiCtx, tuiCancel := context.WithCancel(context.Background())
-		res, shouldRun, err := tui.Run(tuiCtx, defaultDB, boundPort)
-		tuiCancel()
-
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		_ = server.Shutdown(shutdownCtx)
-		_ = listener.Close()
-		cancel()
-
-		if err != nil {
-			return err
-		}
-		if res.ShouldRestart {
-			tui.ClearTerminal()
-			return updater.RestartProcess()
-		}
-		if !shouldRun {
-			tui.ClearTerminal()
-			return nil
-		}
-
-		botCfg := BotConfig{
-			Session:         res.Session,
-			Pair:            res.Pair,
-			QRCode:          res.QRCode,
-			ClientType:      res.ClientType,
-			Database:        res.Database,
-			Verbose:         res.Verbose,
-			WSPort:          0,
-			AsyncMessageAck: true,
-		}
-
-		// When bot runs, listen for Ctrl+C to interrupt the bot and cycle back to the TUI
-		botCtx, botCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		errBot := launchBotWithConfig(botCtx, botCfg)
-		botCancel()
-
-		// Always clear console screen when session exits/interrupts, then loop back to interactive standby
-		tui.ClearTerminal()
-
-		if errBot != nil && !errors.Is(errBot, context.Canceled) && !errors.Is(errBot, whatsrook.ErrLoggedOut) {
-			logger.Warn("session disconnected, returning to standby menu", "err", errBot)
-		}
-	}
 }
 
 func launchBotWithConfig(ctx context.Context, cfg BotConfig) error {

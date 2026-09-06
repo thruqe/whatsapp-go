@@ -39,6 +39,8 @@ func parseCLIArgs() CLIArgs {
 }
 
 // parseCLIArgsFrom parses arguments from an explicit string slice.
+// The phone number (session) can appear anywhere in the argument list —
+// before, after, or interleaved with flag arguments.
 func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 	// Handle --version early before other parsing
 	if slices.Contains(cmdArgs, "--version") {
@@ -49,39 +51,36 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 	fs.SetOutput(io.Discard)
 
 	var (
-		session   = fs.String("session", "", "Session phone number")
 		auth      = fs.String("auth", "", "Authentication method: pair | qr")
 		client    = fs.String("client", "", "Client platform profile: default | android | ios")
 		dbURL     = fs.String("db-url", "", "Database URL: default | postgres connection string")
 		logout    = fs.Bool("logout", false, "Remove session credentials and terminate")
 		updateVal = fs.String("update", "__unset__", "Update operation: check | stable | beta | (empty for direct)")
-		standby   = fs.Bool("standby", false, "Enter interactive standby mode")
 		verbose   = fs.Bool("verbose", false, "Enable verbose debug logging")
 		version   = fs.Bool("version", false, "")
 	)
 
 	// Short flag aliases
-	fs.StringVar(session, "s", "", "Session phone number (alias)")
 	fs.StringVar(auth, "a", "", "Authentication method (alias)")
 	fs.StringVar(client, "c", "", "Client platform profile (alias)")
 	fs.StringVar(dbURL, "db", "", "Database URL (alias)")
 	fs.BoolVar(logout, "l", false, "Remove session credentials (alias)")
 	fs.StringVar(updateVal, "u", "__unset__", "Update operation (alias)")
-	fs.BoolVar(standby, "i", false, "Enter interactive standby mode (alias)")
 	fs.BoolVar(verbose, "v", false, "Enable verbose debug logging (alias)")
 
 	fs.Usage = func() {
-		fmt.Print(`Usage: whatsrook [OPTIONS]
+		fmt.Print(`Usage: whatsrook [OPTIONS] [<phone>]
        whatsrook update [check | stable | beta]
-       whatsrook standby
+
+Arguments:
+  <phone>                       Phone number used to identify the session
+                                (can appear before or after any options)
 
 Options:
-  -s, --session <phone>         Phone number used to identify the session
   -a, --auth <pair | qr>        Authentication method (default: qr)
   -c, --client <type>           Client profile: default (chrome), android, ios (default: default)
   --db-url, -db <url>           Database: default (sqlite) or PostgreSQL connection URL
   -l, --logout                  Remove session credentials and exit
-  -i, --standby                 Force interactive standby session manager
   -u, --update [action]         Check or apply update (actions: check, stable, beta, or empty for direct)
   -v, --verbose                 Enable verbose debug logging
   --version                     Print version and exit
@@ -103,14 +102,6 @@ Options:
 	fs.Visit(func(f *flag.Flag) {
 		explicitFlags[f.Name] = true
 	})
-
-	isStandby := *standby || explicitFlags["standby"] || explicitFlags["i"]
-	if fs.NArg() > 0 {
-		sub := strings.ToLower(strings.TrimSpace(fs.Arg(0)))
-		if sub == "standby" || sub == "menu" || sub == "interactive" {
-			isStandby = true
-		}
-	}
 
 	// 1. Positional subcommand parsing (e.g., `whatsrook update check`)
 	isUpdate := false
@@ -135,18 +126,27 @@ Options:
 		}
 	}
 
-	// 3. Session resolution (Flag > Positional phone number > SESSION env)
+	// 3. Session resolution: scan all original args (before and after flags) for a
+	//    phone number, then fall back to the SESSION env variable.
 	sessionVal := ""
-	if !isStandby {
-		if explicitFlags["session"] || explicitFlags["s"] {
-			sessionVal = strings.TrimSpace(*session)
-		} else if fs.NArg() > 0 && !isUpdate {
-			for _, arg := range fs.Args() {
-				cleanArg := strings.TrimPrefix(strings.TrimSpace(arg), "+")
-				if len(cleanArg) >= 7 && len(cleanArg) <= 15 && isNumeric(cleanArg) {
-					sessionVal = arg
-					break
-				}
+	if !isUpdate {
+		// Search through ALL original args (not just positional remainders) so the
+		// phone number can appear anywhere — e.g. `whatsrook +1234 -v` or
+		// `whatsrook -v +1234`.
+		for _, arg := range cmdArgs {
+			// Skip anything that looks like a flag or a flag value
+			if strings.HasPrefix(arg, "-") {
+				continue
+			}
+			// Skip known subcommand words
+			lower := strings.ToLower(strings.TrimSpace(arg))
+			if lower == "update" || lower == "check" || lower == "stable" || lower == "beta" {
+				continue
+			}
+			cleanArg := strings.TrimPrefix(strings.TrimSpace(arg), "+")
+			if len(cleanArg) >= 7 && len(cleanArg) <= 15 && isNumeric(cleanArg) {
+				sessionVal = arg
+				break
 			}
 		}
 		if sessionVal == "" {

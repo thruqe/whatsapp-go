@@ -1125,20 +1125,81 @@ func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID
 	return !aLID.IsEmpty() && !bLID.IsEmpty() && (aLID == bLID || (aLID.Server == bLID.Server && aLID.User == bLID.User))
 }
 
-// ResolveMentionRaw resolves mention strings and display usernames for a given participant JID.
-func ResolveMentionRaw(ctx context.Context, client *whatsmeow.Client, participant types.JID) (types.JID, string) {
+// ResolveMentionJIDs resolves a participant JID to the full set of JIDs that must be
+// included in ContextInfo.MentionedJID, and the parsed user identifier (phone number or
+// LID user) to be used as "@" + tagUser in message text. In WhatsApp protocol, interactive
+// mentions require the exact user part of the JID/LID (e.g. "@2348012345678"), NOT a push name.
+func ResolveMentionJIDs(ctx context.Context, client *whatsmeow.Client, participant types.JID) ([]types.JID, string) {
 	resolved := participant.ToNonAD()
-	username := resolved.User
-	if client != nil && client.Store != nil && client.Store.Contacts != nil {
-		if contact, err := client.Store.Contacts.GetContact(ctx, resolved); err == nil && contact.Found {
-			if contact.PushName != "" {
-				username = contact.PushName
-			} else if contact.FullName != "" {
-				username = contact.FullName
+
+	// Build the full set of JIDs: primary + paired LID or PN
+	var pnJID, lidJID types.JID
+	switch resolved.Server {
+	case types.HiddenUserServer:
+		lidJID = resolved
+		if client != nil && client.Store != nil && client.Store.LIDs != nil {
+			if pn, err := client.Store.LIDs.GetPNForLID(ctx, resolved); err == nil && !pn.IsEmpty() {
+				pnJID = pn.ToNonAD()
+			}
+		}
+	default:
+		pnJID = resolved
+		if client != nil && client.Store != nil && client.Store.LIDs != nil {
+			if lid, err := client.Store.LIDs.GetLIDForPN(ctx, resolved); err == nil && !lid.IsEmpty() {
+				lidJID = lid.ToNonAD()
 			}
 		}
 	}
-	return resolved, username
+
+	seen := make(map[string]bool)
+	var jids []types.JID
+	for _, j := range []types.JID{pnJID, lidJID} {
+		if !j.IsEmpty() {
+			key := j.String()
+			if !seen[key] {
+				seen[key] = true
+				jids = append(jids, j)
+			}
+		}
+	}
+	if len(jids) == 0 {
+		jids = append(jids, resolved)
+	}
+
+	// In WhatsApp protocol, interactive text mentions require @<phone_number> or @<lid_user>
+	// (the JID User part). WhatsApp clients match this against ContextInfo.MentionedJID to
+	// highlight and render the clickable mention with the user's name on their UI.
+	tagUser := pnJID.User
+	if tagUser == "" {
+		tagUser = resolved.User
+	}
+	return jids, tagUser
+}
+
+// ResolveMentionRaw resolves a participant JID to its primary non-AD JID and user string (without @).
+// The returned string is the parsed JID/LID user part (phone number or LID user) required by WhatsApp
+// protocol for interactive "@" + user mentions, NOT the contact push name.
+func ResolveMentionRaw(ctx context.Context, client *whatsmeow.Client, participant types.JID) (types.JID, string) {
+	jids, tagUser := ResolveMentionJIDs(ctx, client, participant)
+	if len(jids) > 0 {
+		return jids[0], tagUser
+	}
+	return participant.ToNonAD(), tagUser
+}
+
+// ResolveContactName returns the push name or full name of a contact, or falls back to phone number / user ID.
+func ResolveContactName(ctx context.Context, client *whatsmeow.Client, participant types.JID) string {
+	resolved := participant.ToNonAD()
+	if client != nil && client.Store != nil && client.Store.Contacts != nil {
+		if contact, err := client.Store.Contacts.GetContact(ctx, resolved); err == nil && contact.Found {
+			if contact.PushName != "" {
+				return contact.PushName
+			} else if contact.FullName != "" {
+				return contact.FullName
+			}
+		}
+	}
+	return resolved.User
 }
 
 // RemoveEmojis strips emoji characters from text strings.
@@ -1545,6 +1606,47 @@ func (c *PluginContext) SendText(text string) error {
 	return err
 }
 
+func (c *PluginContext) resolveMentionJIDStrings(mentions []types.JID) []string {
+	if len(mentions) == 0 {
+		return nil
+	}
+	ctx := c.GetSendContext()
+	seen := make(map[string]bool)
+	var mentionStrs []string
+	for _, m := range mentions {
+		if m.IsEmpty() {
+			continue
+		}
+		norm := m.ToNonAD()
+		key := norm.String()
+		if !seen[key] {
+			seen[key] = true
+			mentionStrs = append(mentionStrs, key)
+		}
+		if c.Client != nil && c.Client.Store != nil && c.Client.Store.LIDs != nil {
+			switch norm.Server {
+			case types.HiddenUserServer:
+				if pn, err := c.Client.Store.LIDs.GetPNForLID(ctx, norm); err == nil && !pn.IsEmpty() {
+					pnStr := pn.ToNonAD().String()
+					if !seen[pnStr] {
+						seen[pnStr] = true
+						mentionStrs = append(mentionStrs, pnStr)
+					}
+				}
+			case types.DefaultUserServer:
+				if lid, err := c.Client.Store.LIDs.GetLIDForPN(ctx, norm); err == nil && !lid.IsEmpty() {
+					lidStr := lid.ToNonAD().String()
+					if !seen[lidStr] {
+						seen[lidStr] = true
+						mentionStrs = append(mentionStrs, lidStr)
+					}
+				}
+			}
+		}
+	}
+	return mentionStrs
+}
+
 // SendTextWithMentions sends a text message with mentioned JIDs without quoting.
 func (c *PluginContext) SendTextWithMentions(text string, mentions []types.JID) error {
 	c.StopAutoLoader()
@@ -1552,12 +1654,7 @@ func (c *PluginContext) SendTextWithMentions(text string, mentions []types.JID) 
 		return fmt.Errorf("client unavailable")
 	}
 	formatted := c.formatTextResponse(text)
-	var mentionStrs []string
-	for _, m := range mentions {
-		if !m.IsEmpty() {
-			mentionStrs = append(mentionStrs, m.ToNonAD().String())
-		}
-	}
+	mentionStrs := c.resolveMentionJIDStrings(mentions)
 	_, err := c.Client.SendMessage(c.GetSendContext(), c.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text: &formatted,
@@ -1589,12 +1686,9 @@ func (c *PluginContext) SendImageWithMentions(data []byte, mimetype, caption str
 	}
 
 	var ci *waE2E.ContextInfo
-	if len(mentions) > 0 {
-		ci = &waE2E.ContextInfo{}
-		for _, m := range mentions {
-			if !m.IsEmpty() {
-				ci.MentionedJID = append(ci.MentionedJID, m.ToNonAD().String())
-			}
+	if mentionStrs := c.resolveMentionJIDStrings(mentions); len(mentionStrs) > 0 {
+		ci = &waE2E.ContextInfo{
+			MentionedJID: mentionStrs,
 		}
 	}
 
@@ -1639,10 +1733,10 @@ func (c *PluginContext) SendVideoWithMentions(data []byte, mimetype, caption str
 		return fmt.Errorf("upload video failed: %w", err)
 	}
 
-	var mentionStrs []string
-	for _, m := range mentions {
-		if !m.IsEmpty() {
-			mentionStrs = append(mentionStrs, m.ToNonAD().String())
+	var ci *waE2E.ContextInfo
+	if mentionStrs := c.resolveMentionJIDStrings(mentions); len(mentionStrs) > 0 {
+		ci = &waE2E.ContextInfo{
+			MentionedJID: mentionStrs,
 		}
 	}
 
@@ -1656,9 +1750,7 @@ func (c *PluginContext) SendVideoWithMentions(data []byte, mimetype, caption str
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
-			ContextInfo: &waE2E.ContextInfo{
-				MentionedJID: mentionStrs,
-			},
+			ContextInfo:   ci,
 		},
 	}
 	_, err = c.Client.SendMessage(c.GetSendContext(), c.Chat, msg)
@@ -1858,11 +1950,7 @@ func (c *PluginContext) ReplyWithMentions(text string, mentions []types.JID) err
 	if ci == nil {
 		ci = &waE2E.ContextInfo{}
 	}
-	for _, m := range mentions {
-		if !m.IsEmpty() {
-			ci.MentionedJID = append(ci.MentionedJID, m.ToNonAD().String())
-		}
-	}
+	ci.MentionedJID = append(ci.MentionedJID, c.resolveMentionJIDStrings(mentions)...)
 	msg := &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
@@ -1918,11 +2006,7 @@ func (c *PluginContext) ReplyWithImageWithMentions(data []byte, mimetype, captio
 		ci = &waE2E.ContextInfo{}
 	}
 	if ci != nil {
-		for _, m := range mentions {
-			if !m.IsEmpty() {
-				ci.MentionedJID = append(ci.MentionedJID, m.ToNonAD().String())
-			}
-		}
+		ci.MentionedJID = append(ci.MentionedJID, c.resolveMentionJIDStrings(mentions)...)
 	}
 
 	msg := &waE2E.Message{
@@ -2001,13 +2085,7 @@ func (c *PluginContext) ReplyWithVideoWithMentions(data []byte, mimetype, captio
 	if ci == nil {
 		ci = &waE2E.ContextInfo{}
 	}
-	var mentionStrs []string
-	for _, m := range mentions {
-		if !m.IsEmpty() {
-			mentionStrs = append(mentionStrs, m.ToNonAD().String())
-		}
-	}
-	ci.MentionedJID = mentionStrs
+	ci.MentionedJID = c.resolveMentionJIDStrings(mentions)
 
 	msg := &waE2E.Message{
 		VideoMessage: &waE2E.VideoMessage{
@@ -2486,15 +2564,36 @@ func (c *PluginContext) IsSenderAdmin(groupInfo *types.GroupInfo) bool {
 	return IsAdminRaw(c.GetSendContext(), c.Client, groupInfo, c.Sender)
 }
 
-// ResolveMention resolves a JID to its normalized non-AD JID and username.
+// ResolveMentionJIDs resolves a JID to its full set of JIDs (phone-number JID + LID)
+// needed in ContextInfo.MentionedJID, and the parsed user string (without @) for text mentions.
+func (c *PluginContext) ResolveMentionJIDs(jid types.JID) ([]types.JID, string) {
+	return ResolveMentionJIDs(c.GetSendContext(), c.Client, jid)
+}
+
+// ResolveMention resolves a JID to its primary normalized non-AD JID and user string (without @).
 func (c *PluginContext) ResolveMention(jid types.JID) (types.JID, string) {
 	return ResolveMentionRaw(c.GetSendContext(), c.Client, jid)
 }
 
-// FormatMention returns "@username" string and the resolved JID.
+// FormatMention returns "@user" string and the resolved primary JID.
 func (c *PluginContext) FormatMention(jid types.JID) (string, types.JID) {
-	resolved, username := c.ResolveMention(jid)
-	return "@" + username, resolved
+	jids, tagUser := c.ResolveMentionJIDs(jid)
+	resolved := jid.ToNonAD()
+	if len(jids) > 0 {
+		resolved = jids[0]
+	}
+	return "@" + tagUser, resolved
+}
+
+// FormatMentionJIDs returns "@user" string and all associated JIDs (PN + LID).
+func (c *PluginContext) FormatMentionJIDs(jid types.JID) (string, []types.JID) {
+	jids, tagUser := c.ResolveMentionJIDs(jid)
+	return "@" + tagUser, jids
+}
+
+// GetContactName returns the display push name or full name of a contact, or falls back to the phone/user ID.
+func (c *PluginContext) GetContactName(jid types.JID) string {
+	return ResolveContactName(c.GetSendContext(), c.Client, jid)
 }
 
 // ResolvePN returns the normalized non-AD phone number JID.

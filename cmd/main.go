@@ -13,7 +13,6 @@ import (
 	"whatsrook"
 	_ "whatsrook"
 	"whatsrook/cache"
-	"whatsrook/cmd/tui"
 	"whatsrook/cmd/updater"
 	"whatsrook/logger"
 	"whatsrook/system"
@@ -80,7 +79,6 @@ func main() {
 	})
 
 	err := bot.Start(ctx)
-	tui.ClearTerminal()
 	if err != nil {
 		if errors.Is(err, whatsrook.ErrLoggedOut) {
 			if ctx.Err() != nil {
@@ -93,7 +91,7 @@ func main() {
 			}
 			return
 		}
-		// If interrupted with Ctrl+C, clear and switch smoothly to interactive standby
+		// If interrupted with Ctrl+C, switch smoothly to interactive standby
 		if errors.Is(err, context.Canceled) {
 			if err := runStandby(context.Background(), args.Database); err != nil {
 				logger.Error("standby error", "err", err)

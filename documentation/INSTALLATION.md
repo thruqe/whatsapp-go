@@ -1,6 +1,6 @@
 # Installation
 
-Copy and paste the command for your platform into your terminal. It will automatically download, install, and launch the interactive WhatsRook interface.
+Copy and paste the command for your platform into your terminal. It will automatically download and install whatsrook.
 
 ### Linux
 
@@ -12,7 +12,7 @@ curl -fsSL \
   sudo tar -xzf /tmp/whatsrook.tar.gz -C /usr/local/bin && \
   rm -f /tmp/whatsrook.tar.gz && \
   sudo chmod +x /usr/local/bin/whatsrook && \
-  whatsrook -i
+  whatsrook
 ```
 
 **ARM64 (Raspberry Pi / AWS Graviton / Ampere):**
@@ -23,7 +23,7 @@ curl -fsSL \
   sudo tar -xzf /tmp/whatsrook.tar.gz -C /usr/local/bin && \
   rm -f /tmp/whatsrook.tar.gz && \
   sudo chmod +x /usr/local/bin/whatsrook && \
-  whatsrook -i
+  whatsrook
 ```
 
 ### macOS
@@ -37,7 +37,7 @@ curl -fsSL \
   rm -f /tmp/whatsrook.tar.gz && \
   sudo chmod +x /usr/local/bin/whatsrook && \
   sudo xattr -d com.apple.quarantine /usr/local/bin/whatsrook 2>/dev/null; \
-  whatsrook -i
+  whatsrook
 ```
 
 **Intel:**
@@ -49,7 +49,7 @@ curl -fsSL \
   rm -f /tmp/whatsrook.tar.gz && \
   sudo chmod +x /usr/local/bin/whatsrook && \
   sudo xattr -d com.apple.quarantine /usr/local/bin/whatsrook 2>/dev/null; \
-  whatsrook -i
+  whatsrook
 ```
 
 ### Android (Termux)
@@ -61,7 +61,7 @@ curl -fsSL \
   tar -xzf $PREFIX/bin/wr.tar.gz -C $PREFIX/bin && \
   rm -f $PREFIX/bin/wr.tar.gz && \
   chmod +x $PREFIX/bin/whatsrook && \
-  whatsrook -i
+  whatsrook
 ```
 
 ### Windows
@@ -73,7 +73,7 @@ New-Item -ItemType Directory -Force -Path "$env:LOCALAPPDATA\whatsrook" | Out-Nu
 curl.exe -fsSL "https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-windows-amd64.tar.gz" -o "$env:TEMP\wr.tar.gz"
 tar.exe -xzf "$env:TEMP\wr.tar.gz" -C "$env:LOCALAPPDATA\whatsrook"
 Remove-Item "$env:TEMP\wr.tar.gz"
-& "$env:LOCALAPPDATA\whatsrook\whatsrook.exe" -i
+& "$env:LOCALAPPDATA\whatsrook\whatsrook.exe"
 ```
 
 # Uninstalling

@@ -3380,6 +3380,11 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 
 	pending, ok := findPendingCaptcha(client, chat, sender)
 	if !ok {
+		// Fallback: match via the quoted message ID so that native WhatsApp
+		// "reply to video" messages are correctly attributed to the pending user.
+		pending, ok = findPendingCaptchaByQuotedMsgID(chat, evt)
+	}
+	if !ok {
 		return false
 	}
 
@@ -3424,7 +3429,13 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		}
 		RemovePendingCaptcha(chat, pending.UserJID)
 		RemovePendingCaptcha(chat, sender)
-		resolvedJID, username := utils.ResolveMentionRaw(ctx, client, sender)
+		// Use the registered captcha user identity for the welcome message, not the
+		// raw sender JID, since they may differ (e.g. LID vs phone JID).
+		username := pending.Username
+		resolvedJID := pending.ResolvedJID
+		if username == "" {
+			resolvedJID, username = utils.ResolveMentionRaw(ctx, client, pending.UserJID)
+		}
 
 		pctx := &utils.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
 		tb := pctx.Text()
@@ -3457,6 +3468,37 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 	}
 
 	return false
+}
+
+// findPendingCaptchaByQuotedMsgID searches pending captchas for the group by matching the
+// quoted message ID in the incoming event's ContextInfo against any registered pending.MsgID.
+// This handles the native WhatsApp "reply to message" flow where the sender JID lookup may
+// fail due to LID/phone JID mismatches, but the quoted stanza ID uniquely identifies the
+// captcha challenge message.
+func findPendingCaptchaByQuotedMsgID(chat types.JID, evt *events.Message) (*PendingCaptcha, bool) {
+	if evt == nil || evt.Message == nil {
+		return nil, false
+	}
+	ctx := utils.GetContextInfoFromProto(evt.Message)
+	if ctx == nil || ctx.GetStanzaID() == "" {
+		return nil, false
+	}
+	quotedID := ctx.GetStanzaID()
+
+	chatStr := chat.ToNonAD().String()
+
+	pendingCaptchaMu.RLock()
+	defer pendingCaptchaMu.RUnlock()
+
+	for key, p := range pendingCaptchas {
+		if !strings.HasPrefix(key, chatStr+":") {
+			continue
+		}
+		if p.MsgID != "" && string(p.MsgID) == quotedID {
+			return p, true
+		}
+	}
+	return nil, false
 }
 
 func handleCaptcha(ctx *dispatch.Context) error {
