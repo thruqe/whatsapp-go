@@ -17,6 +17,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
           fetch-depth: 2
       - name: Parse Version and Check Release Status
         id: version-check
@@ -66,6 +67,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
 
       - name: Setup Go Toolchain
         uses: actions/setup-go@v5
@@ -156,6 +159,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -174,11 +179,11 @@ jobs:
             gh api --method DELETE repos/${{ github.repository }}/releases/assets/$ASSET_ID || true
           done
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
       - name: Configure Git User
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "Thruqe"
+          git config --global user.email "danielpeter0039@gmail.com"
       - name: Advance Alpha Tag to HEAD
         run: |
           # Force-move the alpha tag to the current commit so GitHub regenerates
@@ -186,7 +191,8 @@ jobs:
           git tag -f alpha
           git push -f origin alpha
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
       - name: Get Commit Info
         id: commit-info
         run: |
@@ -208,8 +214,9 @@ jobs:
           prerelease: true
           make_latest: false
           files: artifacts/*/*
+          token: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
 
   production-release:
     name: Production Release
@@ -220,12 +227,13 @@ jobs:
       - name: Checkout Code for Tagging
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Configure Git User
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "Thruqe"
+          git config --global user.email "danielpeter0039@gmail.com"
 
       - name: Download Artifacts
         uses: actions/download-artifact@v4
@@ -236,6 +244,9 @@ jobs:
         run: |
           git tag -f -a "v${{ needs.check-version.outputs.version }}" -m "Release v${{ needs.check-version.outputs.version }}"
           git push -f origin "v${{ needs.check-version.outputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
 
       - name: Publish Production Release
         uses: softprops/action-gh-release@v2
@@ -246,5 +257,6 @@ jobs:
           draft: false
           prerelease: false
           files: artifacts/*/*
+          token: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
