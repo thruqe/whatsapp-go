@@ -18,11 +18,10 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
-	"whatsrook/cmd/store"
 
 	"whatsrook"
+	"whatsrook/cmd/store"
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
 )
@@ -1006,65 +1005,6 @@ func ResolveExecutablePath() (string, error) {
 
 	// 5. Final fallback to os.Executable()
 	return os.Executable()
-}
-
-// RestartProcess replaces current process with the updated binary using sanitized arguments.
-func RestartProcess(customArgs ...string) error {
-	var argv []string
-	if len(customArgs) > 0 {
-		argv = customArgs
-	} else {
-		argv = CleanRestartArgs(os.Args)
-	}
-
-	execPath, err := ResolveExecutablePath()
-	if err != nil {
-		if len(argv) > 0 {
-			if lookedUp, lErr := exec.LookPath(argv[0]); lErr == nil {
-				execPath = lookedUp
-			} else {
-				execPath = argv[0]
-			}
-		} else {
-			execPath = "whatsrook"
-		}
-	}
-	if len(argv) > 0 {
-		argv[0] = execPath
-	} else {
-		argv = []string{execPath}
-	}
-
-	if runtime.GOOS == "windows" {
-		cmd := exec.Command(execPath, argv[1:]...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		if err := cmd.Run(); err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				os.Exit(exitErr.ExitCode())
-			}
-			return err
-		}
-		os.Exit(0)
-		return nil
-	}
-
-	execErr := syscall.Exec(execPath, argv, os.Environ())
-	if execErr != nil {
-		// Fallback to exec.Command if syscall.Exec fails (e.g. in some restricted environments)
-		cmd := exec.Command(execPath, argv[1:]...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		cmd.Env = os.Environ()
-		if spawnErr := cmd.Start(); spawnErr == nil {
-			os.Exit(0)
-			return nil
-		}
-	}
-
-	return execErr
 }
 
 // SanitizeExtractPath prevents Zip/Tar Slip vulnerabilities (arbitrary file writing outside target dir).
