@@ -102,7 +102,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 		logger.Error("GroupManager: failed to fetch joined groups", "err", err)
 	} else {
 		for _, g := range joinedGroups {
-			meta := gm.convertGroupInfo(ctx, cli, g)
+			meta := gm.convertGroupInfo(g)
 			syncedGroups = append(syncedGroups, meta)
 
 			if s != nil && s.GetDB() != nil {
@@ -227,7 +227,7 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 	)
 }
 
-func (gm *GroupManager) convertGroupInfo(ctx context.Context, cli *whatsmeow.Client, g *types.GroupInfo) *store.GroupMetadata {
+func (gm *GroupManager) convertGroupInfo(g *types.GroupInfo) *store.GroupMetadata {
 	if g == nil {
 		return nil
 	}
@@ -442,7 +442,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 		// Group not in cache yet: fetch complete info from server
 		if cli != nil {
 			if info, err := cli.GetGroupInfo(ctx, g.JID); err == nil && info != nil {
-				meta = gm.convertGroupInfo(ctx, cli, info)
+				meta = gm.convertGroupInfo(info)
 				gm.mu.Lock()
 				gm.groups[g.JID] = meta
 				gm.mu.Unlock()
@@ -603,7 +603,7 @@ func (gm *GroupManager) handleJoinedGroupEvent(ctx context.Context, cli *whatsme
 	} else {
 		info = &j.GroupInfo
 	}
-	meta := gm.convertGroupInfo(ctx, cli, info)
+	meta := gm.convertGroupInfo(info)
 
 	gm.mu.Lock()
 	gm.groups[meta.JID] = meta
