@@ -282,14 +282,15 @@ func ResolveSenderMention(cctx *Context) (string, []types.JID) {
 	pnJID := sender
 	var lidJID types.JID
 
-	if sender.Server == types.HiddenUserServer {
+	switch sender.Server {
+	case types.HiddenUserServer:
 		lidJID = sender
 		if client != nil && client.Store != nil && client.Store.LIDs != nil {
 			if pn, err := client.Store.LIDs.GetPNForLID(ctx, sender); err == nil && !pn.IsEmpty() {
 				pnJID = pn.ToNonAD()
 			}
 		}
-	} else if sender.Server == types.DefaultUserServer {
+	case types.DefaultUserServer:
 		pnJID = sender
 		if client != nil && client.Store != nil && client.Store.LIDs != nil {
 			if lid, err := client.Store.LIDs.GetLIDForPN(ctx, sender); err == nil && !lid.IsEmpty() {
