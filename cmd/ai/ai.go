@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
@@ -322,7 +323,12 @@ func renderCSAIPage(ctx *dispatch.Context, s *dispatch.StoreWrapper, page int) e
 
 func isMediaGenerationPrompt(prompt string) bool {
 	p := strings.ToLower(strings.TrimSpace(prompt))
-	return strings.HasPrefix(p, "image of") || strings.HasPrefix(p, "generate an image") ||
+	if strings.Contains(p, " script") || strings.Contains(p, " idea") ||
+		strings.Contains(p, " prompt") || strings.Contains(p, " tutorial") {
+		return false
+	}
+	return strings.HasPrefix(p, "imagine ") || strings.HasPrefix(p, "/imagine ") ||
+		strings.HasPrefix(p, "image of") || strings.HasPrefix(p, "generate an image") ||
 		strings.HasPrefix(p, "generate a photo") || strings.HasPrefix(p, "create an image") ||
 		strings.HasPrefix(p, "generate image") || strings.HasPrefix(p, "create image") ||
 		strings.HasPrefix(p, "draw ") || strings.HasPrefix(p, "picture of") ||
@@ -336,7 +342,8 @@ func isMediaGenerationPrompt(prompt string) bool {
 }
 
 func handleAI(ctx *dispatch.Context) error {
-	if len(ctx.Args) == 0 {
+	hasQuoted := ctx.Evt != nil && getQuotedMessageFromEvent(ctx.Evt) != nil
+	if len(ctx.Args) == 0 && !hasQuoted {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage:\n- %sai <question>\n- %sask <question>\n\nExamples:\n- %sai What is the speed of light?\n- %sask Explain quantum computing in simple terms\n- Reply to an image or message with %sai Analyze this", p, p, p, p, p)
 	}
@@ -384,7 +391,9 @@ func handleAI(ctx *dispatch.Context) error {
 	if isGroup {
 		data.ChatType = "group"
 		groupInfo, err := GetOrFetchGroupMeta(ctx.Chat.String(), func() (types.GroupInfo, error) {
-			info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+			fetchCtx, cancel := context.WithTimeout(ctx.Ctx, 3*time.Second)
+			defer cancel()
+			info, err := ctx.Client.GetGroupInfo(fetchCtx, ctx.Chat)
 			if err != nil || info == nil {
 				return types.GroupInfo{}, err
 			}
@@ -399,24 +408,13 @@ func handleAI(ctx *dispatch.Context) error {
 
 	extractContextFromQuotedMessage(ctx, &data)
 
-	var query string
-	isMediaReq := isMediaGenerationPrompt(data.Question)
-	if isMediaReq {
-		query = data.Question
-	} else {
-		query = instruction
-		if s, okStore := dispatch.GetStore(ctx); okStore {
-			if customPrompt, _ := s.GetSetting(ctx.Ctx, "csai_prompt"); customPrompt != "" {
-				query += dispatch.Sprintf("\n\n[GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]\n%s\n\n", customPrompt)
-			}
-		}
-		if isGroup {
-			query += RenderGroupContext(data.GroupMetaData)
-		}
-		query += RenderUserContext(data)
-		query += RenderQuotedContext(data)
-		query += data.Question
+	customPrompt := ""
+	if s, okStore := dispatch.GetStore(ctx); okStore {
+		customPrompt, _ = s.GetSetting(ctx.Ctx, "csai_prompt")
 	}
+
+	query := BuildAiQuery(instruction, customPrompt, data)
+	isMediaReq := isMediaGenerationPrompt(data.Question)
 
 	Logger.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String(), "is_media_req", isMediaReq)
 
@@ -433,6 +431,7 @@ func handleAI(ctx *dispatch.Context) error {
 			return nil
 		}
 		if placeholderMsgID == "" {
+			ctx.StopAutoLoader()
 			id, err := ctx.ReplyWithID(text)
 			if err == nil {
 				placeholderMsgID = id
@@ -447,6 +446,7 @@ func handleAI(ctx *dispatch.Context) error {
 	}
 
 	res, err := QueryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
+	ctx.StopAutoLoader()
 	if err != nil {
 		Logger.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
 		if strings.Contains(err.Error(), "488") {
@@ -504,6 +504,10 @@ func handleAI(ctx *dispatch.Context) error {
 	} else if placeholderMsgID == "" && reply != "" {
 		if _, _, ok := ParseRunCommand(reply); !ok {
 			_ = ctx.Reply(reply)
+		}
+	} else if placeholderMsgID != "" && reply != "" {
+		if _, _, ok := ParseRunCommand(reply); !ok {
+			_, _ = ctx.Edit(placeholderMsgID, reply)
 		}
 	}
 
@@ -943,12 +947,15 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 	if botName != "" && strings.HasPrefix(strings.ToLower(prompt), strings.ToLower(botName)) {
 		prompt = strings.TrimSpace(prompt[len(botName):])
 	}
+	prompt = strings.TrimLeft(prompt, ",:;! \t")
 	if prompt == "" {
-		prompt = text
+		if getQuotedMessageFromEvent(c.Evt) == nil {
+			prompt = text
+		}
 	}
 
 	go func() {
-		reqCtx, cancel := context.WithCancel(ctx)
+		reqCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
 		aiCtx := &dispatch.Context{

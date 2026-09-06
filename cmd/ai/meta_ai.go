@@ -96,10 +96,13 @@ func processMetaAiQueue(ch chan metaAiRequest) {
 
 func IsDummyPlaceholderText(s string) bool {
 	trimmed := strings.TrimSpace(s)
+	lower := strings.ToLower(trimmed)
 	if trimmed == "" || trimmed == "_" || trimmed == "__" || trimmed == "___" ||
 		trimmed == "_We_" || trimmed == "_Thinking_" || trimmed == "..." ||
-		strings.HasPrefix(trimmed, "_We need to respond") ||
-		strings.HasPrefix(trimmed, "_Thinking") {
+		lower == "thinking..." || lower == "thinking" ||
+		strings.HasPrefix(lower, "_we need to respond") ||
+		strings.HasPrefix(lower, "_thinking") ||
+		strings.HasPrefix(lower, "thinking...") {
 		return true
 	}
 	return false
@@ -108,6 +111,9 @@ func IsDummyPlaceholderText(s string) bool {
 func ExtractMetaAiText(msg *waE2E.Message) string {
 	if msg == nil {
 		return ""
+	}
+	if pm := msg.GetProtocolMessage(); pm != nil && pm.GetEditedMessage() != nil {
+		return ExtractMetaAiText(pm.GetEditedMessage())
 	}
 	if conv := msg.GetConversation(); conv != "" {
 		if !IsDummyPlaceholderText(conv) {
@@ -311,6 +317,10 @@ func parseUnifiedMediaState(msg *waE2E.Message) (mediaURL, mimeType, text, imagi
 		if rich := pm.GetEditedMessage().GetRichResponseMessage(); rich != nil && rich.GetUnifiedResponse() != nil {
 			rawB64 = rich.GetUnifiedResponse().GetData()
 		}
+	} else if conv := msg.GetConversation(); conv != "" && strings.HasPrefix(strings.TrimSpace(conv), "{") {
+		rawB64 = []byte(conv)
+	} else if ext := msg.GetExtendedTextMessage(); ext != nil && strings.HasPrefix(strings.TrimSpace(ext.GetText()), "{") {
+		rawB64 = []byte(ext.GetText())
 	}
 
 	if len(rawB64) > 0 {
@@ -393,14 +403,21 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 		genMediaData    []byte
 		genMediaMime    string
 		genMediaCap     string
-		isMediaExpected bool
+		isMediaExpected = isMediaGenerationPrompt(request)
 		done            = make(chan struct{})
 		closeOnce       sync.Once
 	)
 
 	handlerID := client.AddEventHandler(func(evt any) {
 		msgEvt, ok := evt.(*events.Message)
-		if !ok || msgEvt.Info.Sender.String() != MetaAiBotJID.String() {
+		if !ok {
+			return
+		}
+
+		sender := msgEvt.Info.Sender.ToNonAD()
+		chatJID := msgEvt.Info.Chat.ToNonAD()
+		isFromMetaAI := sender.User == MetaAiBotJID.User || chatJID.User == MetaAiBotJID.User || sender.IsBot() || chatJID.IsBot()
+		if !isFromMetaAI {
 			return
 		}
 
@@ -572,15 +589,6 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 			final = text
 		}
 
-		lower := strings.ToLower(final + " " + text)
-		if strings.Contains(lower, "image") || strings.Contains(lower, "video") ||
-			strings.Contains(lower, "picture") || strings.Contains(lower, "photo") ||
-			strings.Contains(lower, "clip") || strings.Contains(lower, "animation") ||
-			strings.Contains(lower, "creating") || strings.Contains(lower, "generating") ||
-			strings.Contains(lower, "here is your") || strings.Contains(lower, "here you go") {
-			isMediaExpected = true
-		}
-
 		if len(genMediaData) > 0 {
 			mu.Unlock()
 			closeOnce.Do(func() { close(done) })
@@ -594,7 +602,9 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 			return
 		}
 
-		if (editType == "last" || editType == "full") && !isMediaExpected {
+		// When Meta AI emits "last" or "full" editType, the textual stream is finished.
+		// If media is not actively generating, complete immediately.
+		if (editType == "last" || editType == "full") && (!isMediaExpected || mediaStatus != "GENERATING") {
 			mu.Unlock()
 			closeOnce.Do(func() { close(done) })
 			return
@@ -608,7 +618,7 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 	case <-ctx.Done():
 		logger.Warn("executeMetaAiQuery: context cancelled/timed out before completion", "chat", chatKey, "err", ctx.Err())
 		return MetaAiResult{}, ctx.Err()
-	case <-time.After(50 * time.Second):
+	case <-time.After(35 * time.Second):
 		mu.Lock()
 		defer mu.Unlock()
 		logger.Debug("executeMetaAiQuery: max timeout reached, returning gathered result", "chat", chatKey, "final_text_len", len(final), "media_len", len(genMediaData))
@@ -638,8 +648,9 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 }
 
 func QueryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, request string, onUpdate func(text string) error) (MetaAiResult, error) {
-	chatKey := chat.String()
-	q := getOrCreateMetaAiQueue(chatKey)
+	// All outgoing queries communicate with the shared MetaAiBotJID conversation endpoint.
+	// We serialize them through the bot queue to avoid cross-talk or race conditions.
+	q := getOrCreateMetaAiQueue(MetaAiBotJID.String())
 
 	req := metaAiRequest{
 		ctx:      ctx,

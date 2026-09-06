@@ -112,75 +112,63 @@ func ParseRunCommand(reply string) (cmdName string, rawArgs string, ok bool) {
 // live API call on every message (the caller is expected to have already
 // fetched/cached info via GetOrFetchGroupMeta).
 func RenderGroupContext(info types.GroupInfo) string {
+	name := strings.TrimSpace(info.GroupName.Name)
+	if name == "" && info.JID.IsEmpty() && info.ParticipantCount == 0 {
+		return ""
+	}
+
 	tb := utils.NewText().
-		Line("[GROUP CONTEXT]").
-		Linef("Group name: %s", info.GroupName.Name)
+		Line("[GROUP CONTEXT]")
+
+	if name != "" {
+		tb.Linef("Group Name: %s", name)
+	}
 
 	if topic := strings.TrimSpace(info.GroupTopic.Topic); topic != "" {
 		if len(topic) > 150 {
 			topic = topic[:147] + "..."
 		}
-		tb.Linef("Group description: %s", topic)
+		tb.Linef("Group Description: %s", topic)
 	}
-	tb.Linef("Participant count: %d", info.ParticipantCount)
+	if info.ParticipantCount > 0 {
+		tb.Linef("Participant Count: %d", info.ParticipantCount)
+	}
 
-	var admins []string
-	for _, p := range info.Participants {
-		if p.IsAdmin || p.IsSuperAdmin {
-			admins = append(admins, p.JID.User)
-			if len(admins) >= 5 {
-				break
-			}
-		}
-	}
-	if len(admins) > 0 {
-		tb.Linef("Admins: %s", strings.Join(admins, ", "))
-	}
 	tb.Line("[/GROUP CONTEXT]").Blank()
 	return tb.String()
 }
 
 // RenderUserContext turns user info into a text block appended to the query sent to Meta AI.
 func RenderUserContext(d Data) string {
-	if d.PushName == "" && d.User.User == "" && d.MessageID == "" {
-		return ""
-	}
-	displayName := d.PushName
+	displayName := strings.TrimSpace(d.PushName)
 	if displayName == "" {
 		displayName = "User"
 	}
 
 	tb := utils.NewText().
-		Line("[USER & MESSAGE OBJECT CONTEXT]").
-		Linef("User name: %s", displayName)
+		Line("[USER CONTEXT]").
+		Linef("User: %s", displayName)
 
-	if d.MessageID != "" {
-		tb.Linef("Message ID: %s", d.MessageID)
-	}
 	if d.IsSudo {
 		tb.Line("Status: Owner/Sudo")
 	}
-	tb.Line("Instruction: Address the user in conversation using their User name above. Do not output or address them using technical IDs, phone numbers, JIDs, or LIDs.").
-		Line("[/USER & MESSAGE OBJECT CONTEXT]").
+	tb.Line("Instruction: Address the user in conversation using their name above. Do not output or address them using technical IDs, phone numbers, JIDs, or LIDs.").
+		Line("[/USER CONTEXT]").
 		Blank()
 
 	return tb.String()
 }
 
 // RenderQuotedContext turns quoted-message info on Data into a text block
-// giving Meta AI context about what message the user is replying to, if
-// any.
+// giving Meta AI context about what message the user is replying to, if any.
 func RenderQuotedContext(d Data) string {
-	if d.QuotedMessageOfQuestion == "" && d.QuotedImageBase64 == "" && d.QuotedMessageType == "" && d.QuotedMessageID == "" {
+	if d.QuotedMessageOfQuestion == "" && d.QuotedMessageType == "" {
 		return ""
 	}
 
 	tb := utils.NewText().
 		Line("[REPLYING TO A MESSAGE — EXTRACTED CONTEXT]")
 
-	if d.QuotedMessageID != "" {
-		tb.Linef("Quoted Message ID: %s", d.QuotedMessageID)
-	}
 	if d.UserOfQuotedMessage != "" {
 		if d.QuotedMessageParticipantRole != "" {
 			tb.Linef("From: %s (%s)", d.UserOfQuotedMessage, d.QuotedMessageParticipantRole)
@@ -198,9 +186,70 @@ func RenderQuotedContext(d Data) string {
 		}
 		tb.Linef("Message Content: %s", msgContent)
 	}
-	if d.QuotedImageBase64 != "" && len(d.QuotedImageBase64) <= 2048 {
-		tb.Linef("Image Base64: data:%s;base64,%s", d.QuotedImageMimeType, d.QuotedImageBase64)
-	}
 	tb.Line("[/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]").Blank()
+
 	return tb.String()
+}
+
+// RenderCurrentMessage formats the triggering user's current query or message
+// so that Meta AI can clearly distinguish dialogue turns and replying context.
+func RenderCurrentMessage(d Data) string {
+	cleanQuestion := strings.TrimSpace(d.Question)
+	displayName := strings.TrimSpace(d.PushName)
+	if displayName == "" {
+		displayName = "User"
+	}
+
+	tb := utils.NewText().
+		Line("[CURRENT MESSAGE]")
+
+	tb.Linef("From: %s", displayName)
+	if cleanQuestion != "" {
+		tb.Linef("Message: %s", cleanQuestion)
+	} else {
+		tb.Line("Instruction: The user called the bot to respond to the quoted message above. Provide a helpful, direct response.")
+	}
+	if d.QuotedMessageOfQuestion != "" {
+		tb.Line("Note: The user is replying to the quoted message referenced above in this chat.")
+	}
+	tb.Line("[/CURRENT MESSAGE]").Blank()
+
+	return tb.String()
+}
+
+// BuildAiQuery compiles instructions, personality prompts, group context,
+// quoted message context, and user prompt into a structured query for Meta AI.
+func BuildAiQuery(instruction, customPrompt string, data Data) string {
+	if isMediaGenerationPrompt(data.Question) {
+		return data.Question
+	}
+
+	var b strings.Builder
+	b.WriteString(instruction)
+
+	if customPrompt != "" {
+		b.WriteString("\n[GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]\n")
+		b.WriteString(customPrompt)
+		b.WriteString("\n\n")
+	}
+
+	if data.ChatType == "group" {
+		if grp := RenderGroupContext(data.GroupMetaData); grp != "" {
+			b.WriteString(grp)
+		}
+	}
+
+	if usr := RenderUserContext(data); usr != "" {
+		b.WriteString(usr)
+	}
+
+	if qtd := RenderQuotedContext(data); qtd != "" {
+		b.WriteString(qtd)
+	}
+
+	if cur := RenderCurrentMessage(data); cur != "" {
+		b.WriteString(cur)
+	}
+
+	return b.String()
 }
