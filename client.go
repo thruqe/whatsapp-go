@@ -869,7 +869,7 @@ func AttachContextInfo(msg *waE2E.Message, ci *waE2E.ContextInfo) {
 
 // ─── Protocol Helper Utilities ─────────────────────────────────────────────
 
-// UnwrapMessageProto unwraps nested message envelopes (ViewOnce, Ephemeral, Edited, Forwarded).
+// UnwrapMessageProto unwraps nested message envelopes (ViewOnce, Ephemeral, Edited, Forwarded, BotInvoke, etc.).
 func UnwrapMessageProto(msg *waE2E.Message) *waE2E.Message {
 	if msg == nil {
 		return nil
@@ -899,12 +899,68 @@ func UnwrapMessageProto(msg *waE2E.Message) *waE2E.Message {
 			msg = edited.GetMessage()
 			continue
 		}
+		if pm := msg.GetProtocolMessage(); pm != nil && pm.GetEditedMessage() != nil {
+			msg = pm.GetEditedMessage()
+			continue
+		}
 		if bfm := msg.GetBotForwardedMessage(); bfm != nil && bfm.GetMessage() != nil {
 			msg = bfm.GetMessage()
 			continue
 		}
+		if bim := msg.GetBotInvokeMessage(); bim != nil && bim.GetMessage() != nil {
+			msg = bim.GetMessage()
+			continue
+		}
+		if gmm := msg.GetGroupMentionedMessage(); gmm != nil && gmm.GetMessage() != nil {
+			msg = gmm.GetMessage()
+			continue
+		}
+		if acm := msg.GetAssociatedChildMessage(); acm != nil && acm.GetMessage() != nil {
+			msg = acm.GetMessage()
+			continue
+		}
+		if smm := msg.GetStatusMentionMessage(); smm != nil && smm.GetMessage() != nil {
+			msg = smm.GetMessage()
+			continue
+		}
+		if lsm := msg.GetLimitSharingMessage(); lsm != nil && lsm.GetMessage() != nil {
+			msg = lsm.GetMessage()
+			continue
+		}
 		if devSent := msg.GetDeviceSentMessage(); devSent != nil && devSent.GetMessage() != nil {
 			msg = devSent.GetMessage()
+			continue
+		}
+		if lot := msg.GetLottieStickerMessage(); lot != nil && lot.GetMessage() != nil {
+			msg = lot.GetMessage()
+			continue
+		}
+		if spm := msg.GetSpoilerMessage(); spm != nil && spm.GetMessage() != nil {
+			msg = spm.GetMessage()
+			continue
+		}
+		if eci := msg.GetEventCoverImage(); eci != nil && eci.GetMessage() != nil {
+			msg = eci.GetMessage()
+			continue
+		}
+		if gsm := msg.GetGroupStatusMessage(); gsm != nil && gsm.GetMessage() != nil {
+			msg = gsm.GetMessage()
+			continue
+		}
+		if gsm2 := msg.GetGroupStatusMessageV2(); gsm2 != nil && gsm2.GetMessage() != nil {
+			msg = gsm2.GetMessage()
+			continue
+		}
+		if gsmm := msg.GetGroupStatusMentionMessage(); gsmm != nil && gsmm.GetMessage() != nil {
+			msg = gsmm.GetMessage()
+			continue
+		}
+		if qrm := msg.GetQuestionReplyMessage(); qrm != nil && qrm.GetMessage() != nil {
+			msg = qrm.GetMessage()
+			continue
+		}
+		if pcm4 := msg.GetPollCreationMessageV4(); pcm4 != nil && pcm4.GetMessage() != nil {
+			msg = pcm4.GetMessage()
 			continue
 		}
 		break
@@ -945,18 +1001,76 @@ func GetContextInfoFromProto(msg *waE2E.Message) *waE2E.ContextInfo {
 	if list := msg.GetListResponseMessage(); list != nil && list.GetContextInfo() != nil {
 		return list.GetContextInfo()
 	}
+	if listMsg := msg.GetListMessage(); listMsg != nil && listMsg.GetContextInfo() != nil {
+		return listMsg.GetContextInfo()
+	}
 	if poll := msg.GetPollCreationMessage(); poll != nil && poll.GetContextInfo() != nil {
 		return poll.GetContextInfo()
+	}
+	if poll2 := msg.GetPollCreationMessageV2(); poll2 != nil && poll2.GetContextInfo() != nil {
+		return poll2.GetContextInfo()
+	}
+	if poll3 := msg.GetPollCreationMessageV3(); poll3 != nil && poll3.GetContextInfo() != nil {
+		return poll3.GetContextInfo()
+	}
+	if poll5 := msg.GetPollCreationMessageV5(); poll5 != nil && poll5.GetContextInfo() != nil {
+		return poll5.GetContextInfo()
+	}
+	if poll6 := msg.GetPollCreationMessageV6(); poll6 != nil && poll6.GetContextInfo() != nil {
+		return poll6.GetContextInfo()
+	}
+	if im := msg.GetInteractiveMessage(); im != nil && im.GetContextInfo() != nil {
+		return im.GetContextInfo()
+	}
+	if irm := msg.GetInteractiveResponseMessage(); irm != nil && irm.GetContextInfo() != nil {
+		return irm.GetContextInfo()
+	}
+	if tbr := msg.GetTemplateButtonReplyMessage(); tbr != nil && tbr.GetContextInfo() != nil {
+		return tbr.GetContextInfo()
+	}
+	if tm := msg.GetTemplateMessage(); tm != nil && tm.GetContextInfo() != nil {
+		return tm.GetContextInfo()
+	}
+	if ptv := msg.GetPtvMessage(); ptv != nil && ptv.GetContextInfo() != nil {
+		return ptv.GetContextInfo()
+	}
+	if loc := msg.GetLocationMessage(); loc != nil && loc.GetContextInfo() != nil {
+		return loc.GetContextInfo()
+	}
+	if liveLoc := msg.GetLiveLocationMessage(); liveLoc != nil && liveLoc.GetContextInfo() != nil {
+		return liveLoc.GetContextInfo()
+	}
+	if cont := msg.GetContactMessage(); cont != nil && cont.GetContextInfo() != nil {
+		return cont.GetContextInfo()
+	}
+	if conts := msg.GetContactsArrayMessage(); conts != nil && conts.GetContextInfo() != nil {
+		return conts.GetContextInfo()
+	}
+	if gi := msg.GetGroupInviteMessage(); gi != nil && gi.GetContextInfo() != nil {
+		return gi.GetContextInfo()
+	}
+	if evtMsg := msg.GetEventMessage(); evtMsg != nil && evtMsg.GetContextInfo() != nil {
+		return evtMsg.GetContextInfo()
 	}
 	return nil
 }
 
 // ExtractMessageText extracts the human-readable text string from any incoming message event.
 func ExtractMessageText(evt *events.Message) string {
-	if evt == nil || evt.Message == nil {
+	if evt == nil {
 		return ""
 	}
-	return ExtractTextFromProto(evt.Message)
+	if evt.Message != nil {
+		if text := ExtractTextFromProto(evt.Message); text != "" {
+			return text
+		}
+	}
+	if evt.RawMessage != nil {
+		if text := ExtractTextFromProto(evt.RawMessage); text != "" {
+			return text
+		}
+	}
+	return ""
 }
 
 // ExtractTextFromProto extracts human-readable text from a raw protobuf message.
@@ -980,8 +1094,98 @@ func ExtractTextFromProto(msg *waE2E.Message) string {
 	if doc := msg.GetDocumentMessage(); doc != nil && doc.GetCaption() != "" {
 		return doc.GetCaption()
 	}
+	if ptv := msg.GetPtvMessage(); ptv != nil && ptv.GetCaption() != "" {
+		return ptv.GetCaption()
+	}
 	if poll := msg.GetPollCreationMessage(); poll != nil && poll.GetName() != "" {
 		return poll.GetName()
+	}
+	if poll := msg.GetPollCreationMessageV2(); poll != nil && poll.GetName() != "" {
+		return poll.GetName()
+	}
+	if poll := msg.GetPollCreationMessageV3(); poll != nil && poll.GetName() != "" {
+		return poll.GetName()
+	}
+	if poll := msg.GetPollCreationMessageV5(); poll != nil && poll.GetName() != "" {
+		return poll.GetName()
+	}
+	if poll := msg.GetPollCreationMessageV6(); poll != nil && poll.GetName() != "" {
+		return poll.GetName()
+	}
+	if im := msg.GetInteractiveMessage(); im != nil {
+		if body := im.GetBody(); body != nil && body.GetText() != "" {
+			return body.GetText()
+		}
+		if hdr := im.GetHeader(); hdr != nil && hdr.GetTitle() != "" {
+			return hdr.GetTitle()
+		}
+	}
+	if irm := msg.GetInteractiveResponseMessage(); irm != nil {
+		if body := irm.GetBody(); body != nil && body.GetText() != "" {
+			return body.GetText()
+		}
+		if nfr := irm.GetNativeFlowResponseMessage(); nfr != nil {
+			if nfr.GetParamsJSON() != "" {
+				return nfr.GetParamsJSON()
+			}
+			if nfr.GetName() != "" {
+				return nfr.GetName()
+			}
+		}
+	}
+	if btn := msg.GetButtonsResponseMessage(); btn != nil {
+		if btn.GetSelectedDisplayText() != "" {
+			return btn.GetSelectedDisplayText()
+		}
+		if btn.GetSelectedButtonID() != "" {
+			return btn.GetSelectedButtonID()
+		}
+	}
+	if tbr := msg.GetTemplateButtonReplyMessage(); tbr != nil {
+		if tbr.GetSelectedDisplayText() != "" {
+			return tbr.GetSelectedDisplayText()
+		}
+		if tbr.GetSelectedID() != "" {
+			return tbr.GetSelectedID()
+		}
+	}
+	if list := msg.GetListResponseMessage(); list != nil {
+		if list.GetTitle() != "" {
+			return list.GetTitle()
+		}
+		if single := list.GetSingleSelectReply(); single != nil && single.GetSelectedRowID() != "" {
+			return single.GetSelectedRowID()
+		}
+		if list.GetDescription() != "" {
+			return list.GetDescription()
+		}
+	}
+	if btn := msg.GetButtonsMessage(); btn != nil && btn.GetContentText() != "" {
+		return btn.GetContentText()
+	}
+	if tm := msg.GetTemplateMessage(); tm != nil {
+		if h := tm.GetHydratedTemplate(); h != nil && h.GetHydratedContentText() != "" {
+			return h.GetHydratedContentText()
+		}
+		if h4 := tm.GetHydratedFourRowTemplate(); h4 != nil && h4.GetHydratedContentText() != "" {
+			return h4.GetHydratedContentText()
+		}
+	}
+	if gi := msg.GetGroupInviteMessage(); gi != nil {
+		if cap := gi.GetCaption(); cap != "" {
+			return cap
+		}
+		if name := gi.GetGroupName(); name != "" {
+			return name
+		}
+	}
+	if evtMsg := msg.GetEventMessage(); evtMsg != nil {
+		if name := evtMsg.GetName(); name != "" {
+			return name
+		}
+		if desc := evtMsg.GetDescription(); desc != "" {
+			return desc
+		}
 	}
 	return ""
 }
