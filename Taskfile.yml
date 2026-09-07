@@ -86,6 +86,11 @@ tasks:
     cmds:
       - go -C scripts run . res
 
+  sign:
+    desc: Digitally sign Windows PE executable binary with SHA-256 Authenticode signature
+    cmds:
+      - go -C scripts run . sign {{.CLI_ARGS | default .BIN_PATH}}
+
   build:
     desc: "Build stripped, optimized binary executable into {{.BIN_PATH}}"
     env:

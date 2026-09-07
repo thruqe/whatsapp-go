@@ -68,9 +68,19 @@ curl -fsSL \
 
 Open **PowerShell** and paste:
 
+**x86_64 (Intel / AMD):**
 ```powershell
 New-Item -ItemType Directory -Force -Path "$env:LOCALAPPDATA\whatsrook" | Out-Null
 curl.exe -fsSL "https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-windows-amd64.tar.gz" -o "$env:TEMP\wr.tar.gz"
+tar.exe -xzf "$env:TEMP\wr.tar.gz" -C "$env:LOCALAPPDATA\whatsrook"
+Remove-Item "$env:TEMP\wr.tar.gz"
+& "$env:LOCALAPPDATA\whatsrook\whatsrook.exe"
+```
+
+**ARM64 (Snapdragon X Elite / Windows on ARM):**
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:LOCALAPPDATA\whatsrook" | Out-Null
+curl.exe -fsSL "https://github.com/ThruqeLabs/whatsrook/releases/latest/download/whatsrook-windows-arm64.tar.gz" -o "$env:TEMP\wr.tar.gz"
 tar.exe -xzf "$env:TEMP\wr.tar.gz" -C "$env:LOCALAPPDATA\whatsrook"
 Remove-Item "$env:TEMP\wr.tar.gz"
 & "$env:LOCALAPPDATA\whatsrook\whatsrook.exe"

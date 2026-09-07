@@ -58,6 +58,9 @@ jobs:
           - os: windows
             arch: amd64
             ext: ".exe"
+          - os: windows
+            arch: arm64
+            ext: ".exe"
           - os: darwin
             arch: amd64
             ext: ""
@@ -93,11 +96,25 @@ jobs:
           GOEXPERIMENT: nojsonv2
         run: |
           BIN_NAME="whatsrook${{ matrix.target.ext }}"
-          if [ "${{ matrix.target.os }}" = "windows" ]; then
-            GOOS="" GOARCH="" go -C scripts run . res
+          COMMIT_SHA="${{ github.sha }}"
+          if [ "${{ needs.check-version.outputs.changed }}" = "true" ]; then
+            APP_VERSION="${{ needs.check-version.outputs.version }}"
+          else
+            APP_VERSION="$COMMIT_SHA"
           fi
-          (cd cmd && go build -trimpath -ldflags="-s -w -buildid=" -v -o "../$BIN_NAME" .)
+          echo "Building WhatsRook version: $APP_VERSION (commit: $COMMIT_SHA)"
+
+          if [ "${{ matrix.target.os }}" = "windows" ]; then
+            GOOS="" GOARCH="" go -C scripts run . res "$APP_VERSION"
+          fi
+          (cd cmd && go build -trimpath -ldflags="-s -w -buildid= -X main.Version=${APP_VERSION} -X whatsrook/cmd/updater.BinaryVersion=${APP_VERSION} -X whatsrook/cmd/updater.CommitSHA=${COMMIT_SHA}" -v -o "../$BIN_NAME" .)
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
+
+      - name: Sign Windows Binary
+        if: matrix.target.os == 'windows'
+        run: |
+          sudo apt-get update && sudo apt-get install -y osslsigncode
+          go -C scripts run . sign "$BIN_NAME"
 
       - name: Verify Binary
         run: |
@@ -140,10 +157,6 @@ jobs:
         run: |
           mkdir staging
           cp "$BIN_NAME" staging/
-          cp -r assets staging/ 2>/dev/null || true
-          cp LICENSE staging/ 2>/dev/null || true
-          cp README.md staging/ 2>/dev/null || true
-          cp version.txt staging/ 2>/dev/null || true
           tar -czf whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz -C staging .
 
       - name: Upload Intermediary Artifact

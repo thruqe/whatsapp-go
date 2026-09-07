@@ -32,7 +32,11 @@ func main() {
 	args := parseCLIArgs()
 
 	if args.Version {
-		fmt.Println(Version)
+		v := Version
+		if v == "dev" || v == "" {
+			v = updater.GetBinaryVersion()
+		}
+		fmt.Println(v)
 		return
 	}
 

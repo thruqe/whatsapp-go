@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -128,6 +128,7 @@ var supportedPlatforms = map[string]bool{
 	"linux/arm64":   true,
 	"android/arm64": true,
 	"windows/amd64": true,
+	"windows/arm64": true,
 }
 
 // IsSupportedPlatform reports whether the current runtime OS/arch has a
@@ -315,14 +316,62 @@ func (v Version) Compare(other Version) int {
 	return 0
 }
 
-// GetAppVersion attempts to read version from local version.txt or installed beta, falling back to whatsrook.GetVersion().
-func GetAppVersion() string {
-	if GetStoredChannel() == "beta" {
-		if betaVer := GetInstalledBetaVersion(); betaVer != "" {
-			return FormatVersionDisplay(betaVer)
+// BinaryVersion is set at compile time via -ldflags "-X whatsrook/cmd/updater.BinaryVersion=...".
+var BinaryVersion = ""
+
+// CommitSHA is set at compile time via -ldflags "-X whatsrook/cmd/updater.CommitSHA=...".
+var CommitSHA = ""
+
+// GetBinaryVersion returns the running binary's internal version without inspecting any external files.
+func GetBinaryVersion() string {
+	if BinaryVersion != "" && BinaryVersion != "dev" {
+		return strings.TrimSpace(BinaryVersion)
+	}
+	if CommitSHA != "" && CommitSHA != "none" {
+		return strings.TrimSpace(CommitSHA)
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if info.Main.Version != "" && info.Main.Version != "(devel)" {
+			return strings.TrimSpace(info.Main.Version)
+		}
+		for _, s := range info.Settings {
+			if s.Key == "vcs.revision" && s.Value != "" {
+				return strings.TrimSpace(s.Value)
+			}
 		}
 	}
-	return FormatVersionDisplay(ReadEffectiveLocalVersion(DefaultVersionFile))
+	if v, err := whatsrook.GetVersion(); err == nil && strings.TrimSpace(v.Raw) != "" {
+		return strings.TrimSpace(v.Raw)
+	}
+	return EmbeddedAppVersion
+}
+
+// EqualVersions compares two version identifiers (semver or git commit hashes).
+func EqualVersions(v1, v2 string) bool {
+	v1 = strings.TrimSpace(strings.ToLower(v1))
+	v2 = strings.TrimSpace(strings.ToLower(v2))
+	if v1 == v2 {
+		return true
+	}
+	v1Clean := strings.TrimPrefix(strings.TrimPrefix(v1, "beta-"), "alpha-")
+	v2Clean := strings.TrimPrefix(strings.TrimPrefix(v2, "beta-"), "alpha-")
+	if v1Clean == v2Clean {
+		return true
+	}
+	if isHex(v1Clean) && isHex(v2Clean) && len(v1Clean) >= 7 && len(v2Clean) >= 7 {
+		return strings.HasPrefix(v1Clean, v2Clean) || strings.HasPrefix(v2Clean, v1Clean)
+	}
+	return false
+}
+
+// GetAppVersion returns the current binary version formatted for display.
+func GetAppVersion() string {
+	if GetStoredChannel() == "beta" {
+		if installedBeta := GetInstalledBetaVersion(); installedBeta != "" {
+			return FormatVersionDisplay(installedBeta)
+		}
+	}
+	return FormatVersionDisplay(GetBinaryVersion())
 }
 
 // ReadEffectiveLocalVersion checks cwd, executable directory, and fallback embedded version.
@@ -336,10 +385,7 @@ func ReadEffectiveLocalVersion(versionFile string) string {
 			return strings.TrimSpace(ver)
 		}
 	}
-	if v, err := whatsrook.GetVersion(); err == nil && v.Raw != "" {
-		return v.Raw
-	}
-	return EmbeddedAppVersion
+	return GetBinaryVersion()
 }
 
 // ReadLocalVersion reads and parses the version string from a local version file.
@@ -504,6 +550,28 @@ func (u *Updater) fetchRemoteBetaVersion(ctx context.Context) (string, error) {
 	if resp.StatusCode == http.StatusOK {
 		var rel githubRelease
 		if err := json.NewDecoder(resp.Body).Decode(&rel); err == nil {
+			// 1. Extract commit SHA from release body (e.g. "**Commit:** <sha>" or "Commit: <sha>")
+			for line := range strings.SplitSeq(rel.Body, "\n") {
+				line = strings.TrimSpace(line)
+				if after, ok := strings.CutPrefix(line, "**Commit:**"); ok {
+					sha := strings.TrimSpace(after)
+					if isHex(sha) && len(sha) >= 7 {
+						return sha, nil
+					}
+				}
+				if after, ok := strings.CutPrefix(line, "Commit:"); ok {
+					sha := strings.TrimSpace(after)
+					if isHex(sha) && len(sha) >= 7 {
+						return sha, nil
+					}
+				}
+			}
+
+			// 2. Check if TargetCommitish is an exact commit SHA
+			if isHex(rel.TargetCommitish) && len(rel.TargetCommitish) >= 7 {
+				return rel.TargetCommitish, nil
+			}
+
 			candidates, _ := candidateAssetNames()
 			targetAssetMap := make(map[string]bool)
 			for _, c := range candidates {
@@ -526,7 +594,27 @@ func (u *Updater) fetchRemoteBetaVersion(ctx context.Context) (string, error) {
 		}
 	}
 
-	// Fallback: HEAD request to asset download URL to inspect headers
+	// Fallback 1: Query git/ref/tags/alpha API endpoint for exact commit SHA
+	refURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/ref/tags/alpha", u.opts.RepoOwner, u.opts.RepoName)
+	if reqRef, errRef := http.NewRequestWithContext(ctx, http.MethodGet, refURL, nil); errRef == nil {
+		reqRef.Header.Set("User-Agent", "whatsrook-updater")
+		reqRef.Header.Set("Accept", "application/vnd.github+json")
+		if respRef, errDo := u.opts.HTTPClient.Do(reqRef); errDo == nil {
+			defer respRef.Body.Close()
+			if respRef.StatusCode == http.StatusOK {
+				var refObj struct {
+					Object struct {
+						SHA string `json:"sha"`
+					} `json:"object"`
+				}
+				if err := json.NewDecoder(respRef.Body).Decode(&refObj); err == nil && refObj.Object.SHA != "" {
+					return refObj.Object.SHA, nil
+				}
+			}
+		}
+	}
+
+	// Fallback 2: HEAD request to asset download URL to inspect headers
 	candidates, errCand := candidateAssetNames()
 	if errCand == nil && len(candidates) > 0 {
 		downloadURL := fmt.Sprintf("https://github.com/%s/%s/releases/download/alpha/%s", u.opts.RepoOwner, u.opts.RepoName, candidates[0])
@@ -584,7 +672,7 @@ func (u *Updater) fetchRemoteStableVersion(ctx context.Context) (string, error) 
 func (u *Updater) Check(ctx context.Context) (*UpdateResult, error) {
 	u.logf("==> Checking for updates (%s/%s, platform: %s)...", u.opts.RepoOwner, u.opts.RepoName, GetPlatform())
 
-	localStr := ReadEffectiveLocalVersion(u.opts.VersionFile)
+	localStr := GetBinaryVersion()
 	if u.opts.Channel == "beta" {
 		if installedBeta := GetInstalledBetaVersion(); installedBeta != "" {
 			localStr = installedBeta
@@ -603,14 +691,14 @@ func (u *Updater) Check(ctx context.Context) (*UpdateResult, error) {
 	}
 
 	if u.opts.Channel == "beta" {
-		res.HasNewVersion = localStr != remoteStr
+		res.HasNewVersion = !EqualVersions(localStr, remoteStr)
 	} else {
 		localVer, errLocal := ParseVersion(localStr)
 		remoteVer, errRemote := ParseVersion(remoteStr)
 		if errLocal == nil && errRemote == nil {
 			res.HasNewVersion = remoteVer.Compare(localVer) > 0
 		} else {
-			res.HasNewVersion = localStr != remoteStr
+			res.HasNewVersion = !EqualVersions(localStr, remoteStr)
 		}
 	}
 
@@ -664,9 +752,6 @@ func (u *Updater) Upgrade(ctx context.Context, isBeta bool) (*UpdateResult, erro
 		_ = SetInstalledBetaVersion(check.LatestVersion)
 	} else {
 		_ = SetInstalledBetaVersion("")
-		if newVer := ReadEffectiveLocalVersion(u.opts.VersionFile); newVer != "" {
-			check.LatestVersion = newVer
-		}
 	}
 	check.Message = fmt.Sprintf("Successfully upgraded binary for %s (%s -> %s).",
 		GetPlatform(),
@@ -682,7 +767,7 @@ func (u *Updater) Upgrade(ctx context.Context, isBeta bool) (*UpdateResult, erro
 func candidateAssetNames() ([]string, error) {
 	if !IsSupportedPlatform() {
 		return nil, fmt.Errorf(
-			"unsupported platform %s — supported platforms are: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64, android/arm64, windows/amd64",
+			"unsupported platform %s — supported platforms are: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64, android/arm64, windows/amd64, windows/arm64",
 			GetPlatform(),
 		)
 	}
@@ -748,8 +833,6 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 		return fmt.Errorf("failed to read downloaded release payload: %w", err)
 	}
 
-	calculatedSHA := fmt.Sprintf("sha256:%x", sha256.Sum256(payloadBytes))
-
 	exePath, err := ResolveExecutablePath()
 	if err != nil {
 		exePath = os.Args[0]
@@ -776,15 +859,6 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 	if !foundBinary {
 		_ = os.Remove(tmpBinary)
 		return fmt.Errorf("matching executable binary not found in release archive %s", chosenAsset)
-	}
-
-	// Always write version.txt alongside the new executable so local version is permanently updated
-	if u.opts.Channel == "beta" || tag == "alpha" {
-		_ = os.WriteFile(filepath.Join(cleanExeDir, u.opts.VersionFile), []byte(calculatedSHA+"\n"), 0644)
-	} else {
-		if remoteVer, err := u.FetchRemoteVersion(ctx); err == nil && remoteVer != "" {
-			_ = os.WriteFile(filepath.Join(cleanExeDir, u.opts.VersionFile), []byte(strings.TrimSpace(remoteVer)+"\n"), 0644)
-		}
 	}
 
 	u.logf("==> [3/3] Performing atomic binary swap with rollback safety...")
@@ -856,7 +930,7 @@ func (u *Updater) extractZipPayload(data []byte, cleanExeDir, tmpBinary string) 
 			continue
 		}
 
-		if strings.HasPrefix(cleanRel, "cli/resources") || strings.HasPrefix(cleanRel, "resources") || strings.HasPrefix(cleanRel, "prompts") || filepath.Base(cleanRel) == u.opts.VersionFile {
+		if strings.HasPrefix(cleanRel, "cli/resources") || strings.HasPrefix(cleanRel, "resources") || strings.HasPrefix(cleanRel, "prompts") {
 			_ = os.MkdirAll(filepath.Dir(destPath), 0755)
 			rc, err := f.Open()
 			if err == nil {
@@ -916,7 +990,7 @@ func (u *Updater) extractTarGzPayload(data []byte, cleanExeDir, tmpBinary string
 			continue
 		}
 
-		if strings.HasPrefix(cleanRel, "cli/resources") || strings.HasPrefix(cleanRel, "resources") || strings.HasPrefix(cleanRel, "prompts") || filepath.Base(cleanRel) == u.opts.VersionFile {
+		if strings.HasPrefix(cleanRel, "cli/resources") || strings.HasPrefix(cleanRel, "resources") || strings.HasPrefix(cleanRel, "prompts") {
 			_ = os.MkdirAll(filepath.Dir(destPath), 0755)
 			resFile, errRes := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 			if errRes == nil {
