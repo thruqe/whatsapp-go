@@ -1886,6 +1886,24 @@ func (c *PluginContext) ReplyWithID(text string) (string, error) {
 	return resp.ID, nil
 }
 
+// SendTextWithID sends a text message without quoting and returns the sent message ID.
+func (c *PluginContext) SendTextWithID(text string) (string, error) {
+	c.StopAutoLoader()
+	if c.Client == nil {
+		return "", fmt.Errorf("client unavailable")
+	}
+	ctx := c.GetSendContext()
+	formatted := c.formatTextResponse(text)
+	msg := &waE2E.Message{
+		Conversation: &formatted,
+	}
+	resp, err := c.Client.SendMessage(ctx, c.Chat, msg)
+	if err != nil {
+		return "", err
+	}
+	return resp.ID, nil
+}
+
 // ReplyWithImage uploads and sends an image quoted to the triggering message.
 func (c *PluginContext) ReplyWithImage(data []byte, mimetype, caption string) error {
 	return c.ReplyWithImageWithMentions(data, mimetype, caption, nil)

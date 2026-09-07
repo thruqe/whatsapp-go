@@ -115,19 +115,16 @@ func ExtractMetaAiText(msg *waE2E.Message) string {
 	if pm := msg.GetProtocolMessage(); pm != nil && pm.GetEditedMessage() != nil {
 		return ExtractMetaAiText(pm.GetEditedMessage())
 	}
+	var raw string
 	if conv := msg.GetConversation(); conv != "" {
 		if !IsDummyPlaceholderText(conv) {
-			return conv
+			raw = conv
 		}
-		return ""
-	}
-	if ext := msg.GetExtendedTextMessage(); ext != nil {
+	} else if ext := msg.GetExtendedTextMessage(); ext != nil {
 		if !IsDummyPlaceholderText(ext.GetText()) {
-			return ext.GetText()
+			raw = ext.GetText()
 		}
-		return ""
-	}
-	if rich := msg.GetRichResponseMessage(); rich != nil {
+	} else if rich := msg.GetRichResponseMessage(); rich != nil {
 		tb := builder.NewText()
 		for _, sub := range rich.GetSubmessages() {
 			s := sub.GetMessageText()
@@ -137,16 +134,19 @@ func ExtractMetaAiText(msg *waE2E.Message) string {
 		}
 		res := tb.String()
 		if !IsDummyPlaceholderText(res) && res != "" {
-			return res
-		}
-
-		if unified := rich.GetUnifiedResponse(); unified != nil && len(unified.GetData()) > 0 {
+			raw = res
+		} else if unified := rich.GetUnifiedResponse(); unified != nil && len(unified.GetData()) > 0 {
 			res = extractTextFromUnifiedJSON(unified.GetData())
 			if !IsDummyPlaceholderText(res) && res != "" {
-				return res
+				raw = res
 			}
 		}
-		return ""
+	}
+	if raw != "" {
+		cleaned := CleanAiResponseText(raw)
+		if !IsDummyPlaceholderText(cleaned) {
+			return cleaned
+		}
 	}
 	return ""
 }
@@ -414,6 +414,10 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 			return
 		}
 
+		if msgEvt.Info.IsFromMe {
+			return
+		}
+
 		sender := msgEvt.Info.Sender.ToNonAD()
 		chatJID := msgEvt.Info.Chat.ToNonAD()
 		isFromMetaAI := sender.User == MetaAiBotJID.User || chatJID.User == MetaAiBotJID.User || sender.IsBot() || chatJID.IsBot()
@@ -444,8 +448,12 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 			return
 		}
 
-		if !seen && pm == nil {
-			metaMsgID = msgEvt.Info.ID
+		if !seen {
+			if pm == nil {
+				metaMsgID = msgEvt.Info.ID
+			} else if pm.GetKey() != nil && pm.GetKey().GetID() != "" {
+				metaMsgID = pm.GetKey().GetID()
+			}
 			seen = true
 			logger.Debug("executeMetaAiQuery: captured meta ai reply message id", "chat", chatKey, "meta_msg_id", metaMsgID)
 		}
@@ -585,8 +593,10 @@ func ExecuteMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat type
 			}
 		}
 
-		if text != "" && final == "" {
-			final = text
+		if text != "" && !IsDummyPlaceholderText(text) {
+			if len(text) >= len(final) || final == "" {
+				final = text
+			}
 		}
 
 		if len(genMediaData) > 0 {
