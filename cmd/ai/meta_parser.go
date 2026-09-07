@@ -253,3 +253,80 @@ func BuildAiQuery(instruction, customPrompt string, data Data) string {
 
 	return b.String()
 }
+
+// CleanAiResponseText strips any echoed system prompts, context scaffolding, or prompt delimiters from the AI response.
+func CleanAiResponseText(text string) string {
+	cleaned := text
+
+	// 1. Strip [SYSTEM CONTEXT: ... ] if echoed by the LLM
+	if start := strings.Index(cleaned, "[SYSTEM CONTEXT:"); start != -1 {
+		sub := cleaned[start:]
+		if end := strings.Index(sub, "\n]"); end != -1 {
+			cleaned = cleaned[:start] + sub[end+2:]
+		} else if end := strings.Index(sub, "]"); end != -1 {
+			cleaned = cleaned[:start] + sub[end+1:]
+		}
+	}
+
+	// 2. Strip [GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]
+	if start := strings.Index(cleaned, "[GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]"); start != -1 {
+		sub := cleaned[start:]
+		if end := strings.Index(sub, "\n\n"); end != -1 {
+			cleaned = cleaned[:start] + sub[end+2:]
+		}
+	}
+
+	// 3. Strip [CURRENT MESSAGE] ... [/CURRENT MESSAGE]
+	if start := strings.Index(cleaned, "[CURRENT MESSAGE]"); start != -1 {
+		if end := strings.Index(cleaned, "[/CURRENT MESSAGE]"); end != -1 {
+			cleaned = cleaned[:start] + cleaned[end+len("[/CURRENT MESSAGE]"):]
+		}
+	}
+
+	// 4. Strip [GROUP CONTEXT] ... [/GROUP CONTEXT]
+	if start := strings.Index(cleaned, "[GROUP CONTEXT]"); start != -1 {
+		if end := strings.Index(cleaned, "[/GROUP CONTEXT]"); end != -1 {
+			cleaned = cleaned[:start] + cleaned[end+len("[/GROUP CONTEXT]"):]
+		}
+	}
+
+	// 5. Strip [USER CONTEXT] ... [/USER CONTEXT]
+	if start := strings.Index(cleaned, "[USER CONTEXT]"); start != -1 {
+		if end := strings.Index(cleaned, "[/USER CONTEXT]"); end != -1 {
+			cleaned = cleaned[:start] + cleaned[end+len("[/USER CONTEXT]"):]
+		}
+	}
+
+	// 6. Strip [REPLYING TO A MESSAGE — EXTRACTED CONTEXT] ... [/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]
+	if start := strings.Index(cleaned, "[REPLYING TO A MESSAGE — EXTRACTED CONTEXT]"); start != -1 {
+		if end := strings.Index(cleaned, "[/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]"); end != -1 {
+			cleaned = cleaned[:start] + cleaned[end+len("[/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]"):]
+		}
+	}
+
+	// 7. Strip [QUOTED MESSAGE] ... [/QUOTED MESSAGE]
+	if start := strings.Index(cleaned, "[QUOTED MESSAGE]"); start != -1 {
+		if end := strings.Index(cleaned, "[/QUOTED MESSAGE]"); end != -1 {
+			cleaned = cleaned[:start] + cleaned[end+len("[/QUOTED MESSAGE]"):]
+		}
+	}
+
+	// 8. Strip any stray context tags
+	strayTags := []string{
+		"[/CURRENT MESSAGE]",
+		"[/GROUP CONTEXT]",
+		"[/USER CONTEXT]",
+		"[/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]",
+		"[/QUOTED MESSAGE]",
+		"[CURRENT MESSAGE]",
+		"[GROUP CONTEXT]",
+		"[USER CONTEXT]",
+		"[REPLYING TO A MESSAGE — EXTRACTED CONTEXT]",
+		"[QUOTED MESSAGE]",
+	}
+	for _, tag := range strayTags {
+		cleaned = strings.ReplaceAll(cleaned, tag, "")
+	}
+
+	return strings.TrimSpace(cleaned)
+}

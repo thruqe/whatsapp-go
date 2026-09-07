@@ -4,9 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	"whatsrook/cmd/dispatch"
+
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waAICommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -632,5 +637,187 @@ func TestBuildAiQuery_GroupWithoutMetadata(t *testing.T) {
 	}
 	if !strings.Contains(query, "Message: Summarize our project goals") {
 		t.Errorf("query must contain message text: %s", query)
+	}
+}
+
+func TestCleanAiResponseText(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Clean plain response without scaffolding",
+			input:    "Life is a biological process characterized by metabolism, growth, and reproduction.",
+			expected: "Life is a biological process characterized by metabolism, growth, and reproduction.",
+		},
+		{
+			name: "Echoed SYSTEM CONTEXT block",
+			input: `[SYSTEM CONTEXT:
+You are WhatsRook, a helpful, intelligent, and capable AI assistant on WhatsApp.
+Available bot commands:
+- !ping: ping
+]
+Life is a characteristic that distinguishes physical entities.`,
+			expected: "Life is a characteristic that distinguishes physical entities.",
+		},
+		{
+			name: "Echoed CURRENT MESSAGE block",
+			input: `[CURRENT MESSAGE]
+From: Thruqe
+Message: what is life
+[/CURRENT MESSAGE]
+Life is a fundamental feature of living organisms.`,
+			expected: "Life is a fundamental feature of living organisms.",
+		},
+		{
+			name: "Echoed GROUP CONTEXT block",
+			input: `[GROUP CONTEXT]
+Group Name: Test Group
+[/GROUP CONTEXT]
+Hello everyone in Test Group!`,
+			expected: "Hello everyone in Test Group!",
+		},
+		{
+			name: "Echoed USER CONTEXT block",
+			input: `[USER CONTEXT]
+User: Thruqe
+Status: Owner/Sudo
+[/USER CONTEXT]
+Greetings Thruqe, how can I assist you?`,
+			expected: "Greetings Thruqe, how can I assist you?",
+		},
+		{
+			name: "Echoed REPLYING TO A MESSAGE context block",
+			input: `[REPLYING TO A MESSAGE — EXTRACTED CONTEXT]
+From: Alice
+Message Content: What is the weather?
+[/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]
+The weather is sunny.`,
+			expected: "The weather is sunny.",
+		},
+		{
+			name: "Echoed GLOBAL BOT PERSONALITY block",
+			input: `[GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]
+Always be polite.
+
+The answer is 42.`,
+			expected: "The answer is 42.",
+		},
+		{
+			name:     "Stray tags cleanup",
+			input:    "[/CURRENT MESSAGE] Here is the final answer. [/GROUP CONTEXT]",
+			expected: "Here is the final answer.",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := CleanAiResponseText(tc.input)
+			if got != tc.expected {
+				t.Errorf("CleanAiResponseText() = %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestExtractMetaAiText_StrippingScaffolding(t *testing.T) {
+	rawWithSystemPrompt := `[SYSTEM CONTEXT:
+You are WhatsRook
+]
+Here is your answer.`
+	msg := &waE2E.Message{
+		Conversation: proto.String(rawWithSystemPrompt),
+	}
+
+	extracted := ExtractMetaAiText(msg)
+	if extracted != "Here is your answer." {
+		t.Errorf("ExtractMetaAiText did not strip system prompt: got %q, want %q", extracted, "Here is your answer.")
+	}
+}
+
+func TestIsBotTaggedOrReplied(t *testing.T) {
+	botJID := types.NewJID("123456", types.DefaultUserServer)
+	client := &whatsmeow.Client{
+		Store: &store.Device{
+			ID: &botJID,
+		},
+	}
+
+	// 1. In DM (non-group chat), isBotTaggedOrReplied should return true
+	dmChat := types.NewJID("987654", types.DefaultUserServer)
+	dmEvt := &events.Message{
+		Info: types.MessageInfo{
+			Chat: dmChat,
+		},
+		Message: &waE2E.Message{
+			Conversation: proto.String("hello"),
+		},
+	}
+	dmCtx := &dispatch.Context{
+		Client: client,
+		Evt:    dmEvt,
+		Chat:   dmChat,
+	}
+	if !isBotTaggedOrReplied(dmCtx, "hello") {
+		t.Errorf("expected isBotTaggedOrReplied to return true for DM chat")
+	}
+
+	// 2. In Group chat with bot name mention, should return true
+	groupChat := types.NewJID("12345-67890", types.GroupServer)
+	groupEvt := &events.Message{
+		Info: types.MessageInfo{
+			Chat: groupChat,
+		},
+		Message: &waE2E.Message{
+			Conversation: proto.String("hey rook what is the time"),
+		},
+	}
+	groupCtx := &dispatch.Context{
+		Client: client,
+		Evt:    groupEvt,
+		Chat:   groupChat,
+	}
+	if !isBotTaggedOrReplied(groupCtx, "hey rook what is the time") {
+		t.Errorf("expected isBotTaggedOrReplied to return true when 'rook' is mentioned")
+	}
+
+	// 3. In Group chat without mention/tag, should return false
+	if isBotTaggedOrReplied(groupCtx, "regular group chat message") {
+		t.Errorf("expected isBotTaggedOrReplied to return false without mention/tag")
+	}
+}
+
+func TestHandleAutoAIIntercept_Filtering(t *testing.T) {
+	// 1. Nil context or client should return false
+	if HandleAutoAIIntercept(nil, "hello") {
+		t.Errorf("expected nil context to return false")
+	}
+
+	botJID := types.NewJID("123456", types.DefaultUserServer)
+	client := &whatsmeow.Client{
+		Store: &store.Device{
+			ID: &botJID,
+		},
+	}
+
+	// 2. Outgoing message (IsFromMe=true) in a chat with someone else should return false
+	otherChat := types.NewJID("999999", types.DefaultUserServer)
+	evtFromMe := &events.Message{
+		Info: types.MessageInfo{
+			Chat:     otherChat,
+			IsFromMe: true,
+		},
+		Message: &waE2E.Message{
+			Conversation: proto.String("hello"),
+		},
+	}
+	ctxFromMe := &dispatch.Context{
+		Client: client,
+		Evt:    evtFromMe,
+		Chat:   otherChat,
+	}
+	if HandleAutoAIIntercept(ctxFromMe, "hello") {
+		t.Errorf("expected IsFromMe to other chats to return false")
 	}
 }

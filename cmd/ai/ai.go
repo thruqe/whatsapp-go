@@ -419,6 +419,7 @@ func handleAI(ctx *dispatch.Context) error {
 	Logger.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String(), "is_media_req", isMediaReq)
 
 	var placeholderMsgID types.MessageID
+	var lastEditedText string
 	onUpdate := func(text string) error {
 		trimmed := strings.TrimSpace(text)
 		if trimmed == "" || IsDummyPlaceholderText(trimmed) {
@@ -431,17 +432,29 @@ func handleAI(ctx *dispatch.Context) error {
 			return nil
 		}
 		if placeholderMsgID == "" {
-			id, err := ctx.ReplyWithID(text)
+			var id types.MessageID
+			var err error
+			if isGroup {
+				id, err = ctx.ReplyWithID(trimmed)
+			} else {
+				id, err = ctx.SendTextWithID(trimmed)
+			}
 			if err == nil {
 				placeholderMsgID = id
+				lastEditedText = trimmed
 			}
 			return err
 		}
-		_, err := ctx.Edit(placeholderMsgID, text)
-		if err != nil {
-			Logger.Error("handleAI: failed to send edit", "chat", ctx.Chat.String(), "err", err)
+		if trimmed != lastEditedText {
+			_, err := ctx.Edit(placeholderMsgID, trimmed)
+			if err == nil {
+				lastEditedText = trimmed
+			} else {
+				Logger.Error("handleAI: failed to send edit", "chat", ctx.Chat.String(), "err", err)
+			}
+			return err
 		}
-		return err
+		return nil
 	}
 
 	res, err := QueryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
@@ -451,16 +464,20 @@ func handleAI(ctx *dispatch.Context) error {
 			errMsg := "This WA Account cannot use MetaAI"
 			if placeholderMsgID != "" {
 				_, _ = ctx.Edit(placeholderMsgID, errMsg)
-			} else {
+			} else if isGroup {
 				_ = ctx.Reply(errMsg)
+			} else {
+				_ = ctx.SendText(errMsg)
 			}
 			return nil
 		}
 
 		if placeholderMsgID != "" {
 			_, _ = ctx.Edit(placeholderMsgID, "Failed to get a response: "+err.Error())
-		} else {
+		} else if isGroup {
 			_ = ctx.Reply("Failed to get a response: " + err.Error())
+		} else {
+			_ = ctx.SendText("Failed to get a response: " + err.Error())
 		}
 		return err
 	}
@@ -494,18 +511,32 @@ func handleAI(ctx *dispatch.Context) error {
 
 		if strings.HasPrefix(mType, "video/") {
 			Logger.Debug("handleAI: sending generated video message to chat", "chat", ctx.Chat.String(), "video_len", len(mediaBytes), "mime", mType)
-			_ = ctx.ReplyWithVideo(mediaBytes, mType, caption)
+			if isGroup {
+				_ = ctx.ReplyWithVideo(mediaBytes, mType, caption)
+			} else {
+				_ = ctx.SendVideo(mediaBytes, mType, caption)
+			}
 		} else {
 			Logger.Debug("handleAI: sending generated image message to chat", "chat", ctx.Chat.String(), "img_len", len(mediaBytes), "mime", mType)
-			_ = ctx.ReplyWithImage(mediaBytes, mType, caption)
+			if isGroup {
+				_ = ctx.ReplyWithImage(mediaBytes, mType, caption)
+			} else {
+				_ = ctx.SendImage(mediaBytes, mType, caption)
+			}
 		}
 	} else if placeholderMsgID == "" && reply != "" {
 		if _, _, ok := ParseRunCommand(reply); !ok {
-			_ = ctx.Reply(reply)
+			if isGroup {
+				_ = ctx.Reply(reply)
+			} else {
+				_ = ctx.SendText(reply)
+			}
 		}
 	} else if placeholderMsgID != "" && reply != "" {
 		if _, _, ok := ParseRunCommand(reply); !ok {
-			_, _ = ctx.Edit(placeholderMsgID, reply)
+			if reply != lastEditedText && len(reply) >= len(lastEditedText) {
+				_, _ = ctx.Edit(placeholderMsgID, reply)
+			}
 		}
 	}
 
@@ -907,8 +938,24 @@ func handleDownloadMessage(ctx *dispatch.Context) error {
 	}
 }
 
-// HandleAutoAIIntercept checks if AutoAI is enabled and the bot was tagged, replied to, or called by name.
+// HandleAutoAIIntercept checks if AutoAI is enabled and handles automatic responses.
 func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
+	if c == nil || c.Evt == nil {
+		return false
+	}
+	if c.Client == nil || c.Client.Store == nil || c.Client.Store.ID == nil {
+		return false
+	}
+
+	ourJID := c.Client.Store.ID.ToNonAD()
+	isGroup := c.Chat.Server == "g.us"
+
+	// In 1-on-1 chats, only intercept if incoming from the remote contact,
+	// or if the owner is messaging themselves ("Message Yourself").
+	if c.Evt.Info.IsFromMe && c.Chat.ToNonAD() != ourJID {
+		return false
+	}
+
 	s, ok := dispatch.GetStore(c)
 	if !ok {
 		return false
@@ -924,7 +971,7 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 		return false
 	}
 
-	if !isBotTaggedOrReplied(c, text) {
+	if isGroup && !isBotTaggedOrReplied(c, text) {
 		return false
 	}
 
