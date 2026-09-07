@@ -201,6 +201,15 @@ func (cli *Client) handleConnectSuccess(ctx context.Context, node *waBinary.Node
 		if err != nil {
 			cli.Log.Warnf("Failed to send post-connect passive IQ: %v", err)
 		}
+		if cli.Store != nil {
+			if len(cli.Store.PushName) == 0 {
+				cli.Store.PushName = "WhatsRook"
+			}
+			cli.SetForceActiveDeliveryReceipts(true)
+			if err := cli.SendPresence(ctx, types.PresenceAvailable); err != nil {
+				cli.Log.Debugf("Failed to send post-connect presence available: %v", err)
+			}
+		}
 		cli.dispatchEvent(&events.Connected{})
 		cli.closeSocketWaitChan()
 	}()

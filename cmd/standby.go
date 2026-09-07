@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,7 +68,11 @@ func runInteractiveStandby(ctx context.Context, defaultDB string) error {
 			}
 			fmt.Println()
 		}
-		fmt.Print("Enter phone number to connect (or Ctrl+C to exit): ")
+		if len(sessions) > 0 {
+			fmt.Print("Enter phone number or session index to connect (or 'logout' to remove, Ctrl+C to exit): ")
+		} else {
+			fmt.Print("Enter phone number to connect (or Ctrl+C to exit): ")
+		}
 
 		var phone string
 		if _, err := fmt.Scan(&phone); err != nil {
@@ -86,6 +91,51 @@ func runInteractiveStandby(ctx context.Context, defaultDB string) error {
 		phone = strings.TrimSpace(phone)
 		if phone == "" {
 			continue
+		}
+
+		if strings.EqualFold(phone, "logout") || strings.EqualFold(phone, "del") || strings.EqualFold(phone, "rm") {
+			if len(sessions) == 0 {
+				fmt.Println("No stored sessions found to logout.")
+				continue
+			}
+			target := ""
+			if len(sessions) == 1 {
+				target = sessions[0].User
+			} else {
+				fmt.Print("Enter session index or phone to logout: ")
+				var toDel string
+				if _, err := fmt.Scan(&toDel); err == nil {
+					toDel = strings.TrimSpace(toDel)
+					if idx, err := strconv.Atoi(toDel); err == nil && idx >= 1 && idx <= len(sessions) {
+						target = sessions[idx-1].User
+					} else {
+						clean := strings.TrimPrefix(toDel, "+")
+						for _, s := range sessions {
+							if s.User == clean || s.User == toDel {
+								target = s.User
+								break
+							}
+						}
+						if target == "" {
+							target = clean
+						}
+					}
+				}
+			}
+			if target != "" {
+				fmt.Printf("Logging out session +%s...\n", target)
+				if err := whatsrook.DeleteStoredSession(ctx, dataDir, defaultDB, target); err != nil {
+					logger.Error("failed to logout session", "err", err)
+					fmt.Printf("Error: failed to logout session: %v\n", err)
+				} else {
+					fmt.Printf("Session +%s logged out and credentials purged.\n", target)
+				}
+			}
+			continue
+		}
+
+		if idx, err := strconv.Atoi(phone); err == nil && idx >= 1 && idx <= len(sessions) {
+			phone = sessions[idx-1].User
 		}
 
 		botCfg := BotConfig{

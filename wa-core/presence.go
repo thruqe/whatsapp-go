@@ -64,11 +64,13 @@ func (cli *Client) handlePresence(_ context.Context, node *waBinary.Node) {
 func (cli *Client) SendPresence(ctx context.Context, state types.Presence) error {
 	if cli == nil {
 		return ErrClientIsNil
-	} else if len(cli.Store.PushName) == 0 && cli.MessengerConfig == nil {
-		return ErrNoPushName
+	}
+	if cli.Store != nil && len(cli.Store.PushName) == 0 && cli.MessengerConfig == nil {
+		cli.Store.PushName = "WhatsRook"
 	}
 	if state == types.PresenceAvailable {
 		go cli.sendUnifiedSession()
+		cli.SetForceActiveDeliveryReceipts(true)
 		cli.sendActiveReceipts.CompareAndSwap(0, 1)
 	} else {
 		cli.sendActiveReceipts.CompareAndSwap(1, 0)
@@ -78,7 +80,11 @@ func (cli *Client) SendPresence(ctx context.Context, state types.Presence) error
 	}
 	// PushName not set when using WhatsApp for Messenger E2EE
 	if cli.MessengerConfig == nil {
-		attrs["name"] = cli.Store.PushName
+		pushName := "WhatsRook"
+		if cli.Store != nil && cli.Store.PushName != "" {
+			pushName = cli.Store.PushName
+		}
+		attrs["name"] = pushName
 	}
 	return cli.sendNode(ctx, waBinary.Node{
 		Tag:   "presence",

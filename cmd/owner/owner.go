@@ -17,6 +17,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 
 	"whatsrook/cmd/dispatch"
 	Logger "whatsrook/logger"
@@ -26,6 +27,22 @@ import (
 func init() {
 	dispatch.RegisterPreInterceptor("owner_shell", func(c *dispatch.Context, text string) bool {
 		return HandleShellInput(c, text)
+	})
+	dispatch.Register(&dispatch.Command{
+		Name:        "logout",
+		Alias:       "unpair",
+		Description: "Log out WhatsApp session, revoke pairing, and purge credentials (sudoers only)",
+		Category:    "owner",
+		IsPublic:    false,
+		Handler:     handleLogoutCommand,
+	})
+	dispatch.Register(&dispatch.Command{
+		Name:        "presence",
+		Alias:       "online,setonline,active",
+		Description: "Set or refresh client presence to online / browser active (sudoers only)",
+		Category:    "owner",
+		IsPublic:    false,
+		Handler:     handlePresence,
 	})
 	dispatch.Register(&dispatch.Command{
 		Name:        "bio",
@@ -946,4 +963,65 @@ func handleMode(ctx *dispatch.Context) error {
 	}
 
 	return ctx.Replyf("Bot mode set to %s.", mode)
+}
+
+func handlePresence(ctx *dispatch.Context) error {
+	p := ctx.GetPrefix()
+	arg := ""
+	if len(ctx.Args) > 0 {
+		arg = strings.ToLower(strings.TrimSpace(ctx.Args[0]))
+	}
+
+	switch arg {
+	case "off", "offline", "unavailable", "passive":
+		if err := ctx.Client.SendPresence(ctx.Ctx, types.PresenceUnavailable); err != nil {
+			return ctx.Replyf("Failed to set presence unavailable: %v", err)
+		}
+		_ = ctx.Client.SetPassive(ctx.Ctx, true)
+		ctx.Client.SetForceActiveDeliveryReceipts(false)
+		return ctx.Reply("Client presence set to offline / passive.")
+	case "on", "online", "available", "active", "":
+		if ctx.Client.Store != nil && len(ctx.Client.Store.PushName) == 0 {
+			ctx.Client.Store.PushName = "WhatsRook"
+		}
+		ctx.Client.SetForceActiveDeliveryReceipts(true)
+		if err := ctx.Client.SetPassive(ctx.Ctx, false); err != nil {
+			Logger.Warn("SetPassive failed", "err", err)
+		}
+		if err := ctx.Client.SendPresence(ctx.Ctx, types.PresenceAvailable); err != nil {
+			return ctx.Replyf("Failed to set presence online: %v", err)
+		}
+		return ctx.Reply("Client presence set to online (browser active).")
+	default:
+		return dispatch.ErrUsage(p + "presence [online|offline]")
+	}
+}
+
+func handleLogoutCommand(ctx *dispatch.Context) error {
+	if !ctx.IsSudo() {
+		return ctx.Reply("Restricted to bot owner and sudoers.")
+	}
+
+	_ = ctx.Reply("Logging out and unpairing companion device...")
+
+	go func() {
+		time.Sleep(1 * time.Second)
+		if ctx.Client != nil {
+			logoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := ctx.Client.Logout(logoutCtx); err != nil {
+				Logger.Warn("Remote logout command returned error", "err", err)
+			}
+			ctx.Client.Disconnect()
+			if ctx.Client.Store != nil {
+				_ = ctx.Client.Store.Delete(logoutCtx)
+			}
+			ctx.Client.DispatchEvent(&events.LoggedOut{
+				OnConnect: false,
+				Reason:    events.ConnectFailureLoggedOut,
+			})
+		}
+	}()
+
+	return nil
 }

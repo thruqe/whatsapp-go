@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -219,7 +220,14 @@ func (c *Client) InitSession(ctx context.Context) error {
 		store.BaseClientPayload.WebInfo = nil
 	default:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
-		store.DeviceProps.Os = new("Linux")
+		osName := "Linux"
+		switch runtime.GOOS {
+		case "windows":
+			osName = "Windows"
+		case "darwin":
+			osName = "macOS"
+		}
+		store.DeviceProps.Os = &osName
 		store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_WEB.Enum()
 	}
 
@@ -445,6 +453,77 @@ func (c *Client) WaitForConnection(ctx context.Context, timeout time.Duration) b
 	return false
 }
 
+// SetPresence updates the user's presence status (e.g. types.PresenceAvailable for online, types.PresenceUnavailable for offline).
+func (c *Client) SetPresence(state types.Presence) error {
+	c.mu.Lock()
+	cli := c.rawClient
+	c.mu.Unlock()
+
+	if cli == nil {
+		return fmt.Errorf("client not initialized")
+	}
+	if cli.Store != nil && len(cli.Store.PushName) == 0 {
+		cli.Store.PushName = "WhatsRook"
+	}
+	return cli.SendPresence(context.Background(), state)
+}
+
+// SetOnline marks the client as active and online (available) on WhatsApp, refreshing companion active status.
+func (c *Client) SetOnline() error {
+	c.mu.Lock()
+	cli := c.rawClient
+	c.mu.Unlock()
+
+	if cli == nil {
+		return fmt.Errorf("client not initialized")
+	}
+	if cli.Store != nil && len(cli.Store.PushName) == 0 {
+		cli.Store.PushName = "WhatsRook"
+	}
+	cli.SetForceActiveDeliveryReceipts(true)
+	_ = cli.SetPassive(context.Background(), false)
+	return cli.SendPresence(context.Background(), types.PresenceAvailable)
+}
+
+// SetBrowserActive toggles the WhatsApp browser passive/active state (active = true marks browser in foreground).
+func (c *Client) SetBrowserActive(active bool) error {
+	c.mu.Lock()
+	cli := c.rawClient
+	c.mu.Unlock()
+
+	if cli == nil {
+		return fmt.Errorf("client not initialized")
+	}
+	return cli.SetPassive(context.Background(), !active)
+}
+
+// StartPresenceKeepalive runs a periodic ticker that maintains the client's online presence and active browser state.
+func (c *Client) StartPresenceKeepalive(ctx context.Context, interval time.Duration) func() {
+	if interval <= 0 {
+		interval = 4 * time.Minute
+	}
+	stopChan := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-stopChan:
+				return
+			case <-ticker.C:
+				if c.IsConnected() && c.IsLoggedIn() {
+					_ = c.SetOnline()
+				}
+			}
+		}
+	}()
+	return func() {
+		close(stopChan)
+	}
+}
+
 // handlesessionreset cleanly wipes local session identity keys and resets store records.
 func (c *Client) HandleSessionReset(ctx context.Context) error {
 	c.mu.Lock()
@@ -508,9 +587,17 @@ func (c *Client) PairPhone(ctx context.Context, phone string) (string, error) {
 	phone = strings.ReplaceAll(phone, "-", "")
 
 	clientType := whatsmeow.PairClientChrome
-	displayName := "Chrome (Linux)"
+	osName := "Linux"
+	switch runtime.GOOS {
+	case "windows":
+		osName = "Windows"
+	case "darwin":
+		osName = "macOS"
+	}
+	displayName := "Chrome (" + osName + ")"
 	switch c.Config.ClientType {
 	case ClientAndroid:
+		clientType = whatsmeow.PairClientAndroid
 		displayName = "Android"
 	case ClientIos:
 		displayName = "iOS"
@@ -688,13 +775,14 @@ func DeleteStoredSession(ctx context.Context, dataDir, database, phone string) e
 
 		select {
 		case <-connected:
-			logoutCtx, logoutCancel := context.WithTimeout(ctx, 5*time.Second)
+			logoutCtx, logoutCancel := context.WithTimeout(ctx, 8*time.Second)
 			_ = cli.Logout(logoutCtx)
 			logoutCancel()
-		case <-time.After(3 * time.Second):
+		case <-time.After(8 * time.Second):
 		}
 
 		_ = cli.Store.Delete(ctx)
+		_ = fallbackDeleteDevice(ctx, dataDir, database, phone)
 		return nil
 	}
 

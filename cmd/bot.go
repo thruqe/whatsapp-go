@@ -36,6 +36,7 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -263,7 +264,7 @@ func (b *Bot) runSession(ctx context.Context) error {
 			}
 		}
 
-		b.client.ClearSessionDB(sessionCtx, "")
+		b.client.ClearSessionDB(sessionCtx, b.cfg.Session)
 		logger.Info("session credentials and records purged successfully", "session", b.cfg.Session)
 		return nil
 	}
@@ -305,6 +306,8 @@ func (b *Bot) runSession(ctx context.Context) error {
 		group.StartAutoMuteScheduler(sessionCtx, cli)
 		settings.StartAutoBioScheduler(sessionCtx, cli)
 	}
+
+	go b.startPresenceHeartbeat(sessionCtx, cli)
 
 	for {
 		select {
@@ -559,6 +562,19 @@ func (b *Bot) WAEventHandler(evt any) {
 		logger.Info("Socket connection established", "session", b.cfg.Session, "event", v)
 		broadcast(simpleEvent(EventConnected))
 		if cli != nil {
+			if len(cli.Store.PushName) == 0 {
+				cli.Store.PushName = "WhatsRook"
+			}
+			cli.SetForceActiveDeliveryReceipts(true)
+			if err := cli.SetPassive(context.Background(), false); err != nil {
+				logger.Warn("Failed to set browser active", "err", err)
+			}
+			if err := cli.SendPresence(context.Background(), types.PresenceAvailable); err != nil {
+				logger.Warn("Failed to send presence available", "err", err)
+			} else {
+				logger.Info("Client presence set to online and browser active")
+			}
+
 			go func() {
 				if err := b.groupManager.SyncAll(context.Background(), cli); err != nil {
 					logger.Warn("groupManager.SyncAll returned error", "err", err)
@@ -685,6 +701,9 @@ func (b *Bot) WAEventHandler(evt any) {
 	// User, Contacts & Privacy Metadata
 	case *events.PushName:
 		logger.Info("push name update received", "event", v)
+		if cli != nil && cli.IsConnected() && cli.IsLoggedIn() {
+			_ = cli.SendPresence(context.Background(), types.PresenceAvailable)
+		}
 	case *events.UserAbout:
 		logger.Info("user about/status text updated", "event", v)
 	case *events.Contact:
@@ -758,5 +777,30 @@ func buildIncomingMessagePayload(v *events.Message) IncomingMessagePayload {
 		MediaType:  mediaType,
 		QuotedID:   quotedID,
 		QuotedText: quotedText,
+	}
+}
+
+// startPresenceHeartbeat periodically refreshes presence available and active browser status.
+func (b *Bot) startPresenceHeartbeat(ctx context.Context, cli *whatsmeow.Client) {
+	ticker := time.NewTicker(4 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if cli != nil && cli.IsConnected() && cli.IsLoggedIn() {
+				if len(cli.Store.PushName) == 0 {
+					cli.Store.PushName = "WhatsRook"
+				}
+				cli.SetForceActiveDeliveryReceipts(true)
+				_ = cli.SetPassive(ctx, false)
+				if err := cli.SendPresence(ctx, types.PresenceAvailable); err != nil {
+					logger.Debug("presence heartbeat failed", "err", err)
+				} else {
+					logger.Debug("presence heartbeat refreshed (online / browser active)")
+				}
+			}
+		}
 	}
 }

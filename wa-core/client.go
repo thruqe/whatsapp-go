@@ -1113,6 +1113,11 @@ func isLifecycleEvent(evt any) bool {
 	}
 }
 
+// DispatchEvent dispatches an event to all registered event handlers.
+func (cli *Client) DispatchEvent(evt any) bool {
+	return cli.dispatchEvent(evt)
+}
+
 func (cli *Client) dispatchEvent(evt any) (handlerFailed bool) {
 	if cli == nil {
 		return false
