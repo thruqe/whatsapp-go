@@ -32,10 +32,16 @@ jobs:
           go-version: '1.27.x'
           cache: true
 
-      - name: Install Protoc
+      - name: Install Latest Protoc
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
+          TMP_DIR=$(mktemp -d)
+          gh release download --repo protocolbuffers/protobuf --pattern '*linux-x86_64.zip' --dir "$TMP_DIR"
+          sudo unzip -q -o "$TMP_DIR"/*.zip -d /usr/local
+          rm -rf "$TMP_DIR"
+          sudo chmod +x /usr/local/bin/protoc
+          protoc --version
 
       - name: Setup Task
         uses: arduino/setup-task@v2
