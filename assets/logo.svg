@@ -1,10 +1,10 @@
-<svg width="260" height="72" viewBox="0 0 260 72" xmlns="http://www.w3.org/2000/svg">
+<svg width="400" height="110" viewBox="0 0 400 110" xmlns="http://www.w3.org/2000/svg">
   <style>
-    .base { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; font-size: 40px; }
+    .base { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; font-size: 60px; }
     .bold { fill: #1a1a1a; font-weight: 700; }
     @media (prefers-color-scheme: dark) {
       .bold { fill: #ffffff; }
     }
   </style>
-  <text x="0" y="50" class="base bold">whatsrook</text>
+  <text x="0" y="75" class="base bold">whatsrook</text>
 </svg>
