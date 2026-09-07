@@ -67,7 +67,6 @@ func init() {
 		Description: "Play Tic-Tac-Toe against the bot AI or another user",
 		Category:    "games",
 		IsPublic:    true,
-		NoLoader:    true,
 		Handler:     handleTicTacToe,
 	})
 
@@ -86,7 +85,6 @@ func init() {
 		Description: "Unscramble word game with 30s lobby, dynamic time limits, performance ratings & XP",
 		Category:    "games",
 		IsPublic:    true,
-		NoLoader:    true,
 		Handler:     handleUnscramble,
 	})
 
@@ -96,13 +94,11 @@ func init() {
 		Description: "Word Chain Game – submit valid English words matching the required starting letter",
 		Category:    "games",
 		IsPublic:    true,
-		NoLoader:    true,
 		Handler:     handleWCGChain,
 	})
 }
 
 func handleTicTacToe(ctx *dispatch.Context) error {
-	ctx.StopAutoLoader()
 	TTTMu.Lock()
 	defer TTTMu.Unlock()
 
@@ -671,7 +667,6 @@ func HandleUnscrambleInput(ctx *dispatch.Context, text string) bool {
 }
 
 func handleUnscramble(ctx *dispatch.Context) error {
-	ctx.StopAutoLoader()
 	chatKey := ctx.Chat.String()
 
 	existingGame := GetUnscrambleGame(chatKey)
@@ -836,7 +831,6 @@ func handleUnscramble(ctx *dispatch.Context) error {
 }
 
 func startUnscrambleGame(ctx *dispatch.Context, game *UnscrambleGame) {
-	ctx.StopAutoLoader()
 	if !game.StartGame() {
 		_ = ctx.Reply("Cannot start game: Need at least 1 player!")
 		return
@@ -1441,7 +1435,6 @@ func HandleWCGInput(ctx *dispatch.Context, text string) bool {
 }
 
 func handleWCGChain(ctx *dispatch.Context) error {
-	ctx.StopAutoLoader()
 	chatKey := ctx.Chat.String()
 
 	existingGame := GetWCGGame(chatKey)
@@ -1604,7 +1597,6 @@ func handleWCGChain(ctx *dispatch.Context) error {
 }
 
 func startWCGChainGame(ctx *dispatch.Context, game *WCGGame) {
-	ctx.StopAutoLoader()
 	if !game.StartGame() {
 		_ = ctx.Reply("WCG Match cancelled — no players joined the lobby.")
 		return

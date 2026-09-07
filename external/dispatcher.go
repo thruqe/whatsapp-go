@@ -1,6 +1,9 @@
 package external
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -97,6 +100,18 @@ func (d *Dispatcher) PluginPath(name string) (string, error) {
 		return wasmPath, nil
 	}
 
+	if runtime.GOOS == "windows" {
+		exePath := filepath.Join(dir, name+".exe")
+		if info, err := os.Stat(exePath); err == nil && !info.IsDir() {
+			return exePath, nil
+		}
+		rawPath := filepath.Join(dir, name)
+		if info, err := os.Stat(rawPath); err == nil && !info.IsDir() {
+			return rawPath, nil
+		}
+		return exePath, nil
+	}
+
 	return filepath.Join(dir, name), nil
 }
 
@@ -112,6 +127,9 @@ func (d *Dispatcher) IsInstalled(name string) bool {
 	}
 	if isWASMFile(path) {
 		return true
+	}
+	if runtime.GOOS == "windows" {
+		return info.Mode().IsRegular()
 	}
 	return info.Mode().Perm()&0o111 != 0
 }
@@ -350,6 +368,8 @@ func (d *Dispatcher) Install(ctx context.Context, name string, source string) er
 	target := filepath.Join(dir, name)
 	if isWASM {
 		target = filepath.Join(dir, name+".wasm")
+	} else if runtime.GOOS == "windows" {
+		target = filepath.Join(dir, name+".exe")
 	}
 
 	tmpPath := target + ".tmp"
@@ -400,13 +420,27 @@ func (d *Dispatcher) Install(ctx context.Context, name string, source string) er
 	if written == 0 || written > MaxPluginBinarySize {
 		return fmt.Errorf("plugin binary size must be between 1 byte and %d MiB", MaxPluginBinarySize/(1<<20))
 	}
-	if err := os.Chmod(tmpPath, 0o700); err != nil {
-		return fmt.Errorf("chmod plugin: %w", err)
+
+	if err := extractArchiveIfNeeded(tmpPath, name); err != nil {
+		return fmt.Errorf("extract plugin archive: %w", err)
 	}
 
 	// Detect if binary is WASM even if source URL lacked .wasm extension
-	if !isWASM && isWASMFile(tmpPath) {
+	if isWASMFile(tmpPath) {
 		target = filepath.Join(dir, name+".wasm")
+	} else if runtime.GOOS == "windows" {
+		target = filepath.Join(dir, name+".exe")
+	} else {
+		target = filepath.Join(dir, name)
+	}
+
+	if err := os.Chmod(tmpPath, 0o755); err != nil {
+		return fmt.Errorf("chmod plugin: %w", err)
+	}
+
+	_ = os.Remove(target)
+	if runtime.GOOS == "windows" {
+		_ = os.Remove(filepath.Join(dir, name))
 	}
 
 	if err := os.Rename(tmpPath, target); err != nil {
@@ -481,6 +515,8 @@ func (d *Dispatcher) Uninstall(name string) error {
 	}
 	dir, _ := d.PluginDir()
 	_ = os.Remove(path)
+	_ = os.Remove(filepath.Join(dir, name))
+	_ = os.Remove(filepath.Join(dir, name+".exe"))
 	_ = os.Remove(filepath.Join(dir, name+".wasm"))
 	_ = os.Remove(filepath.Join(dir, name+".json"))
 	return nil
@@ -519,14 +555,13 @@ func (d *Dispatcher) List() ([]PluginInfo, error) {
 	seen := make(map[string]bool)
 
 	for _, entry := range entries {
-		if entry.IsDir() || strings.HasSuffix(entry.Name(), ".json") || strings.HasSuffix(entry.Name(), ".tmp") {
+		if entry.IsDir() || strings.HasSuffix(entry.Name(), ".json") || strings.HasSuffix(entry.Name(), ".tmp") || strings.HasSuffix(entry.Name(), ".extracted") {
 			continue
 		}
-		cleanName := strings.TrimSuffix(entry.Name(), ".wasm")
+		cleanName := strings.TrimSuffix(strings.TrimSuffix(strings.ToLower(entry.Name()), ".wasm"), ".exe")
 		if seen[cleanName] {
 			continue
 		}
-		seen[cleanName] = true
 
 		fullPath := filepath.Join(dir, entry.Name())
 		info, err := entry.Info()
@@ -534,9 +569,17 @@ func (d *Dispatcher) List() ([]PluginInfo, error) {
 			continue
 		}
 		isWasm := isWASMFile(fullPath)
-		if !isWasm && info.Mode().Perm()&0o111 == 0 {
-			continue
+		if !isWasm {
+			if runtime.GOOS == "windows" {
+				if !info.Mode().IsRegular() {
+					continue
+				}
+			} else if info.Mode().Perm()&0o111 == 0 {
+				continue
+			}
 		}
+		seen[cleanName] = true
+
 		manifest := d.readManifest(fullPath)
 		if manifest.Name == "" {
 			manifest = d.readManifest(filepath.Join(dir, cleanName))
@@ -559,10 +602,125 @@ func (d *Dispatcher) List() ([]PluginInfo, error) {
 func (d *Dispatcher) readManifest(binaryPath string) Manifest {
 	var m Manifest
 	data, err := os.ReadFile(binaryPath + ".json")
+	if err != nil {
+		base := strings.TrimSuffix(strings.TrimSuffix(binaryPath, ".wasm"), ".exe")
+		data, err = os.ReadFile(base + ".json")
+	}
 	if err == nil {
 		_ = json.Unmarshal(data, &m)
 	}
 	return m
+}
+
+func extractArchiveIfNeeded(archivePath, name string) error {
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	header := make([]byte, 4)
+	n, err := f.Read(header)
+	_ = f.Close()
+	if err != nil || n < 2 {
+		return nil
+	}
+
+	if n >= 4 && header[0] == 0x50 && header[1] == 0x4B && header[2] == 0x03 && header[3] == 0x04 {
+		return extractBinaryFromZip(archivePath, name)
+	}
+	if header[0] == 0x1F && header[1] == 0x8B {
+		return extractBinaryFromTarGz(archivePath, name)
+	}
+	return nil
+}
+
+func extractBinaryFromZip(archivePath, name string) error {
+	zr, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return err
+	}
+	defer zr.Close()
+
+	nameLower := strings.ToLower(name)
+	var matchedFile *zip.File
+	for _, f := range zr.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		base := strings.ToLower(filepath.Base(f.Name))
+		baseNoExt := strings.TrimSuffix(strings.TrimSuffix(base, ".wasm"), ".exe")
+		if base == nameLower || baseNoExt == nameLower || strings.Contains(base, nameLower) {
+			matchedFile = f
+			break
+		}
+	}
+	if matchedFile == nil {
+		return nil
+	}
+
+	rc, err := matchedFile.Open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+
+	extractedTmp := archivePath + ".extracted"
+	out, err := os.OpenFile(extractedTmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, rc); err != nil {
+		_ = out.Close()
+		_ = os.Remove(extractedTmp)
+		return err
+	}
+	_ = out.Close()
+	_ = os.Remove(archivePath)
+	return os.Rename(extractedTmp, archivePath)
+}
+
+func extractBinaryFromTarGz(archivePath, name string) error {
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		return nil
+	}
+	defer gzr.Close()
+
+	tr := tar.NewReader(gzr)
+	nameLower := strings.ToLower(name)
+	for {
+		hdr, err := tr.Next()
+		if err != nil {
+			break
+		}
+		if hdr.Typeflag == tar.TypeDir {
+			continue
+		}
+		base := strings.ToLower(filepath.Base(hdr.Name))
+		baseNoExt := strings.TrimSuffix(strings.TrimSuffix(base, ".wasm"), ".exe")
+		if base == nameLower || baseNoExt == nameLower || strings.Contains(base, nameLower) {
+			extractedTmp := archivePath + ".extracted"
+			out, err := os.OpenFile(extractedTmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(out, tr); err != nil {
+				_ = out.Close()
+				_ = os.Remove(extractedTmp)
+				return err
+			}
+			_ = out.Close()
+			_ = f.Close()
+			_ = os.Remove(archivePath)
+			return os.Rename(extractedTmp, archivePath)
+		}
+	}
+	return nil
 }
 
 // ResolvePlatformSuffix maps host OS and architecture to standard release binary naming.
