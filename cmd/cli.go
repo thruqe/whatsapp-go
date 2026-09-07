@@ -71,6 +71,7 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 	fs.Usage = func() {
 		fmt.Print(`Usage: whatsrook [OPTIONS] [<phone>]
        whatsrook update [check | stable | beta]
+       whatsrook logout [<phone>]
 
 Arguments:
   <phone>                       Phone number used to identify the session
@@ -88,32 +89,58 @@ Options:
 `)
 	}
 
-	if err := fs.Parse(cmdArgs); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			os.Exit(0)
-		}
-	}
-	if fs.NArg() > 0 && (fs.Arg(0) == "help" || fs.Arg(0) == "--help" || fs.Arg(0) == "-h") {
-		fs.Usage()
-		os.Exit(0)
-	}
-
 	explicitFlags := make(map[string]bool)
+	var positional []string
+	argsToParse := cmdArgs
+	for len(argsToParse) > 0 {
+		if err := fs.Parse(argsToParse); err != nil {
+			if errors.Is(err, flag.ErrHelp) {
+				os.Exit(0)
+			}
+			break
+		}
+		fs.Visit(func(f *flag.Flag) {
+			explicitFlags[f.Name] = true
+		})
+		remaining := fs.Args()
+		if len(remaining) == 0 {
+			break
+		}
+		positional = append(positional, remaining[0])
+		argsToParse = remaining[1:]
+	}
 	fs.Visit(func(f *flag.Flag) {
 		explicitFlags[f.Name] = true
 	})
 
-	// 1. Positional subcommand parsing (e.g., `whatsrook update check`)
+	for _, p := range positional {
+		if p == "help" || p == "--help" || p == "-h" {
+			fs.Usage()
+			os.Exit(0)
+		}
+	}
+
+	// 1. Positional subcommand parsing (e.g., `whatsrook update check`, `whatsrook logout`)
 	isUpdate := false
 	updateOp := ""
-
-	if fs.NArg() > 0 && strings.ToLower(fs.Arg(0)) == "update" {
-		isUpdate = true
-		if fs.NArg() > 1 {
-			op := strings.ToLower(strings.TrimSpace(fs.Arg(1)))
-			if op == "check" || op == "stable" || op == "beta" {
-				updateOp = op
+	for i, p := range positional {
+		if strings.ToLower(p) == "update" {
+			isUpdate = true
+			if i+1 < len(positional) {
+				op := strings.ToLower(strings.TrimSpace(positional[i+1]))
+				if op == "check" || op == "stable" || op == "beta" {
+					updateOp = op
+				}
 			}
+			break
+		}
+	}
+
+	isLogout := false
+	for _, p := range positional {
+		if strings.ToLower(p) == "logout" {
+			isLogout = true
+			break
 		}
 	}
 
@@ -140,7 +167,7 @@ Options:
 			}
 			// Skip known subcommand words
 			lower := strings.ToLower(strings.TrimSpace(arg))
-			if lower == "update" || lower == "check" || lower == "stable" || lower == "beta" {
+			if lower == "update" || lower == "check" || lower == "stable" || lower == "beta" || lower == "logout" {
 				continue
 			}
 			cleanArg := strings.TrimPrefix(strings.TrimSpace(arg), "+")
@@ -191,9 +218,9 @@ Options:
 		}
 	}
 
-	// 7. Logout resolution (Flag > LOGOUT env)
-	logoutVal := *logout
-	if !explicitFlags["logout"] && !explicitFlags["l"] {
+	// 7. Logout resolution (Subcommand > Flag > LOGOUT env)
+	logoutVal := *logout || isLogout
+	if !explicitFlags["logout"] && !explicitFlags["l"] && !isLogout {
 		envLogout := strings.ToLower(os.Getenv("LOGOUT"))
 		logoutVal = envLogout == "true" || envLogout == "1"
 	}

@@ -49,13 +49,18 @@ func main() {
 		return
 	}
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	if args.Logout {
+		handleLogoutCLI(ctx, args)
+		return
+	}
+
 	cache.Init(10000)
 	defer func() {
 		_ = cache.Close()
 	}()
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
 
 	if args.Session == "" {
 		if err := runStandby(ctx, args.Database); err != nil {
