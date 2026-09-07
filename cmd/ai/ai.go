@@ -169,12 +169,10 @@ func handleAutoAI(ctx *dispatch.Context) error {
 		return ctx.Reply("Database store is not available.")
 	}
 
-	settingKey := "autoai:" + ctx.Chat.String()
-
 	if len(ctx.Args) == 0 {
-		current, _ := s.GetSetting(ctx.Ctx, settingKey)
-		if current == "" {
-			current = "off"
+		current := "off"
+		if isAutoAIEnabled(ctx, s) {
+			current = "on"
 		}
 		return ctx.Replyf("AutoAI is currently %s in this chat.", current)
 	}
@@ -184,9 +182,29 @@ func handleAutoAI(ctx *dispatch.Context) error {
 		return ctx.Replyf("Usage: %sautoai [on/off]", ctx.GetPrefix())
 	}
 
+	// 1. Set for current chat JID
+	settingKey := "autoai:" + ctx.Chat.ToNonAD().String()
 	if err := s.PutSetting(ctx.Ctx, settingKey, val); err != nil {
 		Logger.Error("failed to update autoai setting", "err", err)
 		return ctx.Reply("Failed to update setting: " + err.Error())
+	}
+
+	// 2. Set for alternative JID (PN <-> LID)
+	if alt := resolveAltJID(ctx); !alt.IsEmpty() {
+		_ = s.PutSetting(ctx.Ctx, "autoai:"+alt.String(), val)
+	}
+
+	// 3. If in self-chat, also save to owner primary JID, LID, and global
+	if isSelfChat(ctx) {
+		if ctx.Client != nil && ctx.Client.Store != nil {
+			if ctx.Client.Store.ID != nil && !ctx.Client.Store.ID.IsEmpty() {
+				_ = s.PutSetting(ctx.Ctx, "autoai:"+ctx.Client.Store.ID.ToNonAD().String(), val)
+			}
+			if !ctx.Client.Store.LID.IsEmpty() {
+				_ = s.PutSetting(ctx.Ctx, "autoai:"+ctx.Client.Store.LID.ToNonAD().String(), val)
+			}
+		}
+		_ = s.PutSetting(ctx.Ctx, "autoai", val)
 	}
 
 	return ctx.Replyf("AutoAI has been set to %s for this chat.", val)
@@ -938,6 +956,121 @@ func handleDownloadMessage(ctx *dispatch.Context) error {
 	}
 }
 
+// isSelfChat reports whether the context chat targets the bot owner's personal self-chat ("Message Yourself").
+func isSelfChat(c *dispatch.Context) bool {
+	if c == nil || c.Client == nil || c.Client.Store == nil {
+		return false
+	}
+	chat := c.Chat.ToNonAD()
+	if c.Client.Store.ID != nil && !c.Client.Store.ID.IsEmpty() {
+		ourID := c.Client.Store.ID.ToNonAD()
+		if chat == ourID || (chat.User != "" && chat.User == ourID.User) {
+			return true
+		}
+		if c.Evt != nil && !c.Evt.Info.RecipientAlt.IsEmpty() {
+			recipAlt := c.Evt.Info.RecipientAlt.ToNonAD()
+			if recipAlt == ourID || (recipAlt.User != "" && recipAlt.User == ourID.User) {
+				return true
+			}
+		}
+		if c.IsSameUser(chat, ourID) {
+			return true
+		}
+	}
+	if !c.Client.Store.LID.IsEmpty() {
+		ourLID := c.Client.Store.LID.ToNonAD()
+		if chat == ourLID || (chat.User != "" && chat.User == ourLID.User) {
+			return true
+		}
+		if c.IsSameUser(chat, ourLID) {
+			return true
+		}
+	}
+	return c.IsTargetOwner(c.Chat)
+}
+
+// resolveAltJID finds the paired phone JID or LID for the given context chat.
+func resolveAltJID(c *dispatch.Context) types.JID {
+	if c == nil {
+		return types.EmptyJID
+	}
+	chat := c.Chat.ToNonAD()
+	if chat.Server == types.HiddenUserServer {
+		if c.Evt != nil && !c.Evt.Info.RecipientAlt.IsEmpty() && c.Evt.Info.RecipientAlt.Server != types.HiddenUserServer {
+			return c.Evt.Info.RecipientAlt.ToNonAD()
+		}
+		if c.Evt != nil && !c.Evt.Info.SenderAlt.IsEmpty() && c.Evt.Info.SenderAlt.Server != types.HiddenUserServer {
+			return c.Evt.Info.SenderAlt.ToNonAD()
+		}
+		if c.Client != nil && c.Client.Store != nil && c.Client.Store.LIDs != nil {
+			if resolved, err := c.Client.Store.LIDs.GetPNForLID(c.Ctx, chat); err == nil && !resolved.IsEmpty() {
+				return resolved.ToNonAD()
+			}
+		}
+		if c.Client != nil && c.Client.Store != nil && !c.Client.Store.LID.IsEmpty() && chat.User == c.Client.Store.LID.ToNonAD().User {
+			if c.Client.Store.ID != nil && !c.Client.Store.ID.IsEmpty() {
+				return c.Client.Store.ID.ToNonAD()
+			}
+		}
+	} else if chat.Server == types.DefaultUserServer {
+		if c.Client != nil && c.Client.Store != nil && c.Client.Store.LIDs != nil {
+			if resolved, err := c.Client.Store.LIDs.GetLIDForPN(c.Ctx, chat); err == nil && !resolved.IsEmpty() {
+				return resolved.ToNonAD()
+			}
+		}
+		if c.Client != nil && c.Client.Store != nil && c.Client.Store.ID != nil && chat.User == c.Client.Store.ID.ToNonAD().User {
+			if !c.Client.Store.LID.IsEmpty() {
+				return c.Client.Store.LID.ToNonAD()
+			}
+		}
+	}
+	return types.EmptyJID
+}
+
+// isAutoAIEnabled checks if AutoAI is enabled for this chat across direct chat, alternative JIDs, self-chat IDs, and global settings.
+func isAutoAIEnabled(c *dispatch.Context, s *dispatch.StoreWrapper) bool {
+	if c == nil || s == nil {
+		return false
+	}
+	ctx := c.Ctx
+	chat := c.Chat.ToNonAD()
+
+	// 1. Direct chat setting
+	if val, err := s.GetSetting(ctx, "autoai:"+chat.String()); err == nil && val != "" {
+		return val == "on"
+	}
+
+	// 2. Alternative JID (LID <-> PN)
+	if alt := resolveAltJID(c); !alt.IsEmpty() {
+		if val, err := s.GetSetting(ctx, "autoai:"+alt.String()); err == nil && val != "" {
+			return val == "on"
+		}
+	}
+
+	// 3. If self chat ("Message Yourself"), check owner's primary ID & LID
+	if isSelfChat(c) {
+		if c.Client != nil && c.Client.Store != nil {
+			if c.Client.Store.ID != nil && !c.Client.Store.ID.IsEmpty() {
+				if val, err := s.GetSetting(ctx, "autoai:"+c.Client.Store.ID.ToNonAD().String()); err == nil && val != "" {
+					return val == "on"
+				}
+			}
+			if !c.Client.Store.LID.IsEmpty() {
+				if val, err := s.GetSetting(ctx, "autoai:"+c.Client.Store.LID.ToNonAD().String()); err == nil && val != "" {
+					return val == "on"
+				}
+			}
+		}
+	}
+
+	// 4. Global setting fallback
+	if val, err := s.GetSetting(ctx, "autoai"); err == nil && val != "" {
+		return val == "on"
+	}
+
+	return false
+}
+
 // HandleAutoAIIntercept checks if AutoAI is enabled and handles automatic responses.
 func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 	if c == nil || c.Evt == nil {
@@ -947,31 +1080,37 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 		return false
 	}
 
-	ourJID := c.Client.Store.ID.ToNonAD()
 	isGroup := c.Chat.Server == "g.us"
+	selfChat := isSelfChat(c)
+
+	Logger.Debug("HandleAutoAIIntercept: evaluating incoming message",
+		"chat", c.Chat.String(),
+		"is_from_me", c.Evt.Info.IsFromMe,
+		"is_self_chat", selfChat,
+		"is_group", isGroup,
+		"text", text,
+	)
 
 	// In 1-on-1 chats, only intercept if incoming from the remote contact,
 	// or if the owner is messaging themselves ("Message Yourself").
-	if c.Evt.Info.IsFromMe && c.Chat.ToNonAD() != ourJID {
+	if c.Evt.Info.IsFromMe && !selfChat {
+		Logger.Debug("HandleAutoAIIntercept: ignoring outgoing message in non-self chat", "chat", c.Chat.String())
 		return false
 	}
 
 	s, ok := dispatch.GetStore(c)
 	if !ok {
+		Logger.Debug("HandleAutoAIIntercept: store not available")
 		return false
 	}
-	ctx := c.Ctx
-	chatStr := c.Chat.String()
 
-	autoAIVal, _ := s.GetSetting(ctx, "autoai:"+chatStr)
-	if autoAIVal == "" {
-		autoAIVal, _ = s.GetSetting(ctx, "autoai")
-	}
-	if autoAIVal != "on" {
+	if !isAutoAIEnabled(c, s) {
+		Logger.Debug("HandleAutoAIIntercept: AutoAI not enabled for chat", "chat", c.Chat.String())
 		return false
 	}
 
 	if isGroup && !isBotTaggedOrReplied(c, text) {
+		Logger.Debug("HandleAutoAIIntercept: group message did not tag bot", "chat", c.Chat.String())
 		return false
 	}
 
@@ -998,6 +1137,8 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 			prompt = text
 		}
 	}
+
+	Logger.Debug("HandleAutoAIIntercept: triggering AI response", "chat", c.Chat.String(), "prompt", prompt)
 
 	go func() {
 		reqCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
