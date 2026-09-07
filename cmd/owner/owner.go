@@ -19,6 +19,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
+	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
 	Logger "whatsrook/logger"
 	"whatsrook/media"
@@ -94,6 +95,7 @@ func init() {
 	})
 	dispatch.Register(&dispatch.Command{
 		Name:        "setsudo",
+		Alias:       "sudo,addsudo",
 		Description: "Add a user to the sudo list (replied user or numbers)",
 		Category:    "owner",
 		Handler:     handleSetSudo,
@@ -654,6 +656,170 @@ func handleStatus(ctx *dispatch.Context) error {
 	return ctx.Reply("Successfully posted text status update.")
 }
 
+// resolveUserTokens resolves a target JID into all known identity tokens:
+// the phone-number JID string, LID JID string, bare phone number, and contact push name.
+// It also persists any newly discovered LID↔PN mapping into the LID store so
+// IsSameUserRaw can resolve them in future comparisons.
+func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, target types.JID) (tokens []string, mentionJID types.JID, displayUser string) {
+	nonAD := target.ToNonAD()
+
+	var pnJID, lidJID types.JID
+
+	switch nonAD.Server {
+	case types.HiddenUserServer:
+		lidJID = nonAD
+		// Resolve LID → PN from the LID store.
+		if client.Store != nil && client.Store.LIDs != nil {
+			if pn, err := client.Store.LIDs.GetPNForLID(ctx, nonAD); err == nil && !pn.IsEmpty() {
+				pnJID = pn.ToNonAD()
+			}
+		}
+		// Fallback: query group participants to find the PN for this LID.
+		if pnJID.IsEmpty() && chat.Server == "g.us" && client != nil {
+			if info, err := client.GetGroupInfo(ctx, chat); err == nil {
+				for _, p := range info.Participants {
+					pLID := p.LID.ToNonAD()
+					if !pLID.IsEmpty() && pLID.User == nonAD.User {
+						pnJID = p.JID.ToNonAD()
+						break
+					}
+				}
+			}
+		}
+		// Persist the discovered LID↔PN mapping.
+		if !pnJID.IsEmpty() && client.Store != nil && client.Store.LIDs != nil {
+			_ = client.Store.LIDs.PutLIDMapping(ctx, lidJID, pnJID)
+		}
+	default:
+		pnJID = nonAD
+		// Resolve PN → LID from the LID store.
+		if client.Store != nil && client.Store.LIDs != nil {
+			if lid, err := client.Store.LIDs.GetLIDForPN(ctx, nonAD); err == nil && !lid.IsEmpty() {
+				lidJID = lid.ToNonAD()
+			}
+		}
+		// Fallback: query group participants.
+		if lidJID.IsEmpty() && chat.Server == "g.us" && client != nil {
+			if info, err := client.GetGroupInfo(ctx, chat); err == nil {
+				for _, p := range info.Participants {
+					pPN := p.JID.ToNonAD()
+					if !pPN.IsEmpty() && pPN.User == nonAD.User {
+						lidJID = p.LID.ToNonAD()
+						break
+					}
+				}
+			}
+		}
+		// Persist the discovered LID↔PN mapping.
+		if !lidJID.IsEmpty() && client.Store != nil && client.Store.LIDs != nil {
+			_ = client.Store.LIDs.PutLIDMapping(ctx, lidJID, pnJID)
+		}
+	}
+
+	seen := make(map[string]bool)
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s != "" && !seen[s] {
+			seen[s] = true
+			tokens = append(tokens, s)
+		}
+	}
+
+	if !pnJID.IsEmpty() {
+		add(pnJID.String()) // e.g. "2348060598064@s.whatsapp.net"
+		add(pnJID.User)     // bare phone number, e.g. "2348060598064"
+	}
+	if !lidJID.IsEmpty() {
+		add(lidJID.String()) // e.g. "258256953950323@lid"
+	}
+
+	// Resolve contact push name / username.
+	if client.Store != nil && client.Store.Contacts != nil {
+		lookupJID := pnJID
+		if lookupJID.IsEmpty() {
+			lookupJID = lidJID
+		}
+		if !lookupJID.IsEmpty() {
+			if contact, err := client.Store.Contacts.GetContact(ctx, lookupJID); err == nil && contact.Found {
+				if contact.PushName != "" {
+					add(strings.ToLower(contact.PushName))
+				} else if contact.FullName != "" {
+					add(strings.ToLower(contact.FullName))
+				}
+			}
+		}
+	}
+
+	// If we have no tokens at all, fall back to the raw non-AD string.
+	if len(tokens) == 0 {
+		add(nonAD.String())
+	}
+
+	// Choose the best JID for mention display purposes.
+	if !pnJID.IsEmpty() {
+		mentionJID = pnJID
+		displayUser = pnJID.User
+	} else {
+		mentionJID = nonAD
+		displayUser = nonAD.User
+	}
+	return tokens, mentionJID, displayUser
+}
+
+// removeUserTokens removes all tokens associated with target from the given token slice.
+// It resolves all identity tokens for target and removes any matching entries.
+func removeUserTokens(ctx context.Context, client *whatsmeow.Client, chat types.JID, existing []string, targets []types.JID) (newList []string, removedJIDs []types.JID, displayNames []string) {
+	// Build a set of all tokens for all targets.
+	type targetMeta struct {
+		tokens      map[string]bool
+		mentionJID  types.JID
+		displayUser string
+	}
+	targetMetas := make([]targetMeta, 0, len(targets))
+	for _, t := range targets {
+		toks, mentionJID, displayUser := resolveUserTokens(ctx, client, chat, t)
+		tokSet := make(map[string]bool, len(toks))
+		for _, tok := range toks {
+			tokSet[tok] = true
+		}
+		targetMetas = append(targetMetas, targetMeta{tokSet, mentionJID, displayUser})
+	}
+
+	// Track which targets were actually matched.
+	matched := make([]bool, len(targets))
+
+	for _, entry := range existing {
+		entryMatched := false
+		for i, tm := range targetMetas {
+			if tm.tokens[entry] {
+				entryMatched = true
+				if !matched[i] {
+					matched[i] = true
+					removedJIDs = append(removedJIDs, tm.mentionJID)
+					displayNames = append(displayNames, "@"+tm.displayUser)
+				}
+				break
+			}
+			// Also try parsing the stored token as a JID and using IsSameUserRaw.
+			if stored, err := types.ParseJID(entry); err == nil {
+				if utils.IsSameUserRaw(ctx, client, targets[i], stored) {
+					entryMatched = true
+					if !matched[i] {
+						matched[i] = true
+						removedJIDs = append(removedJIDs, tm.mentionJID)
+						displayNames = append(displayNames, "@"+tm.displayUser)
+					}
+					break
+				}
+			}
+		}
+		if !entryMatched {
+			newList = append(newList, entry)
+		}
+	}
+	return newList, removedJIDs, displayNames
+}
+
 func handleSetSudo(ctx *dispatch.Context) error {
 	if !ctx.IsSudo() {
 		return ctx.Reply("You are not authorized to use this command.")
@@ -681,14 +847,20 @@ func handleSetSudo(ctx *dispatch.Context) error {
 	var displayNames []string
 
 	for _, target := range targets {
-		targetStr := target.ToNonAD().String()
-		already := slices.Contains(sudoers, targetStr)
-		if !already {
-			sudoers = append(sudoers, targetStr)
-			resolvedJID, username := ctx.ResolveMention(target)
-			addedJIDs = append(addedJIDs, resolvedJID)
-			displayNames = append(displayNames, "@"+username)
+		newTokens, mentionJID, displayUser := resolveUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, target)
+		alreadyAdded := false
+		for _, tok := range newTokens {
+			if slices.Contains(sudoers, tok) {
+				alreadyAdded = true
+				break
+			}
 		}
+		if alreadyAdded {
+			continue
+		}
+		sudoers = append(sudoers, newTokens...)
+		addedJIDs = append(addedJIDs, mentionJID)
+		displayNames = append(displayNames, "@"+displayUser)
 	}
 
 	if len(addedJIDs) == 0 {
@@ -732,25 +904,7 @@ func handleDelSudo(ctx *dispatch.Context) error {
 	}
 
 	sudoers := strings.Fields(raw)
-	var removedJIDs []types.JID
-	var displayNames []string
-	newSudoers := []string{}
-
-	for _, sdr := range sudoers {
-		matched := false
-		for _, target := range targets {
-			if sdr == target.ToNonAD().String() {
-				matched = true
-				resolvedJID, username := ctx.ResolveMention(target)
-				removedJIDs = append(removedJIDs, resolvedJID)
-				displayNames = append(displayNames, "@"+username)
-				break
-			}
-		}
-		if !matched {
-			newSudoers = append(newSudoers, sdr)
-		}
-	}
+	newSudoers, removedJIDs, displayNames := removeUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, sudoers, targets)
 
 	if len(removedJIDs) == 0 {
 		return ctx.Reply("Target(s) not found in the sudo list.")
@@ -790,17 +944,37 @@ func handleListSudo(ctx *dispatch.Context) error {
 		mentions = append(mentions, resolvedJID)
 	}
 
+	// Deduplicate: track which tokens we've already displayed so that a user
+	// stored as multiple tokens (PN JID + LID + bare number + username) appears only once.
+	displayedTokens := make(map[string]bool)
+
 	for _, sdr := range sudoers {
-		sudoerJID, err := types.ParseJID(sdr)
-		if err == nil {
-			sudoerJID = sudoerJID.ToNonAD()
-			if ctx.IsTargetOwner(sudoerJID) {
-				continue
-			}
-			resolvedJID, username := ctx.ResolveMention(sudoerJID)
-			tb.Bulletf("@%s", username)
-			mentions = append(mentions, resolvedJID)
+		if displayedTokens[sdr] {
+			continue
 		}
+
+		sudoerJID, err := types.ParseJID(sdr)
+		if err != nil {
+			// Non-JID token (bare number or username); mark as seen and skip visual display.
+			displayedTokens[sdr] = true
+			continue
+		}
+		sudoerJID = sudoerJID.ToNonAD()
+		if ctx.IsTargetOwner(sudoerJID) {
+			displayedTokens[sdr] = true
+			continue
+		}
+
+		resolvedJID, username := ctx.ResolveMention(sudoerJID)
+		tb.Bulletf("@%s", username)
+		mentions = append(mentions, resolvedJID)
+
+		// Mark all tokens that resolve to the same identity as displayed.
+		allToks, _, _ := resolveUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, sudoerJID)
+		for _, tok := range allToks {
+			displayedTokens[tok] = true
+		}
+		displayedTokens[sdr] = true
 	}
 
 	return ctx.ReplyWithMentions(tb.String(), mentions)
@@ -822,9 +996,6 @@ func handleBan(ctx *dispatch.Context) error {
 		return ctx.Reply("Settings store unavailable.")
 	}
 
-	rawSudo, _ := s.GetSetting(ctx.Ctx, "sudoers")
-	sudoers := strings.Fields(rawSudo)
-
 	rawBanned, err := s.GetSetting(ctx.Ctx, "banned_users")
 	if err != nil {
 		return err
@@ -835,34 +1006,29 @@ func handleBan(ctx *dispatch.Context) error {
 	var displayNames []string
 
 	for _, target := range targets {
-		targetStr := target.ToNonAD().String()
-
-		if ctx.Client.Store.ID != nil {
-			if ctx.IsSameUser(target, *ctx.Client.Store.ID) {
-				continue
-			}
+		// Disallow banning the bot owner or sudoers.
+		if ctx.IsTargetOwner(target) {
+			continue
 		}
-
-		isSudo := false
-		for _, sdr := range sudoers {
-			sj, err := types.ParseJID(sdr)
-			if err == nil && ctx.IsSameUser(target, sj) {
-				isSudo = true
-				break
-			}
-		}
-		if isSudo {
+		if utils.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
 			continue
 		}
 
-		already := slices.Contains(bannedUsers, targetStr)
-
-		if !already {
-			bannedUsers = append(bannedUsers, targetStr)
-			resolvedJID, username := ctx.ResolveMention(target)
-			bannedJIDs = append(bannedJIDs, resolvedJID)
-			displayNames = append(displayNames, "@"+username)
+		newTokens, mentionJID, displayUser := resolveUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, target)
+		alreadyBanned := false
+		for _, tok := range newTokens {
+			if slices.Contains(bannedUsers, tok) {
+				alreadyBanned = true
+				break
+			}
 		}
+		if alreadyBanned {
+			continue
+		}
+
+		bannedUsers = append(bannedUsers, newTokens...)
+		bannedJIDs = append(bannedJIDs, mentionJID)
+		displayNames = append(displayNames, "@"+displayUser)
 	}
 
 	if len(bannedJIDs) == 0 {
@@ -898,26 +1064,7 @@ func handleUnban(ctx *dispatch.Context) error {
 	}
 	bannedUsers := strings.Fields(rawBanned)
 
-	var unbannedJIDs []types.JID
-	var displayNames []string
-	newBanned := []string{}
-
-	for _, b := range bannedUsers {
-		matched := false
-		for _, target := range targets {
-			bj, err := types.ParseJID(b)
-			if err == nil && ctx.IsSameUser(target, bj) {
-				matched = true
-				resolvedJID, username := ctx.ResolveMention(target)
-				unbannedJIDs = append(unbannedJIDs, resolvedJID)
-				displayNames = append(displayNames, "@"+username)
-				break
-			}
-		}
-		if !matched {
-			newBanned = append(newBanned, b)
-		}
-	}
+	newBanned, unbannedJIDs, displayNames := removeUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, bannedUsers, targets)
 
 	if len(unbannedJIDs) == 0 {
 		return ctx.Reply("Target(s) not found in the banned list.")

@@ -1330,14 +1330,41 @@ func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) 
 		})
 		if ok {
 			if raw, err := s.GetSetting(ctx, "sudoers"); err == nil && raw != "" {
+				// Resolve the sender's contact push name for username-token matching.
+				var senderPushName string
+				if client.Store != nil && client.Store.Contacts != nil {
+					lookupJID := sender.ToNonAD()
+					// If sender is a LID, try to get the PN for contact lookup.
+					if lookupJID.Server == types.HiddenUserServer && client.Store.LIDs != nil {
+						if pn, pnErr := client.Store.LIDs.GetPNForLID(ctx, lookupJID); pnErr == nil && !pn.IsEmpty() {
+							lookupJID = pn.ToNonAD()
+						}
+					}
+					if contact, cErr := client.Store.Contacts.GetContact(ctx, lookupJID); cErr == nil && contact.Found {
+						if contact.PushName != "" {
+							senderPushName = strings.ToLower(contact.PushName)
+						} else if contact.FullName != "" {
+							senderPushName = strings.ToLower(contact.FullName)
+						}
+					}
+				}
+
 				for sudoerStr := range strings.FieldsSeq(raw) {
 					cleanSudoer := strings.TrimPrefix(sudoerStr, "+")
 					if sudoerJID, err := types.ParseJID(sudoerStr); err == nil {
 						if IsSameUserRaw(ctx, client, sender, sudoerJID) {
 							return true
 						}
-					} else if cleanSudoer != "" && (sender.ToNonAD().User == cleanSudoer || strings.TrimPrefix(sender.ToNonAD().User, "+") == cleanSudoer) {
-						return true
+					} else if cleanSudoer != "" {
+						// Bare phone number match.
+						senderUser := sender.ToNonAD().User
+						if senderUser == cleanSudoer || strings.TrimPrefix(senderUser, "+") == cleanSudoer {
+							return true
+						}
+						// Push name / username token match.
+						if senderPushName != "" && senderPushName == strings.ToLower(cleanSudoer) {
+							return true
+						}
 					}
 				}
 			}
