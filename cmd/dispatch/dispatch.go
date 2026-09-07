@@ -328,8 +328,7 @@ func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) 
 	if s, okStore := GetSQLStore(cctx.Client); okStore {
 		botMode, _ := s.GetSetting(sendCtx, "mode")
 		if botMode == "private" && !cctx.IsSudo() {
-			_ = cctx.Reply("The bot is currently in private mode. Only sudoers/owners can use it.")
-			return "The bot is currently in private mode. Only sudoers/owners can use it.", true
+			return "", true
 		}
 	}
 
@@ -390,7 +389,6 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	if s, okStore := GetSQLStore(client); okStore {
 		botMode, _ := s.GetSetting(ctx, "mode")
 		if botMode == "private" && !cctx.IsSudo() {
-			_ = cctx.Reply("The bot is currently in private mode. Only sudoers/owners can use it.")
 			return true
 		}
 
