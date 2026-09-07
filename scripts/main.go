@@ -31,6 +31,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error running res: %v\n", err)
 			os.Exit(1)
 		}
+	case "sign":
+		if err := runSign(subArgs); err != nil {
+			fmt.Fprintf(os.Stderr, "Error running sign: %v\n", err)
+			os.Exit(1)
+		}
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -49,7 +54,8 @@ Usage:
 Available Commands:
   bump   [version]        Bump release version to current date (D.M.YY) or specified version across metadata files
   proto  [--sync] [filter] Compile and update wa-core protobuf definitions (optional --sync pulls latest WAProto)
-  res                     Generate Windows binary resources & metadata with app icon from assets/logo.png
+  res    [version]        Generate Windows binary resources & metadata with app icon from assets/logo.png
+  sign   <binary>         Digitally sign Windows PE binary with SHA-256 Authenticode signature
   help                    Display this help message
 
 Examples:
@@ -57,5 +63,6 @@ Examples:
   go run ./scripts bump 21.8.26
   go run ./scripts proto
   go run ./scripts proto waE2E
-  go run ./scripts proto --sync`)
+  go run ./scripts proto --sync
+  go run ./scripts sign whatsrook.exe`)
 }

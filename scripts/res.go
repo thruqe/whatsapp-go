@@ -15,13 +15,17 @@ func runRes(args []string) error {
 		return fmt.Errorf("failed to locate repo root: %w", err)
 	}
 
-	// 1. Read version from version.txt
-	versionTxtPath := filepath.Join(rootDir, "version.txt")
-	verBytes, err := os.ReadFile(versionTxtPath)
-	if err != nil {
-		return fmt.Errorf("failed to read %s: %w", versionTxtPath, err)
+	// 1. Resolve version from args or version.txt
+	productVersion := ""
+	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
+		productVersion = strings.TrimSpace(args[0])
 	}
-	productVersion := strings.TrimSpace(string(verBytes))
+	if productVersion == "" {
+		versionTxtPath := filepath.Join(rootDir, "version.txt")
+		if verBytes, err := os.ReadFile(versionTxtPath); err == nil {
+			productVersion = strings.TrimSpace(string(verBytes))
+		}
+	}
 	if productVersion == "" {
 		productVersion = "0.0.1"
 	}
@@ -41,7 +45,7 @@ func runRes(args []string) error {
 		"--icon", iconPath,
 		"--manifest", "cli",
 		"--product-name", "WhatsRook",
-		"--file-description", "WhatsRook WhatsApp Bot & Client CLI",
+		"--file-description", "WhatsRook - Command-Line Hybrid-Automation WhatsApp Client",
 		"--copyright", fmt.Sprintf("Copyright © %d Thruqe", year),
 		"--original-filename", "whatsrook.exe",
 		"--file-version", fileVersion,

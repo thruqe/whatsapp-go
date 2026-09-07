@@ -259,3 +259,35 @@ func TestResolveExecutablePath(t *testing.T) {
 		t.Errorf("expected resolved path %q to exist and not be a directory (err: %v)", p, err)
 	}
 }
+
+func TestGetBinaryVersion(t *testing.T) {
+	ver := updater.GetBinaryVersion()
+	if ver == "" {
+		t.Errorf("expected non-empty binary version from GetBinaryVersion")
+	}
+}
+
+func TestEqualVersions(t *testing.T) {
+	tests := []struct {
+		v1       string
+		v2       string
+		expected bool
+	}{
+		{"4.0.1", "4.0.1", true},
+		{"v4.0.1", "4.0.1", false}, // standard semver compare handles prefix via ParseVersion
+		{"44383a4e22dc765eea11b3949ee5ef0305ea78a3", "44383a4e22dc765eea11b3949ee5ef0305ea78a3", true},
+		{"44383a4e22dc765eea11b3949ee5ef0305ea78a3", "44383a4", true},
+		{"44383a4", "44383a4e22dc765eea11b3949ee5ef0305ea78a3", true},
+		{"beta-44383a4", "44383a4e22dc765eea11b3949ee5ef0305ea78a3", true},
+		{"alpha-44383a4", "44383a4e22dc765eea11b3949ee5ef0305ea78a3", true},
+		{"1111111", "2222222", false},
+		{"beta-1111111", "beta-2222222", false},
+	}
+
+	for _, tc := range tests {
+		got := updater.EqualVersions(tc.v1, tc.v2)
+		if got != tc.expected {
+			t.Errorf("EqualVersions(%q, %q) = %v, want %v", tc.v1, tc.v2, got, tc.expected)
+		}
+	}
+}
