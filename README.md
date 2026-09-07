@@ -1,6 +1,6 @@
 ![whatsrook](./assets/logo.svg)
 
-whatsrook is a command-line, third-party, hybrid-automation whatsapp client.
+_WhatsRook is an automated WhatsApp client with built-in utilities for managing chats, scheduling, and automation._
 
 ## Installation
 
