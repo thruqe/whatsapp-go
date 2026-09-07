@@ -1243,212 +1243,33 @@ var (
 	NewText = builder.NewText
 )
 
-// ─── Interactive Loader Engine ─────────────────────────────────────────────
+// ─── Interactive Loader Engine (No-Op) ─────────────────────────────────────
 
-var (
-	loaderFrames    = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	activeLoaders   sync.Map
-	loaderIDCounter uint64
-	loaderIDMu      sync.Mutex
-)
+// Loader represents a no-op loader retained for interface compatibility.
+type Loader struct{}
 
-func nextLoaderID() string {
-	loaderIDMu.Lock()
-	defer loaderIDMu.Unlock()
-	loaderIDCounter++
-	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), loaderIDCounter)
-}
-
-// Loader manages a live animating status indicator message in chat.
-type Loader struct {
-	ctx         *PluginContext
-	id          string
-	initialText string
-	msgID       types.MessageID
-	stopChan    chan struct{}
-	active      bool
-	stopped     bool
-	mu          sync.Mutex
-}
-
-// StartLoader returns a Loader that sends an animated loading message to the chat,
-// continuously editing frame-by-frame until the operation completes, then deleting the message.
+// StartLoader returns a no-op Loader.
 func (ctx *PluginContext) StartLoader(initialText ...string) *Loader {
-	txt := "Please wait"
-	if len(initialText) > 0 && initialText[0] != "" {
-		txt = initialText[0]
-	}
-	loaderID := nextLoaderID()
-	l := &Loader{
-		ctx:         ctx,
-		id:          loaderID,
-		initialText: txt,
-		stopChan:    make(chan struct{}),
-	}
-
-	activeLoaders.Store(loaderID, l)
-	l.activate()
-	return l
+	return &Loader{}
 }
 
-func (l *Loader) activate() {
-	l.mu.Lock()
-	if l.stopped {
-		l.mu.Unlock()
-		return
-	}
-	l.active = true
-	l.mu.Unlock()
+// Cancel is a no-op.
+func (l *Loader) Cancel() {}
 
-	frame := loaderFrames[0]
-	displayText := fmt.Sprintf("%s %s", l.initialText, frame)
+// MessageID returns an empty MessageID.
+func (l *Loader) MessageID() types.MessageID { return "" }
 
-	resp, err := l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, &waE2E.Message{
-		Conversation: &displayText,
-	})
-	if err != nil {
-		return
-	}
+// Stop is a no-op.
+func (l *Loader) Stop() {}
 
-	l.mu.Lock()
-	l.msgID = resp.ID
-	l.mu.Unlock()
+// Done is a no-op.
+func (l *Loader) Done(finalText string) {}
 
-	go l.run()
-}
+// Delete is a no-op.
+func (l *Loader) Delete() {}
 
-func (l *Loader) run() {
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-	frameIdx := 1
-	for {
-		select {
-		case <-l.stopChan:
-			return
-		case <-l.ctx.Ctx.Done():
-			l.Delete()
-			return
-		case <-ticker.C:
-			l.mu.Lock()
-			if l.stopped || l.msgID == "" {
-				l.mu.Unlock()
-				return
-			}
-			frame := loaderFrames[frameIdx%len(loaderFrames)]
-			frameIdx++
-			l.mu.Unlock()
-
-			displayText := fmt.Sprintf("%s %s", l.initialText, frame)
-			l.editFrame(displayText)
-		}
-	}
-}
-
-func (l *Loader) editFrame(text string) {
-	l.mu.Lock()
-	if l.stopped || l.msgID == "" {
-		l.mu.Unlock()
-		return
-	}
-	msgID := l.msgID
-	l.mu.Unlock()
-
-	if l.ctx == nil || l.ctx.Client == nil {
-		return
-	}
-
-	formatted := l.ctx.formatTextResponse(text)
-	msg := &waE2E.Message{
-		Conversation: &formatted,
-	}
-	editMsg := l.ctx.Client.BuildEdit(l.ctx.Chat, msgID, msg)
-	_, _ = l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, editMsg)
-}
-
-// Cancel cancels the running operation context associated with this loader.
-func (l *Loader) Cancel() {
-	l.Stop()
-	if l.ctx != nil {
-		l.ctx.Cancel()
-	}
-	l.mu.Lock()
-	msgID := l.msgID
-	l.msgID = ""
-	l.mu.Unlock()
-
-	if msgID != "" && l.ctx != nil && l.ctx.Client != nil {
-		formatted := l.ctx.formatTextResponse("Operation cancelled.")
-		msg := &waE2E.Message{
-			Conversation: &formatted,
-		}
-		editMsg := l.ctx.Client.BuildEdit(l.ctx.Chat, msgID, msg)
-		_, _ = l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, editMsg)
-	}
-}
-
-// CancelLoader looks up active loader by ID and cancels its operation.
-func CancelLoader(id string) bool {
-	val, ok := activeLoaders.Load(id)
-	if !ok {
-		return false
-	}
-	if l, ok := val.(*Loader); ok {
-		l.Cancel()
-		return true
-	}
-	return false
-}
-
-// MessageID returns the underlying MessageID of the loader message.
-func (l *Loader) MessageID() types.MessageID {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.msgID
-}
-
-// Stop halts the animation ticker.
-func (l *Loader) Stop() {
-	l.mu.Lock()
-	if !l.stopped {
-		l.stopped = true
-		close(l.stopChan)
-		activeLoaders.Delete(l.id)
-	}
-	l.mu.Unlock()
-}
-
-// Done stops the animation ticker and updates the loader message with final text if active.
-func (l *Loader) Done(finalText string) {
-	l.Stop()
-	l.mu.Lock()
-	msgID := l.msgID
-	l.msgID = ""
-	l.mu.Unlock()
-
-	if msgID != "" && finalText != "" && l.ctx != nil && l.ctx.Client != nil {
-		formatted := l.ctx.formatTextResponse(finalText)
-		msg := &waE2E.Message{
-			Conversation: &formatted,
-		}
-		editMsg := l.ctx.Client.BuildEdit(l.ctx.Chat, msgID, msg)
-		_, _ = l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, editMsg)
-	}
-}
-
-// Delete stops the animation ticker and deletes the loader message from chat if active.
-func (l *Loader) Delete() {
-	l.Stop()
-	l.mu.Lock()
-	msgID := l.msgID
-	l.msgID = ""
-	l.mu.Unlock()
-
-	if msgID != "" && l.ctx != nil && l.ctx.Client != nil {
-		revokeMsg := l.ctx.Client.BuildRevoke(l.ctx.Chat, types.EmptyJID, msgID)
-		_, _ = l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, revokeMsg)
-	}
-}
+// CancelLoader is a no-op loader cancellation function.
+func CancelLoader(id string) bool { return false }
 
 // ─── Plugin Context Model ──────────────────────────────────────────────────
 
@@ -1465,11 +1286,6 @@ type PluginContext struct {
 
 	Chat   types.JID
 	Sender types.JID
-
-	autoLoaderMu  sync.Mutex
-	autoLoader    *Loader
-	loaderTimer   *time.Timer
-	loaderStopped bool
 }
 
 // Cancel invokes context cancellation if configured.
@@ -2360,65 +2176,11 @@ func (c *PluginContext) NewPoll(question string) *builder.PollBuilder {
 	return c.Rook().NewPoll(question)
 }
 
-// StartAutoLoader arms a delayed loader that appears in chat with "Please wait"
-// if an operation takes longer than delay. If delay <= 0, 1200ms is used.
-func (c *PluginContext) StartAutoLoader(delay ...time.Duration) {
-	if c == nil || c.Client == nil {
-		return
-	}
-	c.autoLoaderMu.Lock()
-	defer c.autoLoaderMu.Unlock()
+// StartAutoLoader is a no-op retained for interface compatibility.
+func (c *PluginContext) StartAutoLoader(delay ...time.Duration) {}
 
-	if c.loaderStopped || c.loaderTimer != nil || c.autoLoader != nil {
-		return
-	}
-
-	d := 1200 * time.Millisecond
-	if len(delay) > 0 && delay[0] > 0 {
-		d = delay[0]
-	}
-
-	c.loaderTimer = time.AfterFunc(d, func() {
-		c.autoLoaderMu.Lock()
-		if c.loaderStopped || c.loaderTimer == nil {
-			c.autoLoaderMu.Unlock()
-			return
-		}
-		c.loaderTimer = nil
-		c.autoLoaderMu.Unlock()
-
-		l := c.StartLoader("Please wait")
-
-		c.autoLoaderMu.Lock()
-		if c.loaderStopped {
-			c.autoLoaderMu.Unlock()
-			l.Delete()
-			return
-		}
-		c.autoLoader = l
-		c.autoLoaderMu.Unlock()
-	})
-}
-
-// StopAutoLoader disarms any pending timer or stops and deletes an active loader message.
-func (c *PluginContext) StopAutoLoader() {
-	if c == nil {
-		return
-	}
-	c.autoLoaderMu.Lock()
-	c.loaderStopped = true
-	if c.loaderTimer != nil {
-		c.loaderTimer.Stop()
-		c.loaderTimer = nil
-	}
-	loader := c.autoLoader
-	c.autoLoader = nil
-	c.autoLoaderMu.Unlock()
-
-	if loader != nil {
-		loader.Delete()
-	}
-}
+// StopAutoLoader is a no-op retained for interface compatibility.
+func (c *PluginContext) StopAutoLoader() {}
 
 // GetPrefix returns the configured command prefix, default ".".
 func (c *PluginContext) GetPrefix() string {

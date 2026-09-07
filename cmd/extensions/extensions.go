@@ -53,9 +53,6 @@ func handlePluginInstall(ctx *dispatch.Context) error {
 	if len(ctx.Args) == 1 {
 		first := strings.ToLower(strings.TrimSpace(ctx.Args[0]))
 		if first == "all" {
-			ctx.StartAutoLoader()
-			defer ctx.StopAutoLoader()
-
 			installed, failed := external.DefaultDispatcher.InstallAll(ctx.GetSendContext())
 
 			tb := ctx.Text()
@@ -79,9 +76,6 @@ func handlePluginInstall(ctx *dispatch.Context) error {
 			return ctx.Replyf("Platform detection failed: %v", err)
 		}
 
-		ctx.StartAutoLoader()
-		defer ctx.StopAutoLoader()
-
 		if err := external.DefaultDispatcher.Install(ctx.GetSendContext(), name, url); err != nil {
 			return ctx.Replyf("Plugin installation failed for %q:\n%v", name, err)
 		}
@@ -93,9 +87,6 @@ func handlePluginInstall(ctx *dispatch.Context) error {
 	if err != nil {
 		return ctx.Replyf("Platform resolution error: %v", err)
 	}
-
-	ctx.StartAutoLoader()
-	defer ctx.StopAutoLoader()
 
 	if err := external.DefaultDispatcher.Install(ctx.GetSendContext(), name, source); err != nil {
 		return ctx.Replyf("Plugin installation failed: %v", err)

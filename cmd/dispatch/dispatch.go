@@ -2,8 +2,7 @@
 //
 // it intercepts incoming WhatsApp message events, parses message bodies against active command prefixes,
 // checks chat permissions (public mode, group restrictions, admin requirements, sudo/owner authorization),
-// displays animated loaders for long-running operations, and dispatches to registered native handlers
-// or external plugins.
+// and dispatches to registered native handlers or external plugins.
 package dispatch
 
 import (
@@ -11,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"strings"
-	"time"
 
 	utils "whatsrook"
 	"whatsrook/cmd/store"
@@ -53,13 +51,6 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 
 	Logger.Debug("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
-
-	if after, ok := strings.CutPrefix(text, "cancel_loader_"); ok {
-		loaderID := after
-		if utils.CancelLoader(loaderID) {
-			return true
-		}
-	}
 
 	// Reactive dispatch: list button responses and poll votes
 	cctx := &Context{
@@ -414,13 +405,8 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		}
 	}
 
-	if !cmd.NoLoader {
-		cctx.StartAutoLoader(1200 * time.Millisecond)
-	}
-
 	go func() {
 		defer func() {
-			cctx.StopAutoLoader()
 			if r := recover(); r != nil {
 				crashPath := system.RecordCrash(r, "command: "+cmdName, "user: "+cctx.Sender.String(), "chat: "+cctx.Chat.String())
 				Logger.Error("Panic recovered in command handler", "command", cmdName, "panic", r, "crash_log", crashPath)

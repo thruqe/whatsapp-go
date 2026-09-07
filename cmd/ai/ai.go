@@ -431,7 +431,6 @@ func handleAI(ctx *dispatch.Context) error {
 			return nil
 		}
 		if placeholderMsgID == "" {
-			ctx.StopAutoLoader()
 			id, err := ctx.ReplyWithID(text)
 			if err == nil {
 				placeholderMsgID = id
@@ -446,7 +445,6 @@ func handleAI(ctx *dispatch.Context) error {
 	}
 
 	res, err := QueryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
-	ctx.StopAutoLoader()
 	if err != nil {
 		Logger.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
 		if strings.Contains(err.Error(), "488") {
@@ -969,8 +967,6 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 			Chat:       c.Chat,
 			Sender:     c.Sender,
 		}
-		aiCtx.StartAutoLoader()
-		defer aiCtx.StopAutoLoader()
 
 		if cmd, ok := dispatch.Get("ai"); ok {
 			_ = cmd.Handler(aiCtx)

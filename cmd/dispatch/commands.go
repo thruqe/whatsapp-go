@@ -79,8 +79,6 @@ type Command struct {
 	GroupOnly bool
 	// IsPublic allows regular group members and DM users to execute without sudo privileges.
 	IsPublic bool
-	// NoLoader suppresses the automatic animated loading indicator during execution.
-	NoLoader bool
 	// Handler is the function executed when the command matches.
 	Handler Handler
 }
