@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 )
@@ -57,12 +58,17 @@ func runProto(args []string) error {
 		return fmt.Errorf("protoc compiler not found in PATH")
 	}
 
-	// 5. Normalize option go_package in proto files (ensure go.mau.fi/whatsmeow/proto/...)
+	// 5. Sanitize proto definitions to prevent enum collision issues
+	if err := sanitizeProtoDefinitions(protoDir); err != nil {
+		return fmt.Errorf("failed to sanitize proto definitions: %w", err)
+	}
+
+	// 6. Normalize option go_package in proto files (ensure go.mau.fi/whatsmeow/proto/...)
 	if err := normalizeProtoPackageOptions(protoDir); err != nil {
 		return fmt.Errorf("failed to normalize proto go_package options: %w", err)
 	}
 
-	// 6. Find all .proto files (with optional filter)
+	// 7. Find all .proto files (with optional filter)
 	var protoFiles []string
 	targetFilter := ""
 	if len(filteredArgs) > 0 {
@@ -233,6 +239,131 @@ func normalizeProtoPackageOptions(protoDir string) error {
 	})
 }
 
+var canonicalWaE2EEnums = map[string]bool{
+	"HistorySyncType":              true,
+	"InsightDeliveryState":         true,
+	"KeepType":                     true,
+	"MediaKeyDomain":               true,
+	"PeerDataOperationRequestType": true,
+	"PollContentType":              true,
+	"PollType":                     true,
+	"WebLinkRenderConfig":          true,
+}
+
+func sanitizeProtoDefinitions(protoDir string) error {
+	referencedTypes := make(map[string]bool)
+	fieldTypeRe := regexp.MustCompile(`(?m)^\s*(?:optional|repeated|required)\s+([A-Za-z0-9_.]+)\s+`)
+	mapValTypeRe := regexp.MustCompile(`(?m)^\s*map\s*<\s*([A-Za-z0-9_.]+)\s*,\s*([A-Za-z0-9_.]+)\s*>`)
+
+	err := filepath.WalkDir(protoDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".proto") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, m := range fieldTypeRe.FindAllSubmatch(data, -1) {
+			t := string(m[1])
+			if idx := strings.LastIndex(t, "."); idx != -1 {
+				t = t[idx+1:]
+			}
+			referencedTypes[t] = true
+		}
+		for _, m := range mapValTypeRe.FindAllSubmatch(data, -1) {
+			for _, idxKey := range []int{1, 2} {
+				t := string(m[idxKey])
+				if idx := strings.LastIndex(t, "."); idx != -1 {
+					t = t[idx+1:]
+				}
+				referencedTypes[t] = true
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed scanning referenced proto types: %w", err)
+	}
+
+	waE2EFile := filepath.Join(protoDir, "waE2E", "WAWebProtobufsE2E.proto")
+	if _, err := os.Stat(waE2EFile); err == nil {
+		if err := sanitizeWaE2EProto(waE2EFile, referencedTypes); err != nil {
+			return fmt.Errorf("failed sanitizing waE2E proto: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func sanitizeWaE2EProto(filePath string, referencedTypes map[string]bool) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	content := strings.ReplaceAll(string(data), "\r\n", "\n")
+	lines := strings.Split(content, "\n")
+	var cleanedLines []string
+	inTopLevelEnum := false
+	keepCurrentEnum := false
+	prunedCount := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Only match top-level enums (starting at column 0 with no leading indentation)
+		if strings.HasPrefix(line, "enum ") && strings.HasSuffix(trimmed, "{") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				enumName := parts[1]
+				inTopLevelEnum = true
+				// For waE2E, preserve the canonical protocol enums.
+				// Any unreferenced or shadowed webpack bundle enums are pruned.
+				keepCurrentEnum = canonicalWaE2EEnums[enumName]
+				if keepCurrentEnum {
+					cleanedLines = append(cleanedLines, line)
+				} else {
+					prunedCount++
+				}
+				continue
+			}
+		}
+
+		if inTopLevelEnum {
+			// Check if closing brace of top-level enum (at column 0 without leading whitespace)
+			if (trimmed == "}" || trimmed == "};") && !strings.HasPrefix(line, "\t") && !strings.HasPrefix(line, " ") {
+				if keepCurrentEnum {
+					cleanedLines = append(cleanedLines, line)
+				}
+				inTopLevelEnum = false
+				keepCurrentEnum = false
+			} else if keepCurrentEnum {
+				cleanedLines = append(cleanedLines, line)
+			}
+			continue
+		}
+
+		cleanedLines = append(cleanedLines, line)
+	}
+
+	if prunedCount == 0 {
+		return nil
+	}
+
+	res := strings.Join(cleanedLines, "\n")
+	res = regexp.MustCompile(`\n{3,}`).ReplaceAllString(res, "\n\n")
+
+	if err := os.WriteFile(filePath, []byte(res), 0644); err != nil {
+		return err
+	}
+
+	fmt.Printf("✓ Sanitized %s (pruned %d unreferenced top-level enums)\n", filepath.Base(filePath), prunedCount)
+	return nil
+}
+
 func printProtocInstallInstructions() {
 	fmt.Fprintln(os.Stderr, "❌ Error: 'protoc' (Protocol Buffer Compiler) is not installed or not found in PATH.")
 	fmt.Fprintln(os.Stderr, "\nPlease install protoc using your package manager:")
@@ -311,6 +442,10 @@ func syncProtosFromWaProto(rootDir, protoDir string) error {
 	splitCmd.Stderr = os.Stderr
 	if err := splitCmd.Run(); err != nil {
 		return fmt.Errorf("wa-proto split failed: %w", err)
+	}
+
+	if err := sanitizeProtoDefinitions(protoDir); err != nil {
+		return fmt.Errorf("failed to sanitize synced proto definitions: %w", err)
 	}
 
 	return nil
