@@ -67,8 +67,8 @@ func init() {
 		Handler:     handleClear,
 	})
 	dispatch.Register(&dispatch.Command{
-		Name:        "delete",
-		Alias:       "del",
+		Name:        "dlt",
+		Alias:       "del,delete",
 		Description: "Delete/revoke a message (must reply to the target message)",
 		Category:    "chats",
 		IsPublic:    true,
