@@ -821,3 +821,109 @@ func TestHandleAutoAIIntercept_Filtering(t *testing.T) {
 		t.Errorf("expected IsFromMe to other chats to return false")
 	}
 }
+
+func TestIsSelfChat(t *testing.T) {
+	botPN := types.NewJID("2348060598064", types.DefaultUserServer)
+	botLID := types.NewJID("258256953950323", types.HiddenUserServer)
+	client := &whatsmeow.Client{
+		Store: &store.Device{
+			ID:  &botPN,
+			LID: botLID,
+		},
+	}
+
+	// 1. LID self-chat matching bot LID
+	ctxLID := &dispatch.Context{
+		Client: client,
+		Chat:   botLID,
+		Sender: botLID,
+		Evt: &events.Message{
+			Info: types.MessageInfo{
+				Chat:         botLID,
+				Sender:       botLID,
+				IsFromMe:     true,
+				RecipientAlt: botPN,
+			},
+		},
+	}
+	if !isSelfChat(ctxLID) {
+		t.Errorf("expected isSelfChat to return true for bot LID chat")
+	}
+
+	// 2. Phone number self-chat matching bot PN
+	ctxPN := &dispatch.Context{
+		Client: client,
+		Chat:   botPN,
+		Sender: botPN,
+		Evt: &events.Message{
+			Info: types.MessageInfo{
+				Chat:     botPN,
+				Sender:   botPN,
+				IsFromMe: true,
+			},
+		},
+	}
+	if !isSelfChat(ctxPN) {
+		t.Errorf("expected isSelfChat to return true for bot PN chat")
+	}
+
+	// 3. Chat with someone else
+	otherChat := types.NewJID("111222333", types.DefaultUserServer)
+	ctxOther := &dispatch.Context{
+		Client: client,
+		Chat:   otherChat,
+		Sender: otherChat,
+		Evt: &events.Message{
+			Info: types.MessageInfo{
+				Chat:     otherChat,
+				Sender:   otherChat,
+				IsFromMe: false,
+			},
+		},
+	}
+	if isSelfChat(ctxOther) {
+		t.Errorf("expected isSelfChat to return false for other contact chat")
+	}
+}
+
+func TestResolveAltJID(t *testing.T) {
+	botPN := types.NewJID("2348060598064", types.DefaultUserServer)
+	botLID := types.NewJID("258256953950323", types.HiddenUserServer)
+	client := &whatsmeow.Client{
+		Store: &store.Device{
+			ID:  &botPN,
+			LID: botLID,
+		},
+	}
+
+	// 1. Resolve from RecipientAlt
+	ctx := &dispatch.Context{
+		Client: client,
+		Chat:   botLID,
+		Evt: &events.Message{
+			Info: types.MessageInfo{
+				Chat:         botLID,
+				RecipientAlt: botPN,
+			},
+		},
+	}
+	alt := resolveAltJID(ctx)
+	if alt != botPN {
+		t.Errorf("resolveAltJID() = %v, want %v", alt, botPN)
+	}
+
+	// 2. Resolve from Store.ID when chat is Store.LID
+	ctx2 := &dispatch.Context{
+		Client: client,
+		Chat:   botLID,
+		Evt: &events.Message{
+			Info: types.MessageInfo{
+				Chat: botLID,
+			},
+		},
+	}
+	alt2 := resolveAltJID(ctx2)
+	if alt2 != botPN {
+		t.Errorf("resolveAltJID() = %v, want %v", alt2, botPN)
+	}
+}
