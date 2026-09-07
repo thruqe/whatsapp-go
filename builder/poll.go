@@ -606,8 +606,32 @@ func unwrapPollMessage(msg *waE2E.Message) *waE2E.Message {
 			msg = vo2.GetMessage()
 			continue
 		}
+		if vo2ext := msg.GetViewOnceMessageV2Extension(); vo2ext != nil && vo2ext.GetMessage() != nil {
+			msg = vo2ext.GetMessage()
+			continue
+		}
+		if docCap := msg.GetDocumentWithCaptionMessage(); docCap != nil && docCap.GetMessage() != nil {
+			msg = docCap.GetMessage()
+			continue
+		}
 		if edited := msg.GetEditedMessage(); edited != nil && edited.GetMessage() != nil {
 			msg = edited.GetMessage()
+			continue
+		}
+		if pm := msg.GetProtocolMessage(); pm != nil && pm.GetEditedMessage() != nil {
+			msg = pm.GetEditedMessage()
+			continue
+		}
+		if bfm := msg.GetBotForwardedMessage(); bfm != nil && bfm.GetMessage() != nil {
+			msg = bfm.GetMessage()
+			continue
+		}
+		if bim := msg.GetBotInvokeMessage(); bim != nil && bim.GetMessage() != nil {
+			msg = bim.GetMessage()
+			continue
+		}
+		if devSent := msg.GetDeviceSentMessage(); devSent != nil && devSent.GetMessage() != nil {
+			msg = devSent.GetMessage()
 			continue
 		}
 		break
