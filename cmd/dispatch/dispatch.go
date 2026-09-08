@@ -428,6 +428,14 @@ func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) 
 
 	sendCtx := cctx.GetSendContext()
 	if s, okStore := GetSQLStore(cctx.Client); okStore {
+		if !cctx.IsSudo() {
+			if val, err := s.GetSetting(sendCtx, "ban:"+cctx.Sender.ToNonAD().String()); err == nil && val == "true" {
+				return "", true
+			}
+			if val, err := s.GetSetting(sendCtx, "ban:"+cctx.Sender.ToNonAD().User); err == nil && val == "true" {
+				return "", true
+			}
+		}
 		botMode, _ := s.GetSetting(sendCtx, "mode")
 		if botMode == "private" && !cctx.IsSudo() {
 			return "", true
@@ -498,6 +506,32 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	}
 
 	if s, okStore := GetSQLStore(client); okStore {
+		if !cctx.IsSudo() {
+			if rawBanned, _ := s.GetSetting(ctx, "banned_users"); rawBanned != "" {
+				senderStr := cctx.Sender.ToNonAD().String()
+				senderUser := cctx.Sender.ToNonAD().User
+				for banned := range strings.FieldsSeq(rawBanned) {
+					if strings.EqualFold(banned, senderStr) || strings.EqualFold(banned, senderUser) {
+						return true
+					}
+					if cctx.Evt != nil && !cctx.Evt.Info.SenderAlt.IsEmpty() {
+						if strings.EqualFold(banned, cctx.Evt.Info.SenderAlt.ToNonAD().String()) || strings.EqualFold(banned, cctx.Evt.Info.SenderAlt.ToNonAD().User) {
+							return true
+						}
+					}
+					if cctx.Evt != nil && cctx.Evt.Info.PushName != "" && strings.EqualFold(banned, cctx.Evt.Info.PushName) {
+						return true
+					}
+				}
+			}
+			if val, err := s.GetSetting(ctx, "ban:"+cctx.Sender.ToNonAD().String()); err == nil && val == "true" {
+				return true
+			}
+			if val, err := s.GetSetting(ctx, "ban:"+cctx.Sender.ToNonAD().User); err == nil && val == "true" {
+				return true
+			}
+		}
+
 		botMode, _ := s.GetSetting(ctx, "mode")
 		if botMode == "private" && !cctx.IsSudo() {
 			return true
