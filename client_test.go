@@ -7,7 +7,6 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestResolveMentionPN(t *testing.T) {
@@ -81,7 +80,7 @@ func TestResolveContactNameFallback(t *testing.T) {
 
 func TestUnwrapMessageProto(t *testing.T) {
 	inner := &waE2E.Message{
-		Conversation: proto.String("deep secret text"),
+		Conversation: new("deep secret text"),
 	}
 
 	// 1. Nested Ephemeral -> ViewOnce -> Message
@@ -131,14 +130,14 @@ func TestExtractTextFromProto(t *testing.T) {
 	}{
 		{
 			name:     "Conversation",
-			msg:      &waE2E.Message{Conversation: proto.String("hello world")},
+			msg:      &waE2E.Message{Conversation: new("hello world")},
 			expected: "hello world",
 		},
 		{
 			name: "ExtendedTextMessage",
 			msg: &waE2E.Message{
 				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-					Text: proto.String("extended info"),
+					Text: new("extended info"),
 				},
 			},
 			expected: "extended info",
@@ -147,7 +146,7 @@ func TestExtractTextFromProto(t *testing.T) {
 			name: "ImageMessage caption",
 			msg: &waE2E.Message{
 				ImageMessage: &waE2E.ImageMessage{
-					Caption: proto.String("sunset photo"),
+					Caption: new("sunset photo"),
 				},
 			},
 			expected: "sunset photo",
@@ -156,7 +155,7 @@ func TestExtractTextFromProto(t *testing.T) {
 			name: "VideoMessage caption",
 			msg: &waE2E.Message{
 				VideoMessage: &waE2E.VideoMessage{
-					Caption: proto.String("video clip"),
+					Caption: new("video clip"),
 				},
 			},
 			expected: "video clip",
@@ -165,7 +164,7 @@ func TestExtractTextFromProto(t *testing.T) {
 			name: "PtvMessage caption",
 			msg: &waE2E.Message{
 				PtvMessage: &waE2E.VideoMessage{
-					Caption: proto.String("instant video"),
+					Caption: new("instant video"),
 				},
 			},
 			expected: "instant video",
@@ -174,7 +173,7 @@ func TestExtractTextFromProto(t *testing.T) {
 			name: "PollCreationMessage",
 			msg: &waE2E.Message{
 				PollCreationMessage: &waE2E.PollCreationMessage{
-					Name: proto.String("Which framework?"),
+					Name: new("Which framework?"),
 				},
 			},
 			expected: "Which framework?",
@@ -183,7 +182,7 @@ func TestExtractTextFromProto(t *testing.T) {
 			name: "PollCreationMessageV3",
 			msg: &waE2E.Message{
 				PollCreationMessageV3: &waE2E.PollCreationMessage{
-					Name: proto.String("Lunch location?"),
+					Name: new("Lunch location?"),
 				},
 			},
 			expected: "Lunch location?",
@@ -193,7 +192,7 @@ func TestExtractTextFromProto(t *testing.T) {
 			msg: &waE2E.Message{
 				InteractiveMessage: &waE2E.InteractiveMessage{
 					Body: &waE2E.InteractiveMessage_Body{
-						Text: proto.String("Interactive question"),
+						Text: new("Interactive question"),
 					},
 				},
 			},
@@ -214,7 +213,7 @@ func TestExtractTextFromProto(t *testing.T) {
 			name: "TemplateButtonReplyMessage",
 			msg: &waE2E.Message{
 				TemplateButtonReplyMessage: &waE2E.TemplateButtonReplyMessage{
-					SelectedDisplayText: proto.String("Click Here"),
+					SelectedDisplayText: new("Click Here"),
 				},
 			},
 			expected: "Click Here",
@@ -223,7 +222,7 @@ func TestExtractTextFromProto(t *testing.T) {
 			name: "ListResponseMessage",
 			msg: &waE2E.Message{
 				ListResponseMessage: &waE2E.ListResponseMessage{
-					Title: proto.String("Menu Item 1"),
+					Title: new("Menu Item 1"),
 				},
 			},
 			expected: "Menu Item 1",
@@ -232,7 +231,7 @@ func TestExtractTextFromProto(t *testing.T) {
 			name: "GroupInviteMessage",
 			msg: &waE2E.Message{
 				GroupInviteMessage: &waE2E.GroupInviteMessage{
-					Caption: proto.String("Join our group"),
+					Caption: new("Join our group"),
 				},
 			},
 			expected: "Join our group",
@@ -241,7 +240,7 @@ func TestExtractTextFromProto(t *testing.T) {
 			name: "EventMessage",
 			msg: &waE2E.Message{
 				EventMessage: &waE2E.EventMessage{
-					Name: proto.String("Team Standup"),
+					Name: new("Team Standup"),
 				},
 			},
 			expected: "Team Standup",
@@ -251,7 +250,7 @@ func TestExtractTextFromProto(t *testing.T) {
 			msg: &waE2E.Message{
 				ProtocolMessage: &waE2E.ProtocolMessage{
 					EditedMessage: &waE2E.Message{
-						Conversation: proto.String("edited payload"),
+						Conversation: new("edited payload"),
 					},
 				},
 			},
@@ -272,7 +271,7 @@ func TestExtractTextFromProto(t *testing.T) {
 func TestExtractMessageTextFallback(t *testing.T) {
 	evt := &events.Message{
 		RawMessage: &waE2E.Message{
-			Conversation: proto.String("fallback text"),
+			Conversation: new("fallback text"),
 		},
 	}
 	if text := ExtractMessageText(evt); text != "fallback text" {

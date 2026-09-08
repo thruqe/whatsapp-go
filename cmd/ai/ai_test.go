@@ -12,7 +12,6 @@ import (
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestRenderGroupContext(t *testing.T) {
@@ -24,12 +23,8 @@ func TestRenderGroupContext(t *testing.T) {
 
 	// 2. Normal group info
 	info := types.GroupInfo{
-		GroupName: types.GroupName{
-			Name: "Engineers Club",
-		},
-		GroupTopic: types.GroupTopic{
-			Topic: "Discussion of Go, WhatsApp bot architectures, and high-performance protocols.",
-		},
+		Name:             "Engineers Club",
+		Topic:            "Discussion of Go, WhatsApp bot architectures, and high-performance protocols.",
 		ParticipantCount: 42,
 	}
 	rendered := RenderGroupContext(info)
@@ -52,10 +47,8 @@ func TestRenderGroupContext(t *testing.T) {
 	// 3. Topic truncation test (> 150 chars)
 	longTopic := strings.Repeat("A", 160)
 	infoLong := types.GroupInfo{
-		GroupName: types.GroupName{Name: "Test Group"},
-		GroupTopic: types.GroupTopic{
-			Topic: longTopic,
-		},
+		Name:             "Test Group",
+		Topic:            longTopic,
 		ParticipantCount: 5,
 	}
 	renderedLong := RenderGroupContext(infoLong)
@@ -200,7 +193,7 @@ func TestBuildAiQuery(t *testing.T) {
 
 	// 1. Standard group chat query with quoted message
 	groupInfo := types.GroupInfo{
-		GroupName:        types.GroupName{Name: "Core Ops"},
+		Name:             "Core Ops",
 		ParticipantCount: 10,
 	}
 	data := Data{
@@ -478,7 +471,7 @@ func TestBuildRunCommandInstructionWithNameAndPrefix(t *testing.T) {
 func TestExtractMetaAiText(t *testing.T) {
 	// 1. Plain conversation
 	msgConv := &waE2E.Message{
-		Conversation: proto.String("Hello from Meta AI!"),
+		Conversation: new("Hello from Meta AI!"),
 	}
 	if got := ExtractMetaAiText(msgConv); got != "Hello from Meta AI!" {
 		t.Errorf("ExtractMetaAiText(Conversation) = %q, want %q", got, "Hello from Meta AI!")
@@ -487,7 +480,7 @@ func TestExtractMetaAiText(t *testing.T) {
 	// 2. Extended text message
 	msgExt := &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-			Text: proto.String("Extended answer text"),
+			Text: new("Extended answer text"),
 		},
 	}
 	if got := ExtractMetaAiText(msgExt); got != "Extended answer text" {
@@ -498,7 +491,7 @@ func TestExtractMetaAiText(t *testing.T) {
 	msgProto := &waE2E.Message{
 		ProtocolMessage: &waE2E.ProtocolMessage{
 			EditedMessage: &waE2E.Message{
-				Conversation: proto.String("Edited answer"),
+				Conversation: new("Edited answer"),
 			},
 		},
 	}
@@ -538,7 +531,7 @@ func TestParseUnifiedMediaState(t *testing.T) {
 	}`
 
 	msg := &waE2E.Message{
-		Conversation: proto.String(jsonPayload),
+		Conversation: new(jsonPayload),
 	}
 
 	mediaURL, mimeType, text, imagineType, status := parseUnifiedMediaState(msg)
@@ -727,7 +720,7 @@ You are WhatsRook
 ]
 Here is your answer.`
 	msg := &waE2E.Message{
-		Conversation: proto.String(rawWithSystemPrompt),
+		Conversation: new(rawWithSystemPrompt),
 	}
 
 	extracted := ExtractMetaAiText(msg)
@@ -751,7 +744,7 @@ func TestIsBotTaggedOrReplied(t *testing.T) {
 			Chat: dmChat,
 		},
 		Message: &waE2E.Message{
-			Conversation: proto.String("hello"),
+			Conversation: new("hello"),
 		},
 	}
 	dmCtx := &dispatch.Context{
@@ -770,7 +763,7 @@ func TestIsBotTaggedOrReplied(t *testing.T) {
 			Chat: groupChat,
 		},
 		Message: &waE2E.Message{
-			Conversation: proto.String("hey rook what is the time"),
+			Conversation: new("hey rook what is the time"),
 		},
 	}
 	groupCtx := &dispatch.Context{
@@ -809,7 +802,7 @@ func TestHandleAutoAIIntercept_Filtering(t *testing.T) {
 			IsFromMe: true,
 		},
 		Message: &waE2E.Message{
-			Conversation: proto.String("hello"),
+			Conversation: new("hello"),
 		},
 	}
 	ctxFromMe := &dispatch.Context{

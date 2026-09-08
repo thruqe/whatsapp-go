@@ -69,11 +69,13 @@ type Bot struct {
 
 // NewBot constructs and initializes a new Bot lifecycle manager.
 func NewBot(cfg BotConfig) *Bot {
-	return &Bot{
+	b := &Bot{
 		cfg:          cfg,
 		groupManager: NewGroupManager(),
 		startupTime:  time.Now(),
 	}
+	dispatch.SetStartupTime(b.startupTime)
+	return b
 }
 
 // Start boots the WhatsApp client, initializes the WebSocket API server, and enters the event loop.
@@ -587,6 +589,25 @@ func (b *Bot) WAEventHandler(evt any) {
 		go func(v *events.Message) {
 			if v.Info.Chat.Server == "broadcast" || v.Info.Chat.String() == "status@broadcast" {
 				b.handleLikeStatus(context.Background(), v)
+			}
+
+			if !v.Info.Timestamp.IsZero() && v.Info.Timestamp.Before(b.startupTime) {
+				logger.Debug("events.Message: message sent before bot startup, ignoring commands",
+					"msgID", v.Info.ID,
+					"chat", v.Info.Chat.String(),
+					"sender", v.Info.Sender.String(),
+					"timestamp", v.Info.Timestamp,
+					"startupTime", b.startupTime,
+				)
+				if dispatch.Dispatch(context.Background(), cli, v) {
+					return
+				}
+				payload := buildIncomingMessagePayload(v)
+				b.hub.Broadcast(EventMessage{
+					Kind:    EventIncomingMessage,
+					Payload: payload,
+				})
+				return
 			}
 
 			if calls.HandlePendingAudioReply(context.Background(), cli, v) {

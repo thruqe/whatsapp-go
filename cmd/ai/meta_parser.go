@@ -261,18 +261,18 @@ func CleanAiResponseText(text string) string {
 	// 1. Strip [SYSTEM CONTEXT: ... ] if echoed by the LLM
 	if start := strings.Index(cleaned, "[SYSTEM CONTEXT:"); start != -1 {
 		sub := cleaned[start:]
-		if end := strings.Index(sub, "\n]"); end != -1 {
-			cleaned = cleaned[:start] + sub[end+2:]
-		} else if end := strings.Index(sub, "]"); end != -1 {
-			cleaned = cleaned[:start] + sub[end+1:]
+		if _, after, ok := strings.Cut(sub, "\n]"); ok {
+			cleaned = cleaned[:start] + after
+		} else if _, after, ok := strings.Cut(sub, "]"); ok {
+			cleaned = cleaned[:start] + after
 		}
 	}
 
 	// 2. Strip [GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]
 	if start := strings.Index(cleaned, "[GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]"); start != -1 {
 		sub := cleaned[start:]
-		if end := strings.Index(sub, "\n\n"); end != -1 {
-			cleaned = cleaned[:start] + sub[end+2:]
+		if _, after, ok := strings.Cut(sub, "\n\n"); ok {
+			cleaned = cleaned[:start] + after
 		}
 	}
 
