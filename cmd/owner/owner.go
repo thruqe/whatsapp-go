@@ -990,6 +990,9 @@ func handleListSudo(ctx *dispatch.Context) error {
 	if ctx.Client.Store.ID != nil {
 		ownerJID := ctx.Client.Store.ID.ToNonAD()
 		resolvedJID, username := ctx.ResolveMention(ownerJID)
+		if username == "" {
+			username = ownerJID.User
+		}
 		tb.Bulletf("@%s (Owner)", username)
 		mentions = append(mentions, resolvedJID)
 	}
@@ -1003,31 +1006,57 @@ func handleListSudo(ctx *dispatch.Context) error {
 			continue
 		}
 
-		sudoerJID, err := types.ParseJID(sdr)
-		if err != nil {
-			// Non-JID token (bare number or username); mark as seen and skip visual display.
-			displayedTokens[sdr] = true
-			continue
-		}
-		sudoerJID = sudoerJID.ToNonAD()
-		if ctx.IsTargetOwner(sudoerJID) {
-			displayedTokens[sdr] = true
-			continue
+		var sudoerJID types.JID
+		var isJID bool
+
+		if strings.Contains(sdr, "@") {
+			if parsed, err := types.ParseJID(sdr); err == nil && parsed.User != "" {
+				sudoerJID = parsed.ToNonAD()
+				isJID = true
+			}
+		} else if clean := strings.TrimPrefix(sdr, "+"); len(clean) >= 5 && isDigits(clean) {
+			sudoerJID = types.NewJID(clean, types.DefaultUserServer)
+			isJID = true
 		}
 
-		resolvedJID, username := ctx.ResolveMention(sudoerJID)
-		tb.Bulletf("@%s", username)
-		mentions = append(mentions, resolvedJID)
+		if isJID {
+			if ctx.IsTargetOwner(sudoerJID) {
+				displayedTokens[sdr] = true
+				continue
+			}
 
-		// Mark all tokens that resolve to the same identity as displayed.
-		allToks, _, _ := resolveUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, sudoerJID)
-		for _, tok := range allToks {
-			displayedTokens[tok] = true
+			resolvedJID, username := ctx.ResolveMention(sudoerJID)
+			if username == "" {
+				username = sudoerJID.User
+			}
+			tb.Bulletf("@%s", username)
+			mentions = append(mentions, resolvedJID)
+
+			// Mark all tokens that resolve to the same identity as displayed.
+			allToks, _, _ := resolveUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, sudoerJID)
+			for _, tok := range allToks {
+				displayedTokens[tok] = true
+			}
+		} else {
+			// Username or custom token (e.g. "thruqe")
+			tb.Bulletf("%s (Username)", sdr)
 		}
 		displayedTokens[sdr] = true
 	}
 
 	return ctx.ReplyWithMentions(tb.String(), mentions)
+}
+
+func isDigits(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func handleBan(ctx *dispatch.Context) error {

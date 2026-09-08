@@ -366,3 +366,60 @@ func TestPluginContext_GetTargets_DM_Fallback(t *testing.T) {
 		t.Errorf("expected GetTargets to resolve explicit arg %v, got %v", explicitUser, targetsArgs)
 	}
 }
+
+func TestGlobalSettingGetter_IsSudoRaw(t *testing.T) {
+	ctx := context.Background()
+
+	botPN := types.NewJID("2348011112222", types.DefaultUserServer)
+	sudoLID := types.NewJID("270613692313713", types.HiddenUserServer)
+	sudoPN := types.NewJID("2348062795602", types.DefaultUserServer)
+
+	// Device store with NO IdentityStore implementing GetSetting
+	devStore := &store.Device{
+		ID: &botPN,
+	}
+	cli := &whatsmeow.Client{
+		Store: devStore,
+	}
+
+	// Register GlobalSettingGetter
+	origGetter := whatsrook.GlobalSettingGetter
+	defer func() { whatsrook.GlobalSettingGetter = origGetter }()
+
+	whatsrook.GlobalSettingGetter = func(ctx context.Context, client *whatsmeow.Client, key string) (string, error) {
+		if key == "sudoers" {
+			return "2348062795602@s.whatsapp.net 270613692313713@lid thruqe", nil
+		}
+		return "", nil
+	}
+
+	// Test 1: sender is LID in sudoers
+	if !whatsrook.IsSudoRaw(ctx, cli, sudoLID) {
+		t.Errorf("expected IsSudoRaw = true for sudoLID via GlobalSettingGetter")
+	}
+
+	// Test 2: sender is PN in sudoers
+	if !whatsrook.IsSudoRaw(ctx, cli, sudoPN) {
+		t.Errorf("expected IsSudoRaw = true for sudoPN via GlobalSettingGetter")
+	}
+
+	// Test 3: PluginContext IsSudo with SenderAlt
+	pctx := &whatsrook.PluginContext{
+		Ctx:    ctx,
+		Client: cli,
+		Sender: sudoLID,
+		Chat:   sudoLID,
+		Evt: &events.Message{
+			Info: types.MessageInfo{
+				Chat:      sudoLID,
+				Sender:    sudoLID,
+				SenderAlt: sudoPN,
+				PushName:  "Whatsrook",
+			},
+			Message: &waE2E.Message{},
+		},
+	}
+	if !pctx.IsSudo() {
+		t.Errorf("expected pctx.IsSudo() = true for sudo user via GlobalSettingGetter")
+	}
+}
