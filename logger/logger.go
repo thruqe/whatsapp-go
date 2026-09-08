@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"maps"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"go.uber.org/zap"
+	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
 
 	waLog "go.mau.fi/whatsmeow/util/log"
@@ -264,31 +267,245 @@ func (c *hookCore) Sync() error {
 // Encoders & Default Logger
 // ─────────────────────────────────────────────────────────────
 
-func newConsoleEncoder(color bool) zapcore.Encoder {
-	cfg := zapcore.EncoderConfig{
-		TimeKey:        "time",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "",
-		FunctionKey:    "",
-		MessageKey:     "msg",
-		StacktraceKey:  "stacktrace",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.CapitalLevelEncoder,
-		EncodeTime:     customTimeEncoder,
-		EncodeDuration: zapcore.StringDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
+func shouldColorize() bool {
+	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
+		return false
 	}
-
-	if color {
-		cfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	}
-
-	return zapcore.NewConsoleEncoder(cfg)
+	return true
 }
 
-func customTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-	enc.AppendString(t.Format("15:04:05.000"))
+func customLevelEncoder(color bool) zapcore.LevelEncoder {
+	return func(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
+		var s string
+		switch l {
+		case zapcore.DebugLevel:
+			if color {
+				s = "\x1b[35mDEBUG\x1b[0m"
+			} else {
+				s = "DEBUG"
+			}
+		case zapcore.InfoLevel:
+			if color {
+				s = "\x1b[32mINFO \x1b[0m"
+			} else {
+				s = "INFO "
+			}
+		case zapcore.WarnLevel:
+			if color {
+				s = "\x1b[33mWARN \x1b[0m"
+			} else {
+				s = "WARN "
+			}
+		case zapcore.ErrorLevel:
+			if color {
+				s = "\x1b[31mERROR\x1b[0m"
+			} else {
+				s = "ERROR"
+			}
+		case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
+			if color {
+				s = "\x1b[1;31mFATAL\x1b[0m"
+			} else {
+				s = "FATAL"
+			}
+		default:
+			s = fmt.Sprintf("%-5s", l.CapitalString())
+		}
+		enc.AppendString(s)
+	}
+}
+
+func customTimeEncoder(color bool) zapcore.TimeEncoder {
+	return func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+		formatted := t.Format("15:04:05.000")
+		if color {
+			enc.AppendString("\x1b[90m" + formatted + "\x1b[0m")
+		} else {
+			enc.AppendString(formatted)
+		}
+	}
+}
+
+func customNameEncoder(color bool) zapcore.NameEncoder {
+	return func(s string, enc zapcore.PrimitiveArrayEncoder) {
+		if s == "" {
+			return
+		}
+		if color {
+			enc.AppendString("\x1b[36m[" + s + "]\x1b[0m")
+		} else {
+			enc.AppendString("[" + s + "]")
+		}
+	}
+}
+
+type cleanConsoleEncoder struct {
+	zapcore.Encoder
+	color bool
+}
+
+func (c *cleanConsoleEncoder) Clone() zapcore.Encoder {
+	return &cleanConsoleEncoder{
+		Encoder: c.Encoder.Clone(),
+		color:   c.color,
+	}
+}
+
+func (c *cleanConsoleEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
+	buf, err := c.Encoder.EncodeEntry(ent, fields)
+	if err != nil || buf == nil {
+		return buf, err
+	}
+
+	b := buf.Bytes()
+	if len(b) == 0 {
+		return buf, nil
+	}
+
+	var stack string
+	mainLine := b
+	if ent.Stack != "" {
+		stackTag := []byte("\n" + ent.Stack)
+		if idx := bytes.LastIndex(b, stackTag); idx != -1 {
+			stack = ent.Stack
+			mainLine = b[:idx]
+		}
+	} else {
+		mainLine = bytes.TrimRight(mainLine, "\r\n")
+	}
+
+	lastBrace := bytes.LastIndexByte(mainLine, '}')
+	if lastBrace == -1 {
+		return buf, nil
+	}
+
+	sepBrace := bytes.LastIndex(mainLine[:lastBrace+1], []byte("  {"))
+	if sepBrace == -1 {
+		return buf, nil
+	}
+
+	jsonBytes := mainLine[sepBrace+2 : lastBrace+1]
+	var fieldsMap map[string]any
+	if err := json.Unmarshal(jsonBytes, &fieldsMap); err != nil || len(fieldsMap) == 0 {
+		return buf, nil
+	}
+
+	prefix := make([]byte, sepBrace)
+	copy(prefix, mainLine[:sepBrace])
+
+	formattedFields := formatCleanFields(fieldsMap, c.color)
+
+	buf.Reset()
+	buf.Write(prefix)
+	if formattedFields != "" {
+		buf.AppendString("  ")
+		buf.AppendString(formattedFields)
+	}
+	if stack != "" {
+		buf.AppendString(zapcore.DefaultLineEnding)
+		buf.AppendString(stack)
+	}
+	buf.AppendString(zapcore.DefaultLineEnding)
+
+	return buf, nil
+}
+
+func formatCleanFields(fields map[string]any, color bool) string {
+	keys := make([]string, 0, len(fields))
+	for k := range fields {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var sb strings.Builder
+	for i, k := range keys {
+		if i > 0 {
+			sb.WriteByte(' ')
+		}
+		if color {
+			if k == "err" || k == "error" {
+				sb.WriteString("\x1b[31m" + k + "\x1b[0m=")
+			} else {
+				sb.WriteString("\x1b[36m" + k + "\x1b[0m=")
+			}
+		} else {
+			sb.WriteString(k + "=")
+		}
+
+		val := fields[k]
+		sb.WriteString(formatFieldValue(val, color))
+	}
+	return sb.String()
+}
+
+func formatFieldValue(val any, color bool) string {
+	if val == nil {
+		if color {
+			return "\x1b[90mnull\x1b[0m"
+		}
+		return "null"
+	}
+	switch v := val.(type) {
+	case string:
+		if needsQuotes(v) {
+			return strconv.Quote(v)
+		}
+		return v
+	case bool:
+		if v {
+			return "true"
+		}
+		return "false"
+	case float64:
+		if v == float64(int64(v)) {
+			return strconv.FormatInt(int64(v), 10)
+		}
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("%v", v)
+		}
+		return string(b)
+	}
+}
+
+func needsQuotes(s string) bool {
+	if len(s) == 0 {
+		return true
+	}
+	for _, r := range s {
+		if r <= ' ' || r == '"' || r == '\\' || r == '=' {
+			return true
+		}
+	}
+	return false
+}
+
+func newConsoleEncoder(color bool) zapcore.Encoder {
+	useColor := color && shouldColorize()
+	cfg := zapcore.EncoderConfig{
+		TimeKey:          "time",
+		LevelKey:         "level",
+		NameKey:          "logger",
+		CallerKey:        "",
+		FunctionKey:      "",
+		MessageKey:       "msg",
+		StacktraceKey:    "stacktrace",
+		LineEnding:       zapcore.DefaultLineEnding,
+		ConsoleSeparator: "  ",
+		EncodeLevel:      customLevelEncoder(useColor),
+		EncodeTime:       customTimeEncoder(useColor),
+		EncodeName:       customNameEncoder(useColor),
+		EncodeDuration:   zapcore.StringDurationEncoder,
+		EncodeCaller:     zapcore.ShortCallerEncoder,
+	}
+
+	enc := zapcore.NewConsoleEncoder(cfg)
+	return &cleanConsoleEncoder{
+		Encoder: enc,
+		color:   useColor,
+	}
 }
 
 func newDefaultLogger(lvl zapcore.LevelEnabler, w io.Writer) *zap.Logger {
