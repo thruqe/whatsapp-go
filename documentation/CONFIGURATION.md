@@ -6,15 +6,16 @@ whatsrook can be configured using environment variables from a `.env` file or th
 
 | Variable       | Option / Command  | Default   | Description                                                                                                           |
 | -------------- | ----------------- | --------- | --------------------------------------------------------------------------------------------------------------------- |
-| `SESSION`      | `<phone>`         | —         | Session identifier / phone number with country code. Can appear anywhere in the argument list.                       |
-| `AUTH`         | `auth <pair\|qr>` | `qr`      | Authentication method: `pair` or `qr`. Standalone `pair` or `qr` is also accepted.                                   |
-| `CLIENT`       | `client <type>`   | `default` | Target client identity platform: `default` (chrome), `android`, `ios`.                                                |
-| `DATABASE_URL` | `db <url>`        | `default` | Database: `default` (sqlite) or a PostgreSQL connection string (`postgres://user:pass@host:5432/db?sslmode=disable`). |
-| `LOGOUT`       | `logout`          | `false`   | Remove session credentials and exit.                                                                                  |
-| —              | `update [action]` | —         | Check or apply an update. Accepts `check`, `stable`, `beta`, or no action for direct update.                          |
-| `VERBOSE`      | `verbose`         | `false`   | Enable verbose debug logging.                                                                                         |
-| —              | `version`         | —         | Print version and exit.                                                                                               |
-| —              | `help`            | —         | Show help message.                                                                                                    |
+| `SESSION`      | `<phone>`             | —                                                               | Session identifier / phone number with country code.                                  |
+| `AUTH`         | `auth <pair\|qr>`     | `qr`                                                            | Authentication method: `pair` or `qr`. Standalone `pair` or `qr` is also accepted.    |
+| `CLIENT`       | `client <type>`       | `default`                                                       | Target client identity platform: `default` (chrome), `android`, `ios`.                 |
+| `DATABASE_URL` | `db <url>`            | `postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable` | Database: PostgreSQL connection URL.                                                   |
+| `AUTOUPDATE`   | `autoupdate <on\|off>`| `off`                                                           | Toggle automatic update checks and restarts on launch (`on` or `off`).                |
+| `LOGOUT`       | `logout`              | `false`                                                         | Remove session credentials and exit.                                                  |
+| —              | `update [action]`     | —                                                               | Check or apply an update. Accepts `check`, `stable`, `beta`, or direct update.        |
+| `VERBOSE`      | `verbose`             | `false`                                                         | Enable verbose debug logging.                                                         |
+| —              | `version`             | —                                                               | Print version and exit.                                                               |
+| —              | `help`                | —                                                               | Show help message.                                                                    |
 
 A `.env` file is loaded automatically from the current directory or the parent directory (`.env`, `../.env`) before flags are parsed. Existing environment variables take precedence over values in `.env`.
 

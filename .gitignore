@@ -1,5 +1,7 @@
 bin/
 *.env
+.env
+!.env.example
 *.syso
 
 # Session and local auth directories
