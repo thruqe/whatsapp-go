@@ -539,6 +539,26 @@ func (b *Bot) WAEventHandler(evt any) {
 	case *events.PairSuccess:
 		logger.Info("pairing completed successfully", "event", v)
 		broadcast(simpleEvent(EventPairSuccess))
+		// After QR pairing, WhatsApp drops the pairing socket via stream:error 516.
+		// PairSuccess fires while the socket is still alive, so we must wait for the
+		// disconnect before calling Connect() — whatsmeow does not emit events.Disconnected
+		// for expected pair-drops, so we poll IsConnected() with a short deadline instead.
+		go func() {
+			cli := b.client.WAClient()
+			if cli == nil {
+				return
+			}
+			deadline := time.Now().Add(5 * time.Second)
+			for time.Now().Before(deadline) {
+				if !cli.IsConnected() {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+			if err := cli.Connect(); err != nil {
+				logger.Error("failed to reconnect after QR pairing", "err", err)
+			}
+		}()
 
 	case *events.PairError:
 		logger.Warn("pairing procedure failed", "err", v.Error, "event", v)
