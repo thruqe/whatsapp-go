@@ -622,9 +622,12 @@ func (c *Client) PairPhone(ctx context.Context, phone string) (string, error) {
 	switch c.Config.ClientType {
 	case ClientAndroid:
 		clientType = whatsmeow.PairClientAndroid
-		displayName = "Android"
+		// WhatsApp server strictly requires companion_platform_display formatted as "Browser (OS)",
+		// otherwise link_code_companion_reg fails with "400: bad-request".
+		displayName = "Chrome (" + osName + ")"
 	case ClientIos:
-		displayName = "iOS"
+		clientType = whatsmeow.PairClientSafari
+		displayName = "Safari (macOS)"
 	}
 
 	if !cli.IsConnected() {
