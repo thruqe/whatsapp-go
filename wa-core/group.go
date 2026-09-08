@@ -1006,7 +1006,7 @@ func (cli *Client) parseGroupChangeWithUsernames(node *waBinary.Node) (*events.G
 		case "unlocked":
 			evt.Locked = &types.GroupLocked{IsLocked: false}
 		case "delete":
-			evt.Delete = &types.GroupDelete{Deleted: true, DeleteReason: cag.String("reason")}
+			evt.Delete = &types.GroupDelete{Deleted: true, DeleteReason: cag.OptionalString("reason")}
 		case "subject":
 			evt.Name = &types.GroupName{
 				Name:        cag.String("subject"),
