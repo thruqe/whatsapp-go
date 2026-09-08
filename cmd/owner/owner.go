@@ -669,9 +669,17 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 	case types.HiddenUserServer:
 		lidJID = nonAD
 		// Resolve LID → PN from the LID store.
-		if client.Store != nil && client.Store.LIDs != nil {
+		if client != nil && client.Store != nil && client.Store.LIDs != nil {
 			if pn, err := client.Store.LIDs.GetPNForLID(ctx, nonAD); err == nil && !pn.IsEmpty() {
 				pnJID = pn.ToNonAD()
+			}
+		}
+		// Fallback: check recent message store for SenderAlt
+		if pnJID.IsEmpty() {
+			if recent := utils.GetRecentMessageForJID(nonAD); recent != nil && !recent.Info.SenderAlt.IsEmpty() && recent.Info.SenderAlt.Server == types.DefaultUserServer {
+				pnJID = recent.Info.SenderAlt.ToNonAD()
+			} else if recent := utils.GetRecentMessageForJID(chat); recent != nil && !recent.Info.SenderAlt.IsEmpty() && recent.Info.SenderAlt.Server == types.DefaultUserServer {
+				pnJID = recent.Info.SenderAlt.ToNonAD()
 			}
 		}
 		// Fallback: query group participants to find the PN for this LID.
@@ -686,16 +694,32 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 				}
 			}
 		}
+		// Fallback: query GetUserInfo
+		if pnJID.IsEmpty() && client != nil {
+			if uMap, err := client.GetUserInfo(ctx, []types.JID{nonAD}); err == nil && uMap != nil {
+				if uInfo, ok := uMap[nonAD]; ok && !uInfo.LID.IsEmpty() && uInfo.LID != nonAD {
+					pnJID = uInfo.LID.ToNonAD()
+				}
+			}
+		}
 		// Persist the discovered LID↔PN mapping.
-		if !pnJID.IsEmpty() && client.Store != nil && client.Store.LIDs != nil {
+		if !pnJID.IsEmpty() && client != nil && client.Store != nil && client.Store.LIDs != nil {
 			_ = client.Store.LIDs.PutLIDMapping(ctx, lidJID, pnJID)
 		}
 	default:
 		pnJID = nonAD
 		// Resolve PN → LID from the LID store.
-		if client.Store != nil && client.Store.LIDs != nil {
+		if client != nil && client.Store != nil && client.Store.LIDs != nil {
 			if lid, err := client.Store.LIDs.GetLIDForPN(ctx, nonAD); err == nil && !lid.IsEmpty() {
 				lidJID = lid.ToNonAD()
+			}
+		}
+		// Fallback: check recent message store
+		if lidJID.IsEmpty() {
+			if recent := utils.GetRecentMessageForJID(nonAD); recent != nil && recent.Info.Sender.Server == types.HiddenUserServer {
+				lidJID = recent.Info.Sender.ToNonAD()
+			} else if recent := utils.GetRecentMessageForJID(chat); recent != nil && recent.Info.Sender.Server == types.HiddenUserServer {
+				lidJID = recent.Info.Sender.ToNonAD()
 			}
 		}
 		// Fallback: query group participants.
@@ -710,8 +734,16 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 				}
 			}
 		}
+		// Fallback: query GetUserInfo
+		if lidJID.IsEmpty() && client != nil {
+			if uMap, err := client.GetUserInfo(ctx, []types.JID{nonAD}); err == nil && uMap != nil {
+				if uInfo, ok := uMap[nonAD]; ok && !uInfo.LID.IsEmpty() {
+					lidJID = uInfo.LID.ToNonAD()
+				}
+			}
+		}
 		// Persist the discovered LID↔PN mapping.
-		if !lidJID.IsEmpty() && client.Store != nil && client.Store.LIDs != nil {
+		if !lidJID.IsEmpty() && client != nil && client.Store != nil && client.Store.LIDs != nil {
 			_ = client.Store.LIDs.PutLIDMapping(ctx, lidJID, pnJID)
 		}
 	}
@@ -733,7 +765,7 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 	}
 
 	// Resolve username / contact push name.
-	if client.Store != nil && client.Store.Contacts != nil {
+	if client != nil && client.Store != nil && client.Store.Contacts != nil {
 		lookupJID := pnJID
 		if lookupJID.IsEmpty() {
 			lookupJID = lidJID
@@ -749,6 +781,13 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 				}
 			}
 		}
+	}
+
+	// Fallback to recent message push name
+	if recent := utils.GetRecentMessageForJID(nonAD); recent != nil && recent.Info.PushName != "" {
+		add(strings.ToLower(recent.Info.PushName))
+	} else if recent := utils.GetRecentMessageForJID(chat); recent != nil && recent.Info.PushName != "" {
+		add(strings.ToLower(recent.Info.PushName))
 	}
 
 	// If we have no tokens at all, fall back to the raw non-AD string.
@@ -826,12 +865,11 @@ func handleSetSudo(ctx *dispatch.Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
-	_, hasQuoted := ctx.GetQuotedSender()
-	if (len(ctx.Args) == 0 && !hasQuoted && len(ctx.GetMentionedJIDs()) == 0) || len(ctx.GetTargets()) == 0 {
+	targets := ctx.GetTargets()
+	if len(targets) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage:\n- %ssetsudo @user\n- %ssetsudo 1234567890\n- Reply to a user's message with %ssetsudo", p, p, p)
 	}
-	targets := ctx.GetTargets()
 
 	s, ok := dispatch.GetStore(ctx)
 	if !ok {
@@ -849,19 +887,22 @@ func handleSetSudo(ctx *dispatch.Context) error {
 
 	for _, target := range targets {
 		newTokens, mentionJID, displayUser := resolveUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, target)
-		alreadyAdded := false
+		var addedThisTarget bool
 		for _, tok := range newTokens {
-			if slices.Contains(sudoers, tok) {
-				alreadyAdded = true
-				break
+			if !slices.Contains(sudoers, tok) {
+				sudoers = append(sudoers, tok)
+				addedThisTarget = true
 			}
+			_ = s.PutSetting(ctx.Ctx, "sudo:"+tok, "true")
 		}
-		if alreadyAdded {
-			continue
+		if !target.IsEmpty() {
+			_ = s.PutSetting(ctx.Ctx, "sudo:"+target.ToNonAD().String(), "true")
+			_ = s.PutSetting(ctx.Ctx, "sudo:"+target.ToNonAD().User, "true")
 		}
-		sudoers = append(sudoers, newTokens...)
-		addedJIDs = append(addedJIDs, mentionJID)
-		displayNames = append(displayNames, "@"+displayUser)
+		if addedThisTarget {
+			addedJIDs = append(addedJIDs, mentionJID)
+			displayNames = append(displayNames, "@"+displayUser)
+		}
 	}
 
 	if len(addedJIDs) == 0 {
@@ -884,12 +925,11 @@ func handleDelSudo(ctx *dispatch.Context) error {
 		return ctx.Reply("Only the bot owner can remove users from the sudo list.")
 	}
 
-	_, hasQuoted := ctx.GetQuotedSender()
-	if (len(ctx.Args) == 0 && !hasQuoted && len(ctx.GetMentionedJIDs()) == 0) || len(ctx.GetTargets()) == 0 {
+	targets := ctx.GetTargets()
+	if len(targets) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage:\n- %sdelsudo @user\n- %sdelsudo 1234567890\n- Reply to a user's message with %sdelsudo", p, p, p)
 	}
-	targets := ctx.GetTargets()
 	if slices.ContainsFunc(targets, ctx.IsTargetOwner) {
 		return ctx.Reply("⚠️ Cannot remove the bot owner from sudoers.")
 	}
@@ -909,6 +949,15 @@ func handleDelSudo(ctx *dispatch.Context) error {
 
 	if len(removedJIDs) == 0 {
 		return ctx.Reply("Target(s) not found in the sudo list.")
+	}
+
+	for _, target := range targets {
+		toks, _, _ := resolveUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, target)
+		for _, tok := range toks {
+			_ = s.DeleteSetting(ctx.Ctx, "sudo:"+tok)
+		}
+		_ = s.DeleteSetting(ctx.Ctx, "sudo:"+target.ToNonAD().String())
+		_ = s.DeleteSetting(ctx.Ctx, "sudo:"+target.ToNonAD().User)
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(newSudoers, " ")); err != nil {
@@ -1016,20 +1065,22 @@ func handleBan(ctx *dispatch.Context) error {
 		}
 
 		newTokens, mentionJID, displayUser := resolveUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, target)
-		alreadyBanned := false
+		var addedThisTarget bool
 		for _, tok := range newTokens {
-			if slices.Contains(bannedUsers, tok) {
-				alreadyBanned = true
-				break
+			if !slices.Contains(bannedUsers, tok) {
+				bannedUsers = append(bannedUsers, tok)
+				addedThisTarget = true
 			}
+			_ = s.PutSetting(ctx.Ctx, "ban:"+tok, "true")
 		}
-		if alreadyBanned {
-			continue
+		if !target.IsEmpty() {
+			_ = s.PutSetting(ctx.Ctx, "ban:"+target.ToNonAD().String(), "true")
+			_ = s.PutSetting(ctx.Ctx, "ban:"+target.ToNonAD().User, "true")
 		}
-
-		bannedUsers = append(bannedUsers, newTokens...)
-		bannedJIDs = append(bannedJIDs, mentionJID)
-		displayNames = append(displayNames, "@"+displayUser)
+		if addedThisTarget {
+			bannedJIDs = append(bannedJIDs, mentionJID)
+			displayNames = append(displayNames, "@"+displayUser)
+		}
 	}
 
 	if len(bannedJIDs) == 0 {
@@ -1069,6 +1120,15 @@ func handleUnban(ctx *dispatch.Context) error {
 
 	if len(unbannedJIDs) == 0 {
 		return ctx.Reply("Target(s) not found in the banned list.")
+	}
+
+	for _, target := range targets {
+		toks, _, _ := resolveUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, target)
+		for _, tok := range toks {
+			_ = s.DeleteSetting(ctx.Ctx, "ban:"+tok)
+		}
+		_ = s.DeleteSetting(ctx.Ctx, "ban:"+target.ToNonAD().String())
+		_ = s.DeleteSetting(ctx.Ctx, "ban:"+target.ToNonAD().User)
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "banned_users", strings.Join(newBanned, " ")); err != nil {

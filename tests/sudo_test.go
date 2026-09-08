@@ -247,3 +247,122 @@ func TestDispatchPollVoteEvent_Wiring(t *testing.T) {
 		t.Errorf("expected false for non-poll message")
 	}
 }
+
+func TestPluginContext_LID_And_SenderAlt_IsSudo(t *testing.T) {
+	ctx := context.Background()
+
+	botPN := types.NewJID("2348011112222", types.DefaultUserServer)
+	botLID := types.NewJID("1000000000001", types.HiddenUserServer)
+	sudoPN := types.NewJID("2348060598064", types.DefaultUserServer)
+	sudoLID := types.NewJID("258256953950323", types.HiddenUserServer)
+
+	mockStore := &mockIdentityStore{
+		settings: map[string]string{
+			"sudoers": "2348060598064@s.whatsapp.net thruqe",
+		},
+	}
+
+	devStore := &store.Device{
+		ID:         &botPN,
+		LID:        botLID,
+		Identities: mockStore,
+	}
+	cli := &whatsmeow.Client{
+		Store: devStore,
+	}
+
+	// Message arriving from an LID sender where SenderAlt is the sudo PN
+	pctx := &whatsrook.PluginContext{
+		Ctx:    ctx,
+		Client: cli,
+		Sender: sudoLID,
+		Chat:   sudoLID,
+		Evt: &events.Message{
+			Info: types.MessageInfo{
+				Chat:      sudoLID,
+				Sender:    sudoLID,
+				SenderAlt: sudoPN,
+				PushName:  "thruqe",
+			},
+			Message: &waE2E.Message{},
+		},
+	}
+
+	if !pctx.IsSudo() {
+		t.Errorf("expected IsSudo() = true for LID sender when SenderAlt matches sudoer")
+	}
+
+	// Message arriving where Sender is LID and only PushName matches sudoer
+	unknownLID := types.NewJID("9999999999999", types.HiddenUserServer)
+	pctxPushName := &whatsrook.PluginContext{
+		Ctx:    ctx,
+		Client: cli,
+		Sender: unknownLID,
+		Chat:   unknownLID,
+		Evt: &events.Message{
+			Info: types.MessageInfo{
+				Chat:     unknownLID,
+				Sender:   unknownLID,
+				PushName: "thruqe",
+			},
+			Message: &waE2E.Message{},
+		},
+	}
+
+	if !pctxPushName.IsSudo() {
+		t.Errorf("expected IsSudo() = true for user when PushName matches sudoer")
+	}
+}
+
+func TestPluginContext_GetTargets_DM_Fallback(t *testing.T) {
+	botPN := types.NewJID("2348011112222", types.DefaultUserServer)
+	botLID := types.NewJID("1000000000001", types.HiddenUserServer)
+	targetUser := types.NewJID("2348060598064", types.DefaultUserServer)
+
+	devStore := &store.Device{
+		ID:  &botPN,
+		LID: botLID,
+	}
+	cli := &whatsmeow.Client{
+		Store: devStore,
+	}
+
+	// 1. In a DM chat without args or quote, GetTargets resolves to Chat and populates Args
+	pctxDM := &whatsrook.PluginContext{
+		Client: cli,
+		Chat:   targetUser,
+		Sender: targetUser,
+		Args:   []string{},
+	}
+	targets := pctxDM.GetTargets()
+	if len(targets) != 1 || targets[0] != targetUser {
+		t.Fatalf("expected GetTargets to resolve to %v in DM, got %v", targetUser, targets)
+	}
+	if len(pctxDM.Args) != 1 || pctxDM.Args[0] != targetUser.String() {
+		t.Errorf("expected Args to be populated with %q, got %v", targetUser.String(), pctxDM.Args)
+	}
+
+	// 2. In a group chat without args or quote, GetTargets returns nil
+	groupChat := types.NewJID("120363000000001", types.GroupServer)
+	pctxGroup := &whatsrook.PluginContext{
+		Client: cli,
+		Chat:   groupChat,
+		Sender: targetUser,
+		Args:   []string{},
+	}
+	if targetsGroup := pctxGroup.GetTargets(); len(targetsGroup) != 0 {
+		t.Errorf("expected GetTargets to return nil in group chat, got %v", targetsGroup)
+	}
+
+	// 3. With explicit args, GetTargets resolves the arg JID
+	explicitUser := types.NewJID("2348099991111", types.DefaultUserServer)
+	pctxArgs := &whatsrook.PluginContext{
+		Client: cli,
+		Chat:   groupChat,
+		Sender: targetUser,
+		Args:   []string{"2348099991111"},
+	}
+	if targetsArgs := pctxArgs.GetTargets(); len(targetsArgs) != 1 || targetsArgs[0] != explicitUser {
+		t.Errorf("expected GetTargets to resolve explicit arg %v, got %v", explicitUser, targetsArgs)
+	}
+}

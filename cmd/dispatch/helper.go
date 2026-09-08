@@ -13,6 +13,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
+	utils "whatsrook"
 	"whatsrook/cmd/store"
 )
 
@@ -129,7 +130,13 @@ func RecordRecentMessage(evt *events.Message) {
 	if evt == nil {
 		return
 	}
+	utils.RecordRecentMessage(evt)
 	recentMessages.mu.Lock()
 	defer recentMessages.mu.Unlock()
 	recentMessages.messages[evt.Info.Chat] = evt
+}
+
+// GetRecentMessageForJID retrieves the most recent message associated with a JID.
+func GetRecentMessageForJID(jid types.JID) *events.Message {
+	return utils.GetRecentMessageForJID(jid)
 }

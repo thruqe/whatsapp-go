@@ -1291,6 +1291,53 @@ func IsBotAdminRaw(ctx context.Context, client *whatsmeow.Client, groupInfo *typ
 	return false
 }
 
+// RecentMessageStore caches recent incoming messages for call responses, target resolution, and LID mapping lookups.
+type RecentMessageStore struct {
+	mu       sync.RWMutex
+	messages map[types.JID]*events.Message
+}
+
+var GlobalRecentMessages = &RecentMessageStore{
+	messages: make(map[types.JID]*events.Message),
+}
+
+// RecordRecentMessage caches an incoming message event indexed by its chat and sender JIDs.
+func RecordRecentMessage(evt *events.Message) {
+	if evt == nil {
+		return
+	}
+	GlobalRecentMessages.mu.Lock()
+	defer GlobalRecentMessages.mu.Unlock()
+	if !evt.Info.Chat.IsEmpty() {
+		GlobalRecentMessages.messages[evt.Info.Chat.ToNonAD()] = evt
+	}
+	if !evt.Info.Sender.IsEmpty() {
+		GlobalRecentMessages.messages[evt.Info.Sender.ToNonAD()] = evt
+	}
+	if !evt.Info.SenderAlt.IsEmpty() {
+		GlobalRecentMessages.messages[evt.Info.SenderAlt.ToNonAD()] = evt
+	}
+}
+
+// GetRecentMessageForJID retrieves the most recent message associated with a JID.
+func GetRecentMessageForJID(jid types.JID) *events.Message {
+	if jid.IsEmpty() {
+		return nil
+	}
+	GlobalRecentMessages.mu.RLock()
+	defer GlobalRecentMessages.mu.RUnlock()
+	jidNonAD := jid.ToNonAD()
+	if evt, ok := GlobalRecentMessages.messages[jidNonAD]; ok {
+		return evt
+	}
+	for k, v := range GlobalRecentMessages.messages {
+		if v != nil && (k.User == jidNonAD.User || v.Info.Sender.ToNonAD().User == jidNonAD.User || v.Info.SenderAlt.ToNonAD().User == jidNonAD.User) {
+			return v
+		}
+	}
+	return nil
+}
+
 // IsSudoRaw checks if a sender JID has sudo/owner privileges stored in database settings or environment.
 func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) bool {
 	if client == nil || sender.IsEmpty() {
@@ -1350,6 +1397,11 @@ func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) 
 						}
 					}
 				}
+				if senderPushName == "" {
+					if recent := GetRecentMessageForJID(sender); recent != nil && recent.Info.PushName != "" {
+						senderPushName = strings.ToLower(recent.Info.PushName)
+					}
+				}
 
 				for sudoerStr := range strings.FieldsSeq(raw) {
 					cleanSudoer := strings.TrimPrefix(sudoerStr, "+")
@@ -1374,6 +1426,17 @@ func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) 
 			// Backward compatibility fallback for per-JID key
 			if val, err := s.GetSetting(ctx, "sudo:"+sender.ToNonAD().String()); err == nil && val == "true" {
 				return true
+			}
+			if val, err := s.GetSetting(ctx, "sudo:"+sender.ToNonAD().User); err == nil && val == "true" {
+				return true
+			}
+			if recent := GetRecentMessageForJID(sender); recent != nil && !recent.Info.SenderAlt.IsEmpty() {
+				if val, err := s.GetSetting(ctx, "sudo:"+recent.Info.SenderAlt.ToNonAD().String()); err == nil && val == "true" {
+					return true
+				}
+				if val, err := s.GetSetting(ctx, "sudo:"+recent.Info.SenderAlt.ToNonAD().User); err == nil && val == "true" {
+					return true
+				}
 			}
 		}
 	}
@@ -1425,6 +1488,24 @@ func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID
 		}
 	}
 
+	// Fallback to recent messages for LID->PN resolution if LID store lookup was empty
+	if a.Server == types.HiddenUserServer && aPN == a {
+		if recent := GetRecentMessageForJID(a); recent != nil && !recent.Info.SenderAlt.IsEmpty() && recent.Info.SenderAlt.Server == types.DefaultUserServer {
+			aPN = recent.Info.SenderAlt.ToNonAD()
+			if client != nil && client.Store != nil && client.Store.LIDs != nil {
+				_ = client.Store.LIDs.PutLIDMapping(ctx, a, aPN)
+			}
+		}
+	}
+	if b.Server == types.HiddenUserServer && bPN == b {
+		if recent := GetRecentMessageForJID(b); recent != nil && !recent.Info.SenderAlt.IsEmpty() && recent.Info.SenderAlt.Server == types.DefaultUserServer {
+			bPN = recent.Info.SenderAlt.ToNonAD()
+			if client != nil && client.Store != nil && client.Store.LIDs != nil {
+				_ = client.Store.LIDs.PutLIDMapping(ctx, b, bPN)
+			}
+		}
+	}
+
 	if !aPN.IsEmpty() && !bPN.IsEmpty() && (aPN == bPN || (aPN.Server == bPN.Server && aPN.User == bPN.User)) {
 		return true
 	}
@@ -1441,6 +1522,28 @@ func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID
 		if lid, err := client.Store.LIDs.GetLIDForPN(ctx, b); err == nil && !lid.IsEmpty() {
 			bLID = lid.ToNonAD()
 		}
+	}
+
+	// Fallback to recent messages for PN->LID resolution
+	if a.Server == types.DefaultUserServer && aLID == a {
+		if recent := GetRecentMessageForJID(a); recent != nil && recent.Info.Sender.Server == types.HiddenUserServer {
+			aLID = recent.Info.Sender.ToNonAD()
+			if client != nil && client.Store != nil && client.Store.LIDs != nil {
+				_ = client.Store.LIDs.PutLIDMapping(ctx, aLID, a)
+			}
+		}
+	}
+	if b.Server == types.DefaultUserServer && bLID == b {
+		if recent := GetRecentMessageForJID(b); recent != nil && recent.Info.Sender.Server == types.HiddenUserServer {
+			bLID = recent.Info.Sender.ToNonAD()
+			if client != nil && client.Store != nil && client.Store.LIDs != nil {
+				_ = client.Store.LIDs.PutLIDMapping(ctx, bLID, b)
+			}
+		}
+	}
+
+	if !aLID.IsEmpty() && !bLID.IsEmpty() && (aLID == bLID || (aLID.Server == bLID.Server && aLID.User == bLID.User)) {
+		return true
 	}
 
 	return !aLID.IsEmpty() && !bLID.IsEmpty() && (aLID == bLID || (aLID.Server == bLID.Server && aLID.User == bLID.User))
@@ -2594,6 +2697,14 @@ func (c *PluginContext) IsOwner() bool {
 	if !c.Client.Store.LID.IsEmpty() && IsSameUserRaw(c.GetSendContext(), c.Client, c.Sender, c.Client.Store.LID) {
 		return true
 	}
+	if c.Evt != nil && !c.Evt.Info.SenderAlt.IsEmpty() {
+		if c.Client.Store.ID != nil && !c.Client.Store.ID.IsEmpty() && IsSameUserRaw(c.GetSendContext(), c.Client, c.Evt.Info.SenderAlt, *c.Client.Store.ID) {
+			return true
+		}
+		if !c.Client.Store.LID.IsEmpty() && IsSameUserRaw(c.GetSendContext(), c.Client, c.Evt.Info.SenderAlt, c.Client.Store.LID) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -2605,7 +2716,32 @@ func (c *PluginContext) IsSudo() bool {
 	if c.IsOwner() {
 		return true
 	}
-	return IsSudoRaw(c.GetSendContext(), c.Client, c.Sender)
+	if IsSudoRaw(c.GetSendContext(), c.Client, c.Sender) {
+		return true
+	}
+	if c.Evt != nil {
+		if !c.Evt.Info.SenderAlt.IsEmpty() {
+			if IsSudoRaw(c.GetSendContext(), c.Client, c.Evt.Info.SenderAlt) {
+				c.Client.StoreLIDPNMapping(c.GetSendContext(), c.Evt.Info.SenderAlt, c.Sender)
+				return true
+			}
+		}
+		if c.Evt.Info.PushName != "" {
+			if s, okStore := c.Client.Store.Identities.(interface {
+				GetSetting(ctx context.Context, key string) (string, error)
+			}); okStore {
+				if raw, err := s.GetSetting(c.GetSendContext(), "sudoers"); err == nil && raw != "" {
+					pushLower := strings.ToLower(strings.TrimSpace(c.Evt.Info.PushName))
+					for sudoerStr := range strings.FieldsSeq(raw) {
+						if strings.EqualFold(sudoerStr, pushLower) {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 // GetQuotedMessage returns the quoted message proto if the triggering message is a reply.
@@ -2627,8 +2763,17 @@ func (c *PluginContext) GetQuotedSender() (types.JID, bool) {
 	}
 	ci := GetContextInfoFromProto(c.Evt.Message)
 	if ci != nil && ci.Participant != nil && *ci.Participant != "" {
-		if parsed, err := types.ParseJID(*ci.Participant); err == nil {
-			return parsed, true
+		if parsed, err := types.ParseJID(*ci.Participant); err == nil && !parsed.IsEmpty() {
+			return parsed.ToNonAD(), true
+		}
+	}
+	// Fallback for 1-on-1 (DM) replies where Participant may be omitted by WhatsApp clients:
+	if ci != nil && ci.QuotedMessage != nil && !c.Chat.IsEmpty() && c.Chat.Server != "g.us" && c.Chat.Server != "broadcast" {
+		if c.Evt.Info.IsFromMe {
+			return c.Chat.ToNonAD(), true
+		}
+		if c.Client != nil && c.Client.Store != nil && c.Client.Store.ID != nil {
+			return c.Client.Store.ID.ToNonAD(), true
 		}
 	}
 	return types.EmptyJID, false
@@ -2751,7 +2896,19 @@ func (c *PluginContext) GetTargets() []types.JID {
 	if len(c.Args) > 0 {
 		var resolved []types.JID
 		for _, arg := range c.Args {
+			if strings.Contains(arg, "@") {
+				if parsed, err := types.ParseJID(arg); err == nil && !parsed.IsEmpty() {
+					resolved = append(resolved, parsed.ToNonAD())
+					continue
+				}
+			}
 			clean := strings.TrimLeft(arg, "@+")
+			if strings.Contains(clean, "@") {
+				if parsed, err := types.ParseJID(clean); err == nil && !parsed.IsEmpty() {
+					resolved = append(resolved, parsed.ToNonAD())
+					continue
+				}
+			}
 			if len(clean) >= 5 {
 				resolved = append(resolved, types.NewJID(clean, types.DefaultUserServer))
 			}
@@ -2760,12 +2917,18 @@ func (c *PluginContext) GetTargets() []types.JID {
 			return resolved
 		}
 	}
-	if !c.Chat.IsEmpty() && c.Chat.Server != "g.us" {
+	if !c.Chat.IsEmpty() && c.Chat.Server != "g.us" && c.Chat.Server != "broadcast" {
 		if c.Client != nil && c.Client.Store != nil && c.Client.Store.ID != nil {
 			if !c.IsSameUser(c.Chat, *c.Client.Store.ID) {
+				if len(c.Args) == 0 {
+					c.Args = []string{c.Chat.ToNonAD().String()}
+				}
 				return []types.JID{c.Chat.ToNonAD()}
 			}
 		} else {
+			if len(c.Args) == 0 {
+				c.Args = []string{c.Chat.ToNonAD().String()}
+			}
 			return []types.JID{c.Chat.ToNonAD()}
 		}
 	}
