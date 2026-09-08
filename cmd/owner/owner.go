@@ -657,9 +657,9 @@ func handleStatus(ctx *dispatch.Context) error {
 }
 
 // resolveUserTokens resolves a target JID into all known identity tokens:
-// the phone-number JID string, LID JID string, bare phone number, and contact push name.
-// It also persists any newly discovered LID↔PN mapping into the LID store so
-// IsSameUserRaw can resolve them in future comparisons.
+// the phone-number JID string, LID JID string, and username (or push name if no username exists).
+// It does not save the bare phone number. It also persists any newly discovered LID↔PN mapping
+// into the LID store so IsSameUserRaw can resolve them in future comparisons.
 func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, target types.JID) (tokens []string, mentionJID types.JID, displayUser string) {
 	nonAD := target.ToNonAD()
 
@@ -727,13 +727,12 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 
 	if !pnJID.IsEmpty() {
 		add(pnJID.String()) // e.g. "2348060598064@s.whatsapp.net"
-		add(pnJID.User)     // bare phone number, e.g. "2348060598064"
 	}
 	if !lidJID.IsEmpty() {
 		add(lidJID.String()) // e.g. "258256953950323@lid"
 	}
 
-	// Resolve contact push name / username.
+	// Resolve username / contact push name.
 	if client.Store != nil && client.Store.Contacts != nil {
 		lookupJID := pnJID
 		if lookupJID.IsEmpty() {
@@ -741,7 +740,9 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 		}
 		if !lookupJID.IsEmpty() {
 			if contact, err := client.Store.Contacts.GetContact(ctx, lookupJID); err == nil && contact.Found {
-				if contact.PushName != "" {
+				if contact.Username != "" {
+					add(strings.ToLower(contact.Username))
+				} else if contact.PushName != "" {
 					add(strings.ToLower(contact.PushName))
 				} else if contact.FullName != "" {
 					add(strings.ToLower(contact.FullName))
