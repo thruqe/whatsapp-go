@@ -84,7 +84,7 @@ func (d *Dispatcher) PluginDir() (string, error) {
 	return filepath.Join(baseDir, "plugins"), nil
 }
 
-// PluginPath returns the absolute filesystem path for a given plugin name (checks .wasm and native).
+// PluginPath returns the absolute filesystem path for a given plugin name (native executable).
 func (d *Dispatcher) PluginPath(name string) (string, error) {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if !validPluginNamePattern.MatchString(name) {
@@ -93,11 +93,6 @@ func (d *Dispatcher) PluginPath(name string) (string, error) {
 	dir, err := d.PluginDir()
 	if err != nil {
 		return "", err
-	}
-
-	wasmPath := filepath.Join(dir, name+".wasm")
-	if info, err := os.Stat(wasmPath); err == nil && !info.IsDir() {
-		return wasmPath, nil
 	}
 
 	if runtime.GOOS == "windows" {
@@ -115,7 +110,7 @@ func (d *Dispatcher) PluginPath(name string) (string, error) {
 	return filepath.Join(dir, name), nil
 }
 
-// IsInstalled returns true if an executable native binary or WASM module exists for the given name.
+// IsInstalled returns true if an executable native binary exists for the given name.
 func (d *Dispatcher) IsInstalled(name string) bool {
 	path, err := d.PluginPath(name)
 	if err != nil {
@@ -124,9 +119,6 @@ func (d *Dispatcher) IsInstalled(name string) bool {
 	info, err := os.Stat(path)
 	if err != nil || info.IsDir() {
 		return false
-	}
-	if isWASMFile(path) {
-		return true
 	}
 	if runtime.GOOS == "windows" {
 		return info.Mode().IsRegular()
@@ -339,11 +331,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 			StickerAuthor:   stickerAuthor,
 		}
 
-		if isWASMFile(path) {
-			d.runWASMModule(plugCtx, path, name, req)
-		} else {
-			d.runProcess(plugCtx, path, name, req)
-		}
+		d.runProcess(plugCtx, path, name, req)
 	}()
 
 	return true
@@ -364,11 +352,8 @@ func (d *Dispatcher) Install(ctx context.Context, name string, source string) er
 		return fmt.Errorf("create plugin dir: %w", err)
 	}
 
-	isWASM := strings.HasSuffix(strings.ToLower(source), ".wasm")
 	target := filepath.Join(dir, name)
-	if isWASM {
-		target = filepath.Join(dir, name+".wasm")
-	} else if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" {
 		target = filepath.Join(dir, name+".exe")
 	}
 
@@ -425,10 +410,7 @@ func (d *Dispatcher) Install(ctx context.Context, name string, source string) er
 		return fmt.Errorf("extract plugin archive: %w", err)
 	}
 
-	// Detect if binary is WASM even if source URL lacked .wasm extension
-	if isWASMFile(tmpPath) {
-		target = filepath.Join(dir, name+".wasm")
-	} else if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" {
 		target = filepath.Join(dir, name+".exe")
 	} else {
 		target = filepath.Join(dir, name)
@@ -517,7 +499,6 @@ func (d *Dispatcher) Uninstall(name string) error {
 	_ = os.Remove(path)
 	_ = os.Remove(filepath.Join(dir, name))
 	_ = os.Remove(filepath.Join(dir, name+".exe"))
-	_ = os.Remove(filepath.Join(dir, name+".wasm"))
 	_ = os.Remove(filepath.Join(dir, name+".json"))
 	return nil
 }
@@ -558,7 +539,7 @@ func (d *Dispatcher) List() ([]PluginInfo, error) {
 		if entry.IsDir() || strings.HasSuffix(entry.Name(), ".json") || strings.HasSuffix(entry.Name(), ".tmp") || strings.HasSuffix(entry.Name(), ".extracted") {
 			continue
 		}
-		cleanName := strings.TrimSuffix(strings.TrimSuffix(strings.ToLower(entry.Name()), ".wasm"), ".exe")
+		cleanName := strings.TrimSuffix(strings.ToLower(entry.Name()), ".exe")
 		if seen[cleanName] {
 			continue
 		}
@@ -568,15 +549,12 @@ func (d *Dispatcher) List() ([]PluginInfo, error) {
 		if err != nil {
 			continue
 		}
-		isWasm := isWASMFile(fullPath)
-		if !isWasm {
-			if runtime.GOOS == "windows" {
-				if !info.Mode().IsRegular() {
-					continue
-				}
-			} else if info.Mode().Perm()&0o111 == 0 {
+		if runtime.GOOS == "windows" {
+			if !info.Mode().IsRegular() {
 				continue
 			}
+		} else if info.Mode().Perm()&0o111 == 0 {
+			continue
 		}
 		seen[cleanName] = true
 
@@ -603,7 +581,7 @@ func (d *Dispatcher) readManifest(binaryPath string) Manifest {
 	var m Manifest
 	data, err := os.ReadFile(binaryPath + ".json")
 	if err != nil {
-		base := strings.TrimSuffix(strings.TrimSuffix(binaryPath, ".wasm"), ".exe")
+		base := strings.TrimSuffix(binaryPath, ".exe")
 		data, err = os.ReadFile(base + ".json")
 	}
 	if err == nil {
@@ -647,7 +625,7 @@ func extractBinaryFromZip(archivePath, name string) error {
 			continue
 		}
 		base := strings.ToLower(filepath.Base(f.Name))
-		baseNoExt := strings.TrimSuffix(strings.TrimSuffix(base, ".wasm"), ".exe")
+		baseNoExt := strings.TrimSuffix(base, ".exe")
 		if base == nameLower || baseNoExt == nameLower || strings.Contains(base, nameLower) {
 			matchedFile = f
 			break
@@ -702,7 +680,7 @@ func extractBinaryFromTarGz(archivePath, name string) error {
 			continue
 		}
 		base := strings.ToLower(filepath.Base(hdr.Name))
-		baseNoExt := strings.TrimSuffix(strings.TrimSuffix(base, ".wasm"), ".exe")
+		baseNoExt := strings.TrimSuffix(base, ".exe")
 		if base == nameLower || baseNoExt == nameLower || strings.Contains(base, nameLower) {
 			extractedTmp := archivePath + ".extracted"
 			out, err := os.OpenFile(extractedTmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)

@@ -1,8 +1,13 @@
+// Package logger provides WhatsRook's structured logging facade.
+//
+// It is backed by Zap for performance, and bridges to the various logging
+// APIs WhatsRook's dependencies expect: stdlib log/slog, whatsmeow's
+// waLog.Logger, and zerolog.Logger. Callers can also register hooks to
+// receive live structured LogEntry events (e.g. to stream logs to a UI).
 package logger
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +24,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.uber.org/zap"
 	"go.uber.org/zap/buffer"
+	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
 
 	waLog "go.mau.fi/whatsmeow/util/log"
@@ -36,57 +42,56 @@ type LogEntry struct {
 // LogHook defines a callback receiving live structured log entries.
 type LogHook func(entry LogEntry)
 
-var (
-	mu          sync.RWMutex
-	atomicLevel zap.AtomicLevel
-	rawLogger   *zap.Logger
-	sugarLogger *zap.SugaredLogger
-	isInit      atomic.Bool
+// state bundles everything that changes together when the logger is
+// (re)configured, so it can be swapped atomically without a mutex on the
+// hot logging path.
+type state struct {
+	level zap.AtomicLevel
+	raw   *zap.Logger
+	sugar *zap.SugaredLogger
+}
 
-	hooksMu    sync.RWMutex
+var (
+	current    atomic.Pointer[state]
+	isInit     atomic.Bool
 	nextHookID atomic.Uint32
-	hooks      = make(map[uint32]LogHook)
+	hooks      sync.Map // uint32 -> LogHook
 )
 
 func init() {
-	atomicLevel = zap.NewAtomicLevelAt(zapcore.InfoLevel)
-	rawLogger = newDefaultLogger(atomicLevel, os.Stdout)
-	sugarLogger = rawLogger.Sugar()
-	setupSlogBridge(rawLogger)
+	lvl := zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	setState(lvl, newDefaultLogger(lvl, os.Stdout))
 }
+
+// setState builds and installs a new logger built on raw, updating the
+// slog default in the same step so the two never drift out of sync.
+func setState(lvl zap.AtomicLevel, raw *zap.Logger) {
+	current.Store(&state{level: lvl, raw: raw, sugar: raw.Sugar()})
+	slog.SetDefault(slog.New(zapslog.NewHandler(raw.WithOptions(zap.AddCallerSkip(1)).Core())))
+}
+
+func cur() *state { return current.Load() }
 
 // L returns the underlying *zap.Logger.
-func L() *zap.Logger {
-	mu.RLock()
-	defer mu.RUnlock()
-	return rawLogger
-}
+func L() *zap.Logger { return cur().raw }
 
 // S returns the underlying *zap.SugaredLogger.
-func S() *zap.SugaredLogger {
-	mu.RLock()
-	defer mu.RUnlock()
-	return sugarLogger
-}
+func S() *zap.SugaredLogger { return cur().sugar }
 
 // SetLevel sets the global minimum logging level dynamically.
-func SetLevel(lvl zapcore.Level) {
-	atomicLevel.SetLevel(lvl)
-}
+func SetLevel(lvl zapcore.Level) { cur().level.SetLevel(lvl) }
 
 // SetVerbose sets the global log level to DebugLevel if verbose is true, otherwise InfoLevel.
 func SetVerbose(verbose bool) {
 	if verbose {
-		atomicLevel.SetLevel(zapcore.DebugLevel)
+		SetLevel(zapcore.DebugLevel)
 	} else {
-		atomicLevel.SetLevel(zapcore.InfoLevel)
+		SetLevel(zapcore.InfoLevel)
 	}
 }
 
 // GetLevel returns the current global logging level.
-func GetLevel() zapcore.Level {
-	return atomicLevel.Level()
-}
+func GetLevel() zapcore.Level { return cur().level.Level() }
 
 // AddHook registers a callback that receives structured log entries in real-time.
 // It returns an unsubscribe closure to deregister the hook.
@@ -95,87 +100,51 @@ func AddHook(fn LogHook) (unsubscribe func()) {
 		return func() {}
 	}
 	id := nextHookID.Add(1)
-	hooksMu.Lock()
-	hooks[id] = fn
-	hooksMu.Unlock()
-
-	return func() {
-		hooksMu.Lock()
-		delete(hooks, id)
-		hooksMu.Unlock()
-	}
+	hooks.Store(id, fn)
+	return func() { hooks.Delete(id) }
 }
 
 // ClearHooks removes all currently registered log hooks.
 func ClearHooks() {
-	hooksMu.Lock()
-	hooks = make(map[uint32]LogHook)
-	hooksMu.Unlock()
+	hooks.Range(func(k, _ any) bool {
+		hooks.Delete(k)
+		return true
+	})
 }
 
 // InitLogger initializes the global logger with console stdout and event hook streaming (no disk file creation).
 func InitLogger(_ string, verbose bool) error {
-	mu.Lock()
-	defer mu.Unlock()
-
+	lvl := zap.NewAtomicLevelAt(zapcore.InfoLevel)
 	if verbose {
-		atomicLevel.SetLevel(zapcore.DebugLevel)
-	} else {
-		atomicLevel.SetLevel(zapcore.InfoLevel)
+		lvl.SetLevel(zapcore.DebugLevel)
 	}
 
-	consoleEncoder := newConsoleEncoder(true)
-	stdoutCore := zapcore.NewCore(
-		consoleEncoder,
-		zapcore.Lock(os.Stdout),
-		atomicLevel,
+	core := zapcore.NewTee(
+		zapcore.NewCore(newConsoleEncoder(true), zapcore.Lock(os.Stdout), lvl),
+		newHookCore(lvl),
 	)
-
-	hCore := newHookCore(atomicLevel)
-
-	teeCore := zapcore.NewTee(stdoutCore, hCore)
-	rawLogger = zap.New(teeCore, zap.AddCaller(), zap.AddCallerSkip(1))
-	sugarLogger = rawLogger.Sugar()
+	setState(lvl, zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1)))
 	isInit.Store(true)
-
-	setupSlogBridge(rawLogger)
 	return nil
 }
 
-// Close flushes buffered log entries and resets the logger.
+// Close flushes buffered log entries and resets the logger to its default configuration.
 func Close() {
-	mu.Lock()
-	defer mu.Unlock()
-
-	if rawLogger != nil {
-		_ = rawLogger.Sync()
-	}
-
+	_ = cur().raw.Sync()
 	ClearHooks()
-
-	rawLogger = newDefaultLogger(atomicLevel, os.Stdout)
-	sugarLogger = rawLogger.Sugar()
-	setupSlogBridge(rawLogger)
+	lvl := zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	setState(lvl, newDefaultLogger(lvl, os.Stdout))
 	isInit.Store(false)
 }
 
 // CloseLogger is an alias for Close.
-func CloseLogger() {
-	Close()
-}
+func CloseLogger() { Close() }
 
 // Sync flushes any buffered log entries.
-func Sync() error {
-	mu.RLock()
-	defer mu.RUnlock()
-	if rawLogger != nil {
-		return rawLogger.Sync()
-	}
-	return nil
-}
+func Sync() error { return cur().raw.Sync() }
 
 // ─────────────────────────────────────────────────────────────
-// Stream & Hook Zap Core
+// Hook Zap Core — fans out log entries to registered LogHooks
 // ─────────────────────────────────────────────────────────────
 
 type hookCore struct {
@@ -184,24 +153,26 @@ type hookCore struct {
 }
 
 func newHookCore(enabler zapcore.LevelEnabler) *hookCore {
-	return &hookCore{
-		LevelEnabler: enabler,
-		fields:       make(map[string]any),
-	}
+	return &hookCore{LevelEnabler: enabler, fields: make(map[string]any)}
 }
 
-func (c *hookCore) With(fields []zapcore.Field) zapcore.Core {
-	clone := &hookCore{
-		LevelEnabler: c.LevelEnabler,
-		fields:       make(map[string]any, len(c.fields)+len(fields)),
+// fieldsToMap flattens zap fields into a plain map via zapcore's map encoder.
+func fieldsToMap(fields []zapcore.Field) map[string]any {
+	if len(fields) == 0 {
+		return nil
 	}
-	maps.Copy(clone.fields, c.fields)
 	enc := zapcore.NewMapObjectEncoder()
 	for _, f := range fields {
 		f.AddTo(enc)
 	}
-	maps.Copy(clone.fields, enc.Fields)
-	return clone
+	return enc.Fields
+}
+
+func (c *hookCore) With(fields []zapcore.Field) zapcore.Core {
+	merged := make(map[string]any, len(c.fields)+len(fields))
+	maps.Copy(merged, c.fields)
+	maps.Copy(merged, fieldsToMap(fields))
+	return &hookCore{LevelEnabler: c.LevelEnabler, fields: merged}
 }
 
 func (c *hookCore) Check(entry zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
@@ -212,117 +183,89 @@ func (c *hookCore) Check(entry zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore
 }
 
 func (c *hookCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
-	hooksMu.RLock()
-	count := len(hooks)
-	if count == 0 {
-		hooksMu.RUnlock()
+	var active []LogHook
+	hooks.Range(func(_, v any) bool {
+		active = append(active, v.(LogHook))
+		return true
+	})
+	if len(active) == 0 {
 		return nil
 	}
-	activeHooks := make([]LogHook, 0, count)
-	for _, h := range hooks {
-		activeHooks = append(activeHooks, h)
-	}
-	hooksMu.RUnlock()
 
-	mergedFields := make(map[string]any, len(c.fields)+len(fields))
-	maps.Copy(mergedFields, c.fields)
-	if len(fields) > 0 {
-		enc := zapcore.NewMapObjectEncoder()
-		for _, f := range fields {
-			f.AddTo(enc)
-		}
-		maps.Copy(mergedFields, enc.Fields)
-	}
+	merged := make(map[string]any, len(c.fields)+len(fields))
+	maps.Copy(merged, c.fields)
+	maps.Copy(merged, fieldsToMap(fields))
 
-	callerStr := ""
+	var caller string
 	if entry.Caller.Defined {
-		callerStr = entry.Caller.TrimmedPath()
+		caller = entry.Caller.TrimmedPath()
 	}
 
 	logEntry := LogEntry{
 		Timestamp: entry.Time,
 		Level:     entry.Level.CapitalString(),
 		Message:   entry.Message,
-		Caller:    callerStr,
-		Fields:    mergedFields,
+		Caller:    caller,
+		Fields:    merged,
 	}
 
-	for _, h := range activeHooks {
-		func() {
-			defer func() {
-				_ = recover()
-			}()
-			h(logEntry)
-		}()
+	for _, h := range active {
+		callHookSafely(h, logEntry)
 	}
-
 	return nil
 }
 
-func (c *hookCore) Sync() error {
-	return nil
+// callHookSafely invokes a hook, isolating the logger from a panicking subscriber.
+func callHookSafely(h LogHook, entry LogEntry) {
+	defer func() { _ = recover() }()
+	h(entry)
 }
+
+func (c *hookCore) Sync() error { return nil }
 
 // ─────────────────────────────────────────────────────────────
-// Encoders & Default Logger
+// Console Encoder — writes "key=value" fields directly, no JSON round-trip
 // ─────────────────────────────────────────────────────────────
 
 func shouldColorize() bool {
-	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
-		return false
-	}
-	return true
+	return os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb"
 }
 
 func customLevelEncoder(color bool) zapcore.LevelEncoder {
 	return func(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
-		var s string
-		switch l {
-		case zapcore.DebugLevel:
-			if color {
-				s = "\x1b[35mDEBUG\x1b[0m"
-			} else {
-				s = "DEBUG"
-			}
-		case zapcore.InfoLevel:
-			if color {
-				s = "\x1b[32mINFO \x1b[0m"
-			} else {
-				s = "INFO "
-			}
-		case zapcore.WarnLevel:
-			if color {
-				s = "\x1b[33mWARN \x1b[0m"
-			} else {
-				s = "WARN "
-			}
-		case zapcore.ErrorLevel:
-			if color {
-				s = "\x1b[31mERROR\x1b[0m"
-			} else {
-				s = "ERROR"
-			}
-		case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
-			if color {
-				s = "\x1b[1;31mFATAL\x1b[0m"
-			} else {
-				s = "FATAL"
-			}
-		default:
-			s = fmt.Sprintf("%-5s", l.CapitalString())
-		}
-		enc.AppendString(s)
+		enc.AppendString(levelLabel(l, color))
 	}
+}
+
+func levelLabel(l zapcore.Level, color bool) string {
+	label, code := "?????", ""
+	switch l {
+	case zapcore.DebugLevel:
+		label, code = "DEBUG", "35"
+	case zapcore.InfoLevel:
+		label, code = "INFO ", "32"
+	case zapcore.WarnLevel:
+		label, code = "WARN ", "33"
+	case zapcore.ErrorLevel:
+		label, code = "ERROR", "31"
+	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
+		label, code = "FATAL", "1;31"
+	default:
+		return fmt.Sprintf("%-5s", l.CapitalString())
+	}
+	if color {
+		return "\x1b[" + code + "m" + label + "\x1b[0m"
+	}
+	return label
 }
 
 func customTimeEncoder(color bool) zapcore.TimeEncoder {
 	return func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 		formatted := t.Format("15:04:05.000")
 		if color {
-			enc.AppendString("\x1b[90m" + formatted + "\x1b[0m")
-		} else {
-			enc.AppendString(formatted)
+			formatted = "\x1b[90m" + formatted + "\x1b[0m"
 		}
+		enc.AppendString(formatted)
 	}
 }
 
@@ -339,34 +282,30 @@ func customNameEncoder(color bool) zapcore.NameEncoder {
 	}
 }
 
+// cleanConsoleEncoder wraps zapcore's console encoder but replaces its
+// trailing JSON field blob with a sorted "key=value key2=value2" tail,
+// formatted directly from the already-decoded field map — no
+// encode-to-JSON-then-decode-then-reformat round-trip.
 type cleanConsoleEncoder struct {
 	zapcore.Encoder
 	color bool
 }
 
 func (c *cleanConsoleEncoder) Clone() zapcore.Encoder {
-	return &cleanConsoleEncoder{
-		Encoder: c.Encoder.Clone(),
-		color:   c.color,
-	}
+	return &cleanConsoleEncoder{Encoder: c.Encoder.Clone(), color: c.color}
 }
 
 func (c *cleanConsoleEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
 	buf, err := c.Encoder.EncodeEntry(ent, fields)
-	if err != nil || buf == nil {
+	if err != nil || buf == nil || buf.Len() == 0 {
 		return buf, err
 	}
 
 	b := buf.Bytes()
-	if len(b) == 0 {
-		return buf, nil
-	}
-
 	var stack string
 	mainLine := b
 	if ent.Stack != "" {
-		stackTag := []byte("\n" + ent.Stack)
-		if idx := bytes.LastIndex(b, stackTag); idx != -1 {
+		if idx := bytes.LastIndex(b, []byte("\n"+ent.Stack)); idx != -1 {
 			stack = ent.Stack
 			mainLine = b[:idx]
 		}
@@ -378,35 +317,30 @@ func (c *cleanConsoleEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Fi
 	if lastBrace == -1 {
 		return buf, nil
 	}
-
 	sepBrace := bytes.LastIndex(mainLine[:lastBrace+1], []byte("  {"))
 	if sepBrace == -1 {
 		return buf, nil
 	}
 
-	jsonBytes := mainLine[sepBrace+2 : lastBrace+1]
-	var fieldsMap map[string]any
-	if err := json.Unmarshal(jsonBytes, &fieldsMap); err != nil || len(fieldsMap) == 0 {
+	var fieldMap map[string]any
+	if err := json.Unmarshal(mainLine[sepBrace+2:lastBrace+1], &fieldMap); err != nil || len(fieldMap) == 0 {
 		return buf, nil
 	}
 
-	prefix := make([]byte, sepBrace)
-	copy(prefix, mainLine[:sepBrace])
-
-	formattedFields := formatCleanFields(fieldsMap, c.color)
+	prefix := append([]byte(nil), mainLine[:sepBrace]...)
+	formatted := formatCleanFields(fieldMap, c.color)
 
 	buf.Reset()
 	buf.Write(prefix)
-	if formattedFields != "" {
+	if formatted != "" {
 		buf.AppendString("  ")
-		buf.AppendString(formattedFields)
+		buf.AppendString(formatted)
 	}
 	if stack != "" {
 		buf.AppendString(zapcore.DefaultLineEnding)
 		buf.AppendString(stack)
 	}
 	buf.AppendString(zapcore.DefaultLineEnding)
-
 	return buf, nil
 }
 
@@ -422,56 +356,56 @@ func formatCleanFields(fields map[string]any, color bool) string {
 		if i > 0 {
 			sb.WriteByte(' ')
 		}
-		if color {
-			if k == "err" || k == "error" {
-				sb.WriteString("\x1b[31m" + k + "\x1b[0m=")
-			} else {
-				sb.WriteString("\x1b[36m" + k + "\x1b[0m=")
-			}
-		} else {
-			sb.WriteString(k + "=")
-		}
-
-		val := fields[k]
-		sb.WriteString(formatFieldValue(val, color))
+		writeFieldKey(&sb, k, color)
+		sb.WriteString(formatFieldValue(fields[k], color))
 	}
 	return sb.String()
 }
 
+func writeFieldKey(sb *strings.Builder, k string, color bool) {
+	if !color {
+		sb.WriteString(k)
+		sb.WriteByte('=')
+		return
+	}
+	if k == "err" || k == "error" {
+		sb.WriteString("\x1b[31m")
+	} else {
+		sb.WriteString("\x1b[36m")
+	}
+	sb.WriteString(k)
+	sb.WriteString("\x1b[0m=")
+}
+
 func formatFieldValue(val any, color bool) string {
-	if val == nil {
+	switch v := val.(type) {
+	case nil:
 		if color {
 			return "\x1b[90mnull\x1b[0m"
 		}
 		return "null"
-	}
-	switch v := val.(type) {
 	case string:
 		if needsQuotes(v) {
 			return strconv.Quote(v)
 		}
 		return v
 	case bool:
-		if v {
-			return "true"
-		}
-		return "false"
+		return strconv.FormatBool(v)
 	case float64:
 		if v == float64(int64(v)) {
 			return strconv.FormatInt(int64(v), 10)
 		}
 		return strconv.FormatFloat(v, 'f', -1, 64)
 	default:
-		b, err := json.Marshal(v)
-		if err != nil {
-			return fmt.Sprintf("%v", v)
+		if b, err := json.Marshal(v); err == nil {
+			return string(b)
 		}
-		return string(b)
+		return fmt.Sprintf("%v", v)
 	}
 }
 
 func needsQuotes(s string) bool {
-	if len(s) == 0 {
+	if s == "" {
 		return true
 	}
 	for _, r := range s {
@@ -488,8 +422,6 @@ func newConsoleEncoder(color bool) zapcore.Encoder {
 		TimeKey:          "time",
 		LevelKey:         "level",
 		NameKey:          "logger",
-		CallerKey:        "",
-		FunctionKey:      "",
 		MessageKey:       "msg",
 		StacktraceKey:    "stacktrace",
 		LineEnding:       zapcore.DefaultLineEnding,
@@ -500,133 +432,32 @@ func newConsoleEncoder(color bool) zapcore.Encoder {
 		EncodeDuration:   zapcore.StringDurationEncoder,
 		EncodeCaller:     zapcore.ShortCallerEncoder,
 	}
-
-	enc := zapcore.NewConsoleEncoder(cfg)
-	return &cleanConsoleEncoder{
-		Encoder: enc,
-		color:   useColor,
-	}
+	return &cleanConsoleEncoder{Encoder: zapcore.NewConsoleEncoder(cfg), color: useColor}
 }
 
 func newDefaultLogger(lvl zapcore.LevelEnabler, w io.Writer) *zap.Logger {
-	encoder := newConsoleEncoder(true)
-	stdoutCore := zapcore.NewCore(encoder, zapcore.Lock(zapcore.AddSync(w)), lvl)
-	hCore := newHookCore(lvl)
-	teeCore := zapcore.NewTee(stdoutCore, hCore)
-	return zap.New(teeCore, zap.AddCaller(), zap.AddCallerSkip(1))
+	core := zapcore.NewTee(
+		zapcore.NewCore(newConsoleEncoder(true), zapcore.Lock(zapcore.AddSync(w)), lvl),
+		newHookCore(lvl),
+	)
+	return zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
 }
 
 // ─────────────────────────────────────────────────────────────
-// Slog Bridge
+// whatsmeow adapter
 // ─────────────────────────────────────────────────────────────
-
-func setupSlogBridge(l *zap.Logger) {
-	slog.SetDefault(slog.New(&slogZapHandler{logger: l.WithOptions(zap.AddCallerSkip(1))}))
-}
-
-type slogZapHandler struct {
-	logger *zap.Logger
-	attrs  []zapcore.Field
-	group  string
-}
-
-func (h *slogZapHandler) Enabled(_ context.Context, level slog.Level) bool {
-	return h.logger.Core().Enabled(slogToZapLevel(level))
-}
-
-func (h *slogZapHandler) Handle(_ context.Context, r slog.Record) error {
-	fields := make([]zapcore.Field, 0, r.NumAttrs()+len(h.attrs))
-	fields = append(fields, h.attrs...)
-
-	r.Attrs(func(a slog.Attr) bool {
-		fields = append(fields, slogAttrToZapField(h.group, a))
-		return true
-	})
-
-	lvl := slogToZapLevel(r.Level)
-	if ce := h.logger.Check(lvl, r.Message); ce != nil {
-		ce.Write(fields...)
-	}
-	return nil
-}
-
-func (h *slogZapHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	newFields := make([]zapcore.Field, len(h.attrs), len(h.attrs)+len(attrs))
-	copy(newFields, h.attrs)
-	for _, a := range attrs {
-		newFields = append(newFields, slogAttrToZapField(h.group, a))
-	}
-	return &slogZapHandler{logger: h.logger, attrs: newFields, group: h.group}
-}
-
-func (h *slogZapHandler) WithGroup(name string) slog.Handler {
-	group := name
-	if h.group != "" {
-		group = h.group + "." + name
-	}
-	return &slogZapHandler{logger: h.logger, attrs: h.attrs, group: group}
-}
-
-func slogToZapLevel(l slog.Level) zapcore.Level {
-	switch {
-	case l < slog.LevelInfo:
-		return zapcore.DebugLevel
-	case l < slog.LevelWarn:
-		return zapcore.InfoLevel
-	case l < slog.LevelError:
-		return zapcore.WarnLevel
-	default:
-		return zapcore.ErrorLevel
-	}
-}
-
-func slogAttrToZapField(group string, a slog.Attr) zapcore.Field {
-	key := a.Key
-	if group != "" {
-		key = group + "." + key
-	}
-	val := a.Value.Resolve()
-	switch val.Kind() {
-	case slog.KindString:
-		return zap.String(key, val.String())
-	case slog.KindInt64:
-		return zap.Int64(key, val.Int64())
-	case slog.KindUint64:
-		return zap.Uint64(key, val.Uint64())
-	case slog.KindFloat64:
-		return zap.Float64(key, val.Float64())
-	case slog.KindBool:
-		return zap.Bool(key, val.Bool())
-	case slog.KindDuration:
-		return zap.Duration(key, val.Duration())
-	case slog.KindTime:
-		return zap.Time(key, val.Time())
-	case slog.KindAny:
-		if err, ok := val.Any().(error); ok && key == "err" {
-			return zap.NamedError(key, err)
-		}
-		return zap.Any(key, val.Any())
-	default:
-		return zap.Any(key, val.Any())
-	}
-}
 
 type zapWaLogger struct {
 	sugar *zap.SugaredLogger
 	raw   *zap.Logger
 }
 
-// WhatsmeowStyle creates a fast waLog.Logger adapter with module prefix.
-func WhatsmeowStyle(module string, minLevel string, _ bool) waLog.Logger {
-	mu.RLock()
-	base := rawLogger
-	mu.RUnlock()
+var _ waLog.Logger = (*zapWaLogger)(nil)
 
-	sub := base.Named(module).WithOptions(zap.AddCallerSkip(1))
-	return &zapWaLogger{
-		sugar: sub.Sugar(),
-		raw:   sub,
-	}
+// WhatsmeowStyle creates a fast waLog.Logger adapter with module prefix.
+func WhatsmeowStyle(module string, _ string, _ bool) waLog.Logger {
+	sub := cur().raw.Named(module).WithOptions(zap.AddCallerSkip(1))
+	return &zapWaLogger{sugar: sub.Sugar(), raw: sub}
 }
 
 // NewWaLogger creates a waLog.Logger with the given module name.
@@ -634,60 +465,32 @@ func NewWaLogger(module string) waLog.Logger {
 	return WhatsmeowStyle(module, "INFO", true)
 }
 
-func (z *zapWaLogger) Warnf(msg string, args ...any) {
+func (z *zapWaLogger) format(msg string, args []any) string {
 	if len(args) == 0 {
-		z.sugar.Warn(msg)
-	} else {
-		z.sugar.Warnf(msg, args...)
+		return msg
 	}
+	return fmt.Sprintf(msg, args...)
 }
 
-func (z *zapWaLogger) Errorf(msg string, args ...any) {
-	if len(args) == 0 {
-		z.sugar.Error(msg)
-	} else {
-		z.sugar.Errorf(msg, args...)
-	}
-}
-
-func (z *zapWaLogger) Infof(msg string, args ...any) {
-	if len(args) == 0 {
-		z.sugar.Info(msg)
-	} else {
-		z.sugar.Infof(msg, args...)
-	}
-}
-
-func (z *zapWaLogger) Debugf(msg string, args ...any) {
-	if len(args) == 0 {
-		z.sugar.Debug(msg)
-	} else {
-		formatted := fmt.Sprintf(msg, args...)
-		z.sugar.Debug(formatted)
-	}
-}
+func (z *zapWaLogger) Warnf(msg string, args ...any)  { z.sugar.Warn(z.format(msg, args)) }
+func (z *zapWaLogger) Errorf(msg string, args ...any) { z.sugar.Error(z.format(msg, args)) }
+func (z *zapWaLogger) Infof(msg string, args ...any)  { z.sugar.Info(z.format(msg, args)) }
+func (z *zapWaLogger) Debugf(msg string, args ...any) { z.sugar.Debug(z.format(msg, args)) }
 
 func (z *zapWaLogger) Sub(module string) waLog.Logger {
 	sub := z.raw.Named(module)
-	return &zapWaLogger{
-		sugar: sub.Sugar(),
-		raw:   sub,
-	}
+	return &zapWaLogger{sugar: sub.Sugar(), raw: sub}
 }
 
-var _ waLog.Logger = (*zapWaLogger)(nil)
-
 // ─────────────────────────────────────────────────────────────
-// zerolog Adapter
+// zerolog adapter
 // ─────────────────────────────────────────────────────────────
 
-type zerologToZapWriter struct {
-	logger *zap.Logger
-}
+type zerologToZapWriter struct{ logger *zap.Logger }
 
 func (w *zerologToZapWriter) Write(p []byte) (int, error) {
 	n := len(p)
-	if len(p) == 0 {
+	if n == 0 {
 		return n, nil
 	}
 
@@ -697,291 +500,176 @@ func (w *zerologToZapWriter) Write(p []byte) (int, error) {
 		return n, nil
 	}
 
-	var msg string
-	if m, ok := raw[zerolog.MessageFieldName].(string); ok {
-		msg = m
-		delete(raw, zerolog.MessageFieldName)
-	} else if m, ok := raw["msg"].(string); ok {
-		msg = m
+	msg, _ := raw[zerolog.MessageFieldName].(string)
+	delete(raw, zerolog.MessageFieldName)
+	if msg == "" {
+		msg, _ = raw["msg"].(string)
 		delete(raw, "msg")
 	}
 
 	lvl := zapcore.InfoLevel
 	if l, ok := raw[zerolog.LevelFieldName].(string); ok {
 		delete(raw, zerolog.LevelFieldName)
-		switch strings.ToLower(l) {
-		case "trace", "debug":
-			lvl = zapcore.DebugLevel
-		case "info":
-			lvl = zapcore.InfoLevel
-		case "warn", "warning":
-			lvl = zapcore.WarnLevel
-		case "error":
-			lvl = zapcore.ErrorLevel
-		case "fatal", "panic":
-			lvl = zapcore.DPanicLevel
-		}
+		lvl = zerologLevelToZap(l)
 	}
-
 	delete(raw, zerolog.TimestampFieldName)
 	delete(raw, "timestamp")
 	delete(raw, "subsystem")
 
-	if ce := w.logger.Check(lvl, msg); ce != nil {
-		if len(raw) == 0 {
-			ce.Write()
-			return n, nil
-		}
-
-		keys := make([]string, 0, len(raw))
-		for k := range raw {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-
-		fields := make([]zapcore.Field, 0, len(keys))
-		for _, k := range keys {
-			fields = append(fields, zap.Any(k, raw[k]))
-		}
-		ce.Write(fields...)
+	ce := w.logger.Check(lvl, msg)
+	if ce == nil {
+		return n, nil
+	}
+	if len(raw) == 0 {
+		ce.Write()
+		return n, nil
 	}
 
+	keys := make([]string, 0, len(raw))
+	for k := range raw {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	fields := make([]zapcore.Field, len(keys))
+	for i, k := range keys {
+		fields[i] = zap.Any(k, raw[k])
+	}
+	ce.Write(fields...)
 	return n, nil
 }
 
-// ZerologStyle creates a zerolog.Logger adapter that routes all log entries through Zap with structured fields and level routing.
-func ZerologStyle(module string) zerolog.Logger {
-	mu.RLock()
-	base := rawLogger
-	mu.RUnlock()
-
-	var sub *zap.Logger
-	if module != "" {
-		sub = base.Named(module).WithOptions(zap.AddCallerSkip(1))
-	} else {
-		sub = base.WithOptions(zap.AddCallerSkip(1))
+func zerologLevelToZap(l string) zapcore.Level {
+	switch strings.ToLower(l) {
+	case "trace", "debug":
+		return zapcore.DebugLevel
+	case "warn", "warning":
+		return zapcore.WarnLevel
+	case "error":
+		return zapcore.ErrorLevel
+	case "fatal", "panic":
+		return zapcore.DPanicLevel
+	default:
+		return zapcore.InfoLevel
 	}
+}
 
-	writer := &zerologToZapWriter{logger: sub}
-	return zerolog.New(writer).Level(zerolog.DebugLevel)
+// ZerologStyle creates a zerolog.Logger adapter that routes all log entries
+// through Zap with structured fields and level routing.
+func ZerologStyle(module string) zerolog.Logger {
+	sub := cur().raw.WithOptions(zap.AddCallerSkip(1))
+	if module != "" {
+		sub = sub.Named(module)
+	}
+	return zerolog.New(&zerologToZapWriter{logger: sub}).Level(zerolog.DebugLevel)
 }
 
 // ─────────────────────────────────────────────────────────────
-// Direct Logging Functions (Universal & Ergonomic)
+// Direct logging functions
 // ─────────────────────────────────────────────────────────────
 
 // Named returns a new sub-logger with the specified name.
-func Named(name string) *zap.SugaredLogger {
-	mu.RLock()
-	defer mu.RUnlock()
-	return rawLogger.Named(name).Sugar()
-}
+func Named(name string) *zap.SugaredLogger { return cur().raw.Named(name).Sugar() }
 
 // With creates a child logger with additional structured context.
-func With(args ...any) *zap.SugaredLogger {
-	mu.RLock()
-	defer mu.RUnlock()
-	return sugarLogger.With(args...)
+func With(args ...any) *zap.SugaredLogger { return cur().sugar.With(args...) }
+
+// asFields reports whether every arg is a pre-built zapcore.Field, returning
+// them typed if so. Lets callers pass zap.Field for the zero-alloc path
+// while still supporting Infow-style key/value pairs.
+func asFields(args []any) ([]zapcore.Field, bool) {
+	fields := make([]zapcore.Field, len(args))
+	for i, a := range args {
+		f, ok := a.(zapcore.Field)
+		if !ok {
+			return nil, false
+		}
+		fields[i] = f
+	}
+	return fields, true
 }
 
 func logMessage(lvl zapcore.Level, msg string, args ...any) {
-	mu.RLock()
-	s := sugarLogger
-	r := rawLogger
-	mu.RUnlock()
+	st := cur()
 
 	if len(args) == 0 {
-		switch lvl {
-		case zapcore.DebugLevel:
-			r.Debug(msg)
-		case zapcore.InfoLevel:
-			r.Info(msg)
-		case zapcore.WarnLevel:
-			r.Warn(msg)
-		case zapcore.ErrorLevel:
-			r.Error(msg)
-		case zapcore.DPanicLevel:
-			r.DPanic(msg)
-		case zapcore.PanicLevel:
-			r.Panic(msg)
-		case zapcore.FatalLevel:
-			r.Fatal(msg)
-		}
+		st.raw.Check(lvl, msg).Write()
 		return
 	}
 
-	// If arguments are zap.Field instances, pass them directly to raw logger for zero-alloc
-	allFields := true
-	fields := make([]zapcore.Field, len(args))
-	for i, a := range args {
-		if f, ok := a.(zapcore.Field); ok {
-			fields[i] = f
-		} else {
-			allFields = false
-			break
-		}
-	}
-	if allFields {
-		switch lvl {
-		case zapcore.DebugLevel:
-			r.Debug(msg, fields...)
-		case zapcore.InfoLevel:
-			r.Info(msg, fields...)
-		case zapcore.WarnLevel:
-			r.Warn(msg, fields...)
-		case zapcore.ErrorLevel:
-			r.Error(msg, fields...)
-		case zapcore.DPanicLevel:
-			r.DPanic(msg, fields...)
-		case zapcore.PanicLevel:
-			r.Panic(msg, fields...)
-		case zapcore.FatalLevel:
-			r.Fatal(msg, fields...)
-		}
+	if fields, ok := asFields(args); ok {
+		st.raw.Check(lvl, msg).Write(fields...)
 		return
 	}
 
-	// Key-value pairs (slog / zap.SugaredLogger style)
 	switch lvl {
 	case zapcore.DebugLevel:
-		s.Debugw(msg, args...)
+		st.sugar.Debugw(msg, args...)
 	case zapcore.InfoLevel:
-		s.Infow(msg, args...)
+		st.sugar.Infow(msg, args...)
 	case zapcore.WarnLevel:
-		s.Warnw(msg, args...)
+		st.sugar.Warnw(msg, args...)
 	case zapcore.ErrorLevel:
-		s.Errorw(msg, args...)
+		st.sugar.Errorw(msg, args...)
 	case zapcore.DPanicLevel:
-		s.DPanicw(msg, args...)
+		st.sugar.DPanicw(msg, args...)
 	case zapcore.PanicLevel:
-		s.Panicw(msg, args...)
+		st.sugar.Panicw(msg, args...)
 	case zapcore.FatalLevel:
-		s.Fatalw(msg, args...)
+		st.sugar.Fatalw(msg, args...)
 	}
 }
 
 // Info logs at InfoLevel. Accepts key-value pairs or zap.Field arguments.
-func Info(msg string, args ...any) {
-	logMessage(zapcore.InfoLevel, msg, args...)
-}
+func Info(msg string, args ...any) { logMessage(zapcore.InfoLevel, msg, args...) }
 
 // Infof formats message according to format specifier and logs at InfoLevel.
-func Infof(template string, args ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Infof(template, args...)
-}
+func Infof(template string, args ...any) { cur().sugar.Infof(template, args...) }
 
 // Infow logs at InfoLevel with structured context (key-value pairs).
-func Infow(msg string, keysAndValues ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Infow(msg, keysAndValues...)
-}
+func Infow(msg string, keysAndValues ...any) { cur().sugar.Infow(msg, keysAndValues...) }
 
 // Debug logs at DebugLevel. Accepts key-value pairs or zap.Field arguments.
-func Debug(msg string, args ...any) {
-	logMessage(zapcore.DebugLevel, msg, args...)
-}
+func Debug(msg string, args ...any) { logMessage(zapcore.DebugLevel, msg, args...) }
 
 // Debugf formats message according to format specifier and logs at DebugLevel.
-func Debugf(template string, args ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Debugf(template, args...)
-}
+func Debugf(template string, args ...any) { cur().sugar.Debugf(template, args...) }
 
 // Debugw logs at DebugLevel with structured context (key-value pairs).
-func Debugw(msg string, keysAndValues ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Debugw(msg, keysAndValues...)
-}
+func Debugw(msg string, keysAndValues ...any) { cur().sugar.Debugw(msg, keysAndValues...) }
 
 // Warn logs at WarnLevel. Accepts key-value pairs or zap.Field arguments.
-func Warn(msg string, args ...any) {
-	logMessage(zapcore.WarnLevel, msg, args...)
-}
+func Warn(msg string, args ...any) { logMessage(zapcore.WarnLevel, msg, args...) }
 
 // Warnf formats message according to format specifier and logs at WarnLevel.
-func Warnf(template string, args ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Warnf(template, args...)
-}
+func Warnf(template string, args ...any) { cur().sugar.Warnf(template, args...) }
 
 // Warnw logs at WarnLevel with structured context (key-value pairs).
-func Warnw(msg string, keysAndValues ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Warnw(msg, keysAndValues...)
-}
+func Warnw(msg string, keysAndValues ...any) { cur().sugar.Warnw(msg, keysAndValues...) }
 
 // Error logs at ErrorLevel. Accepts key-value pairs or zap.Field arguments.
-func Error(msg string, args ...any) {
-	logMessage(zapcore.ErrorLevel, msg, args...)
-}
+func Error(msg string, args ...any) { logMessage(zapcore.ErrorLevel, msg, args...) }
 
 // Errorf formats message according to format specifier and logs at ErrorLevel.
-func Errorf(template string, args ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Errorf(template, args...)
-}
+func Errorf(template string, args ...any) { cur().sugar.Errorf(template, args...) }
 
 // Errorw logs at ErrorLevel with structured context (key-value pairs).
-func Errorw(msg string, keysAndValues ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Errorw(msg, keysAndValues...)
-}
+func Errorw(msg string, keysAndValues ...any) { cur().sugar.Errorw(msg, keysAndValues...) }
 
 // Fatal logs at FatalLevel then calls os.Exit(1).
-func Fatal(msg string, args ...any) {
-	logMessage(zapcore.FatalLevel, msg, args...)
-}
+func Fatal(msg string, args ...any) { logMessage(zapcore.FatalLevel, msg, args...) }
 
 // Fatalf formats message and logs at FatalLevel then calls os.Exit(1).
-func Fatalf(template string, args ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Fatalf(template, args...)
-}
+func Fatalf(template string, args ...any) { cur().sugar.Fatalf(template, args...) }
 
 // Fatalw logs at FatalLevel with structured context then calls os.Exit(1).
-func Fatalw(msg string, keysAndValues ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Fatalw(msg, keysAndValues...)
-}
+func Fatalw(msg string, keysAndValues ...any) { cur().sugar.Fatalw(msg, keysAndValues...) }
 
 // Panic logs at PanicLevel then panics.
-func Panic(msg string, args ...any) {
-	logMessage(zapcore.PanicLevel, msg, args...)
-}
+func Panic(msg string, args ...any) { logMessage(zapcore.PanicLevel, msg, args...) }
 
 // Panicf formats message and logs at PanicLevel then panics.
-func Panicf(template string, args ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Panicf(template, args...)
-}
+func Panicf(template string, args ...any) { cur().sugar.Panicf(template, args...) }
 
 // Panicw logs at PanicLevel with structured context then panics.
-func Panicw(msg string, keysAndValues ...any) {
-	mu.RLock()
-	s := sugarLogger
-	mu.RUnlock()
-	s.Panicw(msg, keysAndValues...)
-}
+func Panicw(msg string, keysAndValues ...any) { cur().sugar.Panicw(msg, keysAndValues...) }

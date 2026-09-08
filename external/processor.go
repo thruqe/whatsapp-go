@@ -28,26 +28,19 @@ func (d *Dispatcher) runProcess(plugCtx *utils.PluginContext, path, name string,
 
 	sessionKey := d.sessionKey(request.Chat, name)
 
-	// Start special animated external loader (activates after 350ms if plugin is still working)
-	loader := startLoader(plugCtx, name, 350*time.Millisecond)
-	defer loader.Delete()
-
 	cmd := exec.CommandContext(liveCtx, path)
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		loader.Delete()
 		Logger.Error("external plugin stdout pipe failed", "plugin", name, "err", err)
 		return
 	}
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		loader.Delete()
 		Logger.Error("external plugin stdin pipe failed", "plugin", name, "err", err)
 		return
 	}
 
 	if err := cmd.Start(); err != nil {
-		loader.Delete()
 		Logger.Error("external plugin start failed", "plugin", name, "err", err)
 		_ = plugCtx.Replyf("Failed to start external plugin %q: %v", name, err)
 		return
@@ -100,16 +93,14 @@ func (d *Dispatcher) runProcess(plugCtx *utils.PluginContext, path, name string,
 						}
 						response := strings.TrimSpace(sb.String())
 						if response != "" {
-							_ = loader.Done(response)
-						} else {
-							loader.Delete()
+							_ = plugCtx.Reply(response)
 						}
 						break
 					}
 				}
 
 				if isStreaming {
-					if errAction := d.handleActionFrame(plugCtx, loader, stdinPipe, trimmed); errAction != nil {
+					if errAction := d.handleActionFrame(plugCtx, stdinPipe, trimmed); errAction != nil {
 						Logger.Debug("external plugin streaming action finished", "plugin", name, "err", errAction)
 						break
 					}
@@ -126,7 +117,7 @@ func (d *Dispatcher) runProcess(plugCtx *utils.PluginContext, path, name string,
 }
 
 // handleActionFrame processes a single action frame emitted by an external plugin on stdout.
-func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, loader *Loader, stdinPipe io.WriteCloser, line string) error {
+func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, stdinPipe io.WriteCloser, line string) error {
 	var frame Action
 	if err := json.Unmarshal([]byte(line), &frame); err != nil {
 		return err
@@ -134,11 +125,10 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, loader *Loader,
 
 	switch frame.Action {
 	case "reply":
-		msgID, err := loader.DoneWithReply(frame.Text)
+		msgID, err := ctx.ReplyWithID(frame.Text)
 		d.sendAck(stdinPipe, err == nil, string(msgID), err)
 
 	case "edit":
-		loader.Stop()
 		if frame.MsgID != "" && frame.Text != "" {
 			_, _ = ctx.Edit(types.MessageID(frame.MsgID), frame.Text)
 		}
@@ -149,13 +139,11 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, loader *Loader,
 		}
 
 	case "delete", "revoke":
-		loader.Delete()
 		if frame.MsgID != "" {
 			_, _ = ctx.Delete(types.MessageID(frame.MsgID))
 		}
 
 	case "send_image":
-		loader.Delete()
 		data, err := resolveMediaData(frame.Data)
 		if err != nil {
 			d.sendAck(stdinPipe, false, "", err)
@@ -169,7 +157,6 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, loader *Loader,
 		d.sendAck(stdinPipe, err == nil, "", err)
 
 	case "send_audio":
-		loader.Delete()
 		data, err := resolveMediaData(frame.Data)
 		if err != nil {
 			d.sendAck(stdinPipe, false, "", err)
@@ -183,7 +170,6 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, loader *Loader,
 		d.sendAck(stdinPipe, err == nil, "", err)
 
 	case "send_video":
-		loader.Delete()
 		data, err := resolveMediaData(frame.Data)
 		if err != nil {
 			d.sendAck(stdinPipe, false, "", err)
@@ -201,7 +187,6 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, loader *Loader,
 		d.sendAck(stdinPipe, err == nil, "", err)
 
 	case "send_document":
-		loader.Delete()
 		data, err := resolveMediaData(frame.Data)
 		if err != nil {
 			d.sendAck(stdinPipe, false, "", err)
@@ -219,7 +204,6 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, loader *Loader,
 		d.sendAck(stdinPipe, err == nil, "", err)
 
 	case "send_sticker":
-		loader.Delete()
 		data, err := resolveMediaData(frame.Data)
 		if err != nil {
 			Logger.Error("send_sticker: resolve media data failed", "err", err)
@@ -236,7 +220,6 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, loader *Loader,
 		d.sendAck(stdinPipe, err == nil, "", err)
 
 	case "poll":
-		loader.Delete()
 		if frame.Question != "" && len(frame.Options) > 0 {
 			poll := ctx.Poll(frame.Question).AddOptions(frame.Options...)
 			if frame.Selectable > 1 {
@@ -254,7 +237,6 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, loader *Loader,
 		}
 
 	case "done":
-		loader.Delete()
 		return io.EOF
 
 	default:
