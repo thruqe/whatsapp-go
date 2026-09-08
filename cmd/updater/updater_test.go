@@ -93,6 +93,14 @@ func TestCleanRestartArgs(t *testing.T) {
 			input:    []string{"whatsrook", "--session", "12345"},
 			expected: []string{"whatsrook", "--session", "12345"},
 		},
+		{
+			input:    []string{"whatsrook", "autoupdate", "on", "2348000000000"},
+			expected: []string{"whatsrook", "2348000000000"},
+		},
+		{
+			input:    []string{"whatsrook", "autoupdate=off", "verbose"},
+			expected: []string{"whatsrook", "verbose"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -328,5 +336,46 @@ func TestGetDefaultChannel(t *testing.T) {
 	}
 	if !updater.CurrentIsBeta() && ch != "stable" {
 		t.Errorf("expected GetDefaultChannel() == stable when CurrentIsBeta() == false")
+	}
+}
+
+func TestAutoUpdatePreference(t *testing.T) {
+	// Test environment variable overrides
+	t.Setenv("AUTOUPDATE", "on")
+	if !updater.GetStoredAutoUpdate() {
+		t.Errorf("expected GetStoredAutoUpdate() == true when AUTOUPDATE=on")
+	}
+
+	t.Setenv("AUTOUPDATE", "off")
+	if updater.GetStoredAutoUpdate() {
+		t.Errorf("expected GetStoredAutoUpdate() == false when AUTOUPDATE=off")
+	}
+
+	t.Setenv("AUTOUPDATE", "")
+	t.Setenv("AUTO_UPDATE", "true")
+	if !updater.GetStoredAutoUpdate() {
+		t.Errorf("expected GetStoredAutoUpdate() == true when AUTO_UPDATE=true")
+	}
+
+	t.Setenv("AUTO_UPDATE", "false")
+	if updater.GetStoredAutoUpdate() {
+		t.Errorf("expected GetStoredAutoUpdate() == false when AUTO_UPDATE=false")
+	}
+
+	// Test SetStoredAutoUpdate
+	t.Setenv("AUTOUPDATE", "")
+	t.Setenv("AUTO_UPDATE", "")
+	if err := updater.SetStoredAutoUpdate(true); err != nil {
+		t.Fatalf("SetStoredAutoUpdate(true) error: %v", err)
+	}
+	if !updater.GetStoredAutoUpdate() {
+		t.Errorf("expected GetStoredAutoUpdate() == true after SetStoredAutoUpdate(true)")
+	}
+
+	if err := updater.SetStoredAutoUpdate(false); err != nil {
+		t.Fatalf("SetStoredAutoUpdate(false) error: %v", err)
+	}
+	if updater.GetStoredAutoUpdate() {
+		t.Errorf("expected GetStoredAutoUpdate() == false after SetStoredAutoUpdate(false)")
 	}
 }

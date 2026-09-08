@@ -18,6 +18,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"whatsrook"
@@ -32,6 +33,7 @@ const (
 	DefaultVersionFile = "version.txt"
 	DefaultVersionURL  = "https://raw.githubusercontent.com/ThruqeLabs/whatsrook/refs/heads/master/version.txt"
 	ChannelKey         = "update_channel" // "stable" or "beta"
+	AutoUpdateKey      = "auto_update"    // "on" or "off"
 )
 
 var EmbeddedAppVersion = func() string {
@@ -149,6 +151,19 @@ func channelFilePath() string {
 		return filepath.Join(filepath.Dir(exe), ".update-channel")
 	}
 	return ".update-channel"
+}
+
+// autoUpdateFilePath returns the path used to persist the autoupdate on/off preference.
+func autoUpdateFilePath() string {
+	if dir, err := os.UserConfigDir(); err == nil {
+		p := filepath.Join(dir, "whatsrook")
+		_ = os.MkdirAll(p, 0755)
+		return filepath.Join(p, ".autoupdate")
+	}
+	if exe, err := ResolveExecutablePath(); err == nil {
+		return filepath.Join(filepath.Dir(exe), ".autoupdate")
+	}
+	return ".autoupdate"
 }
 
 func installedBetaFilePath() string {
@@ -309,6 +324,57 @@ func SetChannel(ctx context.Context, SQlstore *sqlstore.SQLStore, channel string
 		return nil
 	}
 	return store.PutSetting(ctx, SQlstore, ChannelKey, channel)
+}
+
+// GetStoredAutoUpdate returns whether auto-update is enabled.
+// It checks AUTOUPDATE and AUTO_UPDATE environment variables first, then the local config file.
+func GetStoredAutoUpdate() bool {
+	if env := strings.TrimSpace(strings.ToLower(os.Getenv("AUTOUPDATE"))); env != "" {
+		return env == "on" || env == "true" || env == "1" || env == "yes" || env == "enable" || env == "enabled"
+	}
+	if env := strings.TrimSpace(strings.ToLower(os.Getenv("AUTO_UPDATE"))); env != "" {
+		return env == "on" || env == "true" || env == "1" || env == "yes" || env == "enable" || env == "enabled"
+	}
+	data, err := os.ReadFile(autoUpdateFilePath())
+	if err == nil {
+		val := strings.TrimSpace(strings.ToLower(string(data)))
+		return val == "on" || val == "true" || val == "1" || val == "yes" || val == "enable" || val == "enabled"
+	}
+	return false
+}
+
+// SetStoredAutoUpdate writes the auto-update preference to disk.
+func SetStoredAutoUpdate(enabled bool) error {
+	val := "off\n"
+	if enabled {
+		val = "on\n"
+	}
+	return os.WriteFile(autoUpdateFilePath(), []byte(val), 0644)
+}
+
+// GetAutoUpdate gets configured auto-update preference across SQLStore and local file preference.
+func GetAutoUpdate(ctx context.Context, Sqlstore *sqlstore.SQLStore) bool {
+	if Sqlstore != nil {
+		val, err := store.GetSetting(ctx, Sqlstore, AutoUpdateKey)
+		if err == nil && val != "" {
+			valLower := strings.ToLower(strings.TrimSpace(val))
+			return valLower == "on" || valLower == "true" || valLower == "1" || valLower == "yes" || valLower == "enable" || valLower == "enabled"
+		}
+	}
+	return GetStoredAutoUpdate()
+}
+
+// SetAutoUpdate sets auto-update preference across both SQLStore and local file preference.
+func SetAutoUpdate(ctx context.Context, SQlstore *sqlstore.SQLStore, enabled bool) error {
+	_ = SetStoredAutoUpdate(enabled)
+	if SQlstore == nil {
+		return nil
+	}
+	val := "off"
+	if enabled {
+		val = "on"
+	}
+	return store.PutSetting(ctx, SQlstore, AutoUpdateKey, val)
 }
 
 // ParseVersion converts a semver string into a Version struct.
@@ -1061,12 +1127,94 @@ func CleanRestartArgs(args []string) []string {
 		if low == "update" || low == "upgrade" || low == "check" || low == "now" || low == "apply" || low == "stable" || low == "beta" {
 			continue
 		}
+		if low == "autoupdate" || low == "auto-update" || strings.HasPrefix(low, "autoupdate=") || strings.HasPrefix(low, "auto-update=") {
+			continue
+		}
+		if low == "on" || low == "off" || low == "enable" || low == "disable" || low == "status" {
+			// If preceding argument was autoupdate, skip it
+			if i > 1 {
+				prev := strings.ToLower(args[i-1])
+				if prev == "autoupdate" || prev == "auto-update" {
+					continue
+				}
+			}
+		}
 		if low == "--update" || low == "-u" || strings.HasPrefix(low, "--update=") || strings.HasPrefix(low, "-u=") {
 			continue
 		}
 		clean = append(clean, a)
 	}
 	return clean
+}
+
+// RestartProcess cleanly restarts the current executable, preserving arguments and environment.
+func RestartProcess(extraArgs ...string) error {
+	exe, err := ResolveExecutablePath()
+	if err != nil {
+		exe, err = os.Executable()
+		if err != nil {
+			return fmt.Errorf("failed to resolve executable path for restart: %w", err)
+		}
+	}
+
+	cleanArgs := CleanRestartArgs(os.Args)
+	if len(extraArgs) > 0 {
+		cleanArgs = append(cleanArgs, extraArgs...)
+	}
+
+	// On Unix platforms, try in-place replacement via syscall.Exec
+	if runtime.GOOS != "windows" {
+		_ = syscall.Exec(exe, cleanArgs, os.Environ())
+	}
+
+	// Cross-platform fallback / Windows: start new process and terminate current
+	var cmdArgs []string
+	if len(cleanArgs) > 1 {
+		cmdArgs = cleanArgs[1:]
+	}
+	cmd := exec.Command(exe, cmdArgs...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to spawn restarted process: %w", err)
+	}
+	os.Exit(0)
+	return nil
+}
+
+// PerformAutoUpdate checks for available updates and automatically upgrades the binary.
+// Returns (updated bool, err error).
+func PerformAutoUpdate(ctx context.Context, out io.Writer) (bool, error) {
+	channel := GetStoredChannel()
+	if CurrentIsBeta() {
+		channel = "beta"
+	}
+
+	up := New(Options{
+		Channel: channel,
+		Out:     out,
+	})
+
+	res, err := up.Check(ctx)
+	if err != nil {
+		return false, err
+	}
+	if !res.HasNewVersion {
+		return false, nil
+	}
+
+	if out != nil {
+		fmt.Fprintf(out, "==> Auto-update: new version available (%s -> %s). Upgrading...\n", res.CurrentVersion, res.LatestVersion)
+	}
+
+	upgradeRes, err := up.Upgrade(ctx, channel == "beta")
+	if err != nil {
+		return false, err
+	}
+
+	return upgradeRes.Updated, nil
 }
 
 // ResolveExecutablePath reliably finds the current executable path, handling procfs (deleted) suffixes and binary renames.

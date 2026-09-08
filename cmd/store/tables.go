@@ -14,60 +14,23 @@ import (
 
 var tablesInitOnce sync.Once
 
-// TableExists checks if a given table exists in the database.
+// TableExists checks if a given table exists in the PostgreSQL database.
 func TableExists(ctx context.Context, db *dbutil.Database, table string) (bool, error) {
 	if db == nil {
 		return false, fmt.Errorf("nil database")
 	}
 
 	var exists bool
-	if db.Dialect == dbutil.SQLite {
-		var count int
-		err := db.QueryRow(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=$1", table).Scan(&count)
-		return count > 0, err
-	}
-
-	// PostgreSQL / Standard SQL
-	err := db.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)", table).Scan(&exists)
+	err := db.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)", strings.ToLower(table)).Scan(&exists)
 	return exists, err
 }
 
-// TableHasColumn checks if a given column exists in a database table.
+// TableHasColumn checks if a given column exists in a PostgreSQL database table.
 func TableHasColumn(ctx context.Context, db *dbutil.Database, table, column string) (bool, error) {
 	if db == nil {
 		return false, fmt.Errorf("nil database")
 	}
 
-	if db.Dialect == dbutil.SQLite {
-		var count int
-		// Check pragma_table_info (SQLite 3.16+) or fallback to raw query
-		err := db.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name=$1", table), column).Scan(&count)
-		if err == nil {
-			return count > 0, nil
-		}
-
-		// Fallback: query PRAGMA table_info directly
-		rows, errQuery := db.Query(ctx, fmt.Sprintf("PRAGMA table_info(%s)", table))
-		if errQuery != nil {
-			return false, errQuery
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var cid int
-			var name, ctype string
-			var notnull, pk int
-			var dfltValue any
-			if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err == nil {
-				if strings.EqualFold(name, column) {
-					return true, nil
-				}
-			}
-		}
-		return false, nil
-	}
-
-	// PostgreSQL / Standard ANSI SQL
 	var exists bool
 	err := db.QueryRow(ctx, `
 		SELECT EXISTS (
@@ -113,120 +76,6 @@ func EnsureCustomColumnExists(ctx context.Context, db *dbutil.Database, table, c
 		}
 		return err
 	}
-	return nil
-}
-
-// MigrateSQLiteTableRemovingFK decouples SQLite tables from foreign key constraints safely.
-func MigrateSQLiteTableRemovingFK(ctx context.Context, db *dbutil.Database, tableName, createSchema, selectCols string) error {
-	if db == nil || db.Dialect != dbutil.SQLite {
-		return nil
-	}
-
-	var tableSql string
-	err := db.QueryRow(ctx, "SELECT sql FROM sqlite_master WHERE type='table' AND name=$1", tableName).Scan(&tableSql)
-	if err != nil {
-		return nil
-	}
-	if !strings.Contains(strings.ToUpper(tableSql), "FOREIGN KEY") {
-		return nil
-	}
-
-	Logger.Info("Migrating SQLite table to decouple from foreign key constraint...", "table", tableName)
-	tempTable := tableName + "_fk_migrated"
-	var newSchema string
-	if strings.Contains(createSchema, "CREATE TABLE IF NOT EXISTS "+tableName) {
-		newSchema = strings.Replace(createSchema, "CREATE TABLE IF NOT EXISTS "+tableName, "CREATE TABLE "+tempTable, 1)
-	} else {
-		newSchema = strings.Replace(createSchema, "CREATE TABLE "+tableName, "CREATE TABLE "+tempTable, 1)
-	}
-
-	// Disable foreign keys temporarily during table swap
-	_, _ = db.Exec(ctx, "PRAGMA foreign_keys = OFF")
-	defer func() {
-		_, _ = db.Exec(ctx, "PRAGMA foreign_keys = ON")
-	}()
-
-	if _, err := db.Exec(ctx, newSchema); err != nil {
-		return fmt.Errorf("failed to create temp table %s: %w", tempTable, err)
-	}
-
-	insertCmd := fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) SELECT %s FROM %s", tempTable, selectCols, selectCols, tableName)
-	if _, err := db.Exec(ctx, insertCmd); err != nil {
-		_, _ = db.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", tempTable))
-		return fmt.Errorf("failed to copy rows to %s: %w", tempTable, err)
-	}
-
-	if _, err := db.Exec(ctx, fmt.Sprintf("DROP TABLE %s", tableName)); err != nil {
-		return fmt.Errorf("failed to drop table %s: %w", tableName, err)
-	}
-
-	if _, err := db.Exec(ctx, fmt.Sprintf("ALTER TABLE %s RENAME TO %s", tempTable, tableName)); err != nil {
-		return fmt.Errorf("failed to rename %s to %s: %w", tempTable, tableName, err)
-	}
-
-	return nil
-}
-
-// MigrateSQLiteTableToCompositePK migrates a legacy SQLite table if its primary key is single-column instead of composite (our_jid, ...).
-func MigrateSQLiteTableToCompositePK(ctx context.Context, db *dbutil.Database, tableName, createSchema, targetCols, selectCols string) error {
-	if db == nil || db.Dialect != dbutil.SQLite {
-		return nil
-	}
-
-	var tableSql string
-	err := db.QueryRow(ctx, "SELECT sql FROM sqlite_master WHERE type='table' AND name=$1", tableName).Scan(&tableSql)
-	if err != nil {
-		return nil
-	}
-	upper := strings.ToUpper(tableSql)
-	// If already composite PK with our_jid, nothing to do
-	if strings.Contains(upper, "PRIMARY KEY (OUR_JID") || strings.Contains(upper, "PRIMARY KEY(OUR_JID") {
-		return nil
-	}
-
-	Logger.Info("Migrating SQLite table to composite primary key...", "table", tableName)
-	tempTable := tableName + "_pk_migrated"
-	var newSchema string
-	if strings.Contains(createSchema, "CREATE TABLE IF NOT EXISTS "+tableName) {
-		newSchema = strings.Replace(createSchema, "CREATE TABLE IF NOT EXISTS "+tableName, "CREATE TABLE "+tempTable, 1)
-	} else {
-		newSchema = strings.Replace(createSchema, "CREATE TABLE "+tableName, "CREATE TABLE "+tempTable, 1)
-	}
-
-	_, _ = db.Exec(ctx, "PRAGMA foreign_keys = OFF")
-	defer func() {
-		_, _ = db.Exec(ctx, "PRAGMA foreign_keys = ON")
-	}()
-
-	if _, err := db.Exec(ctx, newSchema); err != nil {
-		Logger.Error("MigrateSQLiteTableToCompositePK: failed to create temp table", "table", tempTable, "err", err, "schema", newSchema)
-		return fmt.Errorf("failed to create temp table %s: %w", tempTable, err)
-	}
-
-	if selectCols == "" {
-		selectCols = targetCols
-	}
-
-	// Clean up any NULL our_jid values in the old table before copy
-	_, _ = db.Exec(ctx, fmt.Sprintf("UPDATE %s SET our_jid = '' WHERE our_jid IS NULL", tableName))
-
-	insertCmd := fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) SELECT %s FROM %s", tempTable, targetCols, selectCols, tableName)
-	if _, err := db.Exec(ctx, insertCmd); err != nil {
-		Logger.Error("MigrateSQLiteTableToCompositePK: failed to copy rows", "table", tempTable, "err", err, "cmd", insertCmd)
-		_, _ = db.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", tempTable))
-		return fmt.Errorf("failed to copy rows to %s: %w", tempTable, err)
-	}
-
-	if _, err := db.Exec(ctx, fmt.Sprintf("DROP TABLE %s", tableName)); err != nil {
-		Logger.Error("MigrateSQLiteTableToCompositePK: failed to drop table", "table", tableName, "err", err)
-		return fmt.Errorf("failed to drop table %s: %w", tableName, err)
-	}
-
-	if _, err := db.Exec(ctx, fmt.Sprintf("ALTER TABLE %s RENAME TO %s", tempTable, tableName)); err != nil {
-		Logger.Error("MigrateSQLiteTableToCompositePK: failed to rename table", "table", tempTable, "err", err)
-		return fmt.Errorf("failed to rename %s to %s: %w", tempTable, tableName, err)
-	}
-
 	return nil
 }
 
