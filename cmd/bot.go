@@ -47,6 +47,7 @@ type BotConfig struct {
 	QRCode          bool
 	Logout          bool
 	ClientType      whatsrook.ClientType
+	Business        bool
 	Database        string
 	Verbose         bool
 	WSPort          int
@@ -89,6 +90,7 @@ func (b *Bot) Start(ctx context.Context) error {
 		DataDir:         whatsrook.DefaultDataDir(),
 		Database:        b.cfg.Database,
 		ClientType:      b.cfg.ClientType,
+		Business:        b.cfg.Business,
 		Verbose:         b.cfg.Verbose,
 		AsyncMessageAck: b.cfg.AsyncMessageAck,
 	})

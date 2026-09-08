@@ -134,14 +134,17 @@ func runInteractiveStandby(ctx context.Context, defaultDB string) error {
 			continue
 		}
 
+		var isBusiness bool
 		if idx, err := strconv.Atoi(phone); err == nil && idx >= 1 && idx <= len(sessions) {
 			phone = sessions[idx-1].User
+			isBusiness = sessions[idx-1].Business
 		}
 
 		botCfg := BotConfig{
 			Session:         phone,
 			QRCode:          true,
 			ClientType:      whatsrook.ClientChrome,
+			Business:        isBusiness,
 			Database:        defaultDB,
 			WSPort:          0,
 			AsyncMessageAck: true,

@@ -113,9 +113,13 @@ func GetVersion() (Version, error) {
 // this performs case-insensitive normalization; returns false if the platform identifier is unknown.
 func ParseClientType(s string) (ClientType, bool) {
 	c, ok := map[string]ClientType{
-		"chrome":  ClientChrome,
-		"android": ClientAndroid,
-		"ios":     ClientIos,
+		"chrome":      ClientChrome,
+		"android":     ClientAndroid,
+		"ios":         ClientIos,
+		"smb_android": ClientAndroid,
+		"smba":        ClientAndroid,
+		"smb_ios":     ClientIos,
+		"smbi":        ClientIos,
 	}[strings.ToLower(s)]
 	return c, ok
 }
@@ -133,6 +137,9 @@ type Config struct {
 
 	// clienttype defines the companion device platform signature emulated during pairing.
 	ClientType ClientType
+
+	// Business indicates whether this session emulates or connects to a WhatsApp Business account (SMB).
+	Business bool
 
 	// verbose toggles debug-level tracing across whatsmeow protocol logs and internal drivers.
 	Verbose bool
@@ -203,18 +210,35 @@ func (c *Client) InitSession(ctx context.Context) error {
 	cli.AsyncMessageAck = c.Config.AsyncMessageAck
 
 	// Configure companion platform registration headers and os version payloads
-	switch c.Config.ClientType {
+	isBusiness := c.Config.Business || (deviceStore != nil && (deviceStore.BusinessName != "" || strings.HasPrefix(strings.ToLower(deviceStore.Platform), "smb")))
+	configureCompanionPlatform(c.Config.ClientType, isBusiness)
+
+	c.rawClient = cli
+	return nil
+}
+
+// configureCompanionPlatform configures device properties and base client payload based on client type and business status.
+func configureCompanionPlatform(clientType ClientType, isBusiness bool) {
+	switch clientType {
 	case ClientAndroid:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_ANDROID_PHONE.Enum()
 		store.DeviceProps.Os = new("16")
-		store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_ANDROID.Enum()
+		if isBusiness {
+			store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_SMB_ANDROID.Enum()
+		} else {
+			store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_ANDROID.Enum()
+		}
 		store.BaseClientPayload.UserAgent.OsVersion = new("16.0.0")
 		store.BaseClientPayload.UserAgent.OsBuildNumber = new("16.0.0")
 		store.BaseClientPayload.WebInfo = nil
 	case ClientIos:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_IOS_PHONE.Enum()
 		store.DeviceProps.Os = new("18.0")
-		store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_IOS.Enum()
+		if isBusiness {
+			store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_SMB_IOS.Enum()
+		} else {
+			store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_IOS.Enum()
+		}
 		store.BaseClientPayload.UserAgent.OsVersion = new("18.0")
 		store.BaseClientPayload.UserAgent.OsBuildNumber = new("18.0")
 		store.BaseClientPayload.WebInfo = nil
@@ -229,10 +253,10 @@ func (c *Client) InitSession(ctx context.Context) error {
 		}
 		store.DeviceProps.Os = &osName
 		store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_WEB.Enum()
+		store.BaseClientPayload.WebInfo = &waWa6.ClientPayload_WebInfo{
+			WebSubPlatform: waWa6.ClientPayload_WebInfo_WEB_BROWSER.Enum(),
+		}
 	}
-
-	c.rawClient = cli
-	return nil
 }
 
 // sanitizeDBURL redacts sensitive database credentials prior to log emission.
