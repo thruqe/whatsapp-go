@@ -140,3 +140,24 @@ func RecordRecentMessage(evt *events.Message) {
 func GetRecentMessageForJID(jid types.JID) *events.Message {
 	return utils.GetRecentMessageForJID(jid)
 }
+
+func init() {
+	utils.GlobalSettingGetter = func(ctx context.Context, client *whatsmeow.Client, key string) (string, error) {
+		if s, ok := GetSQLStore(client); ok {
+			return s.GetSetting(ctx, key)
+		}
+		return "", nil
+	}
+	utils.GlobalSettingSetter = func(ctx context.Context, client *whatsmeow.Client, key, value string) error {
+		if s, ok := GetSQLStore(client); ok {
+			return s.PutSetting(ctx, key, value)
+		}
+		return nil
+	}
+	utils.GlobalSettingDeleter = func(ctx context.Context, client *whatsmeow.Client, key string) error {
+		if s, ok := GetSQLStore(client); ok {
+			return s.DeleteSetting(ctx, key)
+		}
+		return nil
+	}
+}

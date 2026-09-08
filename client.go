@@ -1338,6 +1338,68 @@ func GetRecentMessageForJID(jid types.JID) *events.Message {
 	return nil
 }
 
+// SettingGetter retrieves a setting value for a client and key from the database store.
+type SettingGetter func(ctx context.Context, client *whatsmeow.Client, key string) (string, error)
+
+// SettingSetter updates a setting value for a client and key in the database store.
+type SettingSetter func(ctx context.Context, client *whatsmeow.Client, key, value string) error
+
+// SettingDeleter removes a setting value for a client and key from the database store.
+type SettingDeleter func(ctx context.Context, client *whatsmeow.Client, key string) error
+
+var (
+	GlobalSettingGetter  SettingGetter
+	GlobalSettingSetter  SettingSetter
+	GlobalSettingDeleter SettingDeleter
+)
+
+// GetClientSetting retrieves a configuration value from the global setting getter or identity store fallback.
+func GetClientSetting(ctx context.Context, client *whatsmeow.Client, key string) (string, error) {
+	if GlobalSettingGetter != nil {
+		if val, err := GlobalSettingGetter(ctx, client, key); err == nil && val != "" {
+			return val, nil
+		}
+	}
+	if client != nil && client.Store != nil && client.Store.Identities != nil {
+		if s, ok := client.Store.Identities.(interface {
+			GetSetting(ctx context.Context, key string) (string, error)
+		}); ok {
+			return s.GetSetting(ctx, key)
+		}
+	}
+	return "", nil
+}
+
+// PutClientSetting writes a configuration value to the global setting setter or identity store fallback.
+func PutClientSetting(ctx context.Context, client *whatsmeow.Client, key, value string) error {
+	if GlobalSettingSetter != nil {
+		return GlobalSettingSetter(ctx, client, key, value)
+	}
+	if client != nil && client.Store != nil && client.Store.Identities != nil {
+		if s, ok := client.Store.Identities.(interface {
+			PutSetting(ctx context.Context, key, value string) error
+		}); ok {
+			return s.PutSetting(ctx, key, value)
+		}
+	}
+	return nil
+}
+
+// DeleteClientSetting deletes a configuration value using the global setting deleter or identity store fallback.
+func DeleteClientSetting(ctx context.Context, client *whatsmeow.Client, key string) error {
+	if GlobalSettingDeleter != nil {
+		return GlobalSettingDeleter(ctx, client, key)
+	}
+	if client != nil && client.Store != nil && client.Store.Identities != nil {
+		if s, ok := client.Store.Identities.(interface {
+			DeleteSetting(ctx context.Context, key string) error
+		}); ok {
+			return s.DeleteSetting(ctx, key)
+		}
+	}
+	return nil
+}
+
 // IsSudoRaw checks if a sender JID has sudo/owner privileges stored in database settings or environment.
 func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) bool {
 	if client == nil || sender.IsEmpty() {
@@ -1371,73 +1433,68 @@ func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) 
 	}
 
 	// 3. Check database settings (database "sudoers" list)
-	if client.Store != nil && client.Store.Identities != nil {
-		s, ok := client.Store.Identities.(interface {
-			GetSetting(ctx context.Context, key string) (string, error)
-		})
-		if ok {
-			if raw, err := s.GetSetting(ctx, "sudoers"); err == nil && raw != "" {
-				// Resolve the sender's contact push name for username-token matching.
-				var senderPushName string
-				if client.Store != nil && client.Store.Contacts != nil {
-					lookupJID := sender.ToNonAD()
-					// If sender is a LID, try to get the PN for contact lookup.
-					if lookupJID.Server == types.HiddenUserServer && client.Store.LIDs != nil {
-						if pn, pnErr := client.Store.LIDs.GetPNForLID(ctx, lookupJID); pnErr == nil && !pn.IsEmpty() {
-							lookupJID = pn.ToNonAD()
-						}
-					}
-					if contact, cErr := client.Store.Contacts.GetContact(ctx, lookupJID); cErr == nil && contact.Found {
-						if contact.Username != "" {
-							senderPushName = strings.ToLower(contact.Username)
-						} else if contact.PushName != "" {
-							senderPushName = strings.ToLower(contact.PushName)
-						} else if contact.FullName != "" {
-							senderPushName = strings.ToLower(contact.FullName)
-						}
-					}
+	if raw, err := GetClientSetting(ctx, client, "sudoers"); err == nil && raw != "" {
+		// Resolve the sender's contact push name for username-token matching.
+		var senderPushName string
+		if client.Store != nil && client.Store.Contacts != nil {
+			lookupJID := sender.ToNonAD()
+			// If sender is a LID, try to get the PN for contact lookup.
+			if lookupJID.Server == types.HiddenUserServer && client.Store.LIDs != nil {
+				if pn, pnErr := client.Store.LIDs.GetPNForLID(ctx, lookupJID); pnErr == nil && !pn.IsEmpty() {
+					lookupJID = pn.ToNonAD()
 				}
-				if senderPushName == "" {
-					if recent := GetRecentMessageForJID(sender); recent != nil && recent.Info.PushName != "" {
-						senderPushName = strings.ToLower(recent.Info.PushName)
-					}
+			}
+			if contact, cErr := client.Store.Contacts.GetContact(ctx, lookupJID); cErr == nil && contact.Found {
+				if contact.Username != "" {
+					senderPushName = strings.ToLower(contact.Username)
+				} else if contact.PushName != "" {
+					senderPushName = strings.ToLower(contact.PushName)
+				} else if contact.FullName != "" {
+					senderPushName = strings.ToLower(contact.FullName)
 				}
+			}
+		}
+		if senderPushName == "" {
+			if recent := GetRecentMessageForJID(sender); recent != nil && recent.Info.PushName != "" {
+				senderPushName = strings.ToLower(recent.Info.PushName)
+			}
+		}
 
-				for sudoerStr := range strings.FieldsSeq(raw) {
-					cleanSudoer := strings.TrimPrefix(sudoerStr, "+")
-					if sudoerJID, err := types.ParseJID(sudoerStr); err == nil {
-						if IsSameUserRaw(ctx, client, sender, sudoerJID) {
-							return true
-						}
-					} else if cleanSudoer != "" {
-						// Bare phone number match.
-						senderUser := sender.ToNonAD().User
-						if senderUser == cleanSudoer || strings.TrimPrefix(senderUser, "+") == cleanSudoer {
-							return true
-						}
-						// Push name / username token match.
-						if senderPushName != "" && senderPushName == strings.ToLower(cleanSudoer) {
-							return true
-						}
+		for sudoerStr := range strings.FieldsSeq(raw) {
+			cleanSudoer := strings.TrimPrefix(sudoerStr, "+")
+			if strings.Contains(sudoerStr, "@") {
+				if sudoerJID, err := types.ParseJID(sudoerStr); err == nil {
+					if IsSameUserRaw(ctx, client, sender, sudoerJID) {
+						return true
 					}
 				}
-			}
-
-			// Backward compatibility fallback for per-JID key
-			if val, err := s.GetSetting(ctx, "sudo:"+sender.ToNonAD().String()); err == nil && val == "true" {
-				return true
-			}
-			if val, err := s.GetSetting(ctx, "sudo:"+sender.ToNonAD().User); err == nil && val == "true" {
-				return true
-			}
-			if recent := GetRecentMessageForJID(sender); recent != nil && !recent.Info.SenderAlt.IsEmpty() {
-				if val, err := s.GetSetting(ctx, "sudo:"+recent.Info.SenderAlt.ToNonAD().String()); err == nil && val == "true" {
+			} else if cleanSudoer != "" {
+				// Bare phone number match.
+				senderUser := sender.ToNonAD().User
+				if senderUser == cleanSudoer || strings.TrimPrefix(senderUser, "+") == cleanSudoer {
 					return true
 				}
-				if val, err := s.GetSetting(ctx, "sudo:"+recent.Info.SenderAlt.ToNonAD().User); err == nil && val == "true" {
+				// Push name / username token match.
+				if senderPushName != "" && strings.EqualFold(senderPushName, cleanSudoer) {
 					return true
 				}
 			}
+		}
+	}
+
+	// Backward compatibility fallback for per-JID key
+	if val, err := GetClientSetting(ctx, client, "sudo:"+sender.ToNonAD().String()); err == nil && val == "true" {
+		return true
+	}
+	if val, err := GetClientSetting(ctx, client, "sudo:"+sender.ToNonAD().User); err == nil && val == "true" {
+		return true
+	}
+	if recent := GetRecentMessageForJID(sender); recent != nil && !recent.Info.SenderAlt.IsEmpty() {
+		if val, err := GetClientSetting(ctx, client, "sudo:"+recent.Info.SenderAlt.ToNonAD().String()); err == nil && val == "true" {
+			return true
+		}
+		if val, err := GetClientSetting(ctx, client, "sudo:"+recent.Info.SenderAlt.ToNonAD().User); err == nil && val == "true" {
+			return true
 		}
 	}
 
@@ -1596,6 +1653,12 @@ func ResolveMentionJIDs(ctx context.Context, client *whatsmeow.Client, participa
 	tagUser := pnJID.User
 	if tagUser == "" {
 		tagUser = resolved.User
+	}
+	if tagUser == "" {
+		tagUser = resolved.String()
+	}
+	if tagUser == "" {
+		tagUser = "User"
 	}
 	return jids, tagUser
 }
@@ -2626,13 +2689,9 @@ func (c *PluginContext) StopAutoLoader() {}
 
 // GetPrefix returns the configured command prefix, default ".".
 func (c *PluginContext) GetPrefix() string {
-	if c != nil && c.Client != nil && c.Client.Store != nil && c.Client.Store.Identities != nil {
-		if s, ok := c.Client.Store.Identities.(interface {
-			GetSetting(ctx context.Context, key string) (string, error)
-		}); ok {
-			if val, err := s.GetSetting(c.GetSendContext(), "prefix"); err == nil && val != "" {
-				return val
-			}
+	if c != nil && c.Client != nil {
+		if val, err := GetClientSetting(c.GetSendContext(), c.Client, "prefix"); err == nil && val != "" {
+			return val
 		}
 	}
 	return "."
@@ -2640,13 +2699,9 @@ func (c *PluginContext) GetPrefix() string {
 
 // GetBotName returns the configured bot display name, default "WhatsRook".
 func (c *PluginContext) GetBotName() string {
-	if c != nil && c.Client != nil && c.Client.Store != nil && c.Client.Store.Identities != nil {
-		if s, ok := c.Client.Store.Identities.(interface {
-			GetSetting(ctx context.Context, key string) (string, error)
-		}); ok {
-			if val, err := s.GetSetting(c.GetSendContext(), "bot_name"); err == nil && val != "" {
-				return val
-			}
+	if c != nil && c.Client != nil {
+		if val, err := GetClientSetting(c.GetSendContext(), c.Client, "bot_name"); err == nil && val != "" {
+			return val
 		}
 	}
 	return "WhatsRook"
@@ -2654,13 +2709,9 @@ func (c *PluginContext) GetBotName() string {
 
 // GetStickerPack returns the configured default sticker pack name, defaulting to GetBotName().
 func (c *PluginContext) GetStickerPack() string {
-	if c != nil && c.Client != nil && c.Client.Store != nil && c.Client.Store.Identities != nil {
-		if s, ok := c.Client.Store.Identities.(interface {
-			GetSetting(ctx context.Context, key string) (string, error)
-		}); ok {
-			if val, err := s.GetSetting(c.GetSendContext(), "sticker_pack"); err == nil && strings.TrimSpace(val) != "" {
-				return strings.TrimSpace(val)
-			}
+	if c != nil && c.Client != nil {
+		if val, err := GetClientSetting(c.GetSendContext(), c.Client, "sticker_pack"); err == nil && strings.TrimSpace(val) != "" {
+			return strings.TrimSpace(val)
 		}
 	}
 	return c.GetBotName()
@@ -2668,13 +2719,9 @@ func (c *PluginContext) GetStickerPack() string {
 
 // GetStickerAuthor returns the configured default sticker author/publisher, defaulting to "WhatsRook".
 func (c *PluginContext) GetStickerAuthor() string {
-	if c != nil && c.Client != nil && c.Client.Store != nil && c.Client.Store.Identities != nil {
-		if s, ok := c.Client.Store.Identities.(interface {
-			GetSetting(ctx context.Context, key string) (string, error)
-		}); ok {
-			if val, err := s.GetSetting(c.GetSendContext(), "sticker_author"); err == nil && strings.TrimSpace(val) != "" {
-				return strings.TrimSpace(val)
-			}
+	if c != nil && c.Client != nil {
+		if val, err := GetClientSetting(c.GetSendContext(), c.Client, "sticker_author"); err == nil && strings.TrimSpace(val) != "" {
+			return strings.TrimSpace(val)
 		}
 	}
 	return "WhatsRook"
@@ -2727,15 +2774,11 @@ func (c *PluginContext) IsSudo() bool {
 			}
 		}
 		if c.Evt.Info.PushName != "" {
-			if s, okStore := c.Client.Store.Identities.(interface {
-				GetSetting(ctx context.Context, key string) (string, error)
-			}); okStore {
-				if raw, err := s.GetSetting(c.GetSendContext(), "sudoers"); err == nil && raw != "" {
-					pushLower := strings.ToLower(strings.TrimSpace(c.Evt.Info.PushName))
-					for sudoerStr := range strings.FieldsSeq(raw) {
-						if strings.EqualFold(sudoerStr, pushLower) {
-							return true
-						}
+			if raw, err := GetClientSetting(c.GetSendContext(), c.Client, "sudoers"); err == nil && raw != "" {
+				pushLower := strings.ToLower(strings.TrimSpace(c.Evt.Info.PushName))
+				for sudoerStr := range strings.FieldsSeq(raw) {
+					if strings.EqualFold(sudoerStr, pushLower) {
+						return true
 					}
 				}
 			}
