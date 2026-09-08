@@ -31,13 +31,15 @@ You can run a simple whatsrook instance on this [free host](https://wha-console.
 
 If you want to help make this project better, please take the time to read this contribution [doc](./CONTRIBUTING.md) and [fork](https://github.com/ThruqeLabs/whatsrook/fork) this repository. It provides a well detailed and comprehensive instructions on contributing to this project.
 
+If you are using any AI agent for assistance, please refer to the [AGENTS documentation](./AGENTS.md) Guide.
+
 ## Acknowledgements
 
 whatsrook wouldn't have been possible without these open source, community and passion-driven projects: [whatsmeow](https://github.com/tulir/whatsmeow), [whatsapp-rust](https://github.com/oxidezap/whatsapp-rust), [hypermeow](https://github.com/polymorfa/hypermeow), and [whatsapp-rust-bridge](https://github.com/oxidezap/whatsapp-rust-bridge). I acquired information and knowledge from them.
 
 ## Licensing
 
-This project is open source and licensed under the [MIT License](./LICENSE). Feel free to use, modify, and distribute it as you see fit, see the LICENSE file for full details.
+This project is open source, see the [LICENSE](./LICENSE) file for full details.
 
 ## Support This Project
 
