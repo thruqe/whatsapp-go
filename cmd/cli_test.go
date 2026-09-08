@@ -19,27 +19,27 @@ func TestParseCLIArgsLogout(t *testing.T) {
 		},
 		{
 			name:       "phone followed by logout",
-			args:       []string{"2348060598064", "logout"},
+			args:       []string{"2348000000000", "logout"},
 			wantLogout: true,
-			wantPhone:  "2348060598064",
+			wantPhone:  "2348000000000",
 		},
 		{
 			name:       "logout followed by phone",
-			args:       []string{"logout", "2348060598064"},
+			args:       []string{"logout", "2348000000000"},
 			wantLogout: true,
-			wantPhone:  "2348060598064",
+			wantPhone:  "2348000000000",
 		},
 		{
 			name:       "interleaved with verbose plain word",
-			args:       []string{"verbose", "2348060598064", "logout"},
+			args:       []string{"verbose", "2348000000000", "logout"},
 			wantLogout: true,
-			wantPhone:  "2348060598064",
+			wantPhone:  "2348000000000",
 		},
 		{
 			name:       "normal start without logout",
-			args:       []string{"2348060598064"},
+			args:       []string{"2348000000000"},
 			wantLogout: false,
-			wantPhone:  "2348060598064",
+			wantPhone:  "2348000000000",
 		},
 		{
 			name:       "short flag -l is removed and ignored",
@@ -70,37 +70,37 @@ func TestParseCLIArgsPlainWords(t *testing.T) {
 	}
 
 	// Verbose and Phone
-	verbRes := parseCLIArgsFrom([]string{"2348060598064", "verbose"})
-	if !verbRes.Verbose || verbRes.Session != "2348060598064" {
-		t.Errorf("expected Verbose=true and Session=2348060598064, got %+v", verbRes)
+	verbRes := parseCLIArgsFrom([]string{"2348000000000", "verbose"})
+	if !verbRes.Verbose || verbRes.Session != "2348000000000" {
+		t.Errorf("expected Verbose=true and Session=2348000000000, got %+v", verbRes)
 	}
 
 	// Auth pair
-	authPair := parseCLIArgsFrom([]string{"2348060598064", "auth", "pair"})
+	authPair := parseCLIArgsFrom([]string{"2348000000000", "auth", "pair"})
 	if authPair.Auth != "pair" {
 		t.Errorf("expected Auth=pair, got %q", authPair.Auth)
 	}
 
 	// Standalone pair
-	pairRes := parseCLIArgsFrom([]string{"2348060598064", "pair"})
+	pairRes := parseCLIArgsFrom([]string{"2348000000000", "pair"})
 	if pairRes.Auth != "pair" {
 		t.Errorf("expected Auth=pair for standalone 'pair', got %q", pairRes.Auth)
 	}
 
 	// Standalone qr
-	qrRes := parseCLIArgsFrom([]string{"2348060598064", "qr"})
+	qrRes := parseCLIArgsFrom([]string{"2348000000000", "qr"})
 	if qrRes.Auth != "qr" {
 		t.Errorf("expected Auth=qr for standalone 'qr', got %q", qrRes.Auth)
 	}
 
 	// Client platform
-	clientRes := parseCLIArgsFrom([]string{"2348060598064", "client", "android"})
+	clientRes := parseCLIArgsFrom([]string{"2348000000000", "client", "android"})
 	if clientRes.Client != "android" {
 		t.Errorf("expected Client=android, got %q", clientRes.Client)
 	}
 
 	// Database URL
-	dbRes := parseCLIArgsFrom([]string{"2348060598064", "db", "postgres://localhost:5432/mydb"})
+	dbRes := parseCLIArgsFrom([]string{"2348000000000", "db", "postgres://localhost:5432/mydb"})
 	if dbRes.Database != "postgres://localhost:5432/mydb" {
 		t.Errorf("expected Database=postgres://..., got %q", dbRes.Database)
 	}
@@ -127,7 +127,7 @@ func TestParseCLIArgsPlainWords(t *testing.T) {
 	}
 
 	// Short flags -v, -a, -c are removed and not recognized
-	shortRes := parseCLIArgsFrom([]string{"-v", "-a", "pair", "-c", "android", "2348060598064"})
+	shortRes := parseCLIArgsFrom([]string{"-v", "-a", "pair", "-c", "android", "2348000000000"})
 	if shortRes.Verbose {
 		t.Errorf("short flag -v should be ignored, got Verbose=true")
 	}
@@ -152,7 +152,7 @@ func TestParseCLIArgsPlainWords(t *testing.T) {
 	}
 
 	// Default database is PostgreSQL connection URL (no sqlite)
-	defaultDB := parseCLIArgsFrom([]string{"2348060598064"})
+	defaultDB := parseCLIArgsFrom([]string{"2348000000000"})
 	if defaultDB.Database != "postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable" {
 		t.Errorf("expected default PostgreSQL URL, got %q", defaultDB.Database)
 	}

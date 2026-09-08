@@ -253,12 +253,12 @@ func TestPluginContext_LID_And_SenderAlt_IsSudo(t *testing.T) {
 
 	botPN := types.NewJID("2348011112222", types.DefaultUserServer)
 	botLID := types.NewJID("1000000000001", types.HiddenUserServer)
-	sudoPN := types.NewJID("2348060598064", types.DefaultUserServer)
-	sudoLID := types.NewJID("258256953950323", types.HiddenUserServer)
+	sudoPN := types.NewJID("2348000000001", types.DefaultUserServer)
+	sudoLID := types.NewJID("123456789012345", types.HiddenUserServer)
 
 	mockStore := &mockIdentityStore{
 		settings: map[string]string{
-			"sudoers": "2348060598064@s.whatsapp.net thruqe",
+			"sudoers": "2348000000001@s.whatsapp.net testuser",
 		},
 	}
 
@@ -282,7 +282,7 @@ func TestPluginContext_LID_And_SenderAlt_IsSudo(t *testing.T) {
 				Chat:      sudoLID,
 				Sender:    sudoLID,
 				SenderAlt: sudoPN,
-				PushName:  "thruqe",
+				PushName:  "testuser",
 			},
 			Message: &waE2E.Message{},
 		},
@@ -303,7 +303,7 @@ func TestPluginContext_LID_And_SenderAlt_IsSudo(t *testing.T) {
 			Info: types.MessageInfo{
 				Chat:     unknownLID,
 				Sender:   unknownLID,
-				PushName: "thruqe",
+				PushName: "testuser",
 			},
 			Message: &waE2E.Message{},
 		},
@@ -317,7 +317,7 @@ func TestPluginContext_LID_And_SenderAlt_IsSudo(t *testing.T) {
 func TestPluginContext_GetTargets_DM_Fallback(t *testing.T) {
 	botPN := types.NewJID("2348011112222", types.DefaultUserServer)
 	botLID := types.NewJID("1000000000001", types.HiddenUserServer)
-	targetUser := types.NewJID("2348060598064", types.DefaultUserServer)
+	targetUser := types.NewJID("2348000000001", types.DefaultUserServer)
 
 	devStore := &store.Device{
 		ID:  &botPN,
@@ -371,8 +371,8 @@ func TestGlobalSettingGetter_IsSudoRaw(t *testing.T) {
 	ctx := context.Background()
 
 	botPN := types.NewJID("2348011112222", types.DefaultUserServer)
-	sudoLID := types.NewJID("270613692313713", types.HiddenUserServer)
-	sudoPN := types.NewJID("2348062795602", types.DefaultUserServer)
+	sudoLID := types.NewJID("123456789012346", types.HiddenUserServer)
+	sudoPN := types.NewJID("2348000000002", types.DefaultUserServer)
 
 	// Device store with NO IdentityStore implementing GetSetting
 	devStore := &store.Device{
@@ -388,7 +388,7 @@ func TestGlobalSettingGetter_IsSudoRaw(t *testing.T) {
 
 	whatsrook.GlobalSettingGetter = func(ctx context.Context, client *whatsmeow.Client, key string) (string, error) {
 		if key == "sudoers" {
-			return "2348062795602@s.whatsapp.net 270613692313713@lid thruqe", nil
+			return "2348000000002@s.whatsapp.net 123456789012346@lid testuser", nil
 		}
 		return "", nil
 	}

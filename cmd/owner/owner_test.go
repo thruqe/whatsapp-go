@@ -32,26 +32,26 @@ func TestIsValidUsername(t *testing.T) {
 
 func TestSanitizeSudoers(t *testing.T) {
 	input := []string{
-		"2348062795602@s.whatsapp.net",
-		"270613692313713@lid",
+		"2348000000001@s.whatsapp.net",
+		"123456789012346@lid",
 		"『𖥠』ємρєяσя{",
 		"𝕱𝖆𝖙𝖍𝖊𝖗",
 		"𝖔𝖋",
 		"𝕷𝖔𝖗𝖉𝖘",
 		"}",
-		"thruqe",
-		"2348062795602",
-		"+2348062795602",
-		"2348062795602@s.whatsapp.net", // duplicate
+		"testuser",
+		"2348000000001",
+		"+2348000000001",
+		"2348000000001@s.whatsapp.net", // duplicate
 		"",
 	}
 
 	expected := []string{
-		"2348062795602@s.whatsapp.net",
-		"270613692313713@lid",
-		"thruqe",
-		"2348062795602",
-		"+2348062795602",
+		"2348000000001@s.whatsapp.net",
+		"123456789012346@lid",
+		"testuser",
+		"2348000000001",
+		"+2348000000001",
 	}
 
 	got := sanitizeSudoers(input)

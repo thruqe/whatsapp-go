@@ -173,7 +173,7 @@ func TestCleanConsoleFormatting(t *testing.T) {
 		Message:    "incoming message received",
 	}
 	fields := []zapcore.Field{
-		zap.String("chat", "270613692313713@lid"),
+		zap.String("chat", "123456789012345@lid"),
 		zap.Bool("isFromMe", true),
 		zap.Int("count", 42),
 	}
@@ -198,8 +198,8 @@ func TestCleanConsoleFormatting(t *testing.T) {
 	if strings.Contains(output, `{"chat":`) {
 		t.Errorf("output should not contain raw JSON braces: %q", output)
 	}
-	if !strings.Contains(output, "chat=270613692313713@lid") {
-		t.Errorf("output should contain clean field chat=270613692313713@lid: %q", output)
+	if !strings.Contains(output, "chat=123456789012345@lid") {
+		t.Errorf("output should contain clean field chat=123456789012345@lid: %q", output)
 	}
 	if !strings.Contains(output, "isFromMe=true") {
 		t.Errorf("output should contain clean field isFromMe=true: %q", output)
