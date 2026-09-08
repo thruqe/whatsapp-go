@@ -4,14 +4,17 @@ whatsrook can be configured using environment variables from a `.env` file or th
 
 ## Configuration Reference
 
-| Variable       | Flag             | Default   | Description                                                                                                           |
-| -------------- | ---------------- | --------- | --------------------------------------------------------------------------------------------------------------------- |
-| `SESSION`      | `<phone>`        | —         | Session identifier / phone number with country code. Passed as a positional argument (before or after any flags).    |
-| `AUTH`         | `-auth`, `-a`    | `qr`      | Authentication method: `pair` or `qr`.                                                                                |
-| `CLIENT`       | `-client`, `-c`  | `default` | Target client identity platform: `default` (chrome), `android`, `ios`.                                                |
-| `DATABASE_URL` | `-db-url`, `-db` | `default` | Database: `default` (sqlite) or a PostgreSQL connection string (`postgres://user:pass@host:5432/db?sslmode=disable`). |
-| `LOGOUT`       | `-logout`, `-l`  | `false`   | Remove session credentials and exit.                                                                                  |
-| —              | `-update`, `-u`  | —         | Check or apply an update. Accepts `check`, `stable`, `beta`, or no value for a direct update.                         |
+| Variable       | Option / Command  | Default   | Description                                                                                                           |
+| -------------- | ----------------- | --------- | --------------------------------------------------------------------------------------------------------------------- |
+| `SESSION`      | `<phone>`         | —         | Session identifier / phone number with country code. Can appear anywhere in the argument list.                       |
+| `AUTH`         | `auth <pair\|qr>` | `qr`      | Authentication method: `pair` or `qr`. Standalone `pair` or `qr` is also accepted.                                   |
+| `CLIENT`       | `client <type>`   | `default` | Target client identity platform: `default` (chrome), `android`, `ios`.                                                |
+| `DATABASE_URL` | `db <url>`        | `default` | Database: `default` (sqlite) or a PostgreSQL connection string (`postgres://user:pass@host:5432/db?sslmode=disable`). |
+| `LOGOUT`       | `logout`          | `false`   | Remove session credentials and exit.                                                                                  |
+| —              | `update [action]` | —         | Check or apply an update. Accepts `check`, `stable`, `beta`, or no action for direct update.                          |
+| `VERBOSE`      | `verbose`         | `false`   | Enable verbose debug logging.                                                                                         |
+| —              | `version`         | —         | Print version and exit.                                                                                               |
+| —              | `help`            | —         | Show help message.                                                                                                    |
 
 A `.env` file is loaded automatically from the current directory or the parent directory (`.env`, `../.env`) before flags are parsed. Existing environment variables take precedence over values in `.env`.
 
@@ -31,31 +34,31 @@ DATABASE_URL_2341234567890="postgres://user:pass@db2.example.com:5432/isolated_s
 
 When whatsrook resolves which database connection to use for a session, it checks the following, in order:
 
-1. CLI flag `-db-url` / `-db`
+1. CLI argument `db <url>`
 2. Session-specific environment variable: `DATABASE_URL_<PHONE>` (phone number from the resolved session, without a leading `+`)
 3. Generic environment variables, in order: `DATABASE_URL`, `POSTGRES_URL`, `DB_URL`
 4. Default: `sqlite` (`whatsrook.db`)
 
 ## Authentication & Pairing Modes
 
-whatsrook supports two ways to authenticate a session: a pairing code, or a QR code. This is controlled with the `-auth` / `-a` flag (or `AUTH` env var), which accepts `pair` or `qr`. Any other or missing value falls back to `qr`.
+whatsrook supports two ways to authenticate a session: a pairing code, or a QR code. This is controlled with the `auth` command argument (or `AUTH` env var), which accepts `pair` or `qr`. Any other or missing value falls back to `qr`.
 
 ### 1. Pairing Code
 
-To use pairing-code auth, pass your phone number as a positional argument alongside `-auth pair`:
+To use pairing-code auth, pass your phone number alongside `auth pair` (or standalone `pair`):
 
 ```bash
-whatsrook 2348000000000 -auth pair
+whatsrook 2348000000000 auth pair
 ```
 
 whatsrook will generate an 8-character pairing code (e.g. `ABCD-1234`). Enter this code on your phone under WhatsApp > Linked Devices > Link with phone number.
 
 ### 2. QR Code (Terminal ASCII)
 
-QR code auth is the default, so it's used whenever `-auth` isn't set to `pair`:
+QR code auth is the default, so it's used whenever `auth` isn't set to `pair`:
 
 ```bash
-whatsrook 2348000000000 -auth qr
+whatsrook 2348000000000 auth qr
 ```
 
 An ASCII QR code will be displayed in your terminal, ready to scan using the WhatsApp mobile app.
@@ -64,7 +67,7 @@ An ASCII QR code will be displayed in your terminal, ready to scan using the Wha
 
 The session phone number is resolved in this order:
 
-1. A positional argument that looks like a phone number (7–15 digits, optional leading `+`) — can appear anywhere in the argument list, before or after flags. e.g. `whatsrook 2348000000000` or `whatsrook -v 2348000000000`
+1. An argument that looks like a phone number (7–15 digits, optional leading `+`) — can appear anywhere in the argument list. e.g. `whatsrook 2348000000000` or `whatsrook verbose 2348000000000`
 2. `SESSION` environment variable
 
 ## Standby Mode
@@ -81,32 +84,30 @@ whatsrook
 
 ## Client Identity Emulation
 
-whatsrook can emulate different WhatsApp client platforms, which determines how your session appears to WhatsApp. This is controlled using the `CLIENT` variable or the `-client` / `-c` flag. Valid values are `android` and `ios`; anything else (including unset) resolves to `default` (chrome-like behavior).
+whatsrook can emulate different WhatsApp client platforms, which determines how your session appears to WhatsApp. This is controlled using the `CLIENT` variable or the `client` argument. Valid values are `android` and `ios`; anything else (including unset) resolves to `default` (chrome-like behavior).
 
 ```bash
-./bin/whatsrook 2348000000000 -client android
+./bin/whatsrook 2348000000000 client android
 ```
 
 ## Logging Out
 
-Pass `-logout` / `-l` (or set `LOGOUT=true`/`1`) to remove the session's stored credentials and terminate:
+Pass `logout` (or set `LOGOUT=true`/`1`) to remove the session's stored credentials and terminate:
 
 ```bash
-whatsrook 2348000000000 -logout
+whatsrook 2348000000000 logout
 ```
 
 ## Updating
 
-whatsrook can check for or apply updates via the `-update` / `-u` flag, or the `update` subcommand:
+whatsrook can check for or apply updates via the `update` command:
 
 ```bash
 # Direct update
-whatsrook -update
 whatsrook update
 
 # Check for updates only
 whatsrook update check
-whatsrook -update check
 
 # Update to a specific channel
 whatsrook update stable
