@@ -31,13 +31,6 @@ func handleLogoutCLI(ctx context.Context, args CLIArgs) {
 			session = sessions[0].User
 			fmt.Printf("Found single stored session +%s (%s). Initiating logout...\n", session, sessions[0].Platform)
 		} else {
-			if !isTerminalInteractive() {
-				fmt.Println("Multiple stored sessions found. Please specify phone number to logout:")
-				for _, s := range sessions {
-					fmt.Printf("  +%s (%s)\n", s.User, s.Platform)
-				}
-				os.Exit(1)
-			}
 			fmt.Println("\nStored sessions:")
 			for i, s := range sessions {
 				fmt.Printf("  [%d] +%s (%s)\n", i+1, s.User, s.Platform)

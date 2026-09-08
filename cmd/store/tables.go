@@ -14,17 +14,6 @@ import (
 
 var tablesInitOnce sync.Once
 
-// TableExists checks if a given table exists in the PostgreSQL database.
-func TableExists(ctx context.Context, db *dbutil.Database, table string) (bool, error) {
-	if db == nil {
-		return false, fmt.Errorf("nil database")
-	}
-
-	var exists bool
-	err := db.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)", strings.ToLower(table)).Scan(&exists)
-	return exists, err
-}
-
 // TableHasColumn checks if a given column exists in a PostgreSQL database table.
 func TableHasColumn(ctx context.Context, db *dbutil.Database, table, column string) (bool, error) {
 	if db == nil {

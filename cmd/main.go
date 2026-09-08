@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -84,14 +83,6 @@ func main() {
 		_ = cache.Close()
 	}()
 
-	if args.Session == "" {
-		if err := runStandby(ctx, args.Database); err != nil {
-			logger.Error("standby error", "err", err)
-			os.Exit(1)
-		}
-		return
-	}
-
 	clientType, ok := whatsrook.ParseClientType(args.Client)
 	if !ok {
 		clientType = whatsrook.ClientChrome
@@ -112,25 +103,6 @@ func main() {
 
 	err := bot.Start(ctx)
 	if err != nil {
-		if errors.Is(err, whatsrook.ErrLoggedOut) {
-			if ctx.Err() != nil {
-				return
-			}
-			logger.Info("session was logged out and removed; switching to standby mode")
-			if err := runStandby(context.Background(), args.Database); err != nil {
-				logger.Error("standby error", "err", err)
-				os.Exit(1)
-			}
-			return
-		}
-		// If interrupted with Ctrl+C, switch smoothly to interactive standby
-		if errors.Is(err, context.Canceled) {
-			if err := runStandby(context.Background(), args.Database); err != nil {
-				logger.Error("standby error", "err", err)
-				os.Exit(1)
-			}
-			return
-		}
 		logger.Error("bot execution failure", "err", err)
 		os.Exit(1)
 	}

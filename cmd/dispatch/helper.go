@@ -136,11 +136,6 @@ func RecordRecentMessage(evt *events.Message) {
 	recentMessages.messages[evt.Info.Chat] = evt
 }
 
-// GetRecentMessageForJID retrieves the most recent message associated with a JID.
-func GetRecentMessageForJID(jid types.JID) *events.Message {
-	return utils.GetRecentMessageForJID(jid)
-}
-
 func init() {
 	utils.GlobalSettingGetter = func(ctx context.Context, client *whatsmeow.Client, key string) (string, error) {
 		if s, ok := GetSQLStore(client); ok {
