@@ -115,12 +115,36 @@ func main() {
 
 func handleUpdate(op string) {
 	ctx := context.Background()
-	current := updater.GetStoredChannel()
+
+	var targetChannel string
+	switch op {
+	case "stable", "beta":
+		targetChannel = op
+		current := updater.GetStoredChannel()
+		if op != current {
+			fmt.Printf("==> Switching release channel: %s -> %s\n", current, op)
+			if err := updater.SetStoredChannel(op); err != nil {
+				logger.Error("failed to set release channel", "err", err)
+				os.Exit(1)
+			}
+		} else {
+			fmt.Printf("==> Already tracking channel: %s\n", current)
+		}
+	default:
+		// When no explicit channel switch was requested (e.g. `whatsrook update` or `whatsrook update check`),
+		// automatically determine channel from current binary:
+		// beta binary -> beta channel; stable binary -> stable channel.
+		if updater.CurrentIsBeta() {
+			targetChannel = "beta"
+		} else {
+			targetChannel = "stable"
+		}
+	}
 
 	if op == "check" {
 		up := updater.New(updater.Options{
 			Out:     os.Stdout,
-			Channel: current,
+			Channel: targetChannel,
 		})
 		if _, err := up.Check(ctx); err != nil {
 			logger.Error("update check failed", "err", err)
@@ -129,25 +153,12 @@ func handleUpdate(op string) {
 		return
 	}
 
-	if op == "stable" || op == "beta" {
-		if op != current {
-			fmt.Printf("==> Switching release channel: %s -> %s\n", current, op)
-			if err := updater.SetStoredChannel(op); err != nil {
-				logger.Error("failed to set release channel", "err", err)
-				os.Exit(1)
-			}
-			current = op
-		} else {
-			fmt.Printf("==> Already tracking channel: %s\n", current)
-		}
-	}
-
 	up := updater.New(updater.Options{
 		Out:     os.Stdout,
-		Channel: current,
+		Channel: targetChannel,
 	})
 
-	res, err := up.Upgrade(ctx, current == "beta")
+	res, err := up.Upgrade(ctx, targetChannel == "beta")
 	if err != nil {
 		logger.Error("upgrade procedure failed", "err", err)
 		os.Exit(1)

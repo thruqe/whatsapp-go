@@ -95,7 +95,7 @@ func New(opts Options) *Updater {
 		opts.VersionFile = DefaultVersionFile
 	}
 	if opts.Channel == "" {
-		opts.Channel = "stable"
+		opts.Channel = GetDefaultChannel()
 	}
 	if opts.HTTPClient == nil {
 		opts.HTTPClient = &http.Client{Timeout: 60 * time.Second}
@@ -216,17 +216,62 @@ func isHex(s string) bool {
 	return true
 }
 
-// GetStoredChannel returns the persisted update channel ("stable" or "beta"),
-// defaulting to "stable" when no preference has been saved yet.
-func GetStoredChannel() string {
-	data, err := os.ReadFile(channelFilePath())
-	if err != nil {
-		return "stable"
+// IsBetaVersion reports whether a version identifier represents a beta/alpha/commit build.
+func IsBetaVersion(v string) bool {
+	v = strings.TrimSpace(strings.ToLower(v))
+	if v == "" {
+		return false
 	}
-	if strings.TrimSpace(strings.ToLower(string(data))) == "beta" {
+	for _, prefix := range []string{"beta", "alpha", "sha256:", "sha:"} {
+		if strings.HasPrefix(v, prefix) {
+			return true
+		}
+	}
+	if strings.Contains(v, "-beta") || strings.Contains(v, "-alpha") || strings.Contains(v, ".beta") || strings.Contains(v, ".alpha") {
+		return true
+	}
+	clean := strings.TrimPrefix(v, "v")
+	// Commit hashes (e.g. 34ac0... or 40-char git commit SHA)
+	if isHex(clean) && len(clean) >= 5 {
+		return true
+	}
+	// If it cannot be parsed as a standard 3-component semantic version (e.g. 4.9.26),
+	// treat it as a non-stable build.
+	if _, err := ParseVersion(clean); err != nil {
+		return true
+	}
+	return false
+}
+
+// CurrentIsBeta reports whether the currently installed or running binary is a beta/alpha build.
+func CurrentIsBeta() bool {
+	if beta := GetInstalledBetaVersion(); beta != "" {
+		return true
+	}
+	binVer := GetBinaryVersion()
+	return IsBetaVersion(binVer)
+}
+
+// GetDefaultChannel returns the natural channel for the current binary:
+// "beta" if running a beta/alpha build, or "stable" if running a stable release.
+func GetDefaultChannel() string {
+	if CurrentIsBeta() {
 		return "beta"
 	}
 	return "stable"
+}
+
+// GetStoredChannel returns the persisted update channel ("stable" or "beta"),
+// defaulting to the natural channel of the currently running binary when no preference has been saved yet.
+func GetStoredChannel() string {
+	data, err := os.ReadFile(channelFilePath())
+	if err == nil {
+		val := strings.TrimSpace(strings.ToLower(string(data)))
+		if val == "beta" || val == "stable" {
+			return val
+		}
+	}
+	return GetDefaultChannel()
 }
 
 // SetStoredChannel writes the update channel preference to disk.
@@ -358,7 +403,7 @@ func EqualVersions(v1, v2 string) bool {
 	if v1Clean == v2Clean {
 		return true
 	}
-	if isHex(v1Clean) && isHex(v2Clean) && len(v1Clean) >= 7 && len(v2Clean) >= 7 {
+	if isHex(v1Clean) && isHex(v2Clean) && len(v1Clean) >= 5 && len(v2Clean) >= 5 {
 		return strings.HasPrefix(v1Clean, v2Clean) || strings.HasPrefix(v2Clean, v1Clean)
 	}
 	return false
@@ -366,7 +411,7 @@ func EqualVersions(v1, v2 string) bool {
 
 // GetAppVersion returns the current binary version formatted for display.
 func GetAppVersion() string {
-	if GetStoredChannel() == "beta" {
+	if CurrentIsBeta() || GetStoredChannel() == "beta" {
 		if installedBeta := GetInstalledBetaVersion(); installedBeta != "" {
 			return FormatVersionDisplay(installedBeta)
 		}
@@ -750,8 +795,10 @@ func (u *Updater) Upgrade(ctx context.Context, isBeta bool) (*UpdateResult, erro
 	check.Updated = true
 	if isBeta {
 		_ = SetInstalledBetaVersion(check.LatestVersion)
+		_ = SetStoredChannel("beta")
 	} else {
 		_ = SetInstalledBetaVersion("")
+		_ = SetStoredChannel("stable")
 	}
 	check.Message = fmt.Sprintf("Successfully upgraded binary for %s (%s -> %s).",
 		GetPlatform(),
