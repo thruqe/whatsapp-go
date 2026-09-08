@@ -588,3 +588,97 @@ func TestStickerCommandDispatching(t *testing.T) {
 		t.Errorf("expected args [hello from reply], got %v", *lastArgs.Load())
 	}
 }
+
+func TestIgnoreStaleCommandsBeforeStartup(t *testing.T) {
+	var executed atomic.Bool
+	cmdName := "stale_test_cmd"
+	dispatch.Register(&dispatch.Command{
+		Name:        cmdName,
+		Description: "Stale command test",
+		Category:    "test",
+		IsPublic:    true,
+		Handler: func(ctx *dispatch.Context) error {
+			executed.Store(true)
+			return nil
+		},
+	})
+
+	bootTime := time.Now()
+	dispatch.SetStartupTime(bootTime)
+
+	msgText := ".stale_test_cmd"
+	// 1. Message sent before startup time
+	staleEvt := &events.Message{
+		Info: types.MessageInfo{
+			ID:        "STALE_1",
+			Chat:      types.NewJID("120363000000001", types.GroupServer),
+			Sender:    types.NewJID("2348011111111", types.DefaultUserServer),
+			Timestamp: bootTime.Add(-10 * time.Minute),
+		},
+		Message: &waE2E.Message{
+			Conversation: &msgText,
+		},
+	}
+
+	executed.Store(false)
+	handled := dispatch.RunCommandPublicly(context.Background(), nil, staleEvt, cmdName)
+	if !handled {
+		t.Fatalf("expected RunCommandPublicly to return true (ignored/handled) for stale event")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if executed.Load() {
+		t.Fatalf("expected handler NOT to execute for message sent before startup")
+	}
+
+	// 2. Message sent after startup time
+	executed.Store(false)
+	freshEvt := &events.Message{
+		Info: types.MessageInfo{
+			ID:        "FRESH_1",
+			Chat:      types.NewJID("120363000000001", types.GroupServer),
+			Sender:    types.NewJID("2348011111111", types.DefaultUserServer),
+			Timestamp: bootTime.Add(1 * time.Minute),
+		},
+		Message: &waE2E.Message{
+			Conversation: &msgText,
+		},
+	}
+	handledFresh := dispatch.RunCommandPublicly(context.Background(), nil, freshEvt, cmdName)
+	if !handledFresh {
+		t.Fatalf("expected RunCommandPublicly to return true for fresh event")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if !executed.Load() {
+		t.Fatalf("expected handler to execute for message sent after startup")
+	}
+
+	// 3. Unknown command sent before startup time
+	cctxStale := &dispatch.Context{
+		Evt: staleEvt,
+	}
+	suggestion, handledUnknown := dispatch.HandleUnknownCommand(cctxStale, ".", "unknown_cmd_xyz")
+	if !handledUnknown || suggestion != "" {
+		t.Fatalf("expected HandleUnknownCommand to return empty string and true for stale message")
+	}
+
+	// 4. Message with zero timestamp (synthetic test events) executes normally
+	executed.Store(false)
+	zeroEvt := &events.Message{
+		Info: types.MessageInfo{
+			ID:     "ZERO_1",
+			Chat:   types.NewJID("120363000000001", types.GroupServer),
+			Sender: types.NewJID("2348011111111", types.DefaultUserServer),
+		},
+		Message: &waE2E.Message{
+			Conversation: &msgText,
+		},
+	}
+	handledZero := dispatch.RunCommandPublicly(context.Background(), nil, zeroEvt, cmdName)
+	if !handledZero {
+		t.Fatalf("expected RunCommandPublicly to return true for zero timestamp event")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if !executed.Load() {
+		t.Fatalf("expected handler to execute for zero timestamp event")
+	}
+}

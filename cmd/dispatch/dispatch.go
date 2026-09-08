@@ -10,6 +10,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"strings"
+	"sync"
+	"time"
 
 	utils "whatsrook"
 	"whatsrook/cmd/store"
@@ -23,6 +25,37 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
+
+var (
+	botStartTime   = time.Now()
+	botStartTimeMu sync.RWMutex
+)
+
+// SetStartupTime sets the bot's startup time for stale command detection.
+func SetStartupTime(t time.Time) {
+	botStartTimeMu.Lock()
+	defer botStartTimeMu.Unlock()
+	botStartTime = t
+}
+
+// GetStartupTime returns the recorded bot startup time.
+func GetStartupTime() time.Time {
+	botStartTimeMu.RLock()
+	defer botStartTimeMu.RUnlock()
+	return botStartTime
+}
+
+// IsMessageBeforeStartup reports whether evt has a non-zero timestamp that occurred before the bot started running.
+func IsMessageBeforeStartup(evt *events.Message) bool {
+	if evt == nil || evt.Info.Timestamp.IsZero() {
+		return false
+	}
+	return evt.Info.Timestamp.Before(GetStartupTime())
+}
+
+func isStale(evt *events.Message) bool {
+	return IsMessageBeforeStartup(evt)
+}
 
 // Dispatch evaluates an incoming message event against all registered commands and routing middleware.
 // returns true if the message was handled by a command or reactive route.
@@ -132,6 +165,13 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	if okStore {
 		stk := msgProto.GetStickerMessage()
 		if stk != nil {
+			if isStale(evt) {
+				Logger.Debug("Skipping sticker command from message sent before bot startup",
+					"timestamp", evt.Info.Timestamp,
+					"startupTime", GetStartupTime(),
+				)
+				return true
+			}
 			if handleStickerCommand(ctx, client, s.SQLStore, evt, stk) {
 				return true
 			}
@@ -140,6 +180,13 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	// 5. Bot Tagged / Mention Proto
 	if isBotMentioned(client, evt) && okStore {
+		if isStale(evt) {
+			Logger.Debug("Skipping bot mention response from message sent before bot startup",
+				"timestamp", evt.Info.Timestamp,
+				"startupTime", GetStartupTime(),
+			)
+			return true
+		}
 		if mentionProto, err := s.GetSetting(ctx, "mention_proto"); err == nil && mentionProto != "" {
 			if msg, err := utils.DecodeProtoMessage(mentionProto); err == nil {
 				setReplyContextInfo(msg, evt)
@@ -151,6 +198,13 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	// 6. Filters & BGM Trigger Words
 	if text != "" && okStore {
+		if isStale(evt) {
+			Logger.Debug("Skipping filters and BGM from message sent before bot startup",
+				"timestamp", evt.Info.Timestamp,
+				"startupTime", GetStartupTime(),
+			)
+			return true
+		}
 		if handleFiltersAndBGM(ctx, client, s.SQLStore, evt, text) {
 			return true
 		}
@@ -187,6 +241,15 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			if len(fields) == 0 {
 				continue
 			}
+			if isStale(evt) {
+				Logger.Debug("Skipping command from message sent before bot startup",
+					"prefix", p,
+					"body", body,
+					"timestamp", evt.Info.Timestamp,
+					"startupTime", GetStartupTime(),
+				)
+				return true
+			}
 			if runCommand(ctx, client, evt, body) {
 				return true
 			}
@@ -208,6 +271,14 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		if len(fields) > 0 {
 			first := fields[0]
 			if _, exists := Get(strings.ToLower(first)); exists {
+				if isStale(evt) {
+					Logger.Debug("Skipping empty-prefix command from message sent before bot startup",
+						"body", body,
+						"timestamp", evt.Info.Timestamp,
+						"startupTime", GetStartupTime(),
+					)
+					return true
+				}
 				return runCommand(ctx, client, evt, body)
 			}
 		}
@@ -219,12 +290,27 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		args := fields[1:]
 		rawArgs := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
 		if external.DefaultDispatcher.IsInstalled(cmdName) {
+			if isStale(evt) {
+				Logger.Debug("Skipping external command from message sent before bot startup",
+					"command", cmdName,
+					"timestamp", evt.Info.Timestamp,
+					"startupTime", GetStartupTime(),
+				)
+				return true
+			}
 			return external.DefaultDispatcher.Dispatch(ctx, client, evt, cmdName, args, rawArgs)
 		}
 	}
 
 	// 9. Sticker Commands via reply with arguments
 	if text != "" && okStore {
+		if isStale(evt) {
+			Logger.Debug("Skipping quoted sticker command from message sent before bot startup",
+				"timestamp", evt.Info.Timestamp,
+				"startupTime", GetStartupTime(),
+			)
+			return true
+		}
 		if handleQuotedStickerCommand(ctx, client, s.SQLStore, evt, text) {
 			return true
 		}
@@ -237,6 +323,13 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	fallbackInterceptorsMu.RUnlock()
 
 	for _, it := range fallbackList {
+		if isStale(evt) {
+			Logger.Debug("Skipping fallback interceptor from message sent before bot startup",
+				"timestamp", evt.Info.Timestamp,
+				"startupTime", GetStartupTime(),
+			)
+			return true
+		}
 		if it.fn(cctx, text) {
 			return true
 		}
@@ -323,6 +416,15 @@ func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) 
 	if cctx == nil {
 		return "", false
 	}
+	if isStale(cctx.Evt) {
+		Logger.Debug("Skipping unknown command from message sent before bot startup",
+			"prefix", prefix,
+			"cmdName", cmdName,
+			"timestamp", cctx.Evt.Info.Timestamp,
+			"startupTime", GetStartupTime(),
+		)
+		return "", true
+	}
 
 	sendCtx := cctx.GetSendContext()
 	if s, okStore := GetSQLStore(cctx.Client); okStore {
@@ -347,6 +449,15 @@ func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) 
 }
 
 func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, cmdLine string) bool {
+	if isStale(evt) {
+		Logger.Debug("Skipping command execution from message sent before bot startup",
+			"cmdLine", cmdLine,
+			"timestamp", evt.Info.Timestamp,
+			"startupTime", GetStartupTime(),
+		)
+		return true
+	}
+
 	fields := strings.Fields(cmdLine)
 	if len(fields) == 0 {
 		return false
