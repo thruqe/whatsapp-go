@@ -4,7 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waWa6"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -276,5 +279,95 @@ func TestExtractMessageTextFallback(t *testing.T) {
 	}
 	if text := ExtractMessageText(evt); text != "fallback text" {
 		t.Fatalf("expected 'fallback text', got '%s'", text)
+	}
+}
+
+func TestConfigureCompanionPlatform(t *testing.T) {
+	tests := []struct {
+		name         string
+		clientType   ClientType
+		isBusiness   bool
+		wantPlatform waWa6.ClientPayload_UserAgent_Platform
+		wantProps    waCompanionReg.DeviceProps_PlatformType
+	}{
+		{
+			name:         "Android normal",
+			clientType:   ClientAndroid,
+			isBusiness:   false,
+			wantPlatform: waWa6.ClientPayload_UserAgent_ANDROID,
+			wantProps:    waCompanionReg.DeviceProps_ANDROID_PHONE,
+		},
+		{
+			name:         "Android business (SMB_ANDROID)",
+			clientType:   ClientAndroid,
+			isBusiness:   true,
+			wantPlatform: waWa6.ClientPayload_UserAgent_SMB_ANDROID,
+			wantProps:    waCompanionReg.DeviceProps_ANDROID_PHONE,
+		},
+		{
+			name:         "iOS normal",
+			clientType:   ClientIos,
+			isBusiness:   false,
+			wantPlatform: waWa6.ClientPayload_UserAgent_IOS,
+			wantProps:    waCompanionReg.DeviceProps_IOS_PHONE,
+		},
+		{
+			name:         "iOS business (SMB_IOS)",
+			clientType:   ClientIos,
+			isBusiness:   true,
+			wantPlatform: waWa6.ClientPayload_UserAgent_SMB_IOS,
+			wantProps:    waCompanionReg.DeviceProps_IOS_PHONE,
+		},
+		{
+			name:         "Chrome default",
+			clientType:   ClientChrome,
+			isBusiness:   false,
+			wantPlatform: waWa6.ClientPayload_UserAgent_WEB,
+			wantProps:    waCompanionReg.DeviceProps_CHROME,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			configureCompanionPlatform(tc.clientType, tc.isBusiness)
+			if store.BaseClientPayload.UserAgent.GetPlatform() != tc.wantPlatform {
+				t.Fatalf("expected Platform = %v, got %v", tc.wantPlatform, store.BaseClientPayload.UserAgent.GetPlatform())
+			}
+			if store.DeviceProps.GetPlatformType() != tc.wantProps {
+				t.Fatalf("expected PlatformType = %v, got %v", tc.wantProps, store.DeviceProps.GetPlatformType())
+			}
+		})
+	}
+}
+
+func TestParseClientType(t *testing.T) {
+	cases := []struct {
+		input      string
+		wantType   ClientType
+		wantParsed bool
+	}{
+		{"chrome", ClientChrome, true},
+		{"Chrome", ClientChrome, true},
+		{"android", ClientAndroid, true},
+		{"Android", ClientAndroid, true},
+		{"ios", ClientIos, true},
+		{"iOS", ClientIos, true},
+		{"smb_android", ClientAndroid, true},
+		{"smba", ClientAndroid, true},
+		{"smb_ios", ClientIos, true},
+		{"smbi", ClientIos, true},
+		{"unknown_platform", ClientChrome, false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.input, func(t *testing.T) {
+			ct, ok := ParseClientType(c.input)
+			if ok != c.wantParsed {
+				t.Fatalf("input %q: expected ok=%v, got %v", c.input, c.wantParsed, ok)
+			}
+			if ok && ct != c.wantType {
+				t.Fatalf("input %q: expected type=%v, got %v", c.input, c.wantType, ct)
+			}
+		})
 	}
 }

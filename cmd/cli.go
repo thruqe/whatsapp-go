@@ -15,6 +15,7 @@ type CLIArgs struct {
 	Session       string // Phone number identifying the session
 	Auth          string // "pair" or "qr" (default: "qr")
 	Client        string // "default", "android", or "ios"
+	Business      bool   // WhatsApp Business mode (SMB platform signature)
 	Database      string // PostgreSQL connection URL
 	Logout        bool   // Flush credentials/session data and exit
 	Update        bool   // True if an update action was requested
@@ -41,6 +42,7 @@ Arguments:
 Commands & Options:
   auth <pair | qr>              Authentication method (default: qr)
   autoupdate <on | off>         Toggle automatic update checks and restarts on launch
+  business                      Enable WhatsApp Business mode (uses SMB platform signature)
   client <type>                 Client profile: default (chrome), android, ios (default: default)
   db <url>                      Database: PostgreSQL connection URL
   logout                        Remove session credentials and exit
@@ -68,6 +70,7 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		sessionVal    string
 		authVal       string
 		clientVal     string
+		businessVal   bool
 		dbVal         string
 		logoutVal     bool
 		isUpdate      bool
@@ -154,20 +157,30 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		case norm == "pair" || norm == "qr":
 			authVal = norm
 
+		case norm == "business" || norm == "biz" || norm == "smb":
+			businessVal = true
+
+		case strings.HasPrefix(norm, "business=") || strings.HasPrefix(norm, "biz=") || strings.HasPrefix(norm, "smb="):
+			_, val, _ := strings.Cut(raw, "=")
+			val = strings.ToLower(strings.TrimSpace(val))
+			businessVal = val == "true" || val == "1" || val == "yes" || val == "on"
+
 		case norm == "client":
 			if i+1 < len(cmdArgs) {
 				next := strings.ToLower(strings.TrimSpace(cmdArgs[i+1]))
 				for strings.HasPrefix(next, "-") {
 					next = next[1:]
 				}
-				if next == "android" || next == "ios" || next == "chrome" || next == "default" {
+				if next == "android" || next == "ios" || next == "chrome" || next == "default" ||
+					next == "smb_android" || next == "smba" || next == "smb_ios" || next == "smbi" {
 					clientVal = next
 					i++
 				}
 			}
 		case strings.HasPrefix(norm, "client="):
 			val := strings.TrimPrefix(norm, "client=")
-			if val == "android" || val == "ios" || val == "chrome" || val == "default" {
+			if val == "android" || val == "ios" || val == "chrome" || val == "default" ||
+				val == "smb_android" || val == "smba" || val == "smb_ios" || val == "smbi" {
 				clientVal = val
 			}
 
@@ -207,9 +220,23 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		clientVal = strings.ToLower(strings.TrimSpace(os.Getenv("CLIENT")))
 	}
 	switch clientVal {
+	case "smb_android", "smba":
+		clientVal = "android"
+		businessVal = true
+	case "smb_ios", "smbi":
+		clientVal = "ios"
+		businessVal = true
 	case "android", "ios":
 	default:
 		clientVal = "default"
+	}
+
+	// 3b. Business resolution (Plain Word > BUSINESS / WA_BUSINESS env > default false)
+	if !businessVal {
+		envBiz := strings.ToLower(strings.TrimSpace(os.Getenv("BUSINESS")))
+		envWABiz := strings.ToLower(strings.TrimSpace(os.Getenv("WA_BUSINESS")))
+		businessVal = envBiz == "true" || envBiz == "1" || envBiz == "yes" || envBiz == "on" ||
+			envWABiz == "true" || envWABiz == "1" || envWABiz == "yes" || envWABiz == "on"
 	}
 
 	// 4. Database resolution (Plain Word > DATABASE_URL_<phone> > DATABASE_URL > POSTGRES_URL > DB_URL > default PostgreSQL URL)
@@ -251,6 +278,7 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		Session:       sessionVal,
 		Auth:          authVal,
 		Client:        clientVal,
+		Business:      businessVal,
 		Database:      dbVal,
 		Logout:        logoutVal,
 		Update:        isUpdate,

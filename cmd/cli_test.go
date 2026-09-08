@@ -156,4 +156,22 @@ func TestParseCLIArgsPlainWords(t *testing.T) {
 	if defaultDB.Database != "postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable" {
 		t.Errorf("expected default PostgreSQL URL, got %q", defaultDB.Database)
 	}
+
+	// Business argument
+	bizRes := parseCLIArgsFrom([]string{"2348000000000", "business"})
+	if !bizRes.Business {
+		t.Errorf("expected Business = true, got %v", bizRes.Business)
+	}
+
+	// Client smb_android sets client android and business true
+	smbAndRes := parseCLIArgsFrom([]string{"2348000000000", "client", "smb_android"})
+	if smbAndRes.Client != "android" || !smbAndRes.Business {
+		t.Errorf("expected Client=android and Business=true, got %+v", smbAndRes)
+	}
+
+	// Client smb_ios sets client ios and business true
+	smbIosRes := parseCLIArgsFrom([]string{"2348000000000", "client", "smb_ios"})
+	if smbIosRes.Client != "ios" || !smbIosRes.Business {
+		t.Errorf("expected Client=ios and Business=true, got %+v", smbIosRes)
+	}
 }

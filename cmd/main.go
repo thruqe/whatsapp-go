@@ -103,6 +103,7 @@ func main() {
 		QRCode:          args.Auth == "qr",
 		Logout:          args.Logout,
 		ClientType:      clientType,
+		Business:        args.Business,
 		Database:        args.Database,
 		Verbose:         args.Verbose,
 		WSPort:          0, // 0 instructs OS to bind to a random available port
