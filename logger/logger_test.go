@@ -4,8 +4,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -159,4 +161,50 @@ func TestConcurrentLogging(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+}
+
+func TestCleanConsoleFormatting(t *testing.T) {
+	enc := newConsoleEncoder(false)
+
+	entry := zapcore.Entry{
+		Level:      zapcore.InfoLevel,
+		Time:       time.Date(2026, 9, 8, 12, 0, 0, 123000000, time.UTC),
+		LoggerName: "client",
+		Message:    "incoming message received",
+	}
+	fields := []zapcore.Field{
+		zap.String("chat", "270613692313713@lid"),
+		zap.Bool("isFromMe", true),
+		zap.Int("count", 42),
+	}
+
+	buf, err := enc.EncodeEntry(entry, fields)
+	if err != nil {
+		t.Fatalf("EncodeEntry failed: %v", err)
+	}
+	output := buf.String()
+
+	// Verify no tab characters
+	if strings.Contains(output, "\t") {
+		t.Errorf("output should not contain tab characters: %q", output)
+	}
+
+	// Verify bracketed logger name
+	if !strings.Contains(output, "[client]") {
+		t.Errorf("output should contain bracketed logger name [client]: %q", output)
+	}
+
+	// Verify clean key=value formatting without JSON braces
+	if strings.Contains(output, `{"chat":`) {
+		t.Errorf("output should not contain raw JSON braces: %q", output)
+	}
+	if !strings.Contains(output, "chat=270613692313713@lid") {
+		t.Errorf("output should contain clean field chat=270613692313713@lid: %q", output)
+	}
+	if !strings.Contains(output, "isFromMe=true") {
+		t.Errorf("output should contain clean field isFromMe=true: %q", output)
+	}
+	if !strings.Contains(output, "count=42") {
+		t.Errorf("output should contain clean field count=42: %q", output)
+	}
 }
