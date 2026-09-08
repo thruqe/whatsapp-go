@@ -342,7 +342,7 @@ func (b *Bot) GetStatsPayload(ctx context.Context) StatsPayload {
 	prefix := &defaultPrefix
 	var mode *string
 	var dbContactsCount uint32
-	var dbDriver string = "sqlite"
+	var dbDriver string = "postgres"
 	if b.client != nil && b.client.Config.Database != "" {
 		dbDriver = b.client.Config.Database
 	}

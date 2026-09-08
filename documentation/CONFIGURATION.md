@@ -37,7 +37,7 @@ When whatsrook resolves which database connection to use for a session, it check
 1. CLI argument `db <url>`
 2. Session-specific environment variable: `DATABASE_URL_<PHONE>` (phone number from the resolved session, without a leading `+`)
 3. Generic environment variables, in order: `DATABASE_URL`, `POSTGRES_URL`, `DB_URL`
-4. Default: `sqlite` (`whatsrook.db`)
+4. Default: `postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable`
 
 ## Authentication & Pairing Modes
 
@@ -116,12 +116,26 @@ whatsrook update beta
 
 Update operations accept `check`, `stable`, or `beta`; any other value is treated as a direct update.
 
+## Auto-Update
+
+whatsrook supports automatic update checks and restarts on launch via the `autoupdate` command or `AUTOUPDATE=on|off` environment variable:
+
+```bash
+# Enable auto-update (checks on every run; updates and restarts if a new version is available)
+whatsrook autoupdate on
+
+# Disable auto-update
+whatsrook autoupdate off
+
+# Check auto-update status
+whatsrook autoupdate
+```
+
+When enabled, whenever whatsrook launches, it contacts the release channel, verifies if an update exists, atomically upgrades the executable, and seamlessly restarts itself.
+
 ## Database & Session Isolation
 
-whatsrook isolates session data so that multiple sessions can safely share a single database without interfering with one another:
-
-- **SQLite**: A local single-file database (`whatsrook.db`). This is best suited for local testing and lightweight bots.
-- **PostgreSQL**: Production-grade relational storage. All custom tables (`bot_settings`, `call_media_config`, `group_stats`, `bot_user_xp`, `bot_filters`, `bot_bgm`, `bot_sticker_cmds`, `cached_groups`) are scoped by `our_jid` composite primary keys, which allows multiple sessions to share the same database without any risk of data collision.
+whatsrook isolates session data so that multiple sessions can safely share a single PostgreSQL database without interfering with one another. All custom tables (`bot_settings`, `call_media_config`, `group_stats`, `bot_user_xp`, `bot_filters`, `bot_bgm`, `bot_sticker_cmds`, `cached_groups`) are scoped by `our_jid` composite primary keys, which allows multiple sessions to share the same database without any risk of data collision.
 
 Example connection URLs:
 
@@ -133,20 +147,9 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/whatsrook?sslmode=di
 DATABASE_URL="postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres?sslmode=require"
 ```
 
-### Storage Drivers
+### Storage Engine: PostgreSQL
 
-#### SQLite (Default)
-
-SQLite is an embedded single-file database (`whatsrook.db`) that requires no external database installation. It is ideal for local development, testing, and single-session bots.
-
-```bash
-DATABASE_URL="sqlite"
-# or run without the -db-url flag
-```
-
-#### PostgreSQL (Production)
-
-PostgreSQL is a high-concurrency, scalable relational database backend. It supports multi-session hosting on a single database instance with strict data isolation, and is compatible with the latest PostgreSQL releases and managed cloud providers such as Supabase, Neon, AWS RDS, and Render.
+PostgreSQL is the sole high-concurrency, scalable relational database backend for whatsrook. SQLite is not supported. whatsrook supports multi-session hosting on a single PostgreSQL instance with strict tenant isolation, and is compatible with the latest PostgreSQL releases and managed cloud providers such as Supabase, Neon, AWS RDS, and Render.
 
 ```bash
 # Local PostgreSQL instance

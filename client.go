@@ -2,7 +2,7 @@
 // for the whatsmeow whatsapp protocol engine.
 //
 // architectural mechanics:
-// this is the central orchestrator coordinating multi-backend persistent storage (shared sqlite / postgresql),
+// this is the central orchestrator coordinating persistent storage (PostgreSQL),
 // device registration identity resolution, companion hardware profile emulation (chrome, android, ios),
 // and event-driven message dispatching. it encapsulates raw connection primitives inside a thread-safe
 // client abstraction, providing structured fallback strategies, integrated caching layers, and high-level messaging helpers.
@@ -125,10 +125,10 @@ type Config struct {
 	// session holds the primary identifier (e.g., phone number or session token) for the device.
 	Session string
 
-	// datadir specifies the base filesystem path for logs and local database storage.
+	// datadir specifies the base filesystem path for logs and application storage.
 	DataDir string
 
-	// database defines the connection uri or storage driver selector (e.g., "sqlite", postgres connection string).
+	// database defines the PostgreSQL connection URI (e.g., postgres://user:password@host:5432/dbname).
 	Database string
 
 	// clienttype defines the companion device platform signature emulated during pairing.
@@ -316,6 +316,11 @@ func ResolvePostgresURL(dbConf string, sessionPhone ...string) string {
 // it automatically handles connection retries, SSL mode fallbacks, and binds structured logging diagnostics.
 func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPhone ...string) (*sqlstore.Container, error) {
 	waLogger := Logger.NewWaLogger("database")
+
+	dbConfLower := strings.ToLower(strings.TrimSpace(database))
+	if strings.Contains(dbConfLower, "sqlite") || strings.HasSuffix(dbConfLower, ".db") {
+		return nil, fmt.Errorf("sqlite is not supported: PostgreSQL is the only supported database engine (e.g. postgres://user:password@host:5432/dbname)")
+	}
 
 	dbConn := ResolvePostgresURL(database, sessionPhone...)
 	if !strings.HasPrefix(dbConn, "postgres://") && !strings.HasPrefix(dbConn, "postgresql://") {
@@ -542,11 +547,6 @@ func (c *Client) HandleSessionReset(ctx context.Context) error {
 		c.container = nil
 	}
 
-	dbPath := filepath.Join(c.Config.DataDir, "whatsrook.db")
-	_ = os.Remove(dbPath)
-	_ = os.Remove(dbPath + "-wal")
-	_ = os.Remove(dbPath + "-shm")
-
 	return nil
 }
 
@@ -697,7 +697,7 @@ type StoredSession struct {
 	Business bool
 }
 
-// ListStoredSessions queries the database store for all saved companion device sessions across SQLite or PostgreSQL.
+// ListStoredSessions queries the database store for all saved companion device sessions in PostgreSQL.
 //
 // it inspects registered device records without opening active network websockets, returning
 // structured metadata such as JID, push name, emulated platform, and business account indicators.

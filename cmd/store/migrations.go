@@ -39,7 +39,7 @@ func getMigrations() []Migration {
 		},
 		{
 			Version:     2,
-			Description: "Repair PostgreSQL and SQLite constraints, column types, and unique indexes",
+			Description: "Repair PostgreSQL constraints, column types, and unique indexes",
 			Up:          migration2RepairConstraintsAndColumns,
 		},
 		{
@@ -257,27 +257,6 @@ func migration2RepairConstraintsAndColumns(ctx context.Context, db *dbutil.Datab
 	// 4. Best-effort column addition for contacts table
 	_ = EnsureCustomColumnExists(ctx, db, "whatsmeow_contacts", "username", "TEXT")
 
-	// 5. Decouple blocking foreign key constraints on SQLite legacy setups
-	if db.Dialect == dbutil.SQLite {
-		botSettingsSchema := `CREATE TABLE IF NOT EXISTS bot_settings (
-			our_jid TEXT DEFAULT '',
-			key     TEXT NOT NULL,
-			value   TEXT NOT NULL,
-			PRIMARY KEY (our_jid, key)
-		)`
-		_ = MigrateSQLiteTableRemovingFK(ctx, db, "bot_settings", botSettingsSchema, "our_jid, key, value")
-
-		callMediaSchema := `CREATE TABLE IF NOT EXISTS call_media_config (
-			our_jid    TEXT DEFAULT '',
-			jid        TEXT NOT NULL,
-			kind       TEXT NOT NULL DEFAULT 'audio',
-			file_path  TEXT NOT NULL,
-			updated_at BIGINT DEFAULT 0,
-			PRIMARY KEY (jid, kind)
-		)`
-		_ = MigrateSQLiteTableRemovingFK(ctx, db, "call_media_config", callMediaSchema, "our_jid, jid, kind, file_path, updated_at")
-	}
-
 	return nil
 }
 
@@ -486,71 +465,6 @@ func migration7SessionIsolation(ctx context.Context, db *dbutil.Database) error 
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_sticker_cmds DROP CONSTRAINT IF EXISTS bot_sticker_cmds_pkey")
 		_, _ = db.Exec(ctx, "DELETE FROM bot_sticker_cmds a USING bot_sticker_cmds b WHERE a.ctid < b.ctid AND a.our_jid = b.our_jid AND a.sticker_sha256 = b.sticker_sha256")
 		_, _ = db.Exec(ctx, "ALTER TABLE bot_sticker_cmds ADD PRIMARY KEY (our_jid, sticker_sha256)")
-	}
-
-	// 7. For SQLite legacy tables with non-composite primary keys, migrate table definitions to composite PKs
-	if db.Dialect == dbutil.SQLite {
-		botSettingsSchema := `CREATE TABLE IF NOT EXISTS bot_settings (
-			our_jid TEXT NOT NULL DEFAULT '',
-			key     TEXT NOT NULL,
-			value   TEXT NOT NULL,
-			PRIMARY KEY (our_jid, key)
-		)`
-		_ = MigrateSQLiteTableToCompositePK(ctx, db, "bot_settings", botSettingsSchema, "our_jid, key, value", "COALESCE(our_jid, ''), key, value")
-
-		callMediaSchema := `CREATE TABLE IF NOT EXISTS call_media_config (
-			our_jid    TEXT NOT NULL DEFAULT '',
-			jid        TEXT NOT NULL,
-			kind       TEXT NOT NULL DEFAULT 'audio',
-			file_path  TEXT NOT NULL,
-			updated_at INTEGER DEFAULT 0,
-			PRIMARY KEY (our_jid, jid, kind)
-		)`
-		_ = MigrateSQLiteTableToCompositePK(ctx, db, "call_media_config", callMediaSchema, "our_jid, jid, kind, file_path, updated_at", "COALESCE(our_jid, ''), jid, kind, file_path, COALESCE(updated_at, 0)")
-
-		groupStatsSchema := `CREATE TABLE IF NOT EXISTS group_stats (
-			our_jid   TEXT NOT NULL DEFAULT '',
-			group_jid TEXT NOT NULL,
-			user_jid  TEXT NOT NULL,
-			date_str  TEXT NOT NULL,
-			msg_count INTEGER NOT NULL DEFAULT 1,
-			PRIMARY KEY (our_jid, group_jid, user_jid, date_str)
-		)`
-		_ = MigrateSQLiteTableToCompositePK(ctx, db, "group_stats", groupStatsSchema, "our_jid, group_jid, user_jid, date_str, msg_count", "COALESCE(our_jid, ''), group_jid, user_jid, date_str, COALESCE(msg_count, 1)")
-
-		botUserXPSchema := `CREATE TABLE IF NOT EXISTS bot_user_xp (
-			our_jid    TEXT NOT NULL DEFAULT '',
-			user_jid   TEXT NOT NULL,
-			xp         INTEGER NOT NULL DEFAULT 0,
-			level      INTEGER NOT NULL DEFAULT 1,
-			messages   INTEGER NOT NULL DEFAULT 0,
-			stickers   INTEGER NOT NULL DEFAULT 0,
-			commands   INTEGER NOT NULL DEFAULT 0,
-			updated_at INTEGER NOT NULL DEFAULT 0,
-			ttt_wins   INTEGER NOT NULL DEFAULT 0,
-			ttt_losses INTEGER NOT NULL DEFAULT 0,
-			ttt_draws  INTEGER NOT NULL DEFAULT 0,
-			wcg_wins   INTEGER NOT NULL DEFAULT 0,
-			wcg_games  INTEGER NOT NULL DEFAULT 0,
-			wcg_rating INTEGER NOT NULL DEFAULT 1000,
-			PRIMARY KEY (our_jid, user_jid)
-		)`
-		_ = MigrateSQLiteTableToCompositePK(ctx, db, "bot_user_xp", botUserXPSchema, "our_jid, user_jid, xp, level, messages, stickers, commands, updated_at, ttt_wins, ttt_losses, ttt_draws, wcg_wins, wcg_games, wcg_rating", "COALESCE(our_jid, ''), user_jid, COALESCE(xp, 0), COALESCE(level, 1), COALESCE(messages, 0), COALESCE(stickers, 0), COALESCE(commands, 0), COALESCE(updated_at, 0), COALESCE(ttt_wins, 0), COALESCE(ttt_losses, 0), COALESCE(ttt_draws, 0), COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000)")
-
-		botGroupUserXPSchema := `CREATE TABLE IF NOT EXISTS bot_group_user_xp (
-			our_jid    TEXT NOT NULL DEFAULT '',
-			group_jid  TEXT NOT NULL,
-			user_jid   TEXT NOT NULL,
-			xp         INTEGER NOT NULL DEFAULT 0,
-			ttt_wins   INTEGER NOT NULL DEFAULT 0,
-			ttt_losses INTEGER NOT NULL DEFAULT 0,
-			ttt_draws  INTEGER NOT NULL DEFAULT 0,
-			wcg_wins   INTEGER NOT NULL DEFAULT 0,
-			wcg_games  INTEGER NOT NULL DEFAULT 0,
-			wcg_rating INTEGER NOT NULL DEFAULT 1000,
-			PRIMARY KEY (our_jid, group_jid, user_jid)
-		)`
-		_ = MigrateSQLiteTableToCompositePK(ctx, db, "bot_group_user_xp", botGroupUserXPSchema, "our_jid, group_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws, wcg_wins, wcg_games, wcg_rating", "COALESCE(our_jid, ''), group_jid, user_jid, COALESCE(xp, 0), COALESCE(ttt_wins, 0), COALESCE(ttt_losses, 0), COALESCE(ttt_draws, 0), COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000)")
 	}
 
 	return nil

@@ -134,4 +134,26 @@ func TestParseCLIArgsPlainWords(t *testing.T) {
 	if shortRes.Client != "default" {
 		t.Errorf("short flag -c should be ignored, got Client=%q", shortRes.Client)
 	}
+
+	// Auto-update plain words
+	autoOn := parseCLIArgsFrom([]string{"autoupdate", "on"})
+	if !autoOn.AutoUpdate || autoOn.AutoUpdateVal != "on" {
+		t.Errorf("expected AutoUpdate=true, Val=on, got %+v", autoOn)
+	}
+
+	autoOff := parseCLIArgsFrom([]string{"autoupdate", "off"})
+	if !autoOff.AutoUpdate || autoOff.AutoUpdateVal != "off" {
+		t.Errorf("expected AutoUpdate=true, Val=off, got %+v", autoOff)
+	}
+
+	autoEq := parseCLIArgsFrom([]string{"autoupdate=on"})
+	if !autoEq.AutoUpdate || autoEq.AutoUpdateVal != "on" {
+		t.Errorf("expected AutoUpdate=true, Val=on, got %+v", autoEq)
+	}
+
+	// Default database is PostgreSQL connection URL (no sqlite)
+	defaultDB := parseCLIArgsFrom([]string{"2348060598064"})
+	if defaultDB.Database != "postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable" {
+		t.Errorf("expected default PostgreSQL URL, got %q", defaultDB.Database)
+	}
 }

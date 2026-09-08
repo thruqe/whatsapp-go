@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"whatsrook"
 	_ "whatsrook"
@@ -49,8 +50,29 @@ func main() {
 		return
 	}
 
+	if args.AutoUpdate {
+		handleAutoUpdateCLI(args.AutoUpdateVal)
+		return
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+
+	// If autoupdate is enabled, check for updates and upgrade & restart before starting bot
+	if updater.GetStoredAutoUpdate() && os.Getenv("_WHATSRROK_AUTOUPDATE_RESTARTED") != "1" {
+		ctxAuto, cancelAuto := context.WithTimeout(ctx, 45*time.Second)
+		updated, err := updater.PerformAutoUpdate(ctxAuto, os.Stdout)
+		cancelAuto()
+		if err != nil {
+			logger.Warn("auto-update check failed", "err", err)
+		} else if updated {
+			fmt.Println("==> Auto-update applied successfully! Restarting WhatsRook...")
+			_ = os.Setenv("_WHATSRROK_AUTOUPDATE_RESTARTED", "1")
+			err := updater.RestartProcess()
+			logger.Error("failed to restart process after auto-update", "err", err)
+			return
+		}
+	}
 
 	if args.Logout {
 		handleLogoutCLI(ctx, args)
@@ -166,5 +188,28 @@ func handleUpdate(op string) {
 
 	if res.Updated {
 		fmt.Println("==> Upgrade complete!")
+	}
+}
+
+func handleAutoUpdateCLI(val string) {
+	switch val {
+	case "on", "enable", "true", "1":
+		if err := updater.SetStoredAutoUpdate(true); err != nil {
+			logger.Error("failed to enable auto-update", "err", err)
+			os.Exit(1)
+		}
+		fmt.Println("==> Auto-update enabled. WhatsRook will automatically check and apply updates on startup.")
+	case "off", "disable", "false", "0":
+		if err := updater.SetStoredAutoUpdate(false); err != nil {
+			logger.Error("failed to disable auto-update", "err", err)
+			os.Exit(1)
+		}
+		fmt.Println("==> Auto-update disabled.")
+	default:
+		if updater.GetStoredAutoUpdate() {
+			fmt.Println("Auto-update is currently enabled (ON).")
+		} else {
+			fmt.Println("Auto-update is currently disabled (OFF).")
+		}
 	}
 }

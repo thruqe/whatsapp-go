@@ -12,21 +12,24 @@ var Version = "dev"
 
 // CLIArgs holds parsed runtime arguments.
 type CLIArgs struct {
-	Session  string // Phone number identifying the session
-	Auth     string // "pair" or "qr" (default: "qr")
-	Client   string // "default", "android", or "ios"
-	Database string // "default" (sqlite) or PostgreSQL connection URL
-	Logout   bool   // Flush credentials/session data and exit
-	Update   bool   // True if an update action was requested
-	UpdateOp string // "check", "stable", "beta", or "" (direct update)
-	Verbose  bool   // Enable verbose / debug logging
-	Version  bool   // Print version and exit
+	Session       string // Phone number identifying the session
+	Auth          string // "pair" or "qr" (default: "qr")
+	Client        string // "default", "android", or "ios"
+	Database      string // PostgreSQL connection URL
+	Logout        bool   // Flush credentials/session data and exit
+	Update        bool   // True if an update action was requested
+	UpdateOp      string // "check", "stable", "beta", or "" (direct update)
+	AutoUpdate    bool   // True if autoupdate action was requested
+	AutoUpdateVal string // "on", "off", or "status"
+	Verbose       bool   // Enable verbose / debug logging
+	Version       bool   // Print version and exit
 }
 
 // printCLIUsage prints clean plain-word command line usage without short flags or leading dashes.
 func printCLIUsage() {
 	fmt.Print(`Usage: whatsrook [options] [<phone>]
        whatsrook update [check | stable | beta]
+       whatsrook autoupdate [on | off]
        whatsrook logout [<phone>]
        whatsrook version
        whatsrook help
@@ -37,8 +40,9 @@ Arguments:
 
 Commands & Options:
   auth <pair | qr>              Authentication method (default: qr)
+  autoupdate <on | off>         Toggle automatic update checks and restarts on launch
   client <type>                 Client profile: default (chrome), android, ios (default: default)
-  db <url>                      Database: default (sqlite) or PostgreSQL connection URL
+  db <url>                      Database: PostgreSQL connection URL
   logout                        Remove session credentials and exit
   update [action]               Check or apply update (actions: check, stable, beta, or empty for direct)
   verbose                       Enable verbose debug logging
@@ -61,15 +65,17 @@ func parseCLIArgs() CLIArgs {
 // parseCLIArgsFrom parses arguments from an explicit string slice using plain words.
 func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 	var (
-		sessionVal string
-		authVal    string
-		clientVal  string
-		dbVal      string
-		logoutVal  bool
-		isUpdate   bool
-		updateOp   string
-		verboseVal bool
-		versionVal bool
+		sessionVal    string
+		authVal       string
+		clientVal     string
+		dbVal         string
+		logoutVal     bool
+		isUpdate      bool
+		updateOp      string
+		isAutoUpdate  bool
+		autoUpdateVal string
+		verboseVal    bool
+		versionVal    bool
 	)
 
 	for i := 0; i < len(cmdArgs); i++ {
@@ -111,6 +117,23 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 					i++
 				}
 			}
+
+		case norm == "autoupdate" || norm == "auto-update":
+			isAutoUpdate = true
+			if i+1 < len(cmdArgs) {
+				next := strings.ToLower(strings.TrimSpace(cmdArgs[i+1]))
+				for strings.HasPrefix(next, "-") {
+					next = next[1:]
+				}
+				if next == "on" || next == "off" || next == "status" || next == "enable" || next == "disable" || next == "true" || next == "false" {
+					autoUpdateVal = next
+					i++
+				}
+			}
+		case strings.HasPrefix(norm, "autoupdate=") || strings.HasPrefix(norm, "auto-update="):
+			isAutoUpdate = true
+			_, val, _ := strings.Cut(raw, "=")
+			autoUpdateVal = strings.ToLower(strings.TrimSpace(val))
 
 		case norm == "auth":
 			if i+1 < len(cmdArgs) {
@@ -189,7 +212,7 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		clientVal = "default"
 	}
 
-	// 4. Database resolution (Plain Word > DATABASE_URL_<phone> > DATABASE_URL > POSTGRES_URL > DB_URL > "default")
+	// 4. Database resolution (Plain Word > DATABASE_URL_<phone> > DATABASE_URL > POSTGRES_URL > DB_URL > default PostgreSQL URL)
 	if dbVal == "" {
 		phone := strings.TrimPrefix(sessionVal, "+")
 		if phone != "" && os.Getenv("DATABASE_URL_"+phone) != "" {
@@ -201,8 +224,11 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		} else if envDBURL := os.Getenv("DB_URL"); envDBURL != "" {
 			dbVal = envDBURL
 		} else {
-			dbVal = "default"
+			dbVal = "postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable"
 		}
+	}
+	if dbVal == "default" || dbVal == "postgres" || dbVal == "postgresql" {
+		dbVal = "postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable"
 	}
 
 	// 5. Logout resolution (Plain Word > LOGOUT env)
@@ -222,15 +248,17 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 	}
 
 	return CLIArgs{
-		Session:  sessionVal,
-		Auth:     authVal,
-		Client:   clientVal,
-		Database: dbVal,
-		Logout:   logoutVal,
-		Update:   isUpdate,
-		UpdateOp: updateOp,
-		Verbose:  verboseVal,
-		Version:  versionVal,
+		Session:       sessionVal,
+		Auth:          authVal,
+		Client:        clientVal,
+		Database:      dbVal,
+		Logout:        logoutVal,
+		Update:        isUpdate,
+		UpdateOp:      updateOp,
+		AutoUpdate:    isAutoUpdate,
+		AutoUpdateVal: autoUpdateVal,
+		Verbose:       verboseVal,
+		Version:       versionVal,
 	}
 }
 
