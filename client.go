@@ -42,6 +42,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 
 	_ "embed"
+
 	_ "github.com/lib/pq"
 )
 
@@ -143,13 +144,6 @@ type Config struct {
 
 	// verbose toggles debug-level tracing across whatsmeow protocol logs and internal drivers.
 	Verbose bool
-
-	// skipoldmessages instructs the client to ignore backlog history during initial handshake synchronization.
-	SkipOldMessages bool
-
-	// asyncmessageack enables non-blocking message dispatch where write operations return immediately
-	// upon socket flush without blocking on server-side message receipt acknowledgments.
-	AsyncMessageAck bool
 }
 
 // client is the primary abstraction encapsulating the whatsmeow core client, database container,
@@ -207,7 +201,6 @@ func (c *Client) InitSession(ctx context.Context) error {
 	waLogger := Logger.NewWaLogger("client")
 	cli := whatsmeow.NewClient(deviceStore, waLogger)
 	cli.SetCallLogger(Logger.ZerologStyle("wacaller"))
-	cli.AsyncMessageAck = c.Config.AsyncMessageAck
 
 	// Configure companion platform registration headers and os version payloads
 	isBusiness := c.Config.Business || (deviceStore != nil && (deviceStore.BusinessName != "" || strings.HasPrefix(strings.ToLower(deviceStore.Platform), "smb")))

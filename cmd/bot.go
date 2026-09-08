@@ -86,13 +86,12 @@ func (b *Bot) Start(ctx context.Context) error {
 	}
 
 	client := whatsrook.NewClient(whatsrook.Config{
-		Session:         b.cfg.Session,
-		DataDir:         whatsrook.DefaultDataDir(),
-		Database:        b.cfg.Database,
-		ClientType:      b.cfg.ClientType,
-		Business:        b.cfg.Business,
-		Verbose:         b.cfg.Verbose,
-		AsyncMessageAck: b.cfg.AsyncMessageAck,
+		Session:    b.cfg.Session,
+		DataDir:    whatsrook.DefaultDataDir(),
+		Database:   b.cfg.Database,
+		ClientType: b.cfg.ClientType,
+		Business:   b.cfg.Business,
+		Verbose:    b.cfg.Verbose,
 	})
 
 	b.mu.Lock()
