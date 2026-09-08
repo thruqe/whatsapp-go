@@ -758,10 +758,10 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 	}
 
 	if !pnJID.IsEmpty() {
-		add(pnJID.String()) // e.g. "2348060598064@s.whatsapp.net"
+		add(pnJID.String()) // e.g. "2348000000000@s.whatsapp.net"
 	}
 	if !lidJID.IsEmpty() {
-		add(lidJID.String()) // e.g. "258256953950323@lid"
+		add(lidJID.String()) // e.g. "123456789012345@lid"
 	}
 
 	// Resolve username (only if it's a valid username token without spaces).

@@ -181,7 +181,7 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 			dbVal = strings.TrimSpace(val)
 
 		default:
-			// Match session phone numbers (e.g. 2348060598064, +2348060598064)
+			// Match session phone numbers (e.g. 2348000000000, +2348000000000)
 			cleanArg := strings.TrimPrefix(raw, "+")
 			if len(cleanArg) >= 7 && len(cleanArg) <= 15 && isNumeric(cleanArg) {
 				sessionVal = raw

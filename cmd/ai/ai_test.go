@@ -816,8 +816,8 @@ func TestHandleAutoAIIntercept_Filtering(t *testing.T) {
 }
 
 func TestIsSelfChat(t *testing.T) {
-	botPN := types.NewJID("2348060598064", types.DefaultUserServer)
-	botLID := types.NewJID("258256953950323", types.HiddenUserServer)
+	botPN := types.NewJID("2348000000000", types.DefaultUserServer)
+	botLID := types.NewJID("123456789012345", types.HiddenUserServer)
 	client := &whatsmeow.Client{
 		Store: &store.Device{
 			ID:  &botPN,
@@ -880,8 +880,8 @@ func TestIsSelfChat(t *testing.T) {
 }
 
 func TestResolveAltJID(t *testing.T) {
-	botPN := types.NewJID("2348060598064", types.DefaultUserServer)
-	botLID := types.NewJID("258256953950323", types.HiddenUserServer)
+	botPN := types.NewJID("2348000000000", types.DefaultUserServer)
+	botLID := types.NewJID("123456789012345", types.HiddenUserServer)
 	client := &whatsmeow.Client{
 		Store: &store.Device{
 			ID:  &botPN,
