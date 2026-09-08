@@ -282,6 +282,8 @@ func TestEqualVersions(t *testing.T) {
 		{"alpha-44383a4", "44383a4e22dc765eea11b3949ee5ef0305ea78a3", true},
 		{"1111111", "2222222", false},
 		{"beta-1111111", "beta-2222222", false},
+		{"beta-34ac0", "34ac0e5f1234567890abcdef", true},
+		{"34ac0", "34ac0e5f1234567890abcdef", true},
 	}
 
 	for _, tc := range tests {
@@ -289,5 +291,42 @@ func TestEqualVersions(t *testing.T) {
 		if got != tc.expected {
 			t.Errorf("EqualVersions(%q, %q) = %v, want %v", tc.v1, tc.v2, got, tc.expected)
 		}
+	}
+}
+
+func TestIsBetaVersion(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"4.9.26", false},
+		{"v4.9.26", false},
+		{"beta-34ac0", true},
+		{"34ac0e5f1234567890abcdef", true},
+		{"alpha", true},
+		{"v4.9.27-alpha", true},
+		{"v4.9.27-beta.1", true},
+		{"sha256:d886076136d80112c332c", true},
+		{"", false},
+	}
+
+	for _, tc := range tests {
+		got := updater.IsBetaVersion(tc.input)
+		if got != tc.want {
+			t.Errorf("IsBetaVersion(%q) = %v, want %v", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestGetDefaultChannel(t *testing.T) {
+	ch := updater.GetDefaultChannel()
+	if ch != "stable" && ch != "beta" {
+		t.Errorf("GetDefaultChannel() = %q, expected \"stable\" or \"beta\"", ch)
+	}
+	if updater.CurrentIsBeta() && ch != "beta" {
+		t.Errorf("expected GetDefaultChannel() == beta when CurrentIsBeta() == true")
+	}
+	if !updater.CurrentIsBeta() && ch != "stable" {
+		t.Errorf("expected GetDefaultChannel() == stable when CurrentIsBeta() == false")
 	}
 }
