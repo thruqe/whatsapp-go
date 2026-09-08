@@ -1,10 +1,12 @@
-// system package provides runtime environment inspection and host hardware metrics.
+// Provides runtime environment inspection and host hardware metrics.
 //
-// it provides cross-platform helpers to query memory statistics, CPU core counts,
-// active goroutines, and operating system metadata without invoking heavy external shell commands.
+// It provides cross-platform helpers to query memory statistics, CPU core counts,
+// active goroutines, and operating system metadata without invoking heavy external
+// shell commands.
 package system
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,6 +41,15 @@ type Stats struct {
 	NumGC uint32
 }
 
+// String renders a Stats snapshot as a compact, human-readable summary.
+func (s Stats) String() string {
+	return fmt.Sprintf(
+		"%s/%s %s | cpus=%d goroutines=%d alloc=%s sys=%s gc=%d",
+		s.OS, s.Arch, s.GoVersion, s.NumCPU, s.NumGoroutine,
+		FormatBytes(s.MemAlloc), FormatBytes(s.MemSys), s.NumGC,
+	)
+}
+
 // GetStats returns a point-in-time snapshot of runtime memory and CPU statistics.
 func GetStats() Stats {
 	var m runtime.MemStats
@@ -71,7 +82,7 @@ func FormatBytes(b uint64) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-// FormatDuration formats a duration into a human-readable string.
+// FormatDuration formats a duration into a human-readable string, e.g. "1d 2h 3m 4s".
 func FormatDuration(d time.Duration) string {
 	d = d.Round(time.Second)
 	days := d / (24 * time.Hour)
@@ -82,7 +93,7 @@ func FormatDuration(d time.Duration) string {
 	d -= minutes * time.Minute
 	seconds := d / time.Second
 
-	var parts []string
+	parts := make([]string, 0, 4)
 	if days > 0 {
 		parts = append(parts, fmt.Sprintf("%dd", days))
 	}
@@ -98,55 +109,123 @@ func FormatDuration(d time.Duration) string {
 	return strings.Join(parts, " ")
 }
 
-// RecordCrash persists detailed panic or runtime error metadata, stack traces, and system diagnostics
-// to whatsrook_crash.log, outputs a notification to stderr, and returns the absolute log path.
+// crashLogName is the filename used for on-disk crash reports.
+const crashLogName = "whatsrook_crash.log"
+
+// crashLogPerm is the file permission used when creating the crash log directory and file.
+const (
+	crashDirPerm  os.FileMode = 0o700
+	crashFilePerm os.FileMode = 0o600
+)
+
+// CrashReport holds the structured detail captured for a recovered panic
+// or runtime error, before it is formatted and persisted.
+type CrashReport struct {
+	// Time is when the crash was recorded.
+	Time time.Time
+	// Value is the recovered panic value (from recover()).
+	Value any
+	// Context holds any extra caller-supplied context strings.
+	Context []string
+	// Stack is the captured goroutine stack trace.
+	Stack []byte
+	// Stats is a runtime snapshot taken at crash time.
+	Stats Stats
+}
+
+// crashLogDir resolves the directory used for crash log storage, honoring
+// the WHATSDATA_DIR environment variable override.
+func crashLogDir() string {
+	if dir := os.Getenv("WHATSDATA_DIR"); dir != "" {
+		return dir
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		return filepath.Join(home, ".whatsrook")
+	}
+	return "."
+}
+
+// Format renders the crash report as the on-disk log entry text.
+func (r CrashReport) Format() string {
+	var buf strings.Builder
+	fmt.Fprintf(&buf, "CRASH REPORT — %s\n", r.Time.Format("2006-01-02 15:04:05.000 MST"))
+	fmt.Fprintf(&buf, "Runtime Panic/Error: %v\n", r.Value)
+	if len(r.Context) > 0 {
+		fmt.Fprintf(&buf, "Execution Context:   %s\n", strings.Join(r.Context, " | "))
+	}
+	fmt.Fprintf(&buf, "Host OS/Arch:        %s/%s\n", r.Stats.OS, r.Stats.Arch)
+	fmt.Fprintf(&buf, "Compiler:         %s\n", r.Stats.GoVersion)
+	fmt.Fprintf(&buf, "Goroutines:   %d\n", r.Stats.NumGoroutine)
+	fmt.Fprintf(&buf, "Memory In-Use/Sys:   %s / %s\n", FormatBytes(r.Stats.MemAlloc), FormatBytes(r.Stats.MemSys))
+	buf.WriteString("STACK TRACE:\n")
+	buf.Write(r.Stack)
+	return buf.String()
+}
+
+// RecordCrash captures panic/runtime-error metadata, a stack trace, and a
+// runtime.Stats snapshot, appends it to the crash log on disk, and returns
+// the absolute log path.
+//
+// If r is nil, RecordCrash is a no-op and returns "".
+//
+// Unlike a naive implementation, disk errors are surfaced (not silently
+// swallowed): if the log directory or file cannot be written, an error
+// noting the underlying cause is written to stderr in addition to the
+// original crash summary, so operators are not left without any signal.
 func RecordCrash(r any, extraContext ...string) string {
 	if r == nil {
 		return ""
 	}
 
-	stack := debug.Stack()
-	stats := GetStats()
-
-	crashDir := os.Getenv("WHATSDATA_DIR")
-	if crashDir == "" {
-		if home, err := os.UserHomeDir(); err == nil && home != "" {
-			crashDir = filepath.Join(home, ".whatsrook")
-		} else {
-			crashDir = "."
-		}
-	}
-	_ = os.MkdirAll(crashDir, 0700)
-	crashPath := filepath.Join(crashDir, "whatsrook_crash.log")
-
-	var contextInfo string
-	if len(extraContext) > 0 {
-		contextInfo = strings.Join(extraContext, " | ")
+	report := CrashReport{
+		Time:    time.Now(),
+		Value:   r,
+		Context: extraContext,
+		Stack:   debug.Stack(),
+		Stats:   GetStats(),
 	}
 
-	var buf strings.Builder
-	buf.WriteString("\n================================================================================\n")
-	buf.WriteString(fmt.Sprintf("WHATSRROK RUNTIME CRASH REPORT — %s\n", time.Now().Format("2006-01-02 15:04:05.000 MST")))
-	buf.WriteString("================================================================================\n")
-	buf.WriteString(fmt.Sprintf("Runtime Panic/Error: %v\n", r))
-	if contextInfo != "" {
-		buf.WriteString(fmt.Sprintf("Execution Context:   %s\n", contextInfo))
-	}
-	buf.WriteString(fmt.Sprintf("Host OS/Arch:        %s/%s\n", stats.OS, stats.Arch))
-	buf.WriteString(fmt.Sprintf("Go Compiler:         %s\n", stats.GoVersion))
-	buf.WriteString(fmt.Sprintf("Active Goroutines:   %d\n", stats.NumGoroutine))
-	buf.WriteString(fmt.Sprintf("Memory In-Use/Sys:   %s / %s\n", FormatBytes(stats.MemAlloc), FormatBytes(stats.MemSys)))
-	buf.WriteString("--------------------------------------------------------------------------------\n")
-	buf.WriteString("GOROUTINE STACK TRACE:\n")
-	buf.Write(stack)
-	buf.WriteString("================================================================================\n\n")
+	dir := crashLogDir()
+	path := filepath.Join(dir, crashLogName)
 
-	f, err := os.OpenFile(crashPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
-	if err == nil {
-		_, _ = f.WriteString(buf.String())
-		_ = f.Close()
+	if err := writeCrashLog(path, dir, report); err != nil {
+		fmt.Fprintf(os.Stderr, "\n🚨 runtime error occurred, but crash log could not be written: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s\n", report.Format())
+		return ""
 	}
 
-	fmt.Fprintf(os.Stderr, "\n🚨 runtime error, written to %s\n", crashPath)
-	return crashPath
+	fmt.Fprintf(os.Stderr, "\n🚨 runtime error, written to %s\n", path)
+	return path
 }
+
+// writeCrashLog appends the formatted report to path, creating dir if needed.
+func writeCrashLog(path, dir string, report CrashReport) error {
+	if err := os.MkdirAll(dir, crashDirPerm); err != nil {
+		return fmt.Errorf("creating crash log directory %q: %w", dir, err)
+	}
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, crashFilePerm)
+	if err != nil {
+		return fmt.Errorf("opening crash log %q: %w", path, err)
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString(report.Format()); err != nil {
+		return fmt.Errorf("writing crash log %q: %w", path, err)
+	}
+
+	if err := f.Sync(); err != nil {
+		// Non-fatal: the write likely succeeded even if the fsync failed
+		// (e.g. on filesystems that don't support it). Surface it as a
+		// wrapped error so callers can decide whether it matters to them,
+		// but don't treat it as a hard failure of the log write itself.
+		return fmt.Errorf("syncing crash log %q: %w", path, errors.Join(errSyncFailed, err))
+	}
+
+	return nil
+}
+
+// errSyncFailed marks sentinel wrapping for fsync failures so callers can
+// distinguish "log probably written, fsync failed" from a genuine write error
+// using errors.Is.
+var errSyncFailed = errors.New("crash log sync failed")
