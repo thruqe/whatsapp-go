@@ -764,7 +764,7 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 		add(lidJID.String()) // e.g. "258256953950323@lid"
 	}
 
-	// Resolve username / contact push name.
+	// Resolve username (only if it's a valid username token without spaces).
 	if client != nil && client.Store != nil && client.Store.Contacts != nil {
 		lookupJID := pnJID
 		if lookupJID.IsEmpty() {
@@ -773,21 +773,26 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 		if !lookupJID.IsEmpty() {
 			if contact, err := client.Store.Contacts.GetContact(ctx, lookupJID); err == nil && contact.Found {
 				if contact.Username != "" {
-					add(strings.ToLower(contact.Username))
-				} else if contact.PushName != "" {
-					add(strings.ToLower(contact.PushName))
-				} else if contact.FullName != "" {
-					add(strings.ToLower(contact.FullName))
+					u := strings.TrimSpace(strings.ToLower(contact.Username))
+					if isValidUsername(u) {
+						add(u)
+					}
 				}
 			}
 		}
 	}
 
-	// Fallback to recent message push name
+	// Fallback: check recent message push name ONLY if it's a valid single-word username
 	if recent := utils.GetRecentMessageForJID(nonAD); recent != nil && recent.Info.PushName != "" {
-		add(strings.ToLower(recent.Info.PushName))
+		p := strings.TrimSpace(strings.ToLower(recent.Info.PushName))
+		if isValidUsername(p) {
+			add(p)
+		}
 	} else if recent := utils.GetRecentMessageForJID(chat); recent != nil && recent.Info.PushName != "" {
-		add(strings.ToLower(recent.Info.PushName))
+		p := strings.TrimSpace(strings.ToLower(recent.Info.PushName))
+		if isValidUsername(p) {
+			add(p)
+		}
 	}
 
 	// If we have no tokens at all, fall back to the raw non-AD string.
@@ -796,12 +801,15 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 	}
 
 	// Choose the best JID for mention display purposes.
-	if !pnJID.IsEmpty() {
+	if !pnJID.IsEmpty() && pnJID.User != "" {
 		mentionJID = pnJID
 		displayUser = pnJID.User
-	} else {
+	} else if nonAD.User != "" {
 		mentionJID = nonAD
 		displayUser = nonAD.User
+	} else {
+		mentionJID = nonAD
+		displayUser = nonAD.String()
 	}
 	return tokens, mentionJID, displayUser
 }
@@ -841,15 +849,17 @@ func removeUserTokens(ctx context.Context, client *whatsmeow.Client, chat types.
 				break
 			}
 			// Also try parsing the stored token as a JID and using IsSameUserRaw.
-			if stored, err := types.ParseJID(entry); err == nil {
-				if utils.IsSameUserRaw(ctx, client, targets[i], stored) {
-					entryMatched = true
-					if !matched[i] {
-						matched[i] = true
-						removedJIDs = append(removedJIDs, tm.mentionJID)
-						displayNames = append(displayNames, "@"+tm.displayUser)
+			if strings.Contains(entry, "@") {
+				if stored, err := types.ParseJID(entry); err == nil && stored.User != "" {
+					if utils.IsSameUserRaw(ctx, client, targets[i], stored) {
+						entryMatched = true
+						if !matched[i] {
+							matched[i] = true
+							removedJIDs = append(removedJIDs, tm.mentionJID)
+							displayNames = append(displayNames, "@"+tm.displayUser)
+						}
+						break
 					}
-					break
 				}
 			}
 		}
@@ -881,7 +891,7 @@ func handleSetSudo(ctx *dispatch.Context) error {
 		return err
 	}
 
-	sudoers := strings.Fields(raw)
+	sudoers := sanitizeSudoers(strings.Fields(raw))
 	var addedJIDs []types.JID
 	var displayNames []string
 
@@ -944,7 +954,7 @@ func handleDelSudo(ctx *dispatch.Context) error {
 		return err
 	}
 
-	sudoers := strings.Fields(raw)
+	sudoers := sanitizeSudoers(strings.Fields(raw))
 	newSudoers, removedJIDs, displayNames := removeUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, sudoers, targets)
 
 	if len(removedJIDs) == 0 {
@@ -983,7 +993,12 @@ func handleListSudo(ctx *dispatch.Context) error {
 		return err
 	}
 
-	sudoers := strings.Fields(raw)
+	rawTokens := strings.Fields(raw)
+	sudoers := sanitizeSudoers(rawTokens)
+	if len(sudoers) != len(rawTokens) {
+		_ = s.PutSetting(ctx.Ctx, "sudoers", strings.Join(sudoers, " "))
+	}
+
 	var mentions []types.JID
 	tb := ctx.Text().Header("Sudo List")
 
@@ -1019,32 +1034,47 @@ func handleListSudo(ctx *dispatch.Context) error {
 			isJID = true
 		}
 
-		if isJID {
-			if ctx.IsTargetOwner(sudoerJID) {
-				displayedTokens[sdr] = true
-				continue
-			}
+		if !isJID {
+			displayedTokens[sdr] = true
+			continue
+		}
 
-			resolvedJID, username := ctx.ResolveMention(sudoerJID)
-			if username == "" {
-				username = sudoerJID.User
-			}
-			tb.Bulletf("@%s", username)
-			mentions = append(mentions, resolvedJID)
+		if ctx.IsTargetOwner(sudoerJID) {
+			displayedTokens[sdr] = true
+			continue
+		}
 
-			// Mark all tokens that resolve to the same identity as displayed.
-			allToks, _, _ := resolveUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, sudoerJID)
-			for _, tok := range allToks {
-				displayedTokens[tok] = true
-			}
-		} else {
-			// Username or custom token (e.g. "thruqe")
-			tb.Bulletf("%s (Username)", sdr)
+		resolvedJID, username := ctx.ResolveMention(sudoerJID)
+		if username == "" {
+			username = sudoerJID.User
+		}
+		tb.Bulletf("@%s", username)
+		mentions = append(mentions, resolvedJID)
+
+		// Mark all tokens that resolve to the same identity as displayed.
+		allToks, _, _ := resolveUserTokens(ctx.Ctx, ctx.Client, ctx.Chat, sudoerJID)
+		for _, tok := range allToks {
+			displayedTokens[tok] = true
 		}
 		displayedTokens[sdr] = true
 	}
 
 	return ctx.ReplyWithMentions(tb.String(), mentions)
+}
+
+func isValidUsername(s string) bool {
+	if len(s) == 0 || len(s) > 30 {
+		return false
+	}
+	if strings.ContainsAny(s, " \t\r\n@:+{}[]()|/\\") {
+		return false
+	}
+	for _, r := range s {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '.' && r != '_' && r != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 func isDigits(s string) bool {
@@ -1057,6 +1087,33 @@ func isDigits(s string) bool {
 		}
 	}
 	return true
+}
+
+func sanitizeSudoers(tokens []string) []string {
+	var sanitized []string
+	seen := make(map[string]bool)
+	for _, tok := range tokens {
+		tok = strings.TrimSpace(tok)
+		if tok == "" || seen[tok] {
+			continue
+		}
+		if strings.Contains(tok, "@") {
+			if parsed, err := types.ParseJID(tok); err == nil && parsed.User != "" {
+				seen[tok] = true
+				sanitized = append(sanitized, tok)
+				continue
+			}
+		} else if clean := strings.TrimPrefix(tok, "+"); len(clean) >= 5 && isDigits(clean) {
+			seen[tok] = true
+			sanitized = append(sanitized, tok)
+			continue
+		} else if isValidUsername(tok) {
+			seen[tok] = true
+			sanitized = append(sanitized, tok)
+			continue
+		}
+	}
+	return sanitized
 }
 
 func handleBan(ctx *dispatch.Context) error {
