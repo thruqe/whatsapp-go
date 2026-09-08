@@ -46,7 +46,7 @@ func handlePluginInstall(ctx *dispatch.Context) error {
 			Bulletf("%sinstall <name> <local-path-or-url>", p).
 			Blank().
 			Section("Official Plugins:").
-			Line(strings.Join(external.OfficialPlugins, ", ")).
+			Bullets(external.OfficialPlugins...).
 			Reply()
 	}
 
@@ -58,7 +58,7 @@ func handlePluginInstall(ctx *dispatch.Context) error {
 			tb := ctx.Text()
 			if len(installed) > 0 {
 				tb.Headerf("Installed %d external plugins:", len(installed)).
-					Bullet(strings.Join(installed, ", ")).
+					Bullets(installed...).
 					Blank()
 			}
 			if len(failed) > 0 {

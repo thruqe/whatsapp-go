@@ -28,7 +28,7 @@ import (
 func init() {
 	dispatch.RegisterPreInterceptor("group_moderation", HandleGroupModeration)
 	dispatch.Register(&dispatch.Command{
-		Name:        "tagall",
+		Name:        "tag",
 		Alias:       "tag, everyone, all, tagmembers",
 		Description: "Mention everyone in the group. Usage: tagall [message] or tag [message]",
 		Category:    "group",

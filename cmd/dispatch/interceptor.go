@@ -5,8 +5,6 @@ import (
 	"sync"
 
 	"go.mau.fi/whatsmeow"
-	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -84,19 +82,4 @@ func RunCommand(c *Context, cmdLine string) bool {
 		return false
 	}
 	return runCommand(c.Ctx, c.Client, c.Evt, cmdLine)
-}
-
-// RunCommandPublicly exports runCommand for external package testing.
-func RunCommandPublicly(ctx context.Context, client *whatsmeow.Client, evt *events.Message, cmdLine string) bool {
-	return runCommand(ctx, client, evt, cmdLine)
-}
-
-// HandleStickerCommandPublicly exports handleStickerCommand for external package testing.
-func HandleStickerCommandPublicly(ctx context.Context, client *whatsmeow.Client, s *sqlstore.SQLStore, evt *events.Message, stk *waE2E.StickerMessage) bool {
-	return handleStickerCommand(ctx, client, s, evt, stk)
-}
-
-// HandleQuotedStickerCommandPublicly exports handleQuotedStickerCommand for external package testing.
-func HandleQuotedStickerCommandPublicly(ctx context.Context, client *whatsmeow.Client, s *sqlstore.SQLStore, evt *events.Message, replyText string) bool {
-	return handleQuotedStickerCommand(ctx, client, s, evt, replyText)
 }

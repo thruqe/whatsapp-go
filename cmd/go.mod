@@ -8,11 +8,10 @@ replace go.mau.fi/whatsmeow => ../wa-core
 
 require (
 	github.com/coder/websocket v1.8.15
-	github.com/lib/pq v1.12.3
 	github.com/rs/zerolog v1.35.1
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	go.mau.fi/util v0.10.0
-	go.mau.fi/whatsmeow v0.0.0-20260828224850-0fadda796019
+	go.mau.fi/whatsmeow v0.0.0-20260908082135-57796d3d6b41
 	gorm.io/driver/postgres v1.6.2
 	gorm.io/gorm v1.31.2
 	whatsrook v0.0.0-00010101000000-000000000000
@@ -24,10 +23,11 @@ require (
 	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.10.0 // indirect
+	github.com/jackc/pgx/v5 v5.11.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/lib/pq v1.12.3 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/petermattis/goid v0.0.0-20260820044319-269ab09b5261 // indirect
@@ -45,11 +45,11 @@ require (
 	github.com/tetratelabs/wazero v1.12.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
-	golang.org/x/exp v0.0.0-20260824195058-e88cd73687aa // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
+	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
