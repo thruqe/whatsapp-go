@@ -1341,7 +1341,9 @@ func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) 
 						}
 					}
 					if contact, cErr := client.Store.Contacts.GetContact(ctx, lookupJID); cErr == nil && contact.Found {
-						if contact.PushName != "" {
+						if contact.Username != "" {
+							senderPushName = strings.ToLower(contact.Username)
+						} else if contact.PushName != "" {
 							senderPushName = strings.ToLower(contact.PushName)
 						} else if contact.FullName != "" {
 							senderPushName = strings.ToLower(contact.FullName)
