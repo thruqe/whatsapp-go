@@ -2349,13 +2349,14 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 	}
 	s, ok := dispatch.GetSQLStore(client)
 	if !ok || s == nil {
+		logger.Error("automute is not okay in the database, it will not run!, status: v%", ok)
 		return
 	}
 
 	tzName := getUserTimezone(ctx, s)
 	loc, err := time.LoadLocation(tzName)
 	if err != nil {
-		logger.Warn("automute: failed to load timezone, falling back to UTC", "tz", tzName, "err", err)
+		logger.Error("automute: failed to load timezone, falling back to UTC", "tz", tzName, "err", err)
 		loc = time.UTC
 	}
 
