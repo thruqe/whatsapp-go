@@ -1,0 +1,12 @@
+{
+  "name": "whatsrook-dev",
+  "image": "mcr.microsoft.com/devcontainers/go:latest",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go"
+      ]
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh"
+}
