@@ -2533,13 +2533,13 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 		Logger.Debug("ReplyWithSticker: existing sticker metadata found", "pack", meta.PackName, "publisher", meta.Publisher)
 	}
 
-	Logger.Info("ReplyWithSticker: uploading sticker payload", "chat", c.Chat.String(), "bytes", len(data))
+	Logger.Debug("ReplyWithSticker: uploading sticker payload", "chat", c.Chat.String(), "bytes", len(data))
 	uploaded, err := c.Client.Upload(c.GetSendContext(), data, whatsmeow.MediaImage)
 	if err != nil {
 		Logger.Error("ReplyWithSticker: upload failed", "chat", c.Chat.String(), "err", err)
 		return fmt.Errorf("upload sticker failed: %w", err)
 	}
-	Logger.Info("ReplyWithSticker: upload succeeded", "chat", c.Chat.String(), "url", uploaded.URL)
+	Logger.Debug("ReplyWithSticker: upload succeeded", "chat", c.Chat.String(), "url", uploaded.URL)
 
 	width := uint32(512)
 	height := uint32(512)
@@ -2585,7 +2585,7 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 	if err != nil {
 		Logger.Error("ReplyWithSticker: SendMessage failed", "chat", c.Chat.String(), "err", err)
 	} else {
-		Logger.Info("ReplyWithSticker: SendMessage succeeded", "chat", c.Chat.String(), "id", resp.ID)
+		Logger.Debug("ReplyWithSticker: SendMessage succeeded", "chat", c.Chat.String(), "id", resp.ID)
 	}
 	return err
 }

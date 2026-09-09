@@ -24,22 +24,22 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	utils "whatsrook"
+	"whatsrook"
 	"whatsrook/cmd/ai"
 	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/games"
 	"whatsrook/cmd/store"
 	"whatsrook/cmd/tools"
 	"whatsrook/external"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 )
 
 func sendPollReply(ctx *dispatch.Context, body string, options []string) error {
 	err := dispatch.SendPollReply(ctx, body, options)
 	if err != nil {
-		Logger.Error("sendPollReply: failed to send interactive poll", "err", err, "chat", ctx.Chat.String(), "body", body, "options", options)
+		logger.Error("sendPollReply: failed to send interactive poll", "err", err, "chat", ctx.Chat.String(), "body", body, "options", options)
 	} else {
-		Logger.Debug("sendPollReply: successfully sent interactive poll", "chat", ctx.Chat.String(), "options", options)
+		logger.Debug("sendPollReply: successfully sent interactive poll", "chat", ctx.Chat.String(), "options", options)
 	}
 	return err
 }
@@ -743,11 +743,11 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 		if !client.IsConnected() || !client.IsLoggedIn() || errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || strings.Contains(err.Error(), "not connected") || strings.Contains(err.Error(), "disconnected") || strings.Contains(err.Error(), "timed out") || ctx.Err() != nil {
 			return "", nil
 		}
-		Logger.Error("AutoBio: Failed to update bio", "err", err)
+		logger.Error("AutoBio: Failed to update bio", "err", err)
 		return "", err
 	}
 
-	Logger.Debug("AutoBio: Bio updated", "bio", bioText, "timezone", tzStr)
+	logger.Debug("AutoBio: Bio updated", "bio", bioText, "timezone", tzStr)
 	return bioText, nil
 }
 
@@ -948,7 +948,7 @@ func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, i
 			targetPath)
 
 		if err := cmd.Run(); err != nil {
-			Logger.Warn("ffmpeg video processing failed, checking raw video fallback", "err", err)
+			logger.Warn("ffmpeg video processing failed, checking raw video fallback", "err", err)
 			if len(data) <= 10*1024*1024 {
 				if errWrite := os.WriteFile(targetPath, data, 0644); errWrite != nil {
 					return "", errors.New("failed to write raw video fallback: " + errWrite.Error())
@@ -1037,9 +1037,9 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	}
 
 	// Never intercept poll votes in text message handler — let Dispatch handle them
-	unwrapped := utils.UnwrapMessageProto(evt.Message)
+	unwrapped := whatsrook.UnwrapMessageProto(evt.Message)
 	if unwrapped != nil && unwrapped.GetPollUpdateMessage() != nil {
-		Logger.Debug("Wizard interceptor: skipping poll update message")
+		logger.Debug("Wizard interceptor: skipping poll update message")
 		return false
 	}
 
@@ -1049,7 +1049,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		s, okStore = dispatch.GetSQLStore(client)
 	}
 	if !okStore {
-		Logger.Debug("Wizard interceptor: SQLStore not available")
+		logger.Debug("Wizard interceptor: SQLStore not available")
 		return false
 	}
 
@@ -1063,7 +1063,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 	isOwner := fakeCtx.IsOwner()
 	isSudo := fakeCtx.IsSudo()
-	Logger.Debug("Wizard interceptor: evaluating message",
+	logger.Debug("Wizard interceptor: evaluating message",
 		"chat", evt.Info.Chat.String(),
 		"sender", evt.Info.Sender.String(),
 		"isFromMe", evt.Info.IsFromMe,
@@ -1073,28 +1073,28 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 	// Wizard configuration is strictly restricted to bot owner and sudoers
 	if !isOwner && !isSudo {
-		Logger.Debug("Wizard interceptor: sender is neither owner nor sudoer, ignoring wizard")
+		logger.Debug("Wizard interceptor: sender is neither owner nor sudoer, ignoring wizard")
 		return false
 	}
 
 	wizardConfig, err := s.GetSetting(ctx, "wizard_config")
-	Logger.Debug("Wizard interceptor: current wizard_config setting",
+	logger.Debug("Wizard interceptor: current wizard_config setting",
 		"wizardConfig", wizardConfig,
 		"err", err,
 	)
 	if wizardConfig == "done" {
-		Logger.Debug("Wizard interceptor: wizard_config is 'done', skipping wizard")
+		logger.Debug("Wizard interceptor: wizard_config is 'done', skipping wizard")
 		return false
 	}
 
 	senderUser := evt.Info.Sender.ToNonAD().User
 	key := evt.Info.Chat.ToNonAD().String() + ":" + evt.Info.Sender.ToNonAD().String()
 	p := fakeCtx.GetPrefix()
-	text := utils.ExtractMessageText(evt)
+	text := whatsrook.ExtractMessageText(evt)
 	trimmedText := strings.TrimSpace(text)
 	lowerText := strings.ToLower(trimmedText)
 
-	Logger.Debug("Wizard interceptor: extracted message info",
+	logger.Debug("Wizard interceptor: extracted message info",
 		"key", key,
 		"prefix", p,
 		"text", text,
@@ -1103,7 +1103,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 	// Allow explicit setup/reconfigure commands to reach dispatch
 	if lowerText == p+"reconfigure" || lowerText == ".reconfigure" || strings.HasPrefix(lowerText, p+"setbot") || strings.HasPrefix(lowerText, ".setbot") {
-		Logger.Debug("Wizard interceptor: message matches reconfigure/setbot command, passing to dispatcher")
+		logger.Debug("Wizard interceptor: message matches reconfigure/setbot command, passing to dispatcher")
 		return false
 	}
 
@@ -1112,7 +1112,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	BotWizardMu.RUnlock()
 
 	if inWizard && time.Since(session.UpdatedAt) > WizardSessionTTL {
-		Logger.Debug("Wizard interceptor: pending wizard session expired", "key", key, "updatedAt", session.UpdatedAt)
+		logger.Debug("Wizard interceptor: pending wizard session expired", "key", key, "updatedAt", session.UpdatedAt)
 		BotWizardMu.Lock()
 		delete(PendingWizardState, key)
 		BotWizardMu.Unlock()
@@ -1122,7 +1122,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	// If not currently in an active in-memory session, initialize or resume step
 	if !inWizard {
 		currentStep := wizardConfig
-		Logger.Debug("Wizard interceptor: not in active memory session", "currentStep", currentStep)
+		logger.Debug("Wizard interceptor: not in active memory session", "currentStep", currentStep)
 		if currentStep == "" || currentStep == "name" {
 			BotWizardMu.Lock()
 			PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
@@ -1131,7 +1131,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 			bodyText := "Bot Customization Wizard (Step 1/4)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):"
 			replyErr := fakeCtx.Replyf("%s\n\n(Tip: Type %sreconfigure anytime to restart this wizard)", bodyText, p)
-			Logger.Info("Wizard interceptor: initiated Step 1 (name) prompt",
+			logger.Debug("Wizard interceptor: initiated Step 1 (name) prompt",
 				"putErr", putErr,
 				"replyErr", replyErr,
 				"chat", evt.Info.Chat.String(),
@@ -1145,16 +1145,16 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		PendingWizardState[key] = session
 		BotWizardMu.Unlock()
 		inWizard = true
-		Logger.Debug("Wizard interceptor: resumed wizard session from DB state", "step", currentStep)
+		logger.Debug("Wizard interceptor: resumed wizard session from DB state", "step", currentStep)
 	}
 
-	Logger.Info("Wizard handling step", "chat", key, "step", session.Step, "text", text)
+	logger.Debug("Wizard handling step", "chat", key, "step", session.Step, "text", text)
 
 	switch session.Step {
 	case "name":
-		Logger.Debug("Wizard interceptor: handling 'name' step", "trimmedText", trimmedText)
+		logger.Debug("Wizard interceptor: handling 'name' step", "trimmedText", trimmedText)
 		if trimmedText == "" {
-			Logger.Debug("Wizard interceptor: empty text for 'name' step, ignoring")
+			logger.Debug("Wizard interceptor: empty text for 'name' step, ignoring")
 			return false
 		}
 		newName := trimmedText
@@ -1170,7 +1170,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 		bodyText := dispatch.Sprintf("Bot name set to %q.\n\nBot Customization Wizard (Step 2/4)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip below to keep the default thumbnail.", newName)
 		pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-		Logger.Info("Wizard interceptor: saved bot name and sent Step 2 (thumb) prompt",
+		logger.Debug("Wizard interceptor: saved bot name and sent Step 2 (thumb) prompt",
 			"newName", newName,
 			"putNameErr", putNameErr,
 			"putStepErr", putStepErr,
@@ -1180,37 +1180,37 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 	case "thumb":
 		downloadable, isVideo, mime := ExtractMediaFromEvent(evt)
-		Logger.Info("Wizard Step 2/4 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
+		logger.Debug("Wizard Step 2/4 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
 
 		if downloadable == nil {
-			Logger.Warn("Wizard Step 2/4 (thumb): No image/video/document media found in message", "chat", key)
+			logger.Warn("Wizard Step 2/4 (thumb): No image/video/document media found in message", "chat", key)
 			bodyText := "Bot Customization Wizard (Step 2/4)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip below to keep the default thumbnail."
 			pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-			Logger.Debug("Wizard Step 2/4 (thumb): resent Step 2 prompt with Skip poll", "pollErr", pollErr)
+			logger.Debug("Wizard Step 2/4 (thumb): resent Step 2 prompt with Skip poll", "pollErr", pollErr)
 			return true
 		}
 
-		Logger.Info("Wizard Step 2/4 (thumb): Starting media download", "chat", key, "mime", mime)
+		logger.Debug("Wizard Step 2/4 (thumb): Starting media download", "chat", key, "mime", mime)
 		data, err := client.Download(ctx, downloadable)
 
 		if err != nil || len(data) == 0 {
-			Logger.Error("Wizard Step 2/4 (thumb): Media download failed", "chat", key, "err", err, "dataLen", len(data))
+			logger.Error("Wizard Step 2/4 (thumb): Media download failed", "chat", key, "err", err, "dataLen", len(data))
 			replyErr := fakeCtx.Replyf("Failed to download media for thumbnail (error: %v). Please try sending another file or select Skip.", err)
-			Logger.Debug("Wizard Step 2/4 (thumb): sent download failure reply", "replyErr", replyErr)
+			logger.Debug("Wizard Step 2/4 (thumb): sent download failure reply", "replyErr", replyErr)
 			return true
 		}
 
-		Logger.Info("Wizard Step 2/4 (thumb): Media downloaded successfully", "chat", key, "bytesLen", len(data), "isVideo", isVideo)
+		logger.Debug("Wizard Step 2/4 (thumb): Media downloaded successfully", "chat", key, "bytesLen", len(data), "isVideo", isVideo)
 		authDir := GetSessionAuthDir(client)
 		targetPath, errProc := ProcessAndSaveThumbnail(ctx, authDir, data, isVideo)
 		if errProc != nil {
-			Logger.Error("Wizard Step 2/4 (thumb): Thumbnail processing failed", "chat", key, "err", errProc)
+			logger.Error("Wizard Step 2/4 (thumb): Thumbnail processing failed", "chat", key, "err", errProc)
 			replyErr := fakeCtx.Replyf("Failed to process thumbnail: %v. Please try sending another file or select Skip.", errProc)
-			Logger.Debug("Wizard Step 2/4 (thumb): sent processing failure reply", "replyErr", replyErr)
+			logger.Debug("Wizard Step 2/4 (thumb): sent processing failure reply", "replyErr", replyErr)
 			return true
 		}
 
-		Logger.Info("Wizard Step 2/4 (thumb): Thumbnail saved successfully", "chat", key, "targetPath", targetPath)
+		logger.Debug("Wizard Step 2/4 (thumb): Thumbnail saved successfully", "chat", key, "targetPath", targetPath)
 		putThumbErr := s.PutSetting(ctx, "menu_thumbnail_path", targetPath)
 		putStepErr := s.PutSetting(ctx, "wizard_config", "prefix")
 
@@ -1220,7 +1220,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 		bodyText := "Bot menu thumbnail updated successfully.\n\nBot Customization Wizard (Step 3/4)\n\nPlease type the symbol or prefix you want to use (e.g. ., !, / or 'none') and send it as a message.\n\nOr select Skip below to keep current prefix."
 		pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-		Logger.Info("Wizard interceptor: saved thumbnail and sent Step 3 (prefix) prompt",
+		logger.Debug("Wizard interceptor: saved thumbnail and sent Step 3 (prefix) prompt",
 			"targetPath", targetPath,
 			"putThumbErr", putThumbErr,
 			"putStepErr", putStepErr,
@@ -1229,18 +1229,18 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		return true
 
 	case "prefix":
-		Logger.Debug("Wizard interceptor: handling 'prefix' step", "trimmedText", trimmedText)
+		logger.Debug("Wizard interceptor: handling 'prefix' step", "trimmedText", trimmedText)
 		if trimmedText == "" {
-			Logger.Debug("Wizard interceptor: empty text for 'prefix' step, ignoring")
+			logger.Debug("Wizard interceptor: empty text for 'prefix' step, ignoring")
 			return false
 		}
 		newPrefix := trimmedText
 		if _, err := validateBotPrefixInput(newPrefix); err != nil {
-			Logger.Warn("Wizard interceptor: invalid prefix entered", "input", newPrefix, "err", err)
+			logger.Warn("Wizard interceptor: invalid prefix entered", "input", newPrefix, "err", err)
 			_ = fakeCtx.Reply("Invalid prefix. Use a single symbol or short word only (for example: !, /, . or bot). Sentences like 'hello there' are not allowed.")
 			bodyText := "Bot Customization Wizard (Step 3/4)\n\nPlease type the symbol or prefix you want to use (e.g. ., !, / or 'none') and send it as a message.\n\nOr select Skip below to keep current prefix."
 			pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-			Logger.Debug("Wizard interceptor: resent Step 3 prompt", "pollErr", pollErr)
+			logger.Debug("Wizard interceptor: resent Step 3 prompt", "pollErr", pollErr)
 			return true
 		}
 		if strings.EqualFold(newPrefix, "none") || strings.EqualFold(newPrefix, "empty") {
@@ -1255,7 +1255,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 		bodyText := dispatch.Sprintf("Prefix set to %q.\n\nBot Customization Wizard (Step 4/4)\n\nPlease type the text for your bot's WhatsApp status bio and send it as a message.\n\nOr select Skip to finish.", newPrefix)
 		pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-		Logger.Info("Wizard interceptor: saved prefix and sent Step 4 (bio) prompt",
+		logger.Debug("Wizard interceptor: saved prefix and sent Step 4 (bio) prompt",
 			"newPrefix", newPrefix,
 			"putPfxErr", putPfxErr,
 			"putStepErr", putStepErr,
@@ -1264,14 +1264,14 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		return true
 
 	case "bio":
-		Logger.Debug("Wizard interceptor: handling 'bio' step", "trimmedText", trimmedText)
+		logger.Debug("Wizard interceptor: handling 'bio' step", "trimmedText", trimmedText)
 		if trimmedText == "" {
-			Logger.Debug("Wizard interceptor: empty text for 'bio' step, ignoring")
+			logger.Debug("Wizard interceptor: empty text for 'bio' step, ignoring")
 			return false
 		}
 		newBio := trimmedText
 		statusErr := client.SetStatusMessage(ctx, types.SetStatusInput{Text: &newBio})
-		Logger.Info("Wizard interceptor: SetStatusMessage completed", "statusErr", statusErr)
+		logger.Debug("Wizard interceptor: SetStatusMessage completed", "statusErr", statusErr)
 
 		putDoneErr := s.PutSetting(ctx, "wizard_config", "done")
 		DismissBotNamePrompt(ctx, s)
@@ -1281,7 +1281,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		BotWizardMu.Unlock()
 
 		summaryErr := sendWizardSummaryCard(fakeCtx)
-		Logger.Info("Wizard interceptor: completed customization wizard",
+		logger.Debug("Wizard interceptor: completed customization wizard",
 			"putDoneErr", putDoneErr,
 			"summaryErr", summaryErr,
 		)
@@ -1292,10 +1292,10 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 }
 
 func handleSetBot(ctx *dispatch.Context) error {
-	Logger.Debug("handleSetBot: command invoked", "rawArgs", ctx.RawArgs, "sender", ctx.Sender.String(), "chat", ctx.Chat.String())
+	logger.Debug("handleSetBot: command invoked", "rawArgs", ctx.RawArgs, "sender", ctx.Sender.String(), "chat", ctx.Chat.String())
 	s, ok := dispatch.GetStore(ctx)
 	if !ok {
-		Logger.Error("handleSetBot: settings store unavailable")
+		logger.Error("handleSetBot: settings store unavailable")
 		return ctx.Reply("Settings store unavailable.")
 	}
 
@@ -1306,7 +1306,7 @@ func handleSetBot(ctx *dispatch.Context) error {
 
 	if len(args) > 0 {
 		sub := strings.ToLower(args[0])
-		Logger.Debug("handleSetBot: processing subcommand", "sub", sub, "argsCount", len(args))
+		logger.Debug("handleSetBot: processing subcommand", "sub", sub, "argsCount", len(args))
 
 		switch sub {
 		case "wizard", "setup", "reconfigure", "reconfig":
@@ -1366,7 +1366,7 @@ func handleSetBot(ctx *dispatch.Context) error {
 			if len(args) > 1 {
 				stepNum, _ = strconv.Atoi(args[1])
 			}
-			Logger.Debug("handleSetBot: skip requested", "stepNum", stepNum)
+			logger.Debug("handleSetBot: skip requested", "stepNum", stepNum)
 
 			// If no explicit step number, check current wizard state to determine which step to skip
 			if stepNum == 0 {
@@ -1887,10 +1887,10 @@ func HandlePendingStpackInput(ctx *dispatch.Context, text string) bool {
 		s, ok := dispatch.GetStore(ctx)
 		if ok {
 			if err := s.PutSetting(ctx.Ctx, "sticker_author", session.Author); err != nil {
-				Logger.Error("failed to update sticker_author", "err", err)
+				logger.Error("failed to update sticker_author", "err", err)
 			}
 			if err := s.PutSetting(ctx.Ctx, "sticker_pack", packName); err != nil {
-				Logger.Error("failed to update sticker_pack", "err", err)
+				logger.Error("failed to update sticker_pack", "err", err)
 			}
 		}
 		StpackSessionMu.Lock()
@@ -2051,7 +2051,7 @@ func handleSetCmd(ctx *dispatch.Context) error {
 	}
 
 	if err := store.PutStickerCmd(ctx.Ctx, s.SQLStore, shaHex, storedCmd); err != nil {
-		Logger.Error("handleSetCmd: failed to put sticker command", "err", err)
+		logger.Error("handleSetCmd: failed to put sticker command", "err", err)
 		return ctx.Reply("Failed to link sticker command.")
 	}
 
@@ -2790,9 +2790,9 @@ func HandleAutoReact(ctx context.Context, client *whatsmeow.Client, s *dispatch.
 	reactionMsg := client.BuildReaction(evt.Info.Chat, senderJID, evt.Info.ID, emoji)
 	_, err := client.SendMessage(ctx, evt.Info.Chat, reactionMsg)
 	if err != nil {
-		Logger.Debug("autoreact: failed to send reaction", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
+		logger.Debug("autoreact: failed to send reaction", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
 	} else {
-		Logger.Debug("autoreact: reaction sent", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "emoji", emoji)
+		logger.Debug("autoreact: reaction sent", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "emoji", emoji)
 	}
 }
 
@@ -2811,9 +2811,9 @@ func HandleAutoRead(ctx context.Context, client *whatsmeow.Client, s *dispatch.S
 			}
 			err := client.MarkRead(ctx, []types.MessageID{evt.Info.ID}, evt.Info.Timestamp, types.StatusBroadcastJID, senderJID)
 			if err != nil {
-				Logger.Debug("autoread: failed to mark status as read", "msg_id", evt.Info.ID, "err", err)
+				logger.Debug("autoread: failed to mark status as read", "msg_id", evt.Info.ID, "err", err)
 			} else {
-				Logger.Debug("autoread: status marked as read", "msg_id", evt.Info.ID, "sender", senderJID.String())
+				logger.Debug("autoread: status marked as read", "msg_id", evt.Info.ID, "sender", senderJID.String())
 			}
 		}
 		return
@@ -2839,8 +2839,8 @@ func HandleAutoRead(ctx context.Context, client *whatsmeow.Client, s *dispatch.S
 
 	err := client.MarkRead(ctx, []types.MessageID{evt.Info.ID}, evt.Info.Timestamp, evt.Info.Chat, senderJID)
 	if err != nil {
-		Logger.Debug("autoread: failed to mark message as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
+		logger.Debug("autoread: failed to mark message as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
 	} else {
-		Logger.Debug("autoread: message marked as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID)
+		logger.Debug("autoread: message marked as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID)
 	}
 }
