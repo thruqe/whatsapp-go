@@ -210,12 +210,12 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, stdinPipe io.Wr
 			d.sendAck(stdinPipe, false, "", err)
 			return nil
 		}
-		Logger.Info("send_sticker: sending sticker to chat", "chat", ctx.Chat.String(), "bytes", len(data))
+		Logger.Debug("send_sticker: sending sticker to chat", "chat", ctx.Chat.String(), "bytes", len(data))
 		err = ctx.ReplyWithSticker(data)
 		if err != nil {
 			Logger.Error("send_sticker: ReplyWithSticker failed", "chat", ctx.Chat.String(), "err", err)
 		} else {
-			Logger.Info("send_sticker: ReplyWithSticker succeeded", "chat", ctx.Chat.String())
+			Logger.Debug("send_sticker: ReplyWithSticker succeeded", "chat", ctx.Chat.String())
 		}
 		d.sendAck(stdinPipe, err == nil, "", err)
 

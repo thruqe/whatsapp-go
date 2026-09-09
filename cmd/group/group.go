@@ -12,11 +12,11 @@ import (
 	"time"
 	"unicode"
 
-	utils "whatsrook"
+	"whatsrook"
 	"whatsrook/builder"
 	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/store"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 	"whatsrook/media"
 
 	"go.mau.fi/whatsmeow"
@@ -320,7 +320,7 @@ func handleKick(ctx *dispatch.Context) error {
 	var kickedJIDs []types.JID
 	for _, target := range targets {
 		resolvedJID, username := ctx.ResolveMention(target)
-		if utils.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
+		if whatsrook.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
 			_ = ctx.ReplyWithMentions(dispatch.Sprintf("⚠️ Cannot kick bot owner or sudo user @%s.", username), []types.JID{resolvedJID})
 			continue
 		}
@@ -444,7 +444,7 @@ func handleDemote(ctx *dispatch.Context) error {
 	var demotedJIDs []types.JID
 	for _, target := range targets {
 		resolvedJID, username := ctx.ResolveMention(target)
-		if utils.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
+		if whatsrook.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
 			_ = ctx.ReplyWithMentions(dispatch.Sprintf("⚠️ Cannot demote bot owner or sudo user @%s.", username), []types.JID{resolvedJID})
 			continue
 		}
@@ -1214,7 +1214,7 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 	PresenceMu.RUnlock()
 
 	if exists && (info.IsOnline || time.Since(info.LastSeen) < 15*time.Minute) {
-		Logger.Debug("IsUserOnline check: direct match online", "jid", targetKey, "lastSeen", info.LastSeen)
+		logger.Debug("IsUserOnline check: direct match online", "jid", targetKey, "lastSeen", info.LastSeen)
 		return true
 	}
 
@@ -1228,7 +1228,7 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 				pnInfo, pnExists := PresenceMap[pnKey]
 				PresenceMu.RUnlock()
 				if pnExists && (pnInfo.IsOnline || time.Since(pnInfo.LastSeen) < 15*time.Minute) {
-					Logger.Debug("IsUserOnline check: PN match online for LID", "lid", targetKey, "pn", pnKey)
+					logger.Debug("IsUserOnline check: PN match online for LID", "lid", targetKey, "pn", pnKey)
 					return true
 				}
 			}
@@ -1240,32 +1240,32 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 				lidInfo, lidExists := PresenceMap[lidKey]
 				PresenceMu.RUnlock()
 				if lidExists && (lidInfo.IsOnline || time.Since(lidInfo.LastSeen) < 15*time.Minute) {
-					Logger.Debug("IsUserOnline check: LID match online for PN", "pn", targetKey, "lid", lidKey)
+					logger.Debug("IsUserOnline check: LID match online for PN", "pn", targetKey, "lid", lidKey)
 					return true
 				}
 			}
 		}
 	}
 
-	Logger.Debug("IsUserOnline check: offline or unknown", "jid", targetKey)
+	logger.Debug("IsUserOnline check: offline or unknown", "jid", targetKey)
 	return false
 }
 
 func handleListOnline(ctx *dispatch.Context) error {
 	if ctx.Chat.Server != "g.us" {
-		Logger.Debug("handleListOnline: not a group chat", "chat", ctx.Chat.String())
+		logger.Debug("handleListOnline: not a group chat", "chat", ctx.Chat.String())
 		return ctx.Reply("This command can only be used in a group.")
 	}
 
-	Logger.Debug("handleListOnline executing", "group", ctx.Chat.String())
+	logger.Debug("handleListOnline executing", "group", ctx.Chat.String())
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
-		Logger.Error("handleListOnline: failed to get group info", "group", ctx.Chat.String(), "err", err)
+		logger.Error("handleListOnline: failed to get group info", "group", ctx.Chat.String(), "err", err)
 		return ctx.Replyf("Failed to get group info: %v", err)
 	}
 
 	total := len(info.Participants)
-	Logger.Debug("handleListOnline retrieved group info", "group", ctx.Chat.String(), "participant_count", total)
+	logger.Debug("handleListOnline retrieved group info", "group", ctx.Chat.String(), "participant_count", total)
 
 	if total == 0 {
 		return ctx.Reply("No participants found in this group.")
@@ -1316,7 +1316,7 @@ func handleListOnline(ctx *dispatch.Context) error {
 			fromKey := pEvt.From.ToNonAD().String()
 			mu.Lock()
 			if targetJID, isExpected := expectedJIDs[fromKey]; isExpected {
-				Logger.Debug("handleListOnline: received presence stanza from WhatsApp", "from", fromKey, "unavailable", pEvt.Unavailable)
+				logger.Debug("handleListOnline: received presence stanza from WhatsApp", "from", fromKey, "unavailable", pEvt.Unavailable)
 				TrackPresence(targetJID, !pEvt.Unavailable)
 				delete(expectedJIDs, fromKey)
 				receivedCount++
@@ -1335,7 +1335,7 @@ func handleListOnline(ctx *dispatch.Context) error {
 			if !pEvt.Sender.IsEmpty() {
 				mu.Lock()
 				if targetJID, isExpected := expectedJIDs[senderKey]; isExpected {
-					Logger.Debug("handleListOnline: received delivery receipt from WhatsApp", "sender", senderKey)
+					logger.Debug("handleListOnline: received delivery receipt from WhatsApp", "sender", senderKey)
 					TrackPresence(targetJID, true)
 					delete(expectedJIDs, senderKey)
 					receivedCount++
@@ -1369,9 +1369,9 @@ func handleListOnline(ctx *dispatch.Context) error {
 	if cachedOnlineCount < 2 {
 		select {
 		case <-doneChan:
-			Logger.Debug("handleListOnline: presence/receipt stanzas collected", "count", receivedCount)
+			logger.Debug("handleListOnline: presence/receipt stanzas collected", "count", receivedCount)
 		case <-time.After(2000 * time.Millisecond):
-			Logger.Debug("handleListOnline: presence wait window ended", "received", receivedCount, "total", total)
+			logger.Debug("handleListOnline: presence wait window ended", "received", receivedCount, "total", total)
 		}
 	}
 
@@ -1383,13 +1383,13 @@ func handleListOnline(ctx *dispatch.Context) error {
 			resolvedJID, username := ctx.ResolveMention(p.JID)
 			onlineJIDs = append(onlineJIDs, resolvedJID)
 			displayNames = append(displayNames, "@"+username)
-			Logger.Debug("handleListOnline: participant online", "participant", p.JID.String(), "username", username)
+			logger.Debug("handleListOnline: participant online", "participant", p.JID.String(), "username", username)
 		} else {
-			Logger.Debug("handleListOnline: participant offline", "participant", p.JID.String())
+			logger.Debug("handleListOnline: participant offline", "participant", p.JID.String())
 		}
 	}
 
-	Logger.Debug("handleListOnline complete", "group", ctx.Chat.String(), "total_participants", total, "online_count", len(onlineJIDs))
+	logger.Debug("handleListOnline complete", "group", ctx.Chat.String(), "total_participants", total, "online_count", len(onlineJIDs))
 
 	if len(onlineJIDs) == 0 {
 		return ctx.Reply("No online participants detected in this group.")
@@ -1427,14 +1427,14 @@ func handleKickAll(ctx *dispatch.Context) error {
 	var toKick []types.JID
 	for _, p := range info.Participants {
 		if ctx.Client != nil && ctx.Client.Store != nil {
-			if ctx.Client.Store.ID != nil && utils.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, *ctx.Client.Store.ID) {
+			if ctx.Client.Store.ID != nil && whatsrook.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, *ctx.Client.Store.ID) {
 				continue
 			}
-			if !ctx.Client.Store.LID.IsEmpty() && utils.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Client.Store.LID) {
+			if !ctx.Client.Store.LID.IsEmpty() && whatsrook.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Client.Store.LID) {
 				continue
 			}
 		}
-		if utils.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Sender) {
+		if whatsrook.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Sender) {
 			continue
 		}
 		if ctx.IsTargetSudo(p.JID) || (!p.PhoneNumber.IsEmpty() && ctx.IsTargetSudo(p.PhoneNumber)) || (!p.LID.IsEmpty() && ctx.IsTargetSudo(p.LID)) {
@@ -1450,7 +1450,7 @@ func handleKickAll(ctx *dispatch.Context) error {
 	_ = ctx.Replyf("Kicking %d participants...", len(toKick))
 	_, err = ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, toKick, whatsmeow.ParticipantChangeRemove)
 	if err != nil {
-		Logger.Error("Kickall failed", "err", err)
+		logger.Error("Kickall failed", "err", err)
 		return ctx.Replyf("Failed to kick participants: %v", err)
 	}
 
@@ -1482,7 +1482,7 @@ func handleLeave(ctx *dispatch.Context) error {
 		_ = ctx.Reply("Leaving group... Goodbye!")
 		err := ctx.Client.LeaveGroup(ctx.Ctx, ctx.Chat)
 		if err != nil {
-			Logger.Error("Failed to leave group", "err", err)
+			logger.Error("Failed to leave group", "err", err)
 			return ctx.Replyf("Failed to leave group: %v", err)
 		}
 		return nil
@@ -1724,7 +1724,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 				continue
 			}
 			if !slices.ContainsFunc(displayUsers, func(existing types.JID) bool {
-				return utils.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj)
+				return whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj)
 			}) {
 				displayUsers = append(displayUsers, uj)
 			}
@@ -1770,7 +1770,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 			newUsers := make([]string, 0, len(users))
 			for _, uStr := range users {
 				uJID, err := types.ParseJID(uStr)
-				if err == nil && utils.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
+				if err == nil && whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
 					continue
 				}
 				newUsers = append(newUsers, uStr)
@@ -1826,7 +1826,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 			isAlreadyTargeted := false
 			for _, uStr := range users {
 				uJID, err := types.ParseJID(uStr)
-				if err == nil && utils.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, resolvedTarget) {
+				if err == nil && whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, resolvedTarget) {
 					isAlreadyTargeted = true
 					break
 				}
@@ -1944,7 +1944,7 @@ func extractTargetParticipants(ctx *dispatch.Context, args []string) []types.JID
 		}
 		resolved := ctx.ResolvePN(j)
 		if !slices.ContainsFunc(targets, func(existing types.JID) bool {
-			return utils.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, resolved)
+			return whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, resolved)
 		}) {
 			targets = append(targets, resolved)
 		}
@@ -1953,7 +1953,7 @@ func extractTargetParticipants(ctx *dispatch.Context, args []string) []types.JID
 	if quotedSender, ok := ctx.GetQuotedSender(); ok && !quotedSender.IsEmpty() {
 		if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
 			botJID := ctx.Client.Store.ID.ToNonAD()
-			if !utils.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, botJID) {
+			if !whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, botJID) {
 				addJID(quotedSender)
 			}
 		} else {
@@ -2146,7 +2146,7 @@ func StartAutoMuteScheduler(ctx context.Context, client *whatsmeow.Client) {
 				func() {
 					defer func() {
 						if r := recover(); r != nil {
-							Logger.Error("automute: PANIC in scheduler tick", "recover", r)
+							logger.Error("automute: PANIC in scheduler tick", "recover", r)
 						}
 					}()
 					checkAndExecuteMuteSchedules(schedCtx, client)
@@ -2355,7 +2355,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 	tzName := getUserTimezone(ctx, s)
 	loc, err := time.LoadLocation(tzName)
 	if err != nil {
-		Logger.Warn("automute: failed to load timezone, falling back to UTC", "tz", tzName, "err", err)
+		logger.Warn("automute: failed to load timezone, falling back to UTC", "tz", tzName, "err", err)
 		loc = time.UTC
 	}
 
@@ -2367,7 +2367,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 		if errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || ctx.Err() != nil {
 			return
 		}
-		Logger.Error("automute: query failed", "err", err)
+		logger.Error("automute: query failed", "err", err)
 		return
 	}
 
@@ -2390,7 +2390,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 			lastExec, sErr := s.GetSetting(sCtx, execKey)
 			sCancel()
 			if sErr != nil {
-				Logger.Error("automute: GetSetting execKey failed or timed out", "group", groupJIDStr, "err", sErr)
+				logger.Error("automute: GetSetting execKey failed or timed out", "group", groupJIDStr, "err", sErr)
 				continue
 			}
 			dateMinuteKey := dispatch.Sprintf("%s_%s", now.Format("2006-01-02"), currentTimeStr)
@@ -2400,30 +2400,30 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 
 			info, gErr := client.GetGroupInfo(ctx, groupJID)
 			if gErr != nil {
-				Logger.Error("automute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
+				logger.Error("automute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
 				continue
 			}
 			if info == nil {
-				Logger.Warn("automute: GetGroupInfo returned nil info", "group", groupJIDStr)
+				logger.Warn("automute: GetGroupInfo returned nil info", "group", groupJIDStr)
 				continue
 			}
 
-			isAdmin := utils.IsBotAdminRaw(ctx, client, info)
-			Logger.Debug("automute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
+			isAdmin := whatsrook.IsBotAdminRaw(ctx, client, info)
+			logger.Debug("automute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
 
 			if !isAdmin {
-				Logger.Warn("automute: bot is not admin in group, cannot mute", "group", groupJIDStr)
+				logger.Warn("automute: bot is not admin in group, cannot mute", "group", groupJIDStr)
 				continue
 			}
 
 			if err := client.SetGroupAnnounce(ctx, groupJID, true); err != nil {
-				Logger.Error("automute: SetGroupAnnounce(true) failed", "group", groupJIDStr, "err", err)
+				logger.Error("automute: SetGroupAnnounce(true) failed", "group", groupJIDStr, "err", err)
 				continue
 			}
 			if err := s.PutSetting(ctx, execKey, dateMinuteKey); err != nil {
-				Logger.Error("automute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
+				logger.Error("automute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
 			}
-			Logger.Info("automute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
+			logger.Debug("automute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
 
 			unmuteTime, _ := s.GetSetting(ctx, "autounmute:"+groupJIDStr)
 			groupName := info.GroupName.Name
@@ -2434,14 +2434,14 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 				noticeText = dispatch.Sprintf("%s has been closed.", groupName)
 			}
 			if _, sendErr := client.SendMessage(ctx, groupJID, &waE2E.Message{Conversation: &noticeText}); sendErr != nil {
-				Logger.Error("automute: failed to send close notice", "group", groupJIDStr, "err", sendErr)
+				logger.Error("automute: failed to send close notice", "group", groupJIDStr, "err", sendErr)
 			}
 
 		} else if after, ok0 := strings.CutPrefix(key, "autounmute:"); ok0 {
 			groupJIDStr := after
 			groupJID, err := types.ParseJID(groupJIDStr)
 			if err != nil || groupJID.Server != types.GroupServer {
-				Logger.Warn("autounmute: bad group JID, skipping", "raw", groupJIDStr, "err", err)
+				logger.Warn("autounmute: bad group JID, skipping", "raw", groupJIDStr, "err", err)
 				continue
 			}
 
@@ -2454,35 +2454,35 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 
 			info, gErr := client.GetGroupInfo(ctx, groupJID)
 			if gErr != nil {
-				Logger.Error("autounmute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
+				logger.Error("autounmute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
 				continue
 			}
 			if info == nil {
-				Logger.Warn("autounmute: GetGroupInfo returned nil info", "group", groupJIDStr)
+				logger.Warn("autounmute: GetGroupInfo returned nil info", "group", groupJIDStr)
 				continue
 			}
 
-			isAdmin := utils.IsBotAdminRaw(ctx, client, info)
-			Logger.Debug("autounmute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
+			isAdmin := whatsrook.IsBotAdminRaw(ctx, client, info)
+			logger.Debug("autounmute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
 
 			if !isAdmin {
-				Logger.Warn("autounmute: bot is not admin in group, cannot unmute", "group", groupJIDStr)
+				logger.Warn("autounmute: bot is not admin in group, cannot unmute", "group", groupJIDStr)
 				continue
 			}
 
 			if err := client.SetGroupAnnounce(ctx, groupJID, false); err != nil {
-				Logger.Error("autounmute: SetGroupAnnounce(false) failed", "group", groupJIDStr, "err", err)
+				logger.Error("autounmute: SetGroupAnnounce(false) failed", "group", groupJIDStr, "err", err)
 				continue
 			}
 			if err := s.PutSetting(ctx, execKey, dateMinuteKey); err != nil {
-				Logger.Error("autounmute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
+				logger.Error("autounmute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
 			}
 
-			Logger.Info("autounmute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
+			logger.Debug("autounmute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
 			groupName := info.GroupName.Name
 			noticeText := dispatch.Sprintf("%s has been opened.", groupName)
 			if _, sendErr := client.SendMessage(ctx, groupJID, &waE2E.Message{Conversation: &noticeText}); sendErr != nil {
-				Logger.Error("autounmute: failed to send open notice", "group", groupJIDStr, "err", sendErr)
+				logger.Error("autounmute: failed to send open notice", "group", groupJIDStr, "err", sendErr)
 			}
 		}
 	}
@@ -2609,10 +2609,10 @@ func handleSetGroupPP(ctx *dispatch.Context) error {
 		return ctx.Replyf("Failed to process group photo format: %v", errConv)
 	}
 
-	Logger.Info("handleSetGroupPP: Setting group profile picture", "group", ctx.Chat.String(), "mime", mime, "rawBytes", len(rawBytes), "jpegBytes", len(jpegData))
+	logger.Debug("handleSetGroupPP: Setting group profile picture", "group", ctx.Chat.String(), "mime", mime, "rawBytes", len(rawBytes), "jpegBytes", len(jpegData))
 	picID, errSet := ctx.Client.SetGroupPhoto(ctx.Ctx, ctx.Chat, jpegData)
 	if errSet != nil {
-		Logger.Error("handleSetGroupPP failed", "err", errSet)
+		logger.Error("handleSetGroupPP failed", "err", errSet)
 		return ctx.Replyf("Failed to update group photo: %v", errSet)
 	}
 
@@ -2891,14 +2891,14 @@ func extractWarnTarget(ctx *dispatch.Context, args []string) types.JID {
 }
 
 func isJIDOwnerOrSudo(ctx *dispatch.Context, target types.JID) bool {
-	return utils.IsSudoRaw(ctx.Ctx, ctx.Client, target)
+	return whatsrook.IsSudoRaw(ctx.Ctx, ctx.Client, target)
 }
 
 func isParticipantAdmin(info *types.GroupInfo, target types.JID) bool {
 	if info == nil || target.IsEmpty() {
 		return false
 	}
-	return utils.IsAdminRaw(context.Background(), nil, info, target)
+	return whatsrook.IsAdminRaw(context.Background(), nil, info, target)
 }
 
 func isBotAdmin(ctx *dispatch.Context, info *types.GroupInfo) bool {
@@ -3186,7 +3186,7 @@ func ClearPendingCaptchasForGroup(groupJID types.JID) int {
 		}
 	}
 	if cleared > 0 {
-		Logger.Debug("ClearPendingCaptchasForGroup: cleared pending captchas", "group", chatStr, "count", cleared)
+		logger.Debug("ClearPendingCaptchasForGroup: cleared pending captchas", "group", chatStr, "count", cleared)
 	}
 	return cleared
 }
@@ -3210,7 +3210,7 @@ func RegisterPendingCaptcha(groupJID, userJID, resolvedJID types.JID, username, 
 		pendingCaptchaMu.Unlock()
 
 		if ok && onTimeout != nil {
-			Logger.Debug("RegisterPendingCaptcha: timeout triggered", "group", groupJID.String(), "user", userJID.String(), "code", code)
+			logger.Debug("RegisterPendingCaptcha: timeout triggered", "group", groupJID.String(), "user", userJID.String(), "code", code)
 			onTimeout()
 		}
 	})
@@ -3226,7 +3226,7 @@ func RegisterPendingCaptcha(groupJID, userJID, resolvedJID types.JID, username, 
 		ExpiresAt:   now.Add(duration),
 		Timer:       timer,
 	}
-	Logger.Debug("RegisterPendingCaptcha: registered new pending captcha", "group", groupJID.String(), "user", userJID.String(), "username", username, "code", code, "duration", duration)
+	logger.Debug("RegisterPendingCaptcha: registered new pending captcha", "group", groupJID.String(), "user", userJID.String(), "username", username, "code", code, "duration", duration)
 }
 
 // SetPendingCaptchaMsgID stores the verification message ID for revocation if cancelled.
@@ -3237,7 +3237,7 @@ func SetPendingCaptchaMsgID(groupJID, userJID types.JID, msgID types.MessageID) 
 	key := captchaKey(groupJID, userJID)
 	if p, ok := pendingCaptchas[key]; ok {
 		p.MsgID = msgID
-		Logger.Debug("SetPendingCaptchaMsgID: updated msgID for pending captcha", "group", groupJID.String(), "user", userJID.String(), "msgID", msgID)
+		logger.Debug("SetPendingCaptchaMsgID: updated msgID for pending captcha", "group", groupJID.String(), "user", userJID.String(), "msgID", msgID)
 		return
 	}
 
@@ -3247,7 +3247,7 @@ func SetPendingCaptchaMsgID(groupJID, userJID types.JID, msgID types.MessageID) 
 		if p.GroupJID.ToNonAD().String() == chatStr {
 			if p.UserJID.ToNonAD() == userNonAD || p.ResolvedJID.ToNonAD() == userNonAD || p.UserJID.User == userNonAD.User || p.ResolvedJID.User == userNonAD.User {
 				p.MsgID = msgID
-				Logger.Debug("SetPendingCaptchaMsgID: updated msgID via fallback matching", "group", groupJID.String(), "user", userJID.String(), "msgID", msgID)
+				logger.Debug("SetPendingCaptchaMsgID: updated msgID via fallback matching", "group", groupJID.String(), "user", userJID.String(), "msgID", msgID)
 				return
 			}
 		}
@@ -3266,7 +3266,7 @@ func RemovePendingCaptcha(groupJID, userJID types.JID) (*PendingCaptcha, bool) {
 			p.Timer.Stop()
 		}
 		delete(pendingCaptchas, key)
-		Logger.Debug("RemovePendingCaptcha: removed pending captcha", "group", groupJID.String(), "user", userJID.String())
+		logger.Debug("RemovePendingCaptcha: removed pending captcha", "group", groupJID.String(), "user", userJID.String())
 		return p, true
 	}
 
@@ -3279,7 +3279,7 @@ func RemovePendingCaptcha(groupJID, userJID types.JID) (*PendingCaptcha, bool) {
 					entry.Timer.Stop()
 				}
 				delete(pendingCaptchas, k)
-				Logger.Debug("RemovePendingCaptcha: removed pending captcha via fallback matching", "group", groupJID.String(), "user", userJID.String(), "key", k)
+				logger.Debug("RemovePendingCaptcha: removed pending captcha via fallback matching", "group", groupJID.String(), "user", userJID.String(), "key", k)
 				return entry, true
 			}
 		}
@@ -3362,7 +3362,7 @@ func findPendingCaptcha(client *whatsmeow.Client, chat, sender types.JID) (*Pend
 		if p.UserJID.ToNonAD() == senderNonAD || p.ResolvedJID.ToNonAD() == senderNonAD || p.UserJID.User == senderNonAD.User || p.ResolvedJID.User == senderNonAD.User {
 			return p, true
 		}
-		if client != nil && utils.IsSameUserRaw(context.Background(), client, p.UserJID, sender) {
+		if client != nil && whatsrook.IsSameUserRaw(context.Background(), client, p.UserJID, sender) {
 			return p, true
 		}
 	}
@@ -3388,7 +3388,7 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		return false
 	}
 
-	Logger.Debug("HandlePendingCaptchaReply: found pending captcha for participant",
+	logger.Debug("HandlePendingCaptchaReply: found pending captcha for participant",
 		"group", chat.String(),
 		"sender", sender.String(),
 		"code", pending.Code,
@@ -3398,7 +3398,7 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 
 	// Ignore messages sent before the pending captcha was created
 	if !evt.Info.Timestamp.IsZero() && evt.Info.Timestamp.Before(pending.CreatedAt.Add(-2*time.Second)) {
-		Logger.Debug("HandlePendingCaptchaReply: ignoring message sent before captcha creation",
+		logger.Debug("HandlePendingCaptchaReply: ignoring message sent before captcha creation",
 			"group", chat.String(),
 			"sender", sender.String(),
 			"msgTimestamp", evt.Info.Timestamp,
@@ -3407,14 +3407,14 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		return false
 	}
 
-	text := strings.TrimSpace(utils.ExtractMessageText(evt))
+	text := strings.TrimSpace(whatsrook.ExtractMessageText(evt))
 	if text == "" {
 		return false
 	}
 
 	cleanText := strings.TrimSpace(strings.Trim(text, "*_`~#"))
 
-	Logger.Debug("HandlePendingCaptchaReply: verifying message text against captcha code",
+	logger.Debug("HandlePendingCaptchaReply: verifying message text against captcha code",
 		"group", chat.String(),
 		"sender", sender.String(),
 		"input", cleanText,
@@ -3423,7 +3423,7 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 
 	// Check if user submitted the correct 4-digit code
 	if cleanText == pending.Code {
-		Logger.Debug("HandlePendingCaptchaReply: correct code submitted, verification successful", "group", chat.String(), "sender", sender.String())
+		logger.Debug("HandlePendingCaptchaReply: correct code submitted, verification successful", "group", chat.String(), "sender", sender.String())
 		if pending.MsgID != "" && client != nil {
 			_, _ = client.SendMessage(ctx, chat, client.BuildRevoke(chat, types.EmptyJID, pending.MsgID))
 		}
@@ -3434,10 +3434,10 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		username := pending.Username
 		resolvedJID := pending.ResolvedJID
 		if username == "" {
-			resolvedJID, username = utils.ResolveMentionRaw(ctx, client, pending.UserJID)
+			resolvedJID, username = whatsrook.ResolveMentionRaw(ctx, client, pending.UserJID)
 		}
 
-		pctx := &utils.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
+		pctx := &whatsrook.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
 		tb := pctx.Text()
 		tb.Header("Verification Successful")
 		tb.Linef("@%s has successfully confirmed their participant status. Welcome to the group!", username)
@@ -3455,10 +3455,10 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		}
 	}
 	if allDigits && (len(cleanText) == 4 || len(cleanText) == len(pending.Code)) {
-		Logger.Debug("HandlePendingCaptchaReply: incorrect numeric attempt", "group", chat.String(), "sender", sender.String(), "attempt", cleanText, "expected", pending.Code)
-		resolvedJID, username := utils.ResolveMentionRaw(ctx, client, sender)
+		logger.Debug("HandlePendingCaptchaReply: incorrect numeric attempt", "group", chat.String(), "sender", sender.String(), "attempt", cleanText, "expected", pending.Code)
+		resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, client, sender)
 
-		pctx := &utils.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
+		pctx := &whatsrook.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
 		tb := pctx.Text()
 		tb.Header("Incorrect Code")
 		tb.Linef("Please watch the verification video carefully and reply with the correct 4-digit code, @%s.", username)
@@ -3479,7 +3479,7 @@ func findPendingCaptchaByQuotedMsgID(chat types.JID, evt *events.Message) (*Pend
 	if evt == nil || evt.Message == nil {
 		return nil, false
 	}
-	ctx := utils.GetContextInfoFromProto(evt.Message)
+	ctx := whatsrook.GetContextInfoFromProto(evt.Message)
 	if ctx == nil || ctx.GetStanzaID() == "" {
 		return nil, false
 	}

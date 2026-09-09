@@ -253,7 +253,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 			mentionStrs = append(mentionStrs, jid.String())
 		}
 
-		Logger.Info("external dispatcher: executing plugin", "plugin", name, "chat", chatKey)
+		Logger.Debug("external dispatcher: executing plugin", "plugin", name, "chat", chatKey)
 
 		// Extract media if present in the triggering or quoted message
 		var mediaPayload *MediaPayload
@@ -262,7 +262,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 		if err != nil {
 			Logger.Debug("external dispatcher: GetMedia result", "plugin", name, "err", err)
 		} else if len(mediaData) > 0 {
-			Logger.Info("external dispatcher: GetMedia found media", "plugin", name, "mime", mime, "bytes", len(mediaData))
+			Logger.Debug("external dispatcher: GetMedia found media", "plugin", name, "mime", mime, "bytes", len(mediaData))
 			ext := ".bin"
 			switch {
 			case strings.Contains(mime, "image/jpeg") || strings.Contains(mime, "image/jpg"):
@@ -290,7 +290,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 						MimeType: mime,
 						IsQuoted: isQuoted,
 					}
-					Logger.Info("external dispatcher: saved media to temp file", "path", tempMediaFile)
+					Logger.Debug("external dispatcher: saved media to temp file", "path", tempMediaFile)
 				}
 				_ = tmp.Close()
 			}

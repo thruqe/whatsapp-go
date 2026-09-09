@@ -673,14 +673,14 @@ func (b *Bot) WAEventHandler(evt any) {
 		})
 
 	case *events.GroupInfo:
-		logger.Info("group metadata update received", "event", v)
+		logger.Debug("group metadata update received", "event", v)
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 		b.handleGroupGreetings(context.Background(), v)
 		b.handleGroupEventsNotification(context.Background(), v)
 		b.handleGroupCaptcha(context.Background(), v)
 
 	case *events.JoinedGroup:
-		logger.Info("joined group event received", "event", v)
+		logger.Debug("joined group event received", "event", v)
 		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
 
 	case *events.Picture:
@@ -722,24 +722,24 @@ func (b *Bot) WAEventHandler(evt any) {
 
 	// History & App State Synchronizations
 	case *events.HistorySync:
-		logger.Info("history synchronization chunk received", "event", v)
+		logger.Debug("history synchronization chunk received", "event", v)
 	case *events.OfflineSyncPreview:
-		logger.Info("Offline message sync preview", "event", v)
+		logger.Debug("Offline message sync preview", "event", v)
 	case *events.OfflineSyncCompleted:
-		logger.Info("Offline message sync completed", "event", v)
+		logger.Debug("Offline message sync completed", "event", v)
 	case *events.AppState:
 		logger.Debug("app state sync mutation received", "event", v)
 	case *events.AppStateSyncComplete:
-		logger.Info("app state sync complete", "event", v)
+		logger.Debug("app state sync complete", "event", v)
 
 	// User, Contacts & Privacy Metadata
 	case *events.PushName:
-		logger.Info("push name update received", "event", v)
+		logger.Debug("push name update received", "event", v)
 		if cli != nil && cli.IsConnected() && cli.IsLoggedIn() {
 			_ = cli.SendPresence(context.Background(), types.PresenceAvailable)
 		}
 	case *events.UserAbout:
-		logger.Info("user about/status text updated", "event", v)
+		logger.Debug("user about/status text updated", "event", v)
 	case *events.Contact:
 		logger.Debug("contact record updated", "event", v)
 	case *events.IdentityChange:
