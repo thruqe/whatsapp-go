@@ -33,7 +33,6 @@ func printCLIUsage() {
        whatsrook autoupdate [on | off]
        whatsrook logout [<phone>]
        whatsrook version
-       whatsrook help
 
 Arguments:
   <phone>                       Phone number used to identify the session
