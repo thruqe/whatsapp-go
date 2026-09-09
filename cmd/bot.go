@@ -476,19 +476,11 @@ func (b *Bot) runQR(ctx context.Context) error {
 		}
 	}
 
-	var openedBrowser sync.Once
 	for evt := range qrChan {
 		switch evt.Event {
 		case "code":
 			if qrServer != nil {
 				qrServer.UpdateCode(evt.Code)
-				openedBrowser.Do(func() {
-					if err := qrServer.OpenBrowser(); err != nil {
-						logger.Debug("unable to auto-open browser for qr pairing", "url", qrServer.URL(), "err", err)
-					} else {
-						logger.Info("opened browser for qr pairing", "url", qrServer.URL())
-					}
-				})
 			}
 			if termQR := qr.RenderTerminal(evt.Code); termQR != "" {
 				fmt.Printf("\n%s\n", termQR)
