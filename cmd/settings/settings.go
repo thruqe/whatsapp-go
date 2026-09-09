@@ -304,9 +304,44 @@ func handleAFK(ctx *dispatch.Context) error {
 	}
 }
 
+// humanRelativeTime renders t relative to now in plain conversational English
+// (e.g. "just now", "12 minutes ago", "3 hours ago", "2 days ago"). Beyond a
+// week it falls back to a short absolute date so old timestamps stay legible.
+func humanRelativeTime(t time.Time) string {
+	if t.IsZero() {
+		return "an unknown time"
+	}
+
+	d := time.Since(t)
+	switch {
+	case d < 30*time.Second:
+		return "just now"
+	case d < time.Minute:
+		return "less than a minute ago"
+	case d < 2*time.Minute:
+		return "1 minute ago"
+	case d < time.Hour:
+		mins := int(d / time.Minute)
+		return whatsrook.Sprintf("%d minutes ago", mins)
+	case d < 2*time.Hour:
+		return "1 hour ago"
+	case d < 24*time.Hour:
+		hrs := int(d / time.Hour)
+		return whatsrook.Sprintf("%d hours ago", hrs)
+	case d < 48*time.Hour:
+		return "yesterday"
+	case d < 7*24*time.Hour:
+		days := int(d / (24 * time.Hour))
+		return whatsrook.Sprintf("%d days ago", days)
+	default:
+		return "on " + t.Format("Jan 2")
+	}
+}
+
 func setAFKStatus(ctx *dispatch.Context, s *dispatch.StoreWrapper, reason string) error {
 	lastActive := GetOwnerLastActive(ctx.Ctx, s)
-	nowStr := time.Now().Format("2006-01-02 15:04:05 MST")
+	now := time.Now()
+	nowStr := now.Format("2006-01-02 15:04:05 MST")
 	lastActiveStr := lastActive.Format("2006-01-02 15:04:05 MST")
 
 	_ = s.PutSetting(ctx.Ctx, AFKStatusKey, "on")
@@ -316,7 +351,20 @@ func setAFKStatus(ctx *dispatch.Context, s *dispatch.StoreWrapper, reason string
 	resetAFKUserTracker()
 
 	p := ctx.GetPrefix()
-	return ctx.Replyf("AFK mode activated.\n\nReason: %s\nTime: %s\nLast Available: %s\n\nTurn off anytime using `%safk back` or `%safk off`.", reason, nowStr, lastActiveStr, p, p)
+
+	// Only mention "last available" when it tells the reader something new
+	// (i.e. it differs meaningfully from "now" — otherwise showing the same
+	// instant twice under two labels just reads as a duplicate/bug).
+	var lastAvailableLine string
+	if now.Sub(lastActive) > time.Minute {
+		lastAvailableLine = whatsrook.Sprintf("They were last around %s.\n", humanRelativeTime(lastActive))
+	}
+
+	msg := whatsrook.Sprintf(
+		"AFK mode is on now.\n%s\nReason: %s\n\nSay `%safk back` or `%safk off` to switch it off.",
+		lastAvailableLine, reason, p, p,
+	)
+	return ctx.Reply(msg)
 }
 
 func sendAFKCustomizeGuide(ctx *dispatch.Context) error {
@@ -332,8 +380,8 @@ func sendAFKCustomizeGuide(ctx *dispatch.Context) error {
 		Blank().
 		Section("Available Placeholders & Tags").
 		Bullet("{reason} / @reason : Reason for being AFK").
-		Bullet("{time} / @time : Time AFK mode was set").
-		Bullet("{last_available} / @last_available : Owner's last available active timestamp").
+		Bullet("{time} / @time : How long ago AFK mode was set (e.g. \"12 minutes ago\")").
+		Bullet("{last_available} / @last_available : How long ago the owner was last active").
 		Bullet("{fact} / @fact : Random interesting fact").
 		Bullet("{quote} / @quote : Random inspirational quote").
 		Bullet("{joke} / @joke : Random funny joke").
@@ -342,7 +390,7 @@ func sendAFKCustomizeGuide(ctx *dispatch.Context) error {
 		Bullet("{group} / @group : Group name (if in group)").
 		Blank().
 		Section("Example Custom Template").
-		Linef("%safk msg Hello {user}! Owner has been AFK since {time} (Last active: {last_available}). Reason: {reason}. Here is a joke for you: {joke}", p).
+		Linef("%safk msg Hey {user}! Owner's been away since {time}, last seen {last_available}. Reason: {reason}. Here's a joke while you wait: {joke}", p).
 		Reply()
 }
 
@@ -362,7 +410,10 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 		UpdateOwnerLastActive(ctx, s)
 		status, _ := s.GetSetting(ctx, AFKStatusKey)
 		if status == "on" {
-			if !strings.HasPrefix(strings.TrimSpace(text), ".") && !strings.HasPrefix(strings.TrimSpace(text), "/") && !strings.HasPrefix(strings.TrimSpace(text), "!") && !strings.HasPrefix(strings.TrimSpace(text), "#") {
+			trimmed := strings.TrimSpace(text)
+			isCommand := strings.HasPrefix(trimmed, ".") || strings.HasPrefix(trimmed, "/") ||
+				strings.HasPrefix(trimmed, "!") || strings.HasPrefix(trimmed, "#")
+			if !isCommand {
 				_ = s.PutSetting(ctx, AFKStatusKey, "off")
 				resetAFKUserTracker()
 				cctx := &dispatch.Context{
@@ -426,13 +477,18 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 	if reason == "" {
 		reason = "AFK (No reason specified)"
 	}
-	afkTime, _ := s.GetSetting(ctx, AFKTimeKey)
-	if afkTime == "" {
-		afkTime = time.Now().Format("2006-01-02 15:04:05 MST")
+
+	// Stored as absolute timestamps (so they survive restarts / are
+	// query-able), but rendered relative to now for the human reading them.
+	afkTimeStr, _ := s.GetSetting(ctx, AFKTimeKey)
+	afkSetAt, err := time.Parse("2006-01-02 15:04:05 MST", afkTimeStr)
+	if err != nil {
+		afkSetAt = time.Now()
 	}
 	lastActiveStr, _ := s.GetSetting(ctx, AFKLastActiveKey)
-	if lastActiveStr == "" {
-		lastActiveStr = GetOwnerLastActive(ctx, s).Format("2006-01-02 15:04:05 MST")
+	lastActiveAt, err := time.Parse("2006-01-02 15:04:05 MST", lastActiveStr)
+	if err != nil {
+		lastActiveAt = GetOwnerLastActive(ctx, s)
 	}
 
 	template, _ := s.GetSetting(ctx, AFKTemplateKey)
@@ -448,12 +504,16 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 	randomJoke := games.GetRandomJoke(ctx)
 	randomRizz := games.GetRandomRizz(ctx)
 
+	afkTimeRelative := humanRelativeTime(afkSetAt)
+	lastActiveRelative := humanRelativeTime(lastActiveAt)
+
 	replacer := strings.NewReplacer(
 		"{reason}", reason,
 		"@reason", reason,
-		"{time}", afkTime,
-		"{last_available}", lastActiveStr,
-		"@time", lastActiveStr,
+		"{time}", afkTimeRelative,
+		"@time", afkTimeRelative,
+		"{last_available}", lastActiveRelative,
+		"@last_available", lastActiveRelative,
 		"{fact}", randomFact,
 		"@fact", randomFact,
 		"{quote}", randomQuote,
@@ -471,7 +531,7 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 	body := replacer.Replace(template)
 
 	if alreadySent {
-		body = "Still on afk\n\n" + body
+		body = "Still away — " + body
 	}
 
 	cctx := &dispatch.Context{
@@ -2757,7 +2817,7 @@ func HandleAutoReact(ctx context.Context, client *whatsmeow.Client, s *dispatch.
 	if evt == nil || evt.Info.IsFromMe || client == nil || s == nil {
 		return
 	}
-	if evt.Info.Chat.String() == "status@broadcast" || evt.Info.Chat.Server == "broadcast" {
+	if evt.Info.Chat.String() == types.BroadcastServerJID.User {
 		return
 	}
 
