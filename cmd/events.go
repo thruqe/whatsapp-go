@@ -815,7 +815,10 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 		}
 
 		// Generate random 4-digit code
-		codeInt := rand.Intn(10000)
+		codeInt, err := generateVerificationCode()
+		if err != nil {
+			logger.Error("Captcha number verification failed:%v", err)
+		}
 		code := utils.Sprintf("%04d", codeInt)
 
 		logger.Debug("processGroupCaptchaJoins: registering pending captcha challenge",
