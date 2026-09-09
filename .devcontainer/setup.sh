@@ -29,10 +29,17 @@ if [[ -n "${SSH_KEY:-}" ]]; then
   fi
 fi
 
+# Install ffmpeg and git-lfs via apt
 sudo apt-get update
-sudo apt-get install -y ffmpeg
+sudo apt-get install -y ffmpeg git-lfs
+git lfs install
 
+# Ensure remote points to SSH
+git remote set-url origin git@github.com:ThruqeLabs/whatsrook.git 2>/dev/null || true
+
+# Install Taskfile
 sudo sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
 
+# Install Go tools
 go install honnef.co/go/tools/cmd/staticcheck@latest
 go install golang.org/x/tools/cmd/deadcode@latest
