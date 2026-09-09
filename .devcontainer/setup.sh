@@ -15,6 +15,18 @@ if [[ -n "${SSH_KEY:-}" ]]; then
   chmod 700 ~/.ssh
   chmod 600 ~/.ssh/id_ed25519
   ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+  git config --global gpg.format ssh
+  git config --global user.signingkey ~/.ssh/id_ed25519
+  git config --global commit.gpgsign true
+  git config --global tag.gpgSign true
+
+  EMAIL="$(git config user.email || true)"
+  if [[ -n "$EMAIL" ]]; then
+    PUB_KEY="$(ssh-keygen -y -f ~/.ssh/id_ed25519)"
+    echo "$EMAIL $PUB_KEY" > ~/.ssh/allowed_signers
+    git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
+  fi
 fi
 
 sudo apt-get update
