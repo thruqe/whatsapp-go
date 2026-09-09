@@ -312,7 +312,7 @@ func handleTimezone(ctx *dispatch.Context) error {
 			return ctx.Replyf("Could not find timezone matching %q: %v", tzQuery, err)
 		}
 		if s, ok := dispatch.GetStore(ctx); ok {
-			_ = s.PutSetting(ctx.Ctx, "timezone", tz.Location)
+			_ = s.PutSetting(ctx.Ctx, "timezone", tz.ID)
 		}
 		return ctx.Replyf("Bot timezone updated to *%s* (UTC%s).", tz.Location, tz.UTCOffset)
 	}

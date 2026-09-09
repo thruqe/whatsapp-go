@@ -816,6 +816,9 @@ func getUserTimezone(ctx context.Context, s *dispatch.StoreWrapper) string {
 	if err != nil || tz == "" {
 		return "UTC"
 	}
+	if iana, ok := tools.ResolveTimezoneAlias(tz); ok {
+		return iana
+	}
 	return tz
 }
 
@@ -831,19 +834,15 @@ func handleTimezone(ctx *dispatch.Context) error {
 			tzName = decoded
 		}
 
-		if _, err := time.LoadLocation(tzName); err != nil {
-			if resolved, okLoc := tools.ResolveTimezoneAlias(tzName); okLoc {
-				tzName = resolved
-			} else {
-				return ctx.Replyf("Invalid timezone: %q. Please select a valid IANA timezone, Windows timezone name, or abbreviation.", tzName)
-			}
+		res, err := tools.SearchTimezone(tzName)
+		if err != nil {
+			return ctx.Replyf("Invalid timezone: %q. Please select a valid IANA timezone, Windows timezone name, or abbreviation.", tzName)
 		}
 
-		err := s.PutSetting(ctx.Ctx, "timezone", tzName)
-		if err != nil {
+		if err := s.PutSetting(ctx.Ctx, "timezone", res.ID); err != nil {
 			return ctx.Reply("Failed to save timezone setting.")
 		}
-		return ctx.Replyf("Bot timezone successfully set to *%s*.", tzName)
+		return ctx.Replyf("Bot timezone successfully set to *%s*.", res.ID)
 	}
 
 	if len(ctx.Args) >= 2 && strings.ToLower(ctx.Args[0]) == "page" {
@@ -856,18 +855,22 @@ func handleTimezone(ctx *dispatch.Context) error {
 		if err != nil || idx < 1 || idx > len(tools.SupportedTimezones) {
 			return ctx.Reply("Invalid timezone selection.")
 		}
-		tzName := tools.SupportedTimezones[idx-1]
-		if err := s.PutSetting(ctx.Ctx, "timezone", tzName); err != nil {
+		tzText := tools.SupportedTimezones[idx-1]
+		res, err := tools.SearchTimezone(tzText)
+		if err != nil {
+			return ctx.Replyf("Could not resolve timezone %q: %v", tzText, err)
+		}
+		if err := s.PutSetting(ctx.Ctx, "timezone", res.ID); err != nil {
 			return ctx.Reply("Failed to save timezone setting.")
 		}
-		return ctx.Replyf("Bot timezone successfully set to *%s*.", tzName)
+		return ctx.Replyf("Bot timezone successfully set to *%s*.", res.ID)
 	}
 
 	if len(ctx.Args) == 1 {
 		tzName := ctx.Args[0]
-		if _, err := time.LoadLocation(tzName); err == nil {
-			_ = s.PutSetting(ctx.Ctx, "timezone", tzName)
-			return ctx.Replyf("Bot timezone successfully set to *%s*.", tzName)
+		if res, err := tools.SearchTimezone(tzName); err == nil {
+			_ = s.PutSetting(ctx.Ctx, "timezone", res.ID)
+			return ctx.Replyf("Bot timezone successfully set to *%s*.", res.ID)
 		}
 	}
 

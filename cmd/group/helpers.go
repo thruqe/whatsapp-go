@@ -11,6 +11,7 @@ import (
 
 	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
+	"whatsrook/cmd/tools"
 	Logger "whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
@@ -53,12 +54,14 @@ func parseUserJID(raw string) (types.JID, error) {
 }
 
 func getUserTimezone(ctx context.Context, s *dispatch.StoreWrapper) string {
-	if s != nil {
-		if tz, err := s.GetSetting(ctx, "timezone"); err == nil && tz != "" {
-			return tz
-		}
+	tz, err := s.GetSetting(ctx, "timezone")
+	if err != nil || tz == "" {
+		return "UTC"
 	}
-	return "UTC"
+	if res, err := tools.SearchTimezone(tz); err == nil {
+		return res.ID
+	}
+	return tz
 }
 
 func ExtractMediaFromEvent(evt *events.Message) (whatsmeow.DownloadableMessage, bool, string) {

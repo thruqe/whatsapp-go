@@ -12,13 +12,13 @@ import (
 	"strings"
 	"time"
 
-	utils "whatsrook"
+	"whatsrook"
 	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/games"
 	"whatsrook/cmd/tools"
 	"whatsrook/cmd/updater"
 	"whatsrook/httpx"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 	"whatsrook/media"
 	"whatsrook/system"
 
@@ -506,7 +506,7 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 		return false
 	}
 
-	text := utils.ExtractMessageText(evt)
+	text := whatsrook.ExtractMessageText(evt)
 	fakeCtx := &dispatch.Context{
 		Ctx:    ctx,
 		Client: client,
@@ -544,11 +544,11 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 	delete(PendingMenuThumbPrompts, key)
 	MenuThumbPromptsMu.Unlock()
 
-	Logger.Info("HandlePendingMenuMediaReply: Downloading custom menu media", "chat", key, "mime", mime, "isVideo", isVideo)
+	logger.Info("HandlePendingMenuMediaReply: Downloading custom menu media", "chat", key, "mime", mime, "isVideo", isVideo)
 	data, err := client.Download(ctx, downloadable)
 
 	if err != nil || len(data) == 0 {
-		Logger.Error("HandlePendingMenuMediaReply: Download failed", "chat", key, "err", err)
+		logger.Error("HandlePendingMenuMediaReply: Download failed", "chat", key, "err", err)
 		_ = fakeCtx.Reply("Failed to download media for menu thumbnail.")
 		return true
 	}
@@ -661,7 +661,7 @@ func handleMenu(ctx *dispatch.Context) error {
 		Header(ctx.GetBotName()).
 		Field("User", user).
 		Field("OS", platform).
-		Field("Mem", utils.FormatBytes(usedRAM)).
+		Field("Mem", whatsrook.FormatBytes(usedRAM)).
 		Field("Plugins", strconv.Itoa(displayedCount)).
 		Field("Mode", botMode).
 		Field("Uptime", uptime).
