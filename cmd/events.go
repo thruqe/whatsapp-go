@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	utils "whatsrook"
+	"whatsrook"
 	"whatsrook/cmd/calls"
 	"whatsrook/cmd/group"
 	"whatsrook/cmd/store"
@@ -133,12 +133,12 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 		if warnCount >= maxWarn {
 			_, _ = cli.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock)
 			logger.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
-			warnText := utils.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
-			formatted := utils.FormatTextResponseRaw(warnText)
+			warnText := whatsrook.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
+			formatted := whatsrook.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 		} else {
-			warnText := utils.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
-			formatted := utils.FormatTextResponseRaw(warnText)
+			warnText := whatsrook.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
+			formatted := whatsrook.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 		}
 	}
@@ -287,7 +287,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := utils.ResolveMentionRaw(ctx, cli, info.OwnerJID)
+					_, ownerName := whatsrook.ResolveMentionRaw(ctx, cli, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -296,7 +296,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 			}
 
 			for _, participant := range g.Join {
-				resolvedJIDs, username := utils.ResolveMentionJIDs(ctx, cli, participant)
+				resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -330,7 +330,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					body += "\n\nGroup Description:\n" + groupDesc
 				}
 
-				formatted := utils.FormatTextResponseRaw(body)
+				formatted := whatsrook.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" || tag == "" {
 					for _, j := range resolvedJIDs {
@@ -398,7 +398,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := utils.ResolveMentionRaw(ctx, cli, info.OwnerJID)
+					_, ownerName := whatsrook.ResolveMentionRaw(ctx, cli, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -412,7 +412,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					continue
 				}
 
-				resolvedJIDs, username := utils.ResolveMentionJIDs(ctx, cli, participant)
+				resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -446,7 +446,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					body += "\n\nGroup Description:\n" + groupDesc
 				}
 
-				formatted := utils.FormatTextResponseRaw(body)
+				formatted := whatsrook.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" || tag == "" {
 					for _, j := range resolvedJIDs {
@@ -519,21 +519,21 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	var actorJID *types.JID
 	if g.Sender != nil && !g.Sender.IsEmpty() {
 		actorJID = g.Sender
-		_, actorName := utils.ResolveMentionRaw(ctx, cli, *g.Sender)
+		_, actorName := whatsrook.ResolveMentionRaw(ctx, cli, *g.Sender)
 		actorTag = " by @" + actorName
 	}
 
 	// 1. Group Subject / Name Changed
 	if g.Name != nil && g.Name.Name != "" {
 		logger.Debug("handleGroupEventsNotification: group name changed", "group", chatKey, "newName", g.Name.Name, "actor", actorTag)
-		msgText := utils.Sprintf("*Group Event*: Group name changed to *%s*%s.", g.Name.Name, actorTag)
+		msgText := whatsrook.Sprintf("*Group Event*: Group name changed to *%s*%s.", g.Name.Name, actorTag)
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
 
 	// 2. Group Description / Topic Changed
 	if g.Topic != nil && g.Topic.Topic != "" {
 		logger.Debug("handleGroupEventsNotification: group topic changed", "group", chatKey, "actor", actorTag)
-		msgText := utils.Sprintf("*Group Event*: Group description updated%s:\n%s", actorTag, g.Topic.Topic)
+		msgText := whatsrook.Sprintf("*Group Event*: Group description updated%s:\n%s", actorTag, g.Topic.Topic)
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
 
@@ -541,10 +541,10 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	if g.Announce != nil {
 		logger.Debug("handleGroupEventsNotification: group announce changed", "group", chatKey, "isAnnounce", g.Announce.IsAnnounce, "actor", actorTag)
 		if g.Announce.IsAnnounce {
-			msgText := utils.Sprintf("*Group Event*: Group settings updated%s. Only admins can send messages now.", actorTag)
+			msgText := whatsrook.Sprintf("*Group Event*: Group settings updated%s. Only admins can send messages now.", actorTag)
 			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 		} else {
-			msgText := utils.Sprintf("*Group Event*: Group settings updated%s. All members can send messages now.", actorTag)
+			msgText := whatsrook.Sprintf("*Group Event*: Group settings updated%s. All members can send messages now.", actorTag)
 			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 		}
 	}
@@ -553,10 +553,10 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	if g.Locked != nil {
 		logger.Debug("handleGroupEventsNotification: group lock changed", "group", chatKey, "isLocked", g.Locked.IsLocked, "actor", actorTag)
 		if g.Locked.IsLocked {
-			msgText := utils.Sprintf("*Group Event*: Group settings locked%s. Only admins can edit group info.", actorTag)
+			msgText := whatsrook.Sprintf("*Group Event*: Group settings locked%s. Only admins can edit group info.", actorTag)
 			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 		} else {
-			msgText := utils.Sprintf("*Group Event*: Group settings unlocked%s. All members can edit group info.", actorTag)
+			msgText := whatsrook.Sprintf("*Group Event*: Group settings unlocked%s. All members can edit group info.", actorTag)
 			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 		}
 	}
@@ -564,9 +564,9 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	// 5. Admin Promotions
 	if len(g.Promote) > 0 {
 		for _, userJID := range g.Promote {
-			resolvedJIDs, username := utils.ResolveMentionJIDs(ctx, cli, userJID)
+			resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, userJID)
 			logger.Debug("handleGroupEventsNotification: participant promoted to admin", "group", chatKey, "user", username, "actor", actorTag)
-			msgText := utils.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
+			msgText := whatsrook.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
 			mentions := resolvedJIDs
 			if actorJID != nil && !actorJID.IsEmpty() {
 				mentions = append(mentions, *actorJID)
@@ -578,9 +578,9 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	// 6. Admin Demotions
 	if len(g.Demote) > 0 {
 		for _, userJID := range g.Demote {
-			resolvedJIDs, username := utils.ResolveMentionJIDs(ctx, cli, userJID)
+			resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, userJID)
 			logger.Debug("handleGroupEventsNotification: admin demoted to member", "group", chatKey, "user", username, "actor", actorTag)
-			msgText := utils.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
+			msgText := whatsrook.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
 			mentions := resolvedJIDs
 			if actorJID != nil && !actorJID.IsEmpty() {
 				mentions = append(mentions, *actorJID)
@@ -594,9 +594,9 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 		logger.Debug("handleGroupEventsNotification: member add mode changed", "group", chatKey, "mode", *g.MemberAddMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberAddMode == types.GroupMemberAddModeAdmin {
-			msgText = utils.Sprintf("*Group Event*: Group settings updated%s. Only admins can add members.", actorTag)
+			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. Only admins can add members.", actorTag)
 		} else {
-			msgText = utils.Sprintf("*Group Event*: Group settings updated%s. All members can add members.", actorTag)
+			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. All members can add members.", actorTag)
 		}
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
@@ -606,9 +606,9 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 		logger.Debug("handleGroupEventsNotification: member link mode changed", "group", chatKey, "mode", *g.MemberLinkMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberLinkMode == types.GroupMemberLinkModeAdmin {
-			msgText = utils.Sprintf("*Group Event*: Group settings updated%s. Only admins can manage invite links.", actorTag)
+			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. Only admins can manage invite links.", actorTag)
 		} else {
-			msgText = utils.Sprintf("*Group Event*: Group settings updated%s. All members can manage invite links.", actorTag)
+			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. All members can manage invite links.", actorTag)
 		}
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
@@ -618,9 +618,9 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 		logger.Debug("handleGroupEventsNotification: member share history mode changed", "group", chatKey, "mode", *g.MemberShareHistoryMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberShareHistoryMode == types.GroupMemberShareHistoryModeAdmin {
-			msgText = utils.Sprintf("*Group Event*: Group history sharing updated%s. Only admins can share group history.", actorTag)
+			msgText = whatsrook.Sprintf("*Group Event*: Group history sharing updated%s. Only admins can share group history.", actorTag)
 		} else {
-			msgText = utils.Sprintf("*Group Event*: Group history sharing updated%s. Recent history is shared with new members.", actorTag)
+			msgText = whatsrook.Sprintf("*Group Event*: Group history sharing updated%s. Recent history is shared with new members.", actorTag)
 		}
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
@@ -630,9 +630,9 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 		logger.Debug("handleGroupEventsNotification: allow non-admin subgroup creation changed", "group", chatKey, "allow", *g.AllowNonAdminSubGroupCreation, "actor", actorTag)
 		var msgText string
 		if *g.AllowNonAdminSubGroupCreation {
-			msgText = utils.Sprintf("*Group Event*: Community settings updated%s. All members can create sub-groups now.", actorTag)
+			msgText = whatsrook.Sprintf("*Group Event*: Community settings updated%s. All members can create sub-groups now.", actorTag)
 		} else {
-			msgText = utils.Sprintf("*Group Event*: Community settings updated%s. Only admins can create sub-groups now.", actorTag)
+			msgText = whatsrook.Sprintf("*Group Event*: Community settings updated%s. Only admins can create sub-groups now.", actorTag)
 		}
 		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
 	}
@@ -652,7 +652,7 @@ func (b *Bot) sendGroupEventMessageWithMentions(ctx context.Context, chatJID typ
 		return
 	}
 	logger.Debug("sendGroupEventMessageWithMentions: sending event message", "group", chatJID.String(), "mentionsCount", len(targetMentions))
-	formatted := utils.FormatTextResponseRaw(text)
+	formatted := whatsrook.FormatTextResponseRaw(text)
 	var mentions []string
 	for _, m := range targetMentions {
 		if !m.IsEmpty() {
@@ -684,9 +684,9 @@ func formatTimeoutStr(sec int) string {
 		if mins == 1 {
 			return "1 min"
 		}
-		return utils.Sprintf("%d mins", mins)
+		return whatsrook.Sprintf("%d mins", mins)
 	}
-	return utils.Sprintf("%d seconds", sec)
+	return whatsrook.Sprintf("%d seconds", sec)
 }
 
 func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
@@ -772,7 +772,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 	}
 
 	// This plugin should only work if this bot is an admin
-	if !utils.IsBotAdminRaw(ctx, cli, info) {
+	if !whatsrook.IsBotAdminRaw(ctx, cli, info) {
 		logger.Warn("handleGroupCaptcha: bot is not an admin in group, skipping captcha verification", "group", chatKey)
 		return
 	}
@@ -803,12 +803,12 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 
 	for _, participant := range g.Join {
 		// Skip if participant is the bot itself
-		if utils.IsSameUserRaw(ctx, cli, participant, *cli.Store.ID) {
+		if whatsrook.IsSameUserRaw(ctx, cli, participant, *cli.Store.ID) {
 			logger.Debug("processGroupCaptchaJoins: skipping bot participant", "group", chatKey, "user", participant.String())
 			continue
 		}
 
-		resolvedJIDs, username := utils.ResolveMentionJIDs(ctx, cli, participant)
+		resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, participant)
 		resolvedJID := participant.ToNonAD()
 		if len(resolvedJIDs) > 0 {
 			resolvedJID = resolvedJIDs[0]
@@ -819,7 +819,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 		if err != nil {
 			logger.Error("Captcha number verification failed:%v", err)
 		}
-		code := utils.Sprintf("%04d", codeInt)
+		code := whatsrook.Sprintf("%04d", codeInt)
 
 		logger.Debug("processGroupCaptchaJoins: registering pending captcha challenge",
 			"group", chatKey,
@@ -848,12 +848,12 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 					logger.Warn("processGroupCaptchaJoins: failed to get group info during timeout kick", "group", g.JID.String(), "err", gErr)
 					return
 				}
-				if !utils.IsBotAdminRaw(context.Background(), cli, currentInfo) {
+				if !whatsrook.IsBotAdminRaw(context.Background(), cli, currentInfo) {
 					logger.Warn("handleGroupCaptcha: bot is no longer admin to kick unverified participant", "group", g.JID.String(), "user", partCopy.String())
 					return
 				}
 				// Don't attempt to kick admins/creators if they didn't verify
-				if utils.IsAdminRaw(context.Background(), cli, currentInfo, partCopy) {
+				if whatsrook.IsAdminRaw(context.Background(), cli, currentInfo, partCopy) {
 					logger.Warn("handleGroupCaptcha: unverified participant is an admin or creator, skipping kick", "group", g.JID.String(), "user", partCopy.String())
 					return
 				}
@@ -866,7 +866,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 
 				logger.Info("processGroupCaptchaJoins: unverified participant removed from group", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
 
-				kickTb := utils.NewText()
+				kickTb := whatsrook.NewText()
 				kickTb.Linef("@%s was removed from the group for failing to complete the captcha verification within %s.", userCopy, timeoutDisplay)
 				b.sendGroupEventMessageWithMentions(context.Background(), g.JID, kickTb.Trimmed(), []types.JID{resolvedCopy})
 			},
@@ -890,7 +890,7 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 			logger.Debug("handleGroupCaptcha: captcha video generation unavailable/failed", "err", errGen)
 		}
 
-		tbVid := utils.NewText()
+		tbVid := whatsrook.NewText()
 		tbVid.Linef("Welcome @%s! You are required to complete a verification code to join %s.", username, groupName)
 		tbVid.Linef("Please watch the video and reply with the 4-digit verification code within %s, otherwise you will be automatically removed.", timeoutDisplay)
 		formattedCaption := tbVid.Trimmed()
@@ -927,14 +927,14 @@ func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
 		} else {
 			// Fallback to text verification prompt if video generation/upload fails
 			logger.Warn("handleGroupCaptcha: falling back to text verification prompt", "group", g.JID.String(), "user", partCopy.String())
-			tbFallback := utils.NewText()
+			tbFallback := whatsrook.NewText()
 			tbFallback.Header("Verification Required")
 			tbFallback.Linef("Welcome @%s! You are required to complete a verification code to join %s.", username, groupName)
 			tbFallback.Blank()
 			tbFallback.Linef("Your verification code is: *%s*", code)
 			tbFallback.Linef("Please reply with the 4-digit code (*%s*) within %s, otherwise you will be automatically removed.", code, timeoutDisplay)
 			tbFallback.Mentions(resolvedJID)
-			formattedFallback := utils.FormatTextResponseRaw(tbFallback.Trimmed())
+			formattedFallback := whatsrook.FormatTextResponseRaw(tbFallback.Trimmed())
 			txtMsg := &waE2E.Message{
 				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 					Text: &formattedFallback,
