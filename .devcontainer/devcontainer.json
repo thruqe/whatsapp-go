@@ -1,6 +1,11 @@
 {
   "name": "whatsrook-dev",
-  "image": "mcr.microsoft.com/devcontainers/go:latest",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.27.0"
+    }
+  },
   "customizations": {
     "vscode": {
       "extensions": [
