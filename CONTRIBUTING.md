@@ -15,7 +15,7 @@ All development workflows are managed through the [Taskfile](./Taskfile.yml):
 | `install` | `task install` | Download and tidy all Go module dependencies.                       |
 | `update`  | `task update`  | Upgrade all Go dependencies across modules.                         |
 | `proto`   | `task proto`   | Compile and update protobuf definitions in `wa-core/proto`.         |
-| `bump`    | `task bump`    | Bump release version date (`D.M.YY`) across version metadata files. |
+| `bump`    | `task bump`    | Bump monthly release version (`YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO`) and refresh resources. |
 | `clean`   | `task clean`   | Remove temporary build artifacts and binaries.                      |
 
 ## 2. Architecture & Guidelines

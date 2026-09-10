@@ -67,7 +67,7 @@ tasks:
       - cd cmd && go mod tidy
 
   bump:
-    desc: Bump release version to current date (day.month.year) across version.txt and cmd
+    desc: Bump monthly release version (YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO) and refresh binary resources
     cmds:
       - go -C scripts run . bump {{.cmd_ARGS}}
 

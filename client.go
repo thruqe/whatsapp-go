@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,25 +42,38 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	_ "embed"
-
 	_ "github.com/lib/pq"
 )
 
 // clienttype specifies the companion operating system and hardware profile to emulate during registration.
 type ClientType int
 
-//go:embed version.txt
-var rawVersion string
+// RawVersion holds the raw version string, typically populated at build time via
+// -ldflags "-X whatsrook.RawVersion=...".
+var RawVersion = "dev"
 
-// Version represents the parsed semantic version segments of the active WhatsRook release.
+// Version represents the parsed version segments of the active WhatsRook release
+// following the YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO format.
 type Version struct {
-	// Major segment (typically release day or major epoch).
+	// Year segment (e.g. 26 for 2026).
+	Year int
+	// Major is an alias for Year for backward compatibility.
 	Major int
-	// Minor segment (typically release month or feature sequence).
+
+	// Month segment (1-12).
+	Month int
+	// Minor is an alias for Month for backward compatibility.
 	Minor int
-	// Patch segment (typically release year suffix or bugfix revision).
-	Patch int
+
+	// Patch segment (cryptographic patch hash / short commit SHA, e.g. "7a3b4c1").
+	Patch string
+
+	// NumericPatch is populated if the patch segment can be parsed as an integer.
+	NumericPatch int
+
+	// ExtraBuildInfo contains any additional build metadata or suffix (e.g. "prod").
+	ExtraBuildInfo string
+
 	// Raw is the original unparsed version string.
 	Raw string
 }
@@ -84,29 +98,75 @@ const (
 	ClientIos
 )
 
-// GetVersion parses the embedded version.txt string into a structured Version instance.
-// returns a descriptive error if the embedded version string deviates from the standard "X.Y.Z" format.
+// GetVersion returns the structured Version instance for the active WhatsRook release.
+// It resolves the version from RawVersion (or runtime VCS build info if RawVersion is unset),
+// following the YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO format (e.g., 26.09.7a3b4c1 or 26.09.7a3b4c1_prod).
 func GetVersion() (Version, error) {
-	clean := strings.TrimSpace(rawVersion)
-	parts := strings.Split(clean, ".")
-	if len(parts) != 3 {
-		return Version{Raw: clean}, fmt.Errorf("invalid version format: %q (expected X.Y.Z)", clean)
+	vStr := strings.TrimSpace(RawVersion)
+	if vStr == "" || vStr == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			if info.Main.Version != "" && info.Main.Version != "(devel)" {
+				vStr = strings.TrimSpace(info.Main.Version)
+			} else {
+				for _, s := range info.Settings {
+					if s.Key == "vcs.revision" && s.Value != "" {
+						vStr = strings.TrimSpace(s.Value)
+						break
+					}
+				}
+			}
+		}
+	}
+	clean := strings.TrimPrefix(strings.TrimSpace(vStr), "v")
+	if clean == "" || clean == "dev" {
+		now := time.Now()
+		yr := now.Year() % 100
+		mo := int(now.Month())
+		return Version{
+			Year:  yr,
+			Major: yr,
+			Month: mo,
+			Minor: mo,
+			Patch: "dev",
+			Raw:   "dev",
+		}, nil
 	}
 
-	nums := make([]int, 3)
-	for i, part := range parts {
-		val, err := strconv.Atoi(part)
-		if err != nil {
-			return Version{Raw: clean}, fmt.Errorf("invalid numeric segment %q: %w", part, err)
+	parts := strings.Split(clean, ".")
+	if len(parts) < 2 {
+		return Version{Raw: clean}, fmt.Errorf("invalid version format: %q (expected YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO)", clean)
+	}
+
+	year, errYear := strconv.Atoi(parts[0])
+	month, errMonth := strconv.Atoi(parts[1])
+	if errYear != nil || errMonth != nil {
+		return Version{Raw: clean}, fmt.Errorf("non-numeric year/month segment in %q", clean)
+	}
+
+	var patchStr, extra string
+	var numericPatch int
+	if len(parts) >= 3 {
+		patchRaw := strings.Join(parts[2:], ".")
+		if idx := strings.IndexAny(patchRaw, "_+"); idx != -1 {
+			patchStr = patchRaw[:idx]
+			extra = patchRaw[idx+1:]
+		} else {
+			patchStr = patchRaw
 		}
-		nums[i] = val
+		if num, err := strconv.Atoi(patchStr); err == nil {
+			numericPatch = num
+		}
 	}
 
 	return Version{
-		Major: nums[0],
-		Minor: nums[1],
-		Patch: nums[2],
-		Raw:   clean,
+		Year:           year,
+		Major:          year,
+		Month:          month,
+		Minor:          month,
+		Patch:          patchStr,
+		NumericPatch:   numericPatch,
+		ExtraBuildInfo: extra,
+		Raw:            clean,
 	}, nil
 }
 
