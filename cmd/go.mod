@@ -11,7 +11,7 @@ require (
 	github.com/rs/zerolog v1.35.1
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	go.mau.fi/util v0.10.0
-	go.mau.fi/whatsmeow v0.0.0-20260909093947-9ec8f76db5f1
+	go.mau.fi/whatsmeow v0.0.0-20260909164725-b25a56d63729
 	gorm.io/driver/postgres v1.6.2
 	gorm.io/gorm v1.31.2
 	whatsrook v0.0.0-00010101000000-000000000000
