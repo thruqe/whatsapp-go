@@ -3,12 +3,18 @@ on:
   push:
     branches:
       - master
+    tags:
+      - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (optional, format: YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO)'
+        required: false
 permissions:
   contents: write
 jobs:
   check-version:
-    name: Check Version Change
+    name: Check Version and Release Status
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.version-check.outputs.changed }}
@@ -18,26 +24,44 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
-          fetch-depth: 2
+          fetch-depth: 0
       - name: Parse Version and Check Release Status
         id: version-check
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
         run: |
-          CURRENT_VERSION=$(git show HEAD:version.txt 2>/dev/null | tr -d '[:space:]')
-          if [ -z "$CURRENT_VERSION" ] && [ -f "version.txt" ]; then
-            CURRENT_VERSION=$(tr -d '[:space:]' < version.txt)
-          fi
-          echo "Current version: $CURRENT_VERSION"
-
           git fetch --tags origin 2>/dev/null || true
-          if git rev-parse "v$CURRENT_VERSION" >/dev/null 2>&1 || git ls-remote --tags origin "refs/tags/v$CURRENT_VERSION" | grep -q "v$CURRENT_VERSION"; then
-            echo "Tag v$CURRENT_VERSION already exists."
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+          CURRENT_VERSION=""
+          IS_PROD_RELEASE="false"
+
+          # 1. Triggered directly by a tag push (v*)
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            CURRENT_VERSION="${GITHUB_REF_NAME#v}"
+            IS_PROD_RELEASE="true"
+          # 2. Triggered by workflow_dispatch with explicit version input
+          elif [ -n "${{ inputs.version }}" ]; then
+            CURRENT_VERSION="${{ inputs.version }}"
+            CURRENT_VERSION="${CURRENT_VERSION#v}"
+            IS_PROD_RELEASE="true"
+          # 3. Triggered by push to master: check if HEAD has an unreleased tag
           else
-            echo "Tag v$CURRENT_VERSION has NOT been published yet. Triggering release!"
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            HEAD_TAG=$(git tag --points-at HEAD "v*" | head -n 1)
+            if [ -n "$HEAD_TAG" ]; then
+              CURRENT_VERSION="${HEAD_TAG#v}"
+              if ! gh release view "$HEAD_TAG" >/dev/null 2>&1; then
+                IS_PROD_RELEASE="true"
+              fi
+            fi
           fi
+
+          if [ -z "$CURRENT_VERSION" ]; then
+            CURRENT_VERSION=$(git rev-parse --short=7 HEAD)
+          fi
+
+          echo "Resolved version: $CURRENT_VERSION (Production release: $IS_PROD_RELEASE)"
+          echo "changed=$IS_PROD_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build Binaries (${{ matrix.target.os }}-${{ matrix.target.arch }})
@@ -107,7 +131,7 @@ jobs:
           if [ "${{ matrix.target.os }}" = "windows" ]; then
             GOOS="" GOARCH="" go -C scripts run . res "$APP_VERSION"
           fi
-          (cd cmd && go build -trimpath -ldflags="-s -w -buildid= -X main.Version=${APP_VERSION} -X whatsrook/cmd/updater.BinaryVersion=${APP_VERSION} -X whatsrook/cmd/updater.CommitSHA=${COMMIT_SHA}" -v -o "../$BIN_NAME" .)
+          (cd cmd && go build -trimpath -ldflags="-s -w -buildid= -X main.Version=${APP_VERSION} -X whatsrook/cmd/updater.BinaryVersion=${APP_VERSION} -X whatsrook/cmd/updater.CommitSHA=${COMMIT_SHA} -X whatsrook.RawVersion=${APP_VERSION}" -v -o "../$BIN_NAME" .)
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
 
       - name: Sign Windows Binary
@@ -168,6 +192,7 @@ jobs:
   alpha-release:
     name: Alpha Nightly Per-Commit Release
     needs: [check-version, build]
+    if: (!startsWith(github.ref, 'refs/tags/')) && needs.check-version.outputs.changed != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -253,10 +278,13 @@ jobs:
         with:
           path: artifacts
 
-      - name: Create Git Tag
+      - name: Create Git Tag if Missing
         run: |
-          git tag -f -a "v${{ needs.check-version.outputs.version }}" -m "Release v${{ needs.check-version.outputs.version }}"
-          git push -f origin "v${{ needs.check-version.outputs.version }}"
+          TAG="v${{ needs.check-version.outputs.version }}"
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}

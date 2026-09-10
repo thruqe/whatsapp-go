@@ -6,7 +6,6 @@ build:
           - 'Taskfile.yml'
           - 'go.mod'
           - 'go.sum'
-          - 'version.txt'
           - 'scripts/**'
 
 documentation:

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -15,21 +16,32 @@ func runRes(args []string) error {
 		return fmt.Errorf("failed to locate repo root: %w", err)
 	}
 
-	// 1. Resolve version from args or version.txt
+	now := time.Now()
 	productVersion := ""
 	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
-		productVersion = strings.TrimSpace(args[0])
+		productVersion = strings.TrimPrefix(strings.TrimSpace(args[0]), "v")
 	}
 	if productVersion == "" {
-		versionTxtPath := filepath.Join(rootDir, "version.txt")
-		if verBytes, err := os.ReadFile(versionTxtPath); err == nil {
-			productVersion = strings.TrimSpace(string(verBytes))
-		}
+		yy := now.Year() % 100
+		mm := int(now.Month())
+		sha := getGitShortSHA(rootDir)
+		productVersion = fmt.Sprintf("%02d.%02d.%s", yy, mm, sha)
 	}
-	if productVersion == "" {
-		productVersion = "0.0.1"
+
+	// Windows PE --file-version must be 4 numeric components (e.g. 26.9.0.0)
+	parts := strings.Split(productVersion, ".")
+	var yr, mo int
+	if len(parts) >= 2 {
+		yr, _ = strconv.Atoi(parts[0])
+		mo, _ = strconv.Atoi(parts[1])
 	}
-	fileVersion := fmt.Sprintf("%s.0", productVersion)
+	if yr == 0 {
+		yr = now.Year() % 100
+	}
+	if mo == 0 {
+		mo = int(now.Month())
+	}
+	fileVersion := fmt.Sprintf("%d.%d.0.0", yr, mo)
 
 	iconPath := filepath.Join(rootDir, "assets", "logo.png")
 	if _, err := os.Stat(iconPath); err != nil {

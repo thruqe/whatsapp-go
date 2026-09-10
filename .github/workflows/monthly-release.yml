@@ -1,0 +1,94 @@
+name: Monthly Release
+
+on:
+  schedule:
+    - cron: '0 0 1 * *' # Runs on the 1st of every month at 00:00 UTC
+  workflow_dispatch:     # Allows manual execution from GitHub Actions UI
+    inputs:
+      extra_build_info:
+        description: 'Optional extra build info suffix (e.g. prod, hotfix)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  monthly-release:
+    name: Check & Trigger Monthly Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Check Commit History Since Last Release
+        id: check-history
+        run: |
+          git fetch --tags --prune origin
+
+          # Find the latest release tag
+          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n 1)
+          echo "Latest release tag: ${LATEST_TAG:-none}"
+
+          if [ -n "$LATEST_TAG" ]; then
+            # Count commits between the latest release tag and current HEAD
+            COMMITS_SINCE_RELEASE=$(git rev-list "${LATEST_TAG}..HEAD" --count)
+            echo "Commits since last release ($LATEST_TAG): $COMMITS_SINCE_RELEASE"
+
+            if [ "$COMMITS_SINCE_RELEASE" -eq 0 ]; then
+              echo "::notice::HEAD is at the previous release tag ($LATEST_TAG). No new commits since last release. Skipping release."
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            # Check if the latest commit itself is a release tag commit
+            LAST_COMMIT_MSG=$(git log -1 --format='%s')
+            echo "Latest commit subject: $LAST_COMMIT_MSG"
+            if echo "$LAST_COMMIT_MSG" | grep -iE '^(chore|ci|release):?\s*bump|^Release\s+v' >/dev/null 2>&1; then
+              if [ "$COMMITS_SINCE_RELEASE" -le 1 ]; then
+                echo "::notice::Previous commit is a release commit. No new changes to release. Skipping release."
+                echo "should_release=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+          else
+            echo "No previous release tags found. Proceeding with release."
+          fi
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Version and Create Tag
+        id: create-tag
+        if: steps.check-history.outputs.should_release == 'true'
+        env:
+          EXTRA_BUILD_INFO: ${{ inputs.extra_build_info }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "Thruqe"
+          git config --global user.email "danielpeter0039@gmail.com"
+
+          YY=$(date -u +'%y')
+          MM=$(date -u +'%m')
+          SHORT_SHA=$(git rev-parse --short=7 HEAD)
+
+          NEW_VERSION="${YY}.${MM}.${SHORT_SHA}"
+          if [ -n "$EXTRA_BUILD_INFO" ]; then
+            NEW_VERSION="${NEW_VERSION}_${EXTRA_BUILD_INFO}"
+          fi
+
+          TAG_NAME="v${NEW_VERSION}"
+          echo "Generated release tag: ${TAG_NAME}"
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+
+          # Create and push annotated tag
+          git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
+          git push origin "${TAG_NAME}"
+
+          # Trigger Release Management workflow for the new release tag
+          gh workflow run release.yml --ref "${TAG_NAME}" || gh workflow run "Release Management" --ref "${TAG_NAME}" || gh workflow run release.yml --ref master -f version="${NEW_VERSION}" || true

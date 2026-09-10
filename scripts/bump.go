@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +18,10 @@ func findRepoRoot() (string, error) {
 
 	curr := wd
 	for {
-		if _, err := os.Stat(filepath.Join(curr, "version.txt")); err == nil {
+		if _, err := os.Stat(filepath.Join(curr, "Taskfile.yml")); err == nil {
+			return curr, nil
+		}
+		if _, err := os.Stat(filepath.Join(curr, ".git")); err == nil {
 			return curr, nil
 		}
 		parent := filepath.Dir(curr)
@@ -30,6 +33,19 @@ func findRepoRoot() (string, error) {
 	return wd, nil
 }
 
+func getGitShortSHA(rootDir string) string {
+	cmd := exec.Command("git", "rev-parse", "--short=7", "HEAD")
+	cmd.Dir = rootDir
+	out, err := cmd.Output()
+	if err == nil {
+		sha := strings.TrimSpace(string(out))
+		if sha != "" {
+			return sha
+		}
+	}
+	return "dev"
+}
+
 func runBump(args []string) error {
 	rootDir, err := findRepoRoot()
 	if err != nil {
@@ -37,67 +53,36 @@ func runBump(args []string) error {
 	}
 
 	now := time.Now()
-	var day, month, yearShort, yearFull int
 	var versionStr string
 
 	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
 		raw := strings.TrimPrefix(strings.TrimSpace(args[0]), "v")
 		parts := strings.Split(raw, ".")
-		if len(parts) != 3 {
-			return fmt.Errorf("invalid version argument %q: expected format D.M.YY (e.g. 21.8.26)", args[0])
+		if len(parts) < 2 {
+			return fmt.Errorf("invalid version format %q: expected YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO (e.g. 26.09.7a3b4c1)", args[0])
 		}
-		var errConv error
-		day, errConv = strconv.Atoi(parts[0])
-		if errConv != nil {
-			return fmt.Errorf("invalid day segment %q: %w", parts[0], errConv)
+		if _, err := strconv.Atoi(parts[0]); err != nil {
+			return fmt.Errorf("invalid year segment %q: %w", parts[0], err)
 		}
-		month, errConv = strconv.Atoi(parts[1])
-		if errConv != nil {
-			return fmt.Errorf("invalid month segment %q: %w", parts[1], errConv)
+		if _, err := strconv.Atoi(parts[1]); err != nil {
+			return fmt.Errorf("invalid month segment %q: %w", parts[1], err)
 		}
-		yearShort, errConv = strconv.Atoi(parts[2])
-		if errConv != nil {
-			return fmt.Errorf("invalid year segment %q: %w", parts[2], errConv)
-		}
-		yearFull = 2000 + yearShort
-		if yearShort > 100 {
-			yearFull = yearShort
-			yearShort = yearShort % 100
-		}
-		versionStr = fmt.Sprintf("%d.%d.%d", day, month, yearShort)
+		versionStr = raw
 	} else {
-		day = now.Day()
-		month = int(now.Month())
-		yearShort = now.Year() % 100
-		yearFull = now.Year()
-		versionStr = fmt.Sprintf("%d.%d.%d", day, month, yearShort)
+		yy := now.Year() % 100
+		mm := int(now.Month())
+		sha := getGitShortSHA(rootDir)
+		versionStr = fmt.Sprintf("%02d.%02d.%s", yy, mm, sha)
 	}
 
-	fmt.Printf("Bumping release version to %s (Date: %04d-%02d-%02d)...\n", versionStr, yearFull, month, day)
+	fmt.Printf("Bumping monthly release version to %s (Format: YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO)...\n", versionStr)
 
-	// 1. Update version.txt
-	versionTxtPath := filepath.Join(rootDir, "version.txt")
-	if err := os.WriteFile(versionTxtPath, []byte(versionStr+"\n"), 0o644); err != nil {
-		return fmt.Errorf("failed writing %s: %w", versionTxtPath, err)
-	}
-	fmt.Printf("✓ %s -> %s\n", filepath.Base(versionTxtPath), versionStr)
-
-	// 2. Update cmd/updater/updater.go fallback string
-	updaterPath := filepath.Join(rootDir, "cmd", "updater", "updater.go")
-	if data, err := os.ReadFile(updaterPath); err == nil {
-		re := regexp.MustCompile(`return "\d+\.\d+\.\d+"`)
-		updated := re.ReplaceAllString(string(data), fmt.Sprintf(`return "%s"`, versionStr))
-		if err := os.WriteFile(updaterPath, []byte(updated), 0o644); err != nil {
-			return fmt.Errorf("failed writing %s: %w", updaterPath, err)
-		}
-		fmt.Printf("✓ %s -> %s\n", filepath.Join("cmd", "updater", "updater.go"), versionStr)
-	}
-
-	// 3. Refresh binary resources with new version
-	if err := runRes(nil); err != nil {
+	// Refresh binary resources with new version
+	if err := runRes([]string{versionStr}); err != nil {
 		fmt.Printf("⚠️ Warning: failed to regenerate binary resources: %v\n", err)
 	}
 
 	fmt.Printf("Version successfully bumped to %s\n", versionStr)
+	fmt.Printf("To create an annotated release tag:\n  git tag -a v%s -m \"Release v%s\"\n", versionStr, versionStr)
 	return nil
 }
