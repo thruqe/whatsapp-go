@@ -2,989 +2,839 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math/rand"
-	"os"
-	"os/exec"
-	"strconv"
+	"net"
+	"net/http"
+	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
+
+	"whatsrook/logger"
 
 	"whatsrook"
 	"whatsrook/cmd/calls"
+	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/group"
+	"whatsrook/cmd/info"
+	"whatsrook/cmd/settings"
 	"whatsrook/cmd/store"
-	"whatsrook/external"
-	"whatsrook/logger"
+	"whatsrook/cmd/updater"
+	"whatsrook/qr"
+	"whatsrook/system"
+
+	_ "whatsrook/cmd/ai"
+	_ "whatsrook/cmd/business"
+	_ "whatsrook/cmd/chats"
+	_ "whatsrook/cmd/extensions"
+	_ "whatsrook/cmd/filters"
+	_ "whatsrook/cmd/games"
+	_ "whatsrook/cmd/owner"
+	_ "whatsrook/cmd/tools"
 
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/proto/waCommon"
-	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
-	cli := b.client.WAClient()
-	if cli == nil || v == nil {
-		return
-	}
-
-	logger.Debug("anticall: received call offer event",
-		"call_id", v.CallID,
-		"caller", v.CallCreator.String(),
-		"timestamp", v.Timestamp,
-	)
-
-	// Do not process call offers that occurred before bot startup (with 2m clock skew tolerance)
-	if !v.Timestamp.IsZero() && v.Timestamp.Before(b.startupTime.Add(-2*time.Minute)) {
-		logger.Debug("anticall: skipping stale call offer before startup",
-			"call_id", v.CallID,
-			"caller", v.CallCreator.String(),
-			"timestamp", v.Timestamp,
-		)
-		return
-	}
-
-	s, ok := cli.Store.Identities.(*sqlstore.SQLStore)
-	if !ok {
-		return
-	}
-
-	voicemailStatus, _ := store.GetSetting(ctx, s, calls.VoicemailSettingKey)
-	if voicemailStatus == "" {
-		voicemailStatus, _ = store.GetSetting(ctx, s, "autoacceptcall_status")
-	}
-	if voicemailStatus == "on" {
-		logger.Debug("anticall: skipping reject because voicemail is enabled", "call_id", v.CallID, "caller", v.CallCreator.String())
-		return
-	}
-
-	status, _ := store.GetSetting(ctx, s, "anticall_status")
-	if status != "on" {
-		logger.Debug("anticall: feature is disabled, ignoring call offer", "call_id", v.CallID, "status", status)
-		return
-	}
-
-	callerJID := v.CallCreator
-	callerNum := callerJID.User
-
-	contactsOnly, _ := store.GetSetting(ctx, s, "anticall_contacts_only")
-	allowedCC, _ := store.GetSetting(ctx, s, "anticall_allowed_cc")
-
-	reject := false
-
-	if contactsOnly == "true" {
-		contact, err := cli.Store.Contacts.GetContact(ctx, callerJID)
-		if err != nil || (!contact.Found || (contact.FirstName == "" && contact.FullName == "")) {
-			logger.Debug("anticall: caller is not in contacts and contacts-only mode is active", "caller", callerJID.String())
-			reject = true
-		}
-	}
-
-	if !reject && allowedCC != "" {
-		codes := strings.Split(allowedCC, ",")
-		matched := false
-		for _, cc := range codes {
-			cc = strings.TrimSpace(strings.TrimPrefix(cc, "+"))
-			if cc != "" && strings.HasPrefix(callerNum, cc) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			logger.Debug("anticall: caller country code is not in allowed CC whitelist", "caller", callerJID.String(), "allowedCC", allowedCC)
-			reject = true
-		}
-	}
-
-	if !reject && contactsOnly != "true" && allowedCC == "" {
-		logger.Debug("anticall: rejecting call because unconditional anticall is active", "caller", callerJID.String())
-		reject = true
-	}
-
-	logger.Debug("anticall: evaluation completed",
-		"caller", callerJID.String(),
-		"call_id", v.CallID,
-		"contactsOnly", contactsOnly,
-		"allowedCC", allowedCC,
-		"reject", reject,
-	)
-
-	if reject {
-		logger.Warn("anticall: rejecting call offer", "from", callerJID.String(), "call_id", v.CallID)
-		_ = cli.RejectCall(ctx, callerJID, v.CallID)
-
-		warnKey := "anticall_warn:" + callerJID.String()
-		rawWarn, _ := store.GetSetting(ctx, s, warnKey)
-		warnCount, _ := strconv.Atoi(rawWarn)
-		warnCount++
-		_ = store.PutSetting(ctx, s, warnKey, strconv.Itoa(warnCount))
-
-		rawMax, _ := store.GetSetting(ctx, s, "anticall_max_warn")
-		maxWarn, _ := strconv.Atoi(rawMax)
-		if maxWarn <= 0 {
-			maxWarn = 3
-		}
-
-		logger.Debug("anticall: caller warning updated", "caller", callerJID.String(), "warnCount", warnCount, "maxWarn", maxWarn)
-
-		if warnCount >= maxWarn {
-			warnText := whatsrook.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
-			formatted := whatsrook.FormatTextResponseRaw(warnText)
-			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
-			_, _ = cli.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock)
-			logger.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
-		} else {
-			warnText := whatsrook.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
-			formatted := whatsrook.FormatTextResponseRaw(warnText)
-			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
-		}
-	}
+// BotConfig encapsulates runtime configuration parameters parsed from the CLI interface.
+type BotConfig struct {
+	Session         string
+	Pair            bool
+	QRCode          bool
+	Logout          bool
+	ClientType      whatsrook.ClientType
+	Business        bool
+	Database        string
+	Verbose         bool
+	WSPort          int
+	AsyncMessageAck bool
 }
 
-func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
-	cli := b.client.WAClient()
-	if cli == nil || v == nil {
-		return
+// Bot orchestrates the core WhatsApp client, event dispatcher, and API/WebSocket lifecycle.
+type Bot struct {
+	cfg          BotConfig
+	client       *whatsrook.Client
+	groupManager *group.GroupManager
+	hub          *Hub
+	httpServer   *http.Server
+	listener     net.Listener
+	startupTime  time.Time
+	loggedOut    atomic.Bool
+	onLoggedOut  func()
+	mu           sync.Mutex
+}
+
+// NewBot constructs and initializes a new Bot lifecycle manager.
+func NewBot(cfg BotConfig) *Bot {
+	b := &Bot{
+		cfg:          cfg,
+		groupManager: group.NewGroupManager(),
+		startupTime:  time.Now(),
+	}
+	dispatch.SetStartupTime(b.startupTime)
+	return b
+}
+
+// Start boots the WhatsApp client, initializes the WebSocket API server, and enters the event loop.
+func (b *Bot) Start(ctx context.Context) error {
+	if b.cfg.Session == "" {
+		return errors.New("session phone number is required")
 	}
 
-	logger.Debug("likestatus: received status message event",
-		"msgID", v.Info.ID,
-		"sender", v.Info.Sender.String(),
-		"chat", v.Info.Chat.String(),
-		"timestamp", v.Info.Timestamp,
-	)
+	client := whatsrook.NewClient(whatsrook.Config{
+		Session:    b.cfg.Session,
+		DataDir:    whatsrook.DefaultDataDir(),
+		Database:   b.cfg.Database,
+		ClientType: b.cfg.ClientType,
+		Business:   b.cfg.Business,
+		Verbose:    b.cfg.Verbose,
+	})
 
-	if !v.Info.Timestamp.IsZero() && v.Info.Timestamp.Before(b.startupTime.Add(-2*time.Minute)) {
-		logger.Debug("likestatus: skipping stale status broadcast before startup",
-			"msgID", v.Info.ID,
-			"timestamp", v.Info.Timestamp,
-		)
-		return
+	b.mu.Lock()
+	b.client = client
+	b.mu.Unlock()
+
+	hub := newHub()
+	b.mu.Lock()
+	b.hub = hub
+	b.mu.Unlock()
+
+	unsubLog := logger.AddHook(func(entry logger.LogEntry) {
+		hub.Broadcast(EventMessage{
+			Kind:    EventLog,
+			Payload: entry,
+		})
+	})
+	defer unsubLog()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", hub.ServeWS(false))
+
+	// Bind to port :0 to allow the OS to allocate a dynamic ephemeral port
+	bindAddr := ":0"
+	if b.cfg.WSPort > 0 {
+		bindAddr = fmt.Sprintf(":%d", b.cfg.WSPort)
 	}
 
-	s, ok := cli.Store.Identities.(*sqlstore.SQLStore)
-	if !ok {
-		return
-	}
-
-	senderJID := v.Info.Sender
-	if senderJID.IsEmpty() {
-		senderJID = v.Info.Chat
-	}
-
-	statusView, _ := store.GetSetting(ctx, s, "autoread_status_view")
-	generalRead, _ := store.GetSetting(ctx, s, "autoread_status")
-	if statusView == "on" || (generalRead == "on" && statusView != "off") {
-		_ = cli.MarkRead(ctx, []types.MessageID{v.Info.ID}, v.Info.Timestamp, types.StatusBroadcastJID, senderJID)
-		logger.Debug("autoread: marked status broadcast as read", "msgID", v.Info.ID, "sender", senderJID.String())
-	}
-
-	statusSave, _ := store.GetSetting(ctx, s, "autostatussave")
-	if statusSave == "on" && cli.Store != nil && cli.Store.ID != nil {
-		ownerJID := cli.Store.ID.ToNonAD()
-		_, errSave := cli.SendMessage(ctx, ownerJID, v.Message)
-		if errSave != nil {
-			logger.Error("autostatussave: failed to forward status broadcast to owner", "err", errSave, "msgID", v.Info.ID)
-		} else {
-			logger.Debug("autostatussave: forwarded status broadcast to owner", "owner", ownerJID.String(), "msgID", v.Info.ID)
-		}
-	}
-
-	status, _ := store.GetSetting(ctx, s, "likestatus_status")
-	if status != "on" {
-		logger.Debug("likestatus: feature disabled, skipping auto-reaction", "status", status)
-		return
-	}
-
-	loveEmojis := []string{"❤️", "💕", "💖", "💗", "💓", "💞", "💘", "💌", "🥰", "😍"}
-	emoji := loveEmojis[rand.Intn(len(loveEmojis))]
-
-	reaction := &waE2E.Message{
-		ReactionMessage: &waE2E.ReactionMessage{
-			Key: &waCommon.MessageKey{
-				RemoteJID:   new(v.Info.Chat.String()),
-				FromMe:      new(v.Info.IsFromMe),
-				ID:          new(v.Info.ID),
-				Participant: new(senderJID.String()),
-			},
-			Text:              new(emoji),
-			SenderTimestampMS: new(time.Now().UnixMilli()),
-		},
-	}
-
-	_, err := cli.SendMessage(ctx, v.Info.Chat, reaction)
+	listener, err := net.Listen("tcp", bindAddr)
 	if err != nil {
-		logger.Error("likestatus: failed to react to status broadcast", "err", err, "msgID", v.Info.ID)
-	} else {
-		logger.Debug("likestatus: liked status broadcast", "emoji", emoji, "sender", senderJID.String(), "msgID", v.Info.ID)
-	}
-}
-
-func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
-	cli := b.client.WAClient()
-	if cli == nil || g == nil {
-		return
+		return fmt.Errorf("failed to bind API listener on %s: %w", bindAddr, err)
 	}
 
-	logger.Debug("handleGroupGreetings: received group info event",
-		"group", g.JID.String(),
-		"joins", len(g.Join),
-		"leaves", len(g.Leave),
-		"timestamp", g.Timestamp,
-	)
+	boundPort := listener.Addr().(*net.TCPAddr).Port
+	b.listener = listener
 
-	// Do not process group events that happened before the bot started (with 2m clock skew tolerance)
-	if !g.Timestamp.IsZero() && g.Timestamp.Before(b.startupTime.Add(-2*time.Minute)) {
-		logger.Debug("handleGroupGreetings: skipping stale group event before startup",
-			"group", g.JID.String(),
-			"timestamp", g.Timestamp,
-		)
-		return
-	}
+	server := &http.Server{Handler: mux}
+	b.httpServer = server
 
-	s, ok := cli.Store.Identities.(*sqlstore.SQLStore)
-	if !ok {
-		return
-	}
-
-	chatKey := g.JID.ToNonAD().String()
-
-	// Process joins (Welcome)
-	if len(g.Join) > 0 {
-		status, _ := store.GetSetting(ctx, s, "welcome_status:"+chatKey)
-		if status == "" {
-			status, _ = store.GetSetting(ctx, s, "welcome_status:"+g.JID.String())
+	go func() {
+		logger.Info("API and WebSocket server online", "port", boundPort, "session", b.cfg.Session, "addr", listener.Addr().String())
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("http server runtime error", "err", err)
 		}
-		logger.Debug("handleGroupGreetings: evaluating welcome greeting", "group", chatKey, "status", status, "joinCount", len(g.Join))
-		if status == "on" {
-			tag, _ := store.GetSetting(ctx, s, "welcome_tag:"+chatKey)
-			descOpt, _ := store.GetSetting(ctx, s, "welcome_desc:"+chatKey)
-			customMsg, _ := store.GetSetting(ctx, s, "welcome_msg:"+chatKey)
+	}()
 
-			info, err := cli.GetGroupInfo(ctx, g.JID)
-			groupName := "the group"
-			groupDesc := ""
-			memberCount := 0
-			adminCount := 0
-			ownerStr := ""
-			ownerJIDStr := ""
-			createdAtStr := ""
-			groupJIDStr := g.JID.String()
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+		if listener != nil {
+			_ = listener.Close()
+		}
+	}()
 
-			if err == nil && info != nil {
-				if info.Name != "" {
-					groupName = info.Name
-				}
-				groupDesc = info.Topic
-				memberCount = len(info.Participants)
-				for _, p := range info.Participants {
-					if p.IsAdmin || p.IsSuperAdmin {
-						adminCount++
-					}
-				}
-				if !info.OwnerJID.IsEmpty() {
-					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := whatsrook.ResolveMentionRaw(ctx, cli, info.OwnerJID)
-					ownerStr = "@" + ownerName
-				}
-				if !info.GroupCreated.IsZero() {
-					createdAtStr = info.GroupCreated.Format("2006-01-02")
-				}
+	for {
+		err := b.runSession(ctx)
+
+		if err == nil || errors.Is(err, context.Canceled) {
+			return nil
+		}
+
+		if errors.Is(err, whatsrook.ErrLoggedOut) || strings.Contains(err.Error(), "logged out") || b.loggedOut.Load() {
+			logger.Warn("logged out session detected; device record cleared from database")
+			b.loggedOut.Store(false)
+			return whatsrook.ErrLoggedOut
+		}
+
+		if errors.Is(err, whatsrook.ErrPairTimeout) {
+			logger.Error("session error", "err", "pairing timed out due to invalid remote response")
+			logger.Warn("session action", "warn", "clearing device record and regenerating pairing key")
+
+			b.mu.Lock()
+			cli := b.client
+			b.mu.Unlock()
+			if cli != nil {
+				cli.ClearSessionDB(ctx, "")
 			}
 
-			for _, participant := range g.Join {
-				resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, participant)
-				userTag := "@" + username
-				body := customMsg
-				if body == "" {
-					body = "Welcome " + userTag + " to " + groupName
-				} else {
-					body = strings.ReplaceAll(body, "{user}", userTag)
-					body = strings.ReplaceAll(body, "{user_id}", participant.User)
-					body = strings.ReplaceAll(body, "{phone}", participant.User)
-					body = strings.ReplaceAll(body, "{user_jid}", participant.String())
-
-					body = strings.ReplaceAll(body, "{group}", groupName)
-					body = strings.ReplaceAll(body, "{name}", groupName)
-					body = strings.ReplaceAll(body, "{group_jid}", groupJIDStr)
-					body = strings.ReplaceAll(body, "{jid}", groupJIDStr)
-
-					body = strings.ReplaceAll(body, "{desc}", groupDesc)
-					body = strings.ReplaceAll(body, "{topic}", groupDesc)
-
-					body = strings.ReplaceAll(body, "{members}", strconv.Itoa(memberCount))
-					body = strings.ReplaceAll(body, "{count}", strconv.Itoa(memberCount))
-					body = strings.ReplaceAll(body, "{admins}", strconv.Itoa(adminCount))
-					body = strings.ReplaceAll(body, "{admin_count}", strconv.Itoa(adminCount))
-
-					body = strings.ReplaceAll(body, "{owner}", ownerStr)
-					body = strings.ReplaceAll(body, "{creator}", ownerStr)
-
-					body = strings.ReplaceAll(body, "{created_at}", createdAtStr)
-				}
-
-				if descOpt == "on" && groupDesc != "" && !strings.Contains(customMsg, "{desc}") && !strings.Contains(customMsg, "{topic}") {
-					body += "\n\nGroup Description:\n" + groupDesc
-				}
-
-				formatted := whatsrook.FormatTextResponseRaw(body)
-				var mentions []string
-				if tag == "on" || tag == "" {
-					for _, j := range resolvedJIDs {
-						if !j.IsEmpty() {
-							mentions = append(mentions, j.String())
-						}
-					}
-				}
-				if ownerJIDStr != "" && (strings.Contains(customMsg, "{owner}") || strings.Contains(customMsg, "{creator}")) {
-					mentions = append(mentions, ownerJIDStr)
-				}
-
-				msg := &waE2E.Message{
-					ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-						Text: &formatted,
-						ContextInfo: &waE2E.ContextInfo{
-							MentionedJID: mentions,
-						},
-					},
-				}
-
-				logger.Debug("handleGroupGreetings: sending welcome greeting message", "group", g.JID.String(), "participant", participant.String(), "username", username)
-				resp, errSend := cli.SendMessage(ctx, g.JID, msg)
-				if errSend != nil {
-					logger.Error("handleGroupGreetings: failed to send welcome greeting", "group", g.JID.String(), "user", participant.String(), "err", errSend)
-				} else {
-					logger.Debug("handleGroupGreetings: welcome greeting sent successfully", "group", g.JID.String(), "msg_id", resp.ID, "user", username)
+			for i := 10; i > 0; i-- {
+				fmt.Printf("\r  Retrying in %2ds…", i)
+				select {
+				case <-time.After(time.Second):
+				case <-ctx.Done():
+					fmt.Println()
+					return nil
 				}
 			}
-		}
-	}
-
-	// Process leaves (Goodbye)
-	if len(g.Leave) > 0 {
-		status, _ := store.GetSetting(ctx, s, "goodbye_status:"+chatKey)
-		if status == "" {
-			status, _ = store.GetSetting(ctx, s, "goodbye_status:"+g.JID.String())
-		}
-		logger.Debug("handleGroupGreetings: evaluating goodbye greeting", "group", chatKey, "status", status, "leaveCount", len(g.Leave))
-		if status == "on" {
-			tag, _ := store.GetSetting(ctx, s, "goodbye_tag:"+chatKey)
-			descOpt, _ := store.GetSetting(ctx, s, "goodbye_desc:"+chatKey)
-			customMsg, _ := store.GetSetting(ctx, s, "goodbye_msg:"+chatKey)
-
-			info, err := cli.GetGroupInfo(ctx, g.JID)
-			groupName := "the group"
-			groupDesc := ""
-			memberCount := 0
-			adminCount := 0
-			ownerStr := ""
-			ownerJIDStr := ""
-			createdAtStr := ""
-			groupJIDStr := g.JID.String()
-
-			if err == nil && info != nil {
-				if info.Name != "" {
-					groupName = info.Name
-				}
-				groupDesc = info.Topic
-				memberCount = len(info.Participants)
-				for _, p := range info.Participants {
-					if p.IsAdmin || p.IsSuperAdmin {
-						adminCount++
-					}
-				}
-				if !info.OwnerJID.IsEmpty() {
-					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := whatsrook.ResolveMentionRaw(ctx, cli, info.OwnerJID)
-					ownerStr = "@" + ownerName
-				}
-				if !info.GroupCreated.IsZero() {
-					createdAtStr = info.GroupCreated.Format("2006-01-02")
-				}
-			}
-
-			for _, participant := range g.Leave {
-				if g.Sender != nil && !g.Sender.IsEmpty() && *g.Sender != participant {
-					logger.Debug("handleGroupGreetings: skipping goodbye for kicked participant", "group", g.JID.String(), "participant", participant.String(), "actor", g.Sender.String())
-					continue
-				}
-
-				resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, participant)
-				userTag := "@" + username
-				body := customMsg
-				if body == "" {
-					body = "Goodbye " + userTag + " from " + groupName
-				} else {
-					body = strings.ReplaceAll(body, "{user}", userTag)
-					body = strings.ReplaceAll(body, "{user_id}", participant.User)
-					body = strings.ReplaceAll(body, "{phone}", participant.User)
-					body = strings.ReplaceAll(body, "{user_jid}", participant.String())
-
-					body = strings.ReplaceAll(body, "{group}", groupName)
-					body = strings.ReplaceAll(body, "{name}", groupName)
-					body = strings.ReplaceAll(body, "{group_jid}", groupJIDStr)
-					body = strings.ReplaceAll(body, "{jid}", groupJIDStr)
-
-					body = strings.ReplaceAll(body, "{desc}", groupDesc)
-					body = strings.ReplaceAll(body, "{topic}", groupDesc)
-
-					body = strings.ReplaceAll(body, "{members}", strconv.Itoa(memberCount))
-					body = strings.ReplaceAll(body, "{count}", strconv.Itoa(memberCount))
-					body = strings.ReplaceAll(body, "{admins}", strconv.Itoa(adminCount))
-					body = strings.ReplaceAll(body, "{admin_count}", strconv.Itoa(adminCount))
-
-					body = strings.ReplaceAll(body, "{owner}", ownerStr)
-					body = strings.ReplaceAll(body, "{creator}", ownerStr)
-
-					body = strings.ReplaceAll(body, "{created_at}", createdAtStr)
-				}
-
-				if descOpt == "on" && groupDesc != "" && !strings.Contains(customMsg, "{desc}") && !strings.Contains(customMsg, "{topic}") {
-					body += "\n\nGroup Description:\n" + groupDesc
-				}
-
-				formatted := whatsrook.FormatTextResponseRaw(body)
-				var mentions []string
-				if tag == "on" || tag == "" {
-					for _, j := range resolvedJIDs {
-						if !j.IsEmpty() {
-							mentions = append(mentions, j.String())
-						}
-					}
-				}
-				if ownerJIDStr != "" && (strings.Contains(customMsg, "{owner}") || strings.Contains(customMsg, "{creator}")) {
-					mentions = append(mentions, ownerJIDStr)
-				}
-
-				msg := &waE2E.Message{
-					ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-						Text: &formatted,
-						ContextInfo: &waE2E.ContextInfo{
-							MentionedJID: mentions,
-						},
-					},
-				}
-
-				logger.Debug("handleGroupGreetings: sending goodbye greeting message", "group", g.JID.String(), "participant", participant.String(), "username", username)
-				resp, errSend := cli.SendMessage(ctx, g.JID, msg)
-				if errSend != nil {
-					logger.Error("handleGroupGreetings: failed to send goodbye greeting", "group", g.JID.String(), "user", participant.String(), "err", errSend)
-				} else {
-					logger.Debug("handleGroupGreetings: goodbye greeting sent successfully", "group", g.JID.String(), "msg_id", resp.ID, "user", username)
-				}
-			}
-		}
-	}
-}
-
-func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.GroupInfo) {
-	cli := b.client.WAClient()
-	if cli == nil || g == nil {
-		return
-	}
-
-	logger.Debug("handleGroupEventsNotification: received group info event",
-		"group", g.JID.String(),
-		"timestamp", g.Timestamp,
-	)
-
-	// Do not process group events that happened before the bot started (with 2m clock skew tolerance)
-	if !g.Timestamp.IsZero() && g.Timestamp.Before(b.startupTime.Add(-2*time.Minute)) {
-		logger.Debug("handleGroupEventsNotification: skipping stale group event notification before startup",
-			"group", g.JID.String(),
-			"timestamp", g.Timestamp,
-		)
-		return
-	}
-
-	s, ok := cli.Store.Identities.(*sqlstore.SQLStore)
-	if !ok {
-		return
-	}
-
-	chatKey := g.JID.ToNonAD().String()
-	status, _ := store.GetSetting(ctx, s, "events_status:"+chatKey)
-	if status == "" {
-		status, _ = store.GetSetting(ctx, s, "events_status:"+g.JID.String())
-	}
-	if status != "on" {
-		logger.Debug("handleGroupEventsNotification: event notifications disabled for group", "group", chatKey, "status", status)
-		return
-	}
-
-	var actorTag string
-	var actorJID *types.JID
-	if g.Sender != nil && !g.Sender.IsEmpty() {
-		actorJID = g.Sender
-		_, actorName := whatsrook.ResolveMentionRaw(ctx, cli, *g.Sender)
-		actorTag = " by @" + actorName
-	}
-
-	// 1. Group Subject / Name Changed
-	if g.Name != nil && g.Name.Name != "" {
-		logger.Debug("handleGroupEventsNotification: group name changed", "group", chatKey, "newName", g.Name.Name, "actor", actorTag)
-		msgText := whatsrook.Sprintf("*Group Event*: Group name changed to *%s*%s.", g.Name.Name, actorTag)
-		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
-	}
-
-	// 2. Group Description / Topic Changed
-	if g.Topic != nil && g.Topic.Topic != "" {
-		logger.Debug("handleGroupEventsNotification: group topic changed", "group", chatKey, "actor", actorTag)
-		msgText := whatsrook.Sprintf("*Group Event*: Group description updated%s:\n%s", actorTag, g.Topic.Topic)
-		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
-	}
-
-	// 3. Announce Mute / Unmute
-	if g.Announce != nil {
-		logger.Debug("handleGroupEventsNotification: group announce changed", "group", chatKey, "isAnnounce", g.Announce.IsAnnounce, "actor", actorTag)
-		if g.Announce.IsAnnounce {
-			msgText := whatsrook.Sprintf("*Group Event*: Group settings updated%s. Only admins can send messages now.", actorTag)
-			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
-		} else {
-			msgText := whatsrook.Sprintf("*Group Event*: Group settings updated%s. All members can send messages now.", actorTag)
-			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
-		}
-	}
-
-	// 4. Locked / Unlocked
-	if g.Locked != nil {
-		logger.Debug("handleGroupEventsNotification: group lock changed", "group", chatKey, "isLocked", g.Locked.IsLocked, "actor", actorTag)
-		if g.Locked.IsLocked {
-			msgText := whatsrook.Sprintf("*Group Event*: Group settings locked%s. Only admins can edit group info.", actorTag)
-			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
-		} else {
-			msgText := whatsrook.Sprintf("*Group Event*: Group settings unlocked%s. All members can edit group info.", actorTag)
-			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
-		}
-	}
-
-	// 5. Admin Promotions
-	if len(g.Promote) > 0 {
-		for _, userJID := range g.Promote {
-			resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, userJID)
-			logger.Debug("handleGroupEventsNotification: participant promoted to admin", "group", chatKey, "user", username, "actor", actorTag)
-			msgText := whatsrook.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
-			mentions := resolvedJIDs
-			if actorJID != nil && !actorJID.IsEmpty() {
-				mentions = append(mentions, *actorJID)
-			}
-			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, mentions)
-		}
-	}
-
-	// 6. Admin Demotions
-	if len(g.Demote) > 0 {
-		for _, userJID := range g.Demote {
-			resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, userJID)
-			logger.Debug("handleGroupEventsNotification: admin demoted to member", "group", chatKey, "user", username, "actor", actorTag)
-			msgText := whatsrook.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
-			mentions := resolvedJIDs
-			if actorJID != nil && !actorJID.IsEmpty() {
-				mentions = append(mentions, *actorJID)
-			}
-			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, mentions)
-		}
-	}
-
-	// 7. Member Add Mode
-	if g.MemberAddMode != nil {
-		logger.Debug("handleGroupEventsNotification: member add mode changed", "group", chatKey, "mode", *g.MemberAddMode, "actor", actorTag)
-		var msgText string
-		if *g.MemberAddMode == types.GroupMemberAddModeAdmin {
-			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. Only admins can add members.", actorTag)
-		} else {
-			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. All members can add members.", actorTag)
-		}
-		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
-	}
-
-	// 8. Member Link Mode
-	if g.MemberLinkMode != nil {
-		logger.Debug("handleGroupEventsNotification: member link mode changed", "group", chatKey, "mode", *g.MemberLinkMode, "actor", actorTag)
-		var msgText string
-		if *g.MemberLinkMode == types.GroupMemberLinkModeAdmin {
-			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. Only admins can manage invite links.", actorTag)
-		} else {
-			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. All members can manage invite links.", actorTag)
-		}
-		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
-	}
-
-	// 9. Member Share History Mode
-	if g.MemberShareHistoryMode != nil {
-		logger.Debug("handleGroupEventsNotification: member share history mode changed", "group", chatKey, "mode", *g.MemberShareHistoryMode, "actor", actorTag)
-		var msgText string
-		if *g.MemberShareHistoryMode == types.GroupMemberShareHistoryModeAdmin {
-			msgText = whatsrook.Sprintf("*Group Event*: Group history sharing updated%s. Only admins can share group history.", actorTag)
-		} else {
-			msgText = whatsrook.Sprintf("*Group Event*: Group history sharing updated%s. Recent history is shared with new members.", actorTag)
-		}
-		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
-	}
-
-	// 10. Allow Non-Admin Subgroup Creation (Community)
-	if g.AllowNonAdminSubGroupCreation != nil {
-		logger.Debug("handleGroupEventsNotification: allow non-admin subgroup creation changed", "group", chatKey, "allow", *g.AllowNonAdminSubGroupCreation, "actor", actorTag)
-		var msgText string
-		if *g.AllowNonAdminSubGroupCreation {
-			msgText = whatsrook.Sprintf("*Group Event*: Community settings updated%s. All members can create sub-groups now.", actorTag)
-		} else {
-			msgText = whatsrook.Sprintf("*Group Event*: Community settings updated%s. Only admins can create sub-groups now.", actorTag)
-		}
-		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
-	}
-}
-
-func (b *Bot) sendGroupEventMessage(ctx context.Context, chatJID types.JID, text string, actor *types.JID) {
-	var mentions []types.JID
-	if actor != nil && !actor.IsEmpty() {
-		mentions = append(mentions, *actor)
-	}
-	b.sendGroupEventMessageWithMentions(ctx, chatJID, text, mentions)
-}
-
-func (b *Bot) sendGroupEventMessageWithMentions(ctx context.Context, chatJID types.JID, text string, targetMentions []types.JID) {
-	cli := b.client.WAClient()
-	if cli == nil {
-		return
-	}
-	logger.Debug("sendGroupEventMessageWithMentions: sending event message", "group", chatJID.String(), "mentionsCount", len(targetMentions))
-	formatted := whatsrook.FormatTextResponseRaw(text)
-	var mentions []string
-	for _, m := range targetMentions {
-		if !m.IsEmpty() {
-			mentions = append(mentions, m.String())
-		}
-	}
-
-	msg := &waE2E.Message{
-		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-			Text: &formatted,
-			ContextInfo: &waE2E.ContextInfo{
-				MentionedJID: mentions,
-			},
-		},
-	}
-	if resp, err := cli.SendMessage(ctx, chatJID, msg); err != nil {
-		logger.Error("sendGroupEventMessageWithMentions: failed to send message", "group", chatJID.String(), "err", err)
-	} else {
-		logger.Debug("sendGroupEventMessageWithMentions: message sent successfully", "group", chatJID.String(), "msg_id", resp.ID)
-	}
-}
-
-func formatTimeoutStr(sec int) string {
-	if sec <= 0 {
-		return "2 mins"
-	}
-	if sec%60 == 0 {
-		mins := sec / 60
-		if mins == 1 {
-			return "1 min"
-		}
-		return whatsrook.Sprintf("%d mins", mins)
-	}
-	return whatsrook.Sprintf("%d seconds", sec)
-}
-
-func (b *Bot) handleGroupCaptcha(ctx context.Context, g *events.GroupInfo) {
-	if g == nil {
-		return
-	}
-
-	logger.Debug("handleGroupCaptcha: received group info event",
-		"group", g.JID.String(),
-		"joins", len(g.Join),
-		"leaves", len(g.Leave),
-		"promotes", len(g.Promote),
-		"timestamp", g.Timestamp,
-	)
-
-	// Do not process group events that happened before the bot started (with 2m clock skew tolerance)
-	if !g.Timestamp.IsZero() && g.Timestamp.Before(b.startupTime.Add(-2*time.Minute)) {
-		logger.Debug("handleGroupCaptcha: skipping stale group event before startup",
-			"group", g.JID.String(),
-			"timestamp", g.Timestamp,
-		)
-		return
-	}
-
-	cli := b.client.WAClient()
-
-	// Cancel pending captcha and delete verification message if participant left or was removed
-	if len(g.Leave) > 0 {
-		for _, participant := range g.Leave {
-			if pending, ok := group.RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
-				logger.Debug("handleGroupCaptcha: cancelled pending captcha for leaving participant", "group", g.JID.String(), "user", participant.String())
-				if cli != nil && pending.MsgID != "" {
-					_, _ = cli.SendMessage(ctx, g.JID, cli.BuildRevoke(g.JID, types.EmptyJID, pending.MsgID))
-				}
-			}
-		}
-	}
-	// Cancel pending captcha and delete verification message if participant was promoted to admin
-	if len(g.Promote) > 0 {
-		for _, participant := range g.Promote {
-			if pending, ok := group.RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
-				logger.Debug("handleGroupCaptcha: cancelled pending captcha for promoted admin", "group", g.JID.String(), "user", participant.String())
-				if cli != nil && pending.MsgID != "" {
-					_, _ = cli.SendMessage(ctx, g.JID, cli.BuildRevoke(g.JID, types.EmptyJID, pending.MsgID))
-				}
-			}
-		}
-	}
-	if len(g.Join) == 0 {
-		logger.Debug("handleGroupCaptcha: no joins present in event", "group", g.JID.String())
-		return
-	}
-
-	go b.processGroupCaptchaJoins(g)
-}
-
-func (b *Bot) processGroupCaptchaJoins(g *events.GroupInfo) {
-	ctx := context.Background()
-	cli := b.client.WAClient()
-	if cli == nil {
-		return
-	}
-	s, ok := cli.Store.Identities.(*sqlstore.SQLStore)
-	if !ok {
-		return
-	}
-
-	chatKey := g.JID.ToNonAD().String()
-	status, _ := store.GetSetting(ctx, s, "captcha_status:"+chatKey)
-	if status == "" {
-		status, _ = store.GetSetting(ctx, s, "captcha_status:"+g.JID.String())
-	}
-	logger.Debug("processGroupCaptchaJoins: checking captcha status for group", "group", chatKey, "status", status, "joinCount", len(g.Join))
-	if status != "on" {
-		logger.Debug("processGroupCaptchaJoins: captcha is disabled for group", "group", chatKey)
-		return
-	}
-
-	info, err := cli.GetGroupInfo(ctx, g.JID)
-	if err != nil || info == nil {
-		logger.Warn("processGroupCaptchaJoins: failed to retrieve group info", "group", chatKey, "err", err)
-		return
-	}
-
-	// This plugin should only work if this bot is an admin
-	if !whatsrook.IsBotAdminRaw(ctx, cli, info) {
-		logger.Warn("handleGroupCaptcha: bot is not an admin in group, skipping captcha verification", "group", chatKey)
-		return
-	}
-
-	// If group only allows admins to send messages, no need for verification
-	if info.IsAnnounce {
-		logger.Debug("handleGroupCaptcha: group is announce-only, skipping captcha verification", "group", chatKey)
-		return
-	}
-
-	groupName := g.JID.String()
-	if info.Name != "" {
-		groupName = info.Name
-	}
-
-	// Timeout setting (default 120s / 2 mins)
-	timeoutSec := 120
-	if rawTime, _ := store.GetSetting(ctx, s, "captcha_time:"+chatKey); rawTime != "" {
-		if t, err := strconv.Atoi(rawTime); err == nil && t >= 10 {
-			timeoutSec = t
-		}
-	} else if rawTime, _ := store.GetSetting(ctx, s, "captcha_time:"+g.JID.String()); rawTime != "" {
-		if t, err := strconv.Atoi(rawTime); err == nil && t >= 10 {
-			timeoutSec = t
-		}
-	}
-	timeoutDisplay := formatTimeoutStr(timeoutSec)
-
-	for _, participant := range g.Join {
-		// Skip if participant is the bot itself
-		if whatsrook.IsSameUserRaw(ctx, cli, participant, *cli.Store.ID) {
-			logger.Debug("processGroupCaptchaJoins: skipping bot participant", "group", chatKey, "user", participant.String())
+			fmt.Println("\r  Retrying now…         ")
 			continue
 		}
 
-		resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, participant)
-		resolvedJID := participant.ToNonAD()
-		if len(resolvedJIDs) > 0 {
-			resolvedJID = resolvedJIDs[0]
+		return fmt.Errorf("session encountered unrecoverable error: %w", err)
+	}
+}
+
+func (b *Bot) runSession(ctx context.Context) error {
+	sessionCtx, sessionCancel := context.WithCancel(ctx)
+	defer sessionCancel()
+
+	b.mu.Lock()
+	b.onLoggedOut = func() {
+		sessionCancel()
+	}
+	b.mu.Unlock()
+
+	defer func() {
+		b.mu.Lock()
+		b.onLoggedOut = nil
+		b.mu.Unlock()
+		group.StopAutoMuteScheduler()
+		settings.StopAutoBioScheduler()
+		_ = b.client.Close()
+	}()
+
+	if err := b.client.InitSession(sessionCtx); err != nil {
+		return err
+	}
+
+	cli := b.client.WAClient()
+	if cli == nil {
+		return errors.New("failed to initialize wa-core client")
+	}
+
+	if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok && s != nil {
+		store.InitTables(sessionCtx, s)
+		if val, err := store.GetSetting(sessionCtx, s, settings.BotNamePromptDismissedKey); err == nil && val == "true" {
+			settings.BotNamePromptDismissedCacheMu.Lock()
+			settings.BotNamePromptDismissedCache[s.JID] = true
+			if cli.Store != nil && cli.Store.ID != nil {
+				settings.BotNamePromptDismissedCache[cli.Store.ID.ToNonAD().String()] = true
+			}
+			settings.BotNamePromptDismissedCacheMu.Unlock()
 		}
+	}
 
-		// Generate random 4-digit code
-		codeInt, err := generateVerificationCode()
-		if err != nil {
-			logger.Error("Captcha number verification failed:%v", err)
-		}
-		code := whatsrook.Sprintf("%04d", codeInt)
+	_ = b.groupManager.LoadFromDB(sessionCtx, cli)
+	calls.RegisterWACaller(cli)
 
-		logger.Debug("processGroupCaptchaJoins: registering pending captcha challenge",
-			"group", chatKey,
-			"user", participant.String(),
-			"username", username,
-			"code", code,
-			"timeoutSec", timeoutSec,
-		)
+	// Explicit session logout routine
+	if b.cfg.Logout {
+		logger.Info("initiating session logout", "session", b.cfg.Session)
 
-		// Register pending captcha with timeout kick callback
-		partCopy := participant
-		resolvedCopy := resolvedJID
-		userCopy := username
-		group.RegisterPendingCaptcha(
-			g.JID,
-			partCopy,
-			resolvedCopy,
-			userCopy,
-			code,
-			time.Duration(timeoutSec)*time.Second,
-			func() {
-				logger.Debug("processGroupCaptchaJoins: captcha timeout triggered for user", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
-				// Timeout reached, kick user
-				currentInfo, gErr := cli.GetGroupInfo(context.Background(), g.JID)
-				if gErr != nil || currentInfo == nil {
-					logger.Warn("processGroupCaptchaJoins: failed to get group info during timeout kick", "group", g.JID.String(), "err", gErr)
-					return
+		if cli.Store.ID == nil {
+			logger.Info("session was never paired; skipping server-side revocation")
+		} else {
+			connected := make(chan struct{}, 1)
+			cli.AddEventHandler(func(evt any) {
+				if _, ok := evt.(*events.Connected); ok {
+					select {
+					case connected <- struct{}{}:
+					default:
+					}
 				}
-				if !whatsrook.IsBotAdminRaw(context.Background(), cli, currentInfo) {
-					logger.Warn("handleGroupCaptcha: bot is no longer admin to kick unverified participant", "group", g.JID.String(), "user", partCopy.String())
-					return
-				}
-				// Don't attempt to kick admins/creators if they didn't verify
-				if whatsrook.IsAdminRaw(context.Background(), cli, currentInfo, partCopy) {
-					logger.Warn("handleGroupCaptcha: unverified participant is an admin or creator, skipping kick", "group", g.JID.String(), "user", partCopy.String())
-					return
-				}
+			})
 
-				_, kErr := cli.UpdateGroupParticipants(context.Background(), g.JID, []types.JID{partCopy}, whatsmeow.ParticipantChangeRemove)
-				if kErr != nil {
-					logger.Error("handleGroupCaptcha: failed to kick unverified participant", "user", partCopy.String(), "err", kErr)
-					return
-				}
-
-				logger.Info("processGroupCaptchaJoins: unverified participant removed from group", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
-
-				kickTb := whatsrook.NewText()
-				kickTb.Linef("@%s was removed from the group for failing to complete the captcha verification within %s.", userCopy, timeoutDisplay)
-				b.sendGroupEventMessageWithMentions(context.Background(), g.JID, kickTb.Trimmed(), []types.JID{resolvedCopy})
-			},
-		)
-
-		// Generate 8-second captcha video using external captcha plugin
-		logger.Debug("processGroupCaptchaJoins: generating animated captcha video", "group", chatKey, "user", username, "code", code)
-		vidBytes, errGen := b.generateCaptchaVideo(ctx, code)
-
-		var mediaUploaded *whatsmeow.UploadResponse
-		if errGen == nil && len(vidBytes) > 0 {
-			logger.Debug("processGroupCaptchaJoins: uploading animated captcha video", "group", chatKey, "bytes", len(vidBytes))
-			uploaded, errUp := cli.Upload(ctx, vidBytes, whatsmeow.MediaVideo)
-			if errUp == nil {
-				mediaUploaded = &uploaded
-				logger.Debug("processGroupCaptchaJoins: captcha video uploaded successfully", "group", chatKey, "url", uploaded.URL)
+			if err := cli.Connect(); err != nil {
+				logger.Warn("Socket connection failed prior to logout; purging local device state only", "err", err)
 			} else {
-				logger.Error("handleGroupCaptcha: video upload failed", "err", errUp)
+				logoutCtx, logoutCancel := context.WithTimeout(sessionCtx, 10*time.Second)
+				select {
+				case <-connected:
+					logger.Info("connected to WhatsApp routing servers; dispatching logout frame")
+				case <-logoutCtx.Done():
+					logger.Warn("connection timeout during logout sequence; forcing server revocation")
+				}
+				logoutCancel()
+
+				if err := cli.Logout(sessionCtx); err != nil {
+					logger.Warn("server logout command returned error", "err", err)
+				}
+				cli.Disconnect()
 			}
-		} else {
-			logger.Debug("handleGroupCaptcha: captcha video generation unavailable/failed", "err", errGen)
 		}
 
-		tbVid := whatsrook.NewText()
-		tbVid.Linef("Welcome @%s! You are required to complete a verification code to join %s.", username, groupName)
-		tbVid.Linef("Please watch the video and reply with the 4-digit verification code within %s, otherwise you will be automatically removed.", timeoutDisplay)
-		formattedCaption := tbVid.Trimmed()
+		b.client.ClearSessionDB(sessionCtx, b.cfg.Session)
+		logger.Info("session credentials and records purged successfully", "session", b.cfg.Session)
+		return nil
+	}
 
-		// Send video message as gifplayback if generated successfully
-		if mediaUploaded != nil {
-			mimetype := "video/mp4"
-			vidLen := uint64(len(vidBytes))
-			vidMsg := &waE2E.Message{
-				VideoMessage: &waE2E.VideoMessage{
-					URL:           &mediaUploaded.URL,
-					DirectPath:    &mediaUploaded.DirectPath,
-					MediaKey:      mediaUploaded.MediaKey,
-					Mimetype:      &mimetype,
-					GifPlayback:   new(bool),
-					FileEncSHA256: mediaUploaded.FileEncSHA256,
-					FileSHA256:    mediaUploaded.FileSHA256,
-					FileLength:    &vidLen,
-					Caption:       &formattedCaption,
-					ContextInfo: &waE2E.ContextInfo{
-						MentionedJID: []string{resolvedJID.String()},
-					},
-				},
-			}
-			*vidMsg.VideoMessage.GifPlayback = true
-			logger.Debug("processGroupCaptchaJoins: sending video verification challenge", "group", chatKey, "user", username)
-			resp, errSend := cli.SendMessage(ctx, g.JID, vidMsg)
-			if errSend != nil {
-				logger.Error("handleGroupCaptcha: failed to send video verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
-			} else if resp.ID != "" {
-				group.SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
-				logger.Debug("handleGroupCaptcha: video verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
+	cli.AddEventHandler(func(evt any) {
+		b.WAEventHandler(evt)
+	})
+
+	if cli.Store.ID == nil {
+		if b.cfg.Pair {
+			if err := b.runPairCode(sessionCtx); err != nil {
+				return err
 			}
 		} else {
-			// Fallback to text verification prompt if video generation/upload fails
-			logger.Warn("handleGroupCaptcha: falling back to text verification prompt", "group", g.JID.String(), "user", partCopy.String())
-			tbFallback := whatsrook.NewText()
-			tbFallback.Header("Verification Required")
-			tbFallback.Linef("Welcome @%s! You are required to complete a verification code to join %s.", username, groupName)
-			tbFallback.Blank()
-			tbFallback.Linef("Your verification code is: *%s*", code)
-			tbFallback.Linef("Please reply with the 4-digit code (*%s*) within %s, otherwise you will be automatically removed.", code, timeoutDisplay)
-			tbFallback.Mentions(resolvedJID)
-			formattedFallback := whatsrook.FormatTextResponseRaw(tbFallback.Trimmed())
-			txtMsg := &waE2E.Message{
-				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-					Text: &formattedFallback,
-					ContextInfo: &waE2E.ContextInfo{
-						MentionedJID: []string{resolvedJID.String()},
-					},
-				},
+			go func() {
+				if err := b.runQR(sessionCtx); err != nil {
+					logger.Error("runQR execution error", "err", err)
+				}
+			}()
+		}
+	} else {
+		if err := cli.Connect(); err != nil {
+			if b.loggedOut.Load() || strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "logged out") {
+				logger.Warn("connect rejected due to expired authentication; clearing local device record", "err", err)
+				b.client.ClearSessionDB(sessionCtx, "")
+				return whatsrook.ErrLoggedOut
 			}
-			resp, errSend := cli.SendMessage(ctx, g.JID, txtMsg)
-			if errSend != nil {
-				logger.Error("handleGroupCaptcha: failed to send fallback text verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
-			} else if resp.ID != "" {
-				group.SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
-				logger.Debug("handleGroupCaptcha: fallback text verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
+			return err
+		}
+	}
+
+	if b.loggedOut.Load() {
+		logger.Warn("session revoked; clearing local device record")
+		b.client.ClearSessionDB(sessionCtx, "")
+		return whatsrook.ErrLoggedOut
+	}
+
+	if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok && s != nil {
+		group.StartAutoMuteScheduler(sessionCtx, cli)
+		settings.StartAutoBioScheduler(sessionCtx, cli)
+	}
+
+	go b.startPresenceHeartbeat(sessionCtx, cli)
+
+	for {
+		select {
+		case <-sessionCtx.Done():
+			if b.loggedOut.Load() {
+				logger.Warn("session terminated during runtime; purging device record")
+				b.client.ClearSessionDB(ctx, "")
+				return whatsrook.ErrLoggedOut
 			}
+			return nil
+		case ctrl := <-b.hub.Control:
+			ack := b.Controller(sessionCtx, ctrl)
+			b.hub.Broadcast(ack)
+		}
+		if b.loggedOut.Load() {
+			logger.Warn("session terminated during runtime; purging device record")
+			b.client.ClearSessionDB(ctx, "")
+			return whatsrook.ErrLoggedOut
 		}
 	}
 }
 
-// generateCaptchaVideo attempts to generate an animated verification video using the external captcha plugin binary.
-func (b *Bot) generateCaptchaVideo(ctx context.Context, code string) ([]byte, error) {
-	pluginPath, err := external.DefaultDispatcher.PluginPath("captcha")
-	if err != nil {
-		return nil, fmt.Errorf("captcha plugin resolution: %w", err)
+func (b *Bot) GetStatsPayload(ctx context.Context) StatsPayload {
+	var connected bool
+	var loggedIn bool
+	var jidStr *string
+	var pushName *string
+	var botName *string
+	defaultPrefix := "."
+	prefix := &defaultPrefix
+	var mode *string
+	var dbContactsCount uint32
+	var dbDriver string = "postgres"
+	if b.client != nil && b.client.Config.Database != "" {
+		dbDriver = b.client.Config.Database
 	}
-	if _, err := os.Stat(pluginPath); err != nil {
-		return nil, fmt.Errorf("captcha plugin binary not found: %w", err)
+	var anticallEnabled bool
+	var likestatusEnabled bool
+	var sudoersCount uint32
+
+	cli := b.client.WAClient()
+	if cli != nil {
+		connected = cli.IsConnected()
+		loggedIn = cli.IsLoggedIn()
+
+		if cli.Store != nil && cli.Store.ID != nil {
+			str := cli.Store.ID.String()
+			jidStr = &str
+			if cli.Store.PushName != "" {
+				pn := cli.Store.PushName
+				pushName = &pn
+			}
+		}
+
+		if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok {
+			if contacts, err := s.GetAllContacts(ctx); err == nil {
+				dbContactsCount = uint32(len(contacts))
+			}
+
+			if bn, err := store.GetSetting(ctx, s, settings.BotNameSettingKey); err == nil && bn != "" {
+				botName = &bn
+			}
+			if p, err := store.GetSetting(ctx, s, settings.PrefixSettingKey); err == nil && p != "" {
+				prefix = &p
+			}
+			if m, err := store.GetSetting(ctx, s, "mode"); err == nil && m != "" {
+				mode = &m
+			}
+			if ac, err := store.GetSetting(ctx, s, "anticall_status"); err == nil && ac == "on" {
+				anticallEnabled = true
+			}
+			if ls, err := store.GetSetting(ctx, s, "likestatus_status"); err == nil && ls == "on" {
+				likestatusEnabled = true
+			}
+			if sudoRaw, err := store.GetSetting(ctx, s, "sudoers"); err == nil && sudoRaw != "" {
+				parts := strings.Fields(strings.ReplaceAll(sudoRaw, ",", " "))
+				sudoersCount = uint32(len(parts))
+			}
+		}
 	}
 
-	tmpFile, err := os.CreateTemp("", "captcha-out-*.mp4")
-	if err != nil {
-		return nil, fmt.Errorf("create temp video file: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-	tmpFile.Close()
-	defer os.Remove(tmpPath)
+	uptimeSec := int64(time.Since(b.startupTime).Seconds())
+	uptimeFmt := system.FormatDuration(time.Duration(uptimeSec) * time.Second)
 
-	cmd := exec.CommandContext(ctx, pluginPath, code, tmpPath)
-	cmd.Stderr = nil
-	cmd.Stdout = nil
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("execute captcha plugin: %w", err)
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	memUsed := ms.Alloc
+	memUsedFmt := whatsrook.FormatBytes(memUsed)
+
+	wsClients := uint32(0)
+	if b.hub != nil {
+		wsClients = uint32(b.hub.ConnectedClientsCount())
 	}
 
-	data, err := os.ReadFile(tmpPath)
+	activePlugins := uint32(dispatch.Count())
+
+	return StatsPayload{
+		Connected:           connected,
+		LoggedIn:            loggedIn,
+		JID:                 jidStr,
+		PushName:            pushName,
+		BotName:             botName,
+		Prefix:              prefix,
+		Mode:                mode,
+		UptimeSeconds:       uptimeSec,
+		UptimeFormatted:     uptimeFmt,
+		MemoryUsedBytes:     memUsed,
+		MemoryUsedFormatted: memUsedFmt,
+		MemorySysBytes:      ms.Sys,
+		ActivePluginsCount:  activePlugins,
+		ConnectedWSClients:  wsClients,
+		PlatformOS:          runtime.GOOS,
+		GoVersion:           runtime.Version(),
+		AppVersion:          updater.GetAppVersion(),
+		SessionPhone:        b.cfg.Session,
+		NetworkPaused:       false,
+		DBContactsCount:     dbContactsCount,
+		DBDriver:            dbDriver,
+		AnticallEnabled:     anticallEnabled,
+		LikestatusEnabled:   likestatusEnabled,
+		SudoersCount:        sudoersCount,
+	}
+}
+
+func (b *Bot) runPairCode(ctx context.Context) error {
+	code, err := b.client.PairPhone(ctx, b.cfg.Session)
 	if err != nil {
-		return nil, fmt.Errorf("read captcha video: %w", err)
+		return err
 	}
-	if len(data) == 0 {
-		return nil, fmt.Errorf("captcha plugin produced empty output")
+	logger.Debug("pair code issued", "code", code)
+	logger.Info(fmt.Sprintf("PAIR CODE: %s", code))
+	b.hub.Broadcast(EventMessage{
+		Kind:    EventPairCode,
+		Payload: PairCodePayload{Code: code},
+	})
+	return nil
+}
+
+func (b *Bot) runQR(ctx context.Context) error {
+	qrChan, err := b.client.QRChannel(ctx)
+	if err != nil {
+		return err
 	}
-	return data, nil
+
+	qrServer, err := qr.StartServer()
+	if err != nil {
+		logger.Warn("failed to start temporary qr server", "err", err)
+	} else {
+		defer func() {
+			_ = qrServer.Close()
+			logger.Debug("temporary qr server released", "port", qrServer.Port())
+		}()
+		logger.Info("temporary QR server started", "url", qrServer.URL())
+		if b.cfg.QRCode {
+			fmt.Printf("\n==> Scan QR Code interface via browser: %s\n\n", qrServer.URL())
+		}
+	}
+
+	cli := b.client.WAClient()
+	if cli != nil && !cli.IsConnected() {
+		if err := cli.Connect(); err != nil {
+			logger.Warn("failed to connect socket for QR streaming", "err", err)
+		}
+	}
+
+	for evt := range qrChan {
+		switch evt.Event {
+		case "code":
+			if qrServer != nil {
+				qrServer.UpdateCode(evt.Code)
+			}
+			if termQR := qr.RenderTerminal(evt.Code); termQR != "" {
+				fmt.Printf("\n%s\n", termQR)
+			}
+			b.hub.Broadcast(EventMessage{
+				Kind:    EventPairQR,
+				Payload: PairQRPayload{Code: evt.Code},
+			})
+		case "success":
+			if qrServer != nil {
+				qrServer.SetPaired()
+				time.Sleep(1 * time.Second)
+			}
+			logger.Info("QR code pairing successful, shutting down temporary QR server")
+			return nil
+		default:
+			logger.Debug("qr event dispatched", "event", evt.Event)
+		}
+	}
+
+	return nil
+}
+
+func (b *Bot) WAEventHandler(evt any) {
+	defer func() {
+		if r := recover(); r != nil {
+			crashPath := system.RecordCrash(r, fmt.Sprintf("WAEventHandler: %T", evt))
+			logger.Error("Panic recovered in WhatsApp event handler", "panic", r, "crash_log", crashPath)
+		}
+	}()
+
+	var cli *whatsmeow.Client
+	if b.client != nil {
+		cli = b.client.WAClient()
+	}
+
+	broadcast := func(msg EventMessage) {
+		if b.hub != nil {
+			b.hub.Broadcast(msg)
+		}
+	}
+
+	switch v := evt.(type) {
+	case *events.QR:
+		_ = v // QR frames handled directly via runQR channel loop
+
+	case *events.PairSuccess:
+		logger.Info("pairing completed successfully", "event", v)
+		broadcast(simpleEvent(EventPairSuccess))
+		// After QR pairing, WhatsApp drops the pairing socket via stream:error 516.
+		// PairSuccess fires while the socket is still alive, so we must wait for the
+		// disconnect before calling Connect() — whatsmeow does not emit events.Disconnected
+		// for expected pair-drops, so we poll IsConnected() with a short deadline instead.
+		go func() {
+			cli := b.client.WAClient()
+			if cli == nil {
+				return
+			}
+			deadline := time.Now().Add(5 * time.Second)
+			for time.Now().Before(deadline) {
+				if !cli.IsConnected() {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+			if err := cli.Connect(); err != nil {
+				logger.Error("failed to reconnect after QR pairing", "err", err)
+			}
+		}()
+
+	case *events.PairError:
+		logger.Warn("pairing procedure failed", "err", v.Error, "event", v)
+		broadcast(EventMessage{
+			Kind:    EventPairError,
+			Payload: PairErrorPayload{Reason: v.Error.Error()},
+		})
+
+	case *events.LoggedOut:
+		logger.Warn("device logged out by remote session", "reason", v.Reason, "event", v)
+		b.loggedOut.Store(true)
+		broadcast(simpleEvent(EventLoggedOut))
+		b.mu.Lock()
+		onLoggedOut := b.onLoggedOut
+		b.mu.Unlock()
+		if onLoggedOut != nil {
+			onLoggedOut()
+		}
+
+	case *events.Disconnected:
+		logger.Info("Socket connection disconnected", "event", v)
+		broadcast(simpleEvent(EventDisconnected))
+
+	case *events.Connected:
+		logger.Info("Socket connection established", "session", b.cfg.Session, "event", v)
+		broadcast(simpleEvent(EventConnected))
+		if cli != nil {
+			if len(cli.Store.PushName) == 0 {
+				cli.Store.PushName = "WhatsRook"
+			}
+			cli.SetForceActiveDeliveryReceipts(true)
+			if err := cli.SetPassive(context.Background(), false); err != nil {
+				logger.Warn("Failed to set browser active", "err", err)
+			}
+			if err := cli.SendPresence(context.Background(), types.PresenceAvailable); err != nil {
+				logger.Warn("Failed to send presence available", "err", err)
+			} else {
+				logger.Info("Client presence set to online and browser active")
+			}
+
+			go func() {
+				if err := b.groupManager.SyncAll(context.Background(), cli); err != nil {
+					logger.Warn("groupManager.SyncAll returned error", "err", err)
+				}
+			}()
+		}
+
+	case *events.Message:
+		logger.Debug("incoming message received", "event", v)
+		go func(v *events.Message) {
+			if v.Info.Chat.Server == "broadcast" || v.Info.Chat.String() == "status@broadcast" {
+				settings.HandleStatusBroadcast(context.Background(), cli, v, b.startupTime)
+			}
+
+			if !v.Info.Timestamp.IsZero() && v.Info.Timestamp.Before(b.startupTime) {
+				logger.Debug("events.Message: message sent before bot startup, ignoring commands",
+					"msgID", v.Info.ID,
+					"chat", v.Info.Chat.String(),
+					"sender", v.Info.Sender.String(),
+					"timestamp", v.Info.Timestamp,
+					"startupTime", b.startupTime,
+				)
+				if dispatch.Dispatch(context.Background(), cli, v) {
+					return
+				}
+				payload := buildIncomingMessagePayload(v)
+				b.hub.Broadcast(EventMessage{
+					Kind:    EventIncomingMessage,
+					Payload: payload,
+				})
+				return
+			}
+
+			if calls.HandlePendingAudioReply(context.Background(), cli, v) {
+				return
+			}
+			if info.HandlePendingMenuMediaReply(context.Background(), cli, v) {
+				return
+			}
+			if settings.HandlePendingBotCustomizationReply(context.Background(), cli, v) {
+				return
+			}
+			if group.HandlePendingCaptchaReply(context.Background(), cli, v) {
+				return
+			}
+
+			if dispatch.Dispatch(context.Background(), cli, v) {
+				return
+			}
+
+			payload := buildIncomingMessagePayload(v)
+			b.hub.Broadcast(EventMessage{
+				Kind:    EventIncomingMessage,
+				Payload: payload,
+			})
+		}(v)
+
+	case *events.Presence:
+		logger.Debug("presence update received", "event", v)
+		group.TrackPresence(v.From, !v.Unavailable)
+
+	case *events.ChatPresence:
+		logger.Debug("chat presence update received", "event", v)
+		group.TrackPresence(v.Sender, true)
+
+	case *events.Receipt:
+		if !v.Sender.IsEmpty() {
+			group.TrackPresence(v.Sender, true)
+		}
+
+	case *events.CallOffer:
+		logger.Debug("incoming call offer received", "event", v)
+		calls.HandleAntiCallEvent(context.Background(), cli, v, b.startupTime)
+		b.hub.Broadcast(EventMessage{
+			Kind: EventIncomingCall,
+			Payload: IncomingCallPayload{
+				CallID:    v.CallID,
+				From:      v.CallCreator.String(),
+				Timestamp: v.Timestamp,
+			},
+		})
+
+	case *events.GroupInfo:
+		logger.Debug("group metadata update received", "event", v)
+		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
+		group.HandleGreetings(context.Background(), cli, v, b.startupTime)
+		group.HandleEventsNotification(context.Background(), cli, v, b.startupTime)
+		group.HandleCaptcha(context.Background(), cli, v, b.startupTime)
+
+	case *events.JoinedGroup:
+		logger.Debug("joined group event received", "event", v)
+		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
+
+	case *events.Picture:
+		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
+
+	case *events.NewsletterJoin:
+		logger.Info("newsletter subscribed", "event", v)
+		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
+
+	case *events.NewsletterLeave:
+		logger.Info("newsletter unlinked", "event", v)
+		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
+
+	case *events.NewsletterMuteChange:
+		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
+
+	case *events.NewsletterLiveUpdate:
+		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
+
+	// Stream, Session & Connection Diagnostics
+	case *events.StreamError:
+		logger.Error("stream error received", "event", v)
+	case *events.KeepAliveTimeout:
+		logger.Warn("keepalive ping timed out", "event", v)
+	case *events.KeepAliveRestored:
+		logger.Info("keepalive connection restored", "event", v)
+	case *events.ManualLoginReconnect:
+		logger.Info("manual login reconnect triggered", "event", v)
+	case *events.QRScannedWithoutMultidevice:
+		logger.Warn("qr scanned on legacy non-multidevice client", "event", v)
+
+	// Cryptography & Decryption Failures
+	case *events.UndecryptableMessage:
+		logger.Warn("undecryptable message received", "event", v)
+	case *events.UndecryptedMessage:
+		logger.Warn("undecrypted message received", "event", v)
+	case *events.MediaRetry:
+		logger.Debug("media download retry signal", "event", v)
+
+	// History & App State Synchronizations
+	case *events.HistorySync:
+		logger.Debug("history synchronization chunk received", "event", v)
+	case *events.OfflineSyncPreview:
+		logger.Debug("Offline message sync preview", "event", v)
+	case *events.OfflineSyncCompleted:
+		logger.Debug("Offline message sync completed", "event", v)
+	case *events.AppState:
+		logger.Debug("app state sync mutation received", "event", v)
+	case *events.AppStateSyncComplete:
+		logger.Debug("app state sync complete", "event", v)
+
+	// User, Contacts & Privacy Metadata
+	case *events.PushName:
+		logger.Debug("push name update received", "event", v)
+		if cli != nil && cli.IsConnected() && cli.IsLoggedIn() {
+			_ = cli.SendPresence(context.Background(), types.PresenceAvailable)
+		}
+	case *events.UserAbout:
+		logger.Debug("user about/status text updated", "event", v)
+	case *events.Contact:
+		logger.Debug("contact record updated", "event", v)
+	case *events.IdentityChange:
+		logger.Warn("e2ee identity key changed", "event", v)
+	case *events.PrivacySettings:
+		logger.Info("account privacy settings updated", "event", v)
+	case *events.DisappearingMode:
+		logger.Info("disappearing mode updated",
+			"chat", v.Chat.String(),
+			"timer", v.Timer.String(),
+			"is_ephemeral", v.IsEphemeral,
+			"trigger", v.Trigger,
+			"initiator", v.Initiator,
+		)
+		b.groupManager.UpdateFromEvent(context.Background(), cli, v)
+	case *events.Blocklist:
+		logger.Info("blocklist synchronized", "event", v)
+	case *events.NotifyAccountReachoutTimelock:
+		logger.Warn("account reachout timelock notification", "event", v)
+
+	// Call Signaling Transitions
+	case *events.CallOfferNotice:
+		logger.Info("call offer notice received", "event", v)
+	case *events.CallAccept:
+		logger.Info("call accepted", "event", v)
+	case *events.CallPreAccept:
+		logger.Debug("call pre-accept signal", "event", v)
+	case *events.CallRelayLatency:
+		logger.Debug("call relay latency update", "event", v)
+	case *events.CallTransport:
+		logger.Debug("call transport parameters negotiated", "event", v)
+	case *events.CallTerminate:
+		logger.Info("call terminated", "event", v)
+	case *events.CallReject:
+		logger.Info("call rejected", "event", v)
+	case *events.UnknownCallEvent:
+		logger.Debug("unknown call event frame", "event", v)
+
+	default:
+		logger.Debug("unhandled event received", "type", fmt.Sprintf("%T", evt), "event", evt)
+	}
+}
+
+func buildIncomingMessagePayload(v *events.Message) IncomingMessagePayload {
+	text := whatsrook.ExtractMessageText(v)
+	mediaType := whatsrook.GetMediaType(v.Message)
+
+	var quotedID string
+	var quotedText string
+
+	if ext := v.Message.GetExtendedTextMessage(); ext != nil && ext.GetContextInfo() != nil {
+		ci := ext.GetContextInfo()
+		quotedID = ci.GetStanzaID()
+		if ci.QuotedMessage != nil {
+			quotedText = whatsrook.ExtractTextFromProto(ci.QuotedMessage)
+		}
+	}
+
+	return IncomingMessagePayload{
+		From:       v.Info.Chat.String(),
+		Chat:       v.Info.Chat.String(),
+		Sender:     v.Info.Sender.String(),
+		Text:       text,
+		MessageID:  v.Info.ID,
+		PushName:   v.Info.PushName,
+		Timestamp:  v.Info.Timestamp,
+		IsGroup:    v.Info.IsGroup,
+		IsFromMe:   v.Info.IsFromMe,
+		MediaType:  mediaType,
+		QuotedID:   quotedID,
+		QuotedText: quotedText,
+	}
+}
+
+// startPresenceHeartbeat periodically refreshes presence available and active browser status.
+func (b *Bot) startPresenceHeartbeat(ctx context.Context, cli *whatsmeow.Client) {
+	ticker := time.NewTicker(4 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if cli != nil && cli.IsConnected() && cli.IsLoggedIn() {
+				if len(cli.Store.PushName) == 0 {
+					cli.Store.PushName = "WhatsRook"
+				}
+				cli.SetForceActiveDeliveryReceipts(true)
+				_ = cli.SetPassive(ctx, false)
+				if err := cli.SendPresence(ctx, types.PresenceAvailable); err != nil {
+					logger.Debug("presence heartbeat failed", "err", err)
+				} else {
+					logger.Debug("presence heartbeat refreshed (online / browser active)")
+				}
+			}
+		}
+	}
 }
