@@ -407,6 +407,7 @@ func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPh
 	logger.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
 	container, err := sqlstore.New(ctx, "postgres", dbConn, waLogger)
 	if err == nil && container != nil {
+		configureConnectionPool(container)
 		logger.Info("successfully connected to PostgreSQL database")
 		return container, nil
 	}
@@ -417,6 +418,7 @@ func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPh
 		logger.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
 		container, errDisable := sqlstore.New(ctx, "postgres", disableURL, waLogger)
 		if errDisable == nil && container != nil {
+			configureConnectionPool(container)
 			logger.Info("successfully connected to PostgreSQL database with sslmode=disable")
 			return container, nil
 		}
@@ -424,6 +426,18 @@ func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPh
 	}
 
 	return nil, fmt.Errorf("failed to connect to PostgreSQL database: %w", err)
+}
+
+// configureConnectionPool tunes PostgreSQL connection pool limits to prevent connection churn and network latency.
+func configureConnectionPool(container *sqlstore.Container) {
+	if container != nil {
+		if db := container.Database(); db != nil && db.RawDB != nil {
+			db.RawDB.SetMaxOpenConns(50)
+			db.RawDB.SetMaxIdleConns(25)
+			db.RawDB.SetConnMaxLifetime(15 * time.Minute)
+			db.RawDB.SetConnMaxIdleTime(5 * time.Minute)
+		}
+	}
 }
 
 // ParseDatabaseConfig parses a database configuration string or URL into driver name and DSN.
@@ -1854,6 +1868,11 @@ type PluginContext struct {
 
 	Chat   types.JID
 	Sender types.JID
+
+	isOwnerOnce sync.Once
+	isOwnerVal  bool
+	isSudoOnce  sync.Once
+	isSudoVal   bool
 }
 
 // Cancel invokes context cancellation if configured.
@@ -2813,6 +2832,13 @@ func (c *PluginContext) IsOwner() bool {
 	if c == nil || c.Client == nil {
 		return false
 	}
+	c.isOwnerOnce.Do(func() {
+		c.isOwnerVal = c.calculateIsOwner()
+	})
+	return c.isOwnerVal
+}
+
+func (c *PluginContext) calculateIsOwner() bool {
 	if c.Evt != nil && c.Evt.Info.IsFromMe {
 		return true
 	}
@@ -2841,6 +2867,13 @@ func (c *PluginContext) IsSudo() bool {
 	if c == nil || c.Client == nil {
 		return false
 	}
+	c.isSudoOnce.Do(func() {
+		c.isSudoVal = c.calculateIsSudo()
+	})
+	return c.isSudoVal
+}
+
+func (c *PluginContext) calculateIsSudo() bool {
 	if c.IsOwner() {
 		return true
 	}
