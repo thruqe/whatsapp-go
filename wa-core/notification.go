@@ -616,6 +616,14 @@ func (cli *Client) handleNotification(ctx context.Context, node *waBinary.Node) 
 		cli.handleQueuedBusinessCatalogNotification(node)
 	case "crsc_continuation":
 		go cli.tryHandlePasskeyContinuationNotification(ctx, node)
+	case "companion_reg_refresh":
+		_, refresh := node.GetOptionalChildByTag("companion_reg_refresh")
+		_, rotateQR := node.GetOptionalChildByTag("pair-device-rotate-qr")
+		if refresh || rotateQR {
+			cli.rotateADVSecret(ctx)
+		} else {
+			cli.Log.Debugf("Unrecognized companion reg refresh notification: %s", node)
+		}
 	case "disappearing_mode":
 		cli.handleDisappearingModeNotification(ctx, node)
 	// Other types: server, status, pay, psa
