@@ -21,7 +21,10 @@ const (
 	CallMediaVideo CallMediaKind = "video"
 )
 
-const settingCacheTTL = 5 * time.Second
+const (
+	settingCacheTTL         = 24 * time.Hour
+	settingNegativeCacheTTL = 10 * time.Minute
+)
 
 func settingCacheKey(ourJID, key string) string {
 	return "setting:" + ourJID + ":" + key
@@ -74,7 +77,7 @@ func GetSetting(ctx context.Context, s *sqlstore.SQLStore, key string) (string, 
 	}
 
 	if errors.Is(findErr, gorm.ErrRecordNotFound) {
-		_ = cache.Set(ctx, cacheKey, "", settingCacheTTL)
+		_ = cache.Set(ctx, cacheKey, "", settingNegativeCacheTTL)
 		return "", nil
 	}
 	if findErr == nil {
@@ -130,6 +133,7 @@ func DeleteSetting(ctx context.Context, s *sqlstore.SQLStore, key string) error 
 	if s.JID != "" && s.JID != ourJID {
 		_ = cache.Delete(ctx, settingCacheKey(s.JID, key))
 	}
+	_ = cache.Delete(ctx, settingCacheKey("", key))
 
 	return gdb.WithContext(ctx).
 		Where("(our_jid = ? OR our_jid = ? OR our_jid = '' OR our_jid IS NULL) AND key = ?", ourJID, s.JID, key).

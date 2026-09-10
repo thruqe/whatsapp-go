@@ -77,6 +77,7 @@ func GetORMFromDB(ctx context.Context, db *dbutil.Database) (*gorm.DB, error) {
 		Logger:                                   gormlogger.Default.LogMode(gormlogger.Silent),
 		DisableForeignKeyConstraintWhenMigrating: true,
 		SkipDefaultTransaction:                   true,
+		PrepareStmt:                              true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open GORM database: %w", err)
