@@ -17,7 +17,7 @@ import (
 
 	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/store"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 )
 
 func NormalizeUserJID(_ any, _ any, jid types.JID) types.JID {
@@ -183,7 +183,7 @@ func handleTicTacToe(ctx *dispatch.Context) error {
 			botFirstMsg = dispatch.Sprintf("\n\nAI decided to go first and placed move at position %d!", botMove+1)
 		}
 
-		Logger.Debug("[TTT] Creating new game", "chat", chatKey, "rawSenderLID", rawSenderLID.String(), "mentionJID", userMentionJID.String(), "botStarts", botStarts, "firstTurn", firstTurn.String())
+		logger.Debug("[TTT] Creating new game", "chat", chatKey, "rawSenderLID", rawSenderLID.String(), "mentionJID", userMentionJID.String(), "botStarts", botStarts, "firstTurn", firstTurn.String())
 
 		TTTGames[chatKey] = newGame
 
@@ -206,10 +206,10 @@ func handleTicTacToe(ctx *dispatch.Context) error {
 
 	// Incoming sender is always LID format; game.PlayerX/Turn are also stored as LID.
 	senderLID := ctx.Sender.ToNonAD()
-	Logger.Debug("[TTT] Processing move", "chat", chatKey, "senderLID", senderLID.String(), "senderUser", senderLID.User, "gameTurnUser", game.Turn.User, "gameTurnJID", game.Turn.String(), "playerXUser", game.PlayerX.User, "isBotGame", game.IsBotGame)
+	logger.Debug("[TTT] Processing move", "chat", chatKey, "senderLID", senderLID.String(), "senderUser", senderLID.User, "gameTurnUser", game.Turn.User, "gameTurnJID", game.Turn.String(), "playerXUser", game.PlayerX.User, "isBotGame", game.IsBotGame)
 
 	if senderLID.User != game.Turn.User {
-		Logger.Warn("[TTT] Move rejected: not sender's turn", "senderLID", senderLID.String(), "senderUser", senderLID.User, "expectedTurnUser", game.Turn.User)
+		logger.Warn("[TTT] Move rejected: not sender's turn", "senderLID", senderLID.String(), "senderUser", senderLID.User, "expectedTurnUser", game.Turn.User)
 		return ctx.Reply("It is not your turn.")
 	}
 
@@ -579,7 +579,7 @@ func HandleUnscrambleInput(ctx *dispatch.Context, text string) bool {
 	senderLID := ctx.Sender.ToNonAD()
 
 	if isPureEmoji(text) || strings.TrimSpace(text) == "" {
-		Logger.Debug("[Unscramble] Ignored emoji/empty input", "chat", chatKey, "sender", senderLID.String())
+		logger.Debug("[Unscramble] Ignored emoji/empty input", "chat", chatKey, "sender", senderLID.String())
 		game.Mu.Unlock()
 		return true
 	}
@@ -593,7 +593,7 @@ func HandleUnscrambleInput(ctx *dispatch.Context, text string) bool {
 		isHost := game.IsHost(ctx.Sender)
 		isBotOwner := isOwner || isSudo
 
-		Logger.Debug("[Unscramble Input] Cancel/End authorization check",
+		logger.Debug("[Unscramble Input] Cancel/End authorization check",
 			"chat", chatKey,
 			"sender", ctx.Sender.String(),
 			"hostLID", game.HostLID.String(),
@@ -616,7 +616,7 @@ func HandleUnscrambleInput(ctx *dispatch.Context, text string) bool {
 
 	pIdx := game.FindPlayerIndex(senderLID)
 	if pIdx == -1 {
-		Logger.Debug("[Unscramble] Ignored input from non-player", "chat", chatKey, "sender", senderLID.String())
+		logger.Debug("[Unscramble] Ignored input from non-player", "chat", chatKey, "sender", senderLID.String())
 		game.Mu.Unlock()
 		return false
 	}
@@ -628,7 +628,7 @@ func HandleUnscrambleInput(ctx *dispatch.Context, text string) bool {
 	}
 
 	if pIdx != game.CurrentTurnIdx {
-		Logger.Debug("[Unscramble] Ignored input from player whose turn it is not", "chat", chatKey, "sender", senderLID.String())
+		logger.Debug("[Unscramble] Ignored input from player whose turn it is not", "chat", chatKey, "sender", senderLID.String())
 		game.Mu.Unlock()
 		return false
 	}
@@ -689,7 +689,7 @@ func handleUnscramble(ctx *dispatch.Context) error {
 		isHost := existingGame.IsHost(ctx.Sender)
 		isBotOwner := isOwner || isSudo
 
-		Logger.Debug("[Unscramble] Cancel/End authorization check",
+		logger.Debug("[Unscramble] Cancel/End authorization check",
 			"chat", chatKey,
 			"sender", ctx.Sender.String(),
 			"hostLID", existingGame.HostLID.String(),
@@ -755,7 +755,7 @@ func handleUnscramble(ctx *dispatch.Context) error {
 				isHost := existingGame.IsHost(ctx.Sender)
 				isBotOwner := isOwner || isSudo
 
-				Logger.Debug("[Unscramble] Start request authorization check",
+				logger.Debug("[Unscramble] Start request authorization check",
 					"chat", chatKey,
 					"sender", ctx.Sender.String(),
 					"hostLID", existingGame.HostLID.String(),
@@ -843,7 +843,7 @@ func startUnscrambleGame(ctx *dispatch.Context, game *UnscrambleGame) {
 func startUnscrambleTurn(ctx *dispatch.Context, game *UnscrambleGame) {
 	scrambled, hint, timeLimit, currentPlayer := game.StartTurn()
 	if currentPlayer == nil {
-		Logger.Error("startUnscrambleTurn: No current player available")
+		logger.Error("startUnscrambleTurn: No current player available")
 		return
 	}
 
@@ -865,7 +865,7 @@ func startUnscrambleTurn(ctx *dispatch.Context, game *UnscrambleGame) {
 			return
 		}
 
-		Logger.Info("Unscramble turn timed out for player", "chat", game.ChatKey, "player", currentPlayer.Tag)
+		logger.Info("Unscramble turn timed out for player", "chat", game.ChatKey, "player", currentPlayer.Tag)
 		cctx := &dispatch.Context{
 			Ctx:    context.Background(),
 			Client: ctx.Client,
@@ -1092,7 +1092,7 @@ func HandleUnscrambleLobbyInput(ctx *dispatch.Context, text string) bool {
 		isHost := game.IsHost(ctx.Sender)
 		isBotOwner := isOwner || isSudo
 
-		Logger.Debug("[Unscramble Lobby Input] Start request authorization check",
+		logger.Debug("[Unscramble Lobby Input] Start request authorization check",
 			"chat", chatKey,
 			"sender", ctx.Sender.String(),
 			"hostLID", game.HostLID.String(),
@@ -1127,7 +1127,7 @@ func HandleUnscrambleLobbyInput(ctx *dispatch.Context, text string) bool {
 		isHost := game.IsHost(ctx.Sender)
 		isBotOwner := isOwner || isSudo
 
-		Logger.Debug("[Unscramble Lobby Input] Cancel/End authorization check",
+		logger.Debug("[Unscramble Lobby Input] Cancel/End authorization check",
 			"chat", chatKey,
 			"sender", ctx.Sender.String(),
 			"hostLID", game.HostLID.String(),
@@ -1335,7 +1335,7 @@ func HandleWCGInput(ctx *dispatch.Context, text string) bool {
 		isHost := game.IsHost(ctx.Sender)
 		isBotOwner := isOwner || isSudo
 
-		Logger.Debug("[WCG Input] Cancel/End authorization check",
+		logger.Debug("[WCG Input] Cancel/End authorization check",
 			"chat", chatKey,
 			"sender", ctx.Sender.String(),
 			"hostLID", game.HostLID.String(),
@@ -1458,7 +1458,7 @@ func handleWCGChain(ctx *dispatch.Context) error {
 		isHost := existingGame.IsHost(ctx.Sender)
 		isBotOwner := isOwner || isSudo
 
-		Logger.Debug("[WCG] Cancel/End authorization check",
+		logger.Debug("[WCG] Cancel/End authorization check",
 			"chat", existingGame.ChatKey,
 			"sender", ctx.Sender.String(),
 			"hostLID", existingGame.HostLID.String(),
@@ -1520,7 +1520,7 @@ func handleWCGChain(ctx *dispatch.Context) error {
 				isHost := existingGame.IsHost(ctx.Sender)
 				isBotOwner := isOwner || isSudo
 
-				Logger.Debug("[WCG] Start request authorization check",
+				logger.Debug("[WCG] Start request authorization check",
 					"chat", existingGame.ChatKey,
 					"sender", ctx.Sender.String(),
 					"hostLID", existingGame.HostLID.String(),
@@ -1603,7 +1603,7 @@ func startWCGChainGame(ctx *dispatch.Context, game *WCGGame) {
 	}
 
 	active := game.GetActivePlayers()
-	Logger.Debug("[WCG] Starting Word Chain Game", "chat", game.ChatKey, "playersCount", len(active))
+	logger.Debug("[WCG] Starting Word Chain Game", "chat", game.ChatKey, "playersCount", len(active))
 
 	var playerTags []string
 	var mentions []types.JID
@@ -1658,7 +1658,7 @@ func startWCGChainTurn(ctx *dispatch.Context, game *WCGGame) {
 			return
 		}
 
-		Logger.Debug("[WCG] Turn timed out", "player", currentPlayer.Tag)
+		logger.Debug("[WCG] Turn timed out", "player", currentPlayer.Tag)
 
 		cctx := &dispatch.Context{
 			Ctx:    context.Background(),
@@ -1885,7 +1885,7 @@ func HandleWCGLobbyInput(ctx *dispatch.Context, text string) bool {
 		isHost := game.IsHost(ctx.Sender)
 		isBotOwner := isOwner || isSudo
 
-		Logger.Debug("[WCG Lobby Input] Start request authorization check",
+		logger.Debug("[WCG Lobby Input] Start request authorization check",
 			"chat", chatKey,
 			"sender", ctx.Sender.String(),
 			"hostLID", game.HostLID.String(),
@@ -1920,7 +1920,7 @@ func HandleWCGLobbyInput(ctx *dispatch.Context, text string) bool {
 		isHost := game.IsHost(ctx.Sender)
 		isBotOwner := isOwner || isSudo
 
-		Logger.Debug("[WCG Lobby Input] Cancel/End authorization check",
+		logger.Debug("[WCG Lobby Input] Cancel/End authorization check",
 			"chat", chatKey,
 			"sender", ctx.Sender.String(),
 			"hostLID", game.HostLID.String(),

@@ -21,7 +21,7 @@ import (
 
 	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 	"whatsrook/media"
 )
 
@@ -205,10 +205,10 @@ func handleSetBotPP(ctx *dispatch.Context) error {
 		ownJID = ctx.Client.Store.ID.ToNonAD()
 	}
 
-	Logger.Info("handleSetBotPP: Setting bot profile picture", "rawBytes", len(rawBytes), "jpegBytes", len(jpegData), "targetJID", ownJID.String())
+	logger.Info("handleSetBotPP: Setting bot profile picture", "rawBytes", len(rawBytes), "jpegBytes", len(jpegData), "targetJID", ownJID.String())
 	picID, errSet := ctx.Client.SetGroupPhoto(ctx.Ctx, ownJID, jpegData)
 	if errSet != nil {
-		Logger.Error("handleSetBotPP failed", "err", errSet)
+		logger.Error("handleSetBotPP failed", "err", errSet)
 		return ctx.Replyf("Failed to update profile picture: %v", errSet)
 	}
 
@@ -576,7 +576,7 @@ func handleStatus(ctx *dispatch.Context) error {
 			}
 			uploaded, uErr := ctx.Client.Upload(ctx.Ctx, mediaBytes, whatsmeow.MediaImage)
 			if uErr != nil {
-				Logger.Error("handleStatus: image upload failed", "err", uErr)
+				logger.Error("handleStatus: image upload failed", "err", uErr)
 				return ctx.Replyf("Failed to upload status image: %v", uErr)
 			}
 			msg := &waE2E.Message{
@@ -597,7 +597,7 @@ func handleStatus(ctx *dispatch.Context) error {
 
 			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, StatusBroadcastJID, msg)
 			if sendErr != nil {
-				Logger.Error("handleStatus: send image status failed", "err", sendErr)
+				logger.Error("handleStatus: send image status failed", "err", sendErr)
 				return ctx.Replyf("Failed to post image status: %v", sendErr)
 			}
 			return ctx.Reply("Successfully posted image status update.")
@@ -609,7 +609,7 @@ func handleStatus(ctx *dispatch.Context) error {
 			}
 			uploaded, uErr := ctx.Client.Upload(ctx.Ctx, mediaBytes, whatsmeow.MediaVideo)
 			if uErr != nil {
-				Logger.Error("handleStatus: video upload failed", "err", uErr)
+				logger.Error("handleStatus: video upload failed", "err", uErr)
 				return ctx.Replyf("Failed to upload status video: %v", uErr)
 			}
 			msg := &waE2E.Message{
@@ -630,7 +630,7 @@ func handleStatus(ctx *dispatch.Context) error {
 
 			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, StatusBroadcastJID, msg)
 			if sendErr != nil {
-				Logger.Error("handleStatus: send video status failed", "err", sendErr)
+				logger.Error("handleStatus: send video status failed", "err", sendErr)
 				return ctx.Replyf("Failed to post video status: %v", sendErr)
 			}
 			return ctx.Reply("Successfully posted video status update.")
@@ -650,7 +650,7 @@ func handleStatus(ctx *dispatch.Context) error {
 
 	_, sendErr := ctx.Client.SendMessage(ctx.Ctx, StatusBroadcastJID, msg)
 	if sendErr != nil {
-		Logger.Error("handleStatus: send text status failed", "err", sendErr)
+		logger.Error("handleStatus: send text status failed", "err", sendErr)
 		return ctx.Replyf("Failed to post text status: %v", sendErr)
 	}
 	return ctx.Reply("Successfully posted text status update.")
@@ -920,7 +920,7 @@ func handleSetSudo(ctx *dispatch.Context) error {
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(sudoers, " ")); err != nil {
-		Logger.Error("handleSetSudo: PutSetting failed", "err", err, "sudoers", sudoers)
+		logger.Error("handleSetSudo: PutSetting failed", "err", err, "sudoers", sudoers)
 		return ctx.Replyf("Failed to update sudoers list: %v", err)
 	}
 
@@ -971,7 +971,7 @@ func handleDelSudo(ctx *dispatch.Context) error {
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(newSudoers, " ")); err != nil {
-		Logger.Error("handleDelSudo: PutSetting failed", "err", err, "newSudoers", newSudoers)
+		logger.Error("handleDelSudo: PutSetting failed", "err", err, "newSudoers", newSudoers)
 		return ctx.Replyf("Failed to update sudoers list: %v", err)
 	}
 
@@ -1280,7 +1280,7 @@ func handlePresence(ctx *dispatch.Context) error {
 		}
 		ctx.Client.SetForceActiveDeliveryReceipts(true)
 		if err := ctx.Client.SetPassive(ctx.Ctx, false); err != nil {
-			Logger.Warn("SetPassive failed", "err", err)
+			logger.Warn("SetPassive failed", "err", err)
 		}
 		if err := ctx.Client.SendPresence(ctx.Ctx, types.PresenceAvailable); err != nil {
 			return ctx.Replyf("Failed to set presence online: %v", err)
@@ -1304,7 +1304,7 @@ func handleLogoutCommand(ctx *dispatch.Context) error {
 			logoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			if err := ctx.Client.Logout(logoutCtx); err != nil {
-				Logger.Warn("Remote logout command returned error", "err", err)
+				logger.Warn("Remote logout command returned error", "err", err)
 			}
 			ctx.Client.Disconnect()
 			if ctx.Client.Store != nil {

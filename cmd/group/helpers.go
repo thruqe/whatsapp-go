@@ -12,7 +12,7 @@ import (
 	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/tools"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
@@ -142,7 +142,7 @@ func HandleGroupModeration(c *dispatch.Context, text string) bool {
 						continue
 					}
 					if utils.IsSameUserRaw(ctx, client, uJID, c.Sender) {
-						Logger.Debug("antimsg: deleting message from targeted participant", "chat", chatStr, "sender", c.Sender.String())
+						logger.Debug("antimsg: deleting message from targeted participant", "chat", chatStr, "sender", c.Sender.String())
 						_, _ = client.SendMessage(ctx, c.Chat, client.BuildRevoke(c.Chat, c.Sender, evt.Info.ID))
 						return true
 					}

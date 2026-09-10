@@ -11,7 +11,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 
 	"whatsrook/builder"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 )
 
 // MapOptionToCommandArgs maps a plain poll option label back to its intended subcommand payload.
@@ -185,7 +185,7 @@ func MapOptionToCommandArgs(cmdName, option string) string {
 // selected options to command invocations and executes them.
 func SendPollReplyWithMentions(ctx *Context, question string, options []string, jids []types.JID, fn ...func(req PollRequest, res *builder.Response)) error {
 	cmdName := ctx.Command
-	Logger.Debug("SendPollReplyWithMentions: creating poll reply",
+	logger.Debug("SendPollReplyWithMentions: creating poll reply",
 		"command", cmdName,
 		"question", question,
 		"optionsCount", len(options),
@@ -206,7 +206,7 @@ func SendPollReplyWithMentions(ctx *Context, question string, options []string, 
 	return poll.Reply(func(req PollRequest, res *builder.Response) {
 		for _, selected := range req.SelectedOptions {
 			cmdLine := MapOptionToCommandArgs(cmdName, selected)
-			Logger.Debug("Interactive poll selection triggered",
+			logger.Debug("Interactive poll selection triggered",
 				"command", cmdName,
 				"selected", selected,
 				"dispatchedCommand", cmdLine,
@@ -244,7 +244,7 @@ func SendPollReply(ctx *Context, question string, options []string, fn ...func(r
 
 func init() {
 	builder.SetDefaultPollCallback(func(req builder.PollRequest, res *builder.Response) {
-		Logger.Debug("Default poll callback received vote",
+		logger.Debug("Default poll callback received vote",
 			"pollMsgID", req.PollMsgID,
 			"sender", req.Sender.String(),
 			"chat", req.Chat.String(),

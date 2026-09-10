@@ -11,9 +11,9 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+	"whatsrook/logger"
 
 	utils "whatsrook"
-	Logger "whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/types"
 )
@@ -31,17 +31,17 @@ func (d *Dispatcher) runProcess(plugCtx *utils.PluginContext, path, name string,
 	cmd := exec.CommandContext(liveCtx, path)
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		Logger.Error("external plugin stdout pipe failed", "plugin", name, "err", err)
+		logger.Error("external plugin stdout pipe failed", "plugin", name, "err", err)
 		return
 	}
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		Logger.Error("external plugin stdin pipe failed", "plugin", name, "err", err)
+		logger.Error("external plugin stdin pipe failed", "plugin", name, "err", err)
 		return
 	}
 
 	if err := cmd.Start(); err != nil {
-		Logger.Error("external plugin start failed", "plugin", name, "err", err)
+		logger.Error("external plugin start failed", "plugin", name, "err", err)
 		_ = plugCtx.Replyf("Failed to start external plugin %q: %v", name, err)
 		return
 	}
@@ -101,7 +101,7 @@ func (d *Dispatcher) runProcess(plugCtx *utils.PluginContext, path, name string,
 
 				if isStreaming {
 					if errAction := d.handleActionFrame(plugCtx, stdinPipe, trimmed); errAction != nil {
-						Logger.Debug("external plugin streaming action finished", "plugin", name, "err", errAction)
+						logger.Debug("external plugin streaming action finished", "plugin", name, "err", errAction)
 						break
 					}
 				}
@@ -109,7 +109,7 @@ func (d *Dispatcher) runProcess(plugCtx *utils.PluginContext, path, name string,
 		}
 		if err != nil {
 			if err != io.EOF {
-				Logger.Warn("external plugin stdout read finished", "plugin", name, "err", err)
+				logger.Warn("external plugin stdout read finished", "plugin", name, "err", err)
 			}
 			break
 		}
@@ -206,16 +206,16 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, stdinPipe io.Wr
 	case "send_sticker":
 		data, err := resolveMediaData(frame.Data)
 		if err != nil {
-			Logger.Error("send_sticker: resolve media data failed", "err", err)
+			logger.Error("send_sticker: resolve media data failed", "err", err)
 			d.sendAck(stdinPipe, false, "", err)
 			return nil
 		}
-		Logger.Debug("send_sticker: sending sticker to chat", "chat", ctx.Chat.String(), "bytes", len(data))
+		logger.Debug("send_sticker: sending sticker to chat", "chat", ctx.Chat.String(), "bytes", len(data))
 		err = ctx.ReplyWithSticker(data)
 		if err != nil {
-			Logger.Error("send_sticker: ReplyWithSticker failed", "chat", ctx.Chat.String(), "err", err)
+			logger.Error("send_sticker: ReplyWithSticker failed", "chat", ctx.Chat.String(), "err", err)
 		} else {
-			Logger.Debug("send_sticker: ReplyWithSticker succeeded", "chat", ctx.Chat.String())
+			logger.Debug("send_sticker: ReplyWithSticker succeeded", "chat", ctx.Chat.String())
 		}
 		d.sendAck(stdinPipe, err == nil, "", err)
 
@@ -240,7 +240,7 @@ func (d *Dispatcher) handleActionFrame(ctx *utils.PluginContext, stdinPipe io.Wr
 		return io.EOF
 
 	default:
-		Logger.Debug("external plugin: unknown action frame", "action", frame.Action)
+		logger.Debug("external plugin: unknown action frame", "action", frame.Action)
 	}
 
 	return nil

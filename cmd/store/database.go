@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
-
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -64,7 +63,7 @@ func GetORMFromDB(ctx context.Context, db *dbutil.Database) (*gorm.DB, error) {
 
 	// AutoMigrate all custom tables
 	if err := AutoMigrateAll(ctx, gdb); err != nil {
-		Logger.Warn("GORM AutoMigrate encountered issue", "err", err)
+		logger.Warn("GORM AutoMigrate encountered issue", "err", err)
 	}
 
 	gormDBMap.Store(db.RawDB, gdb)

@@ -27,7 +27,7 @@ import (
 
 	"whatsrook/builder"
 	"whatsrook/cache"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 	"whatsrook/qr"
 	"whatsrook/system"
 	"whatsrook/webp"
@@ -198,9 +198,9 @@ func (c *Client) InitSession(ctx context.Context) error {
 	}
 	deviceStore.ExternalCache = cache.Default()
 
-	waLogger := Logger.NewWaLogger("client")
+	waLogger := logger.NewWaLogger("client")
 	cli := whatsmeow.NewClient(deviceStore, waLogger)
-	cli.SetCallLogger(Logger.ZerologStyle("wacaller"))
+	cli.SetCallLogger(logger.ZerologStyle("wacaller"))
 
 	// Configure companion platform registration headers and os version payloads
 	isBusiness := c.Config.Business || (deviceStore != nil && (deviceStore.BusinessName != "" || strings.HasPrefix(strings.ToLower(deviceStore.Platform), "smb")))
@@ -332,7 +332,7 @@ func ResolvePostgresURL(dbConf string, sessionPhone ...string) string {
 //
 // it automatically handles connection retries, SSL mode fallbacks, and binds structured logging diagnostics.
 func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPhone ...string) (*sqlstore.Container, error) {
-	waLogger := Logger.NewWaLogger("database")
+	waLogger := logger.NewWaLogger("database")
 
 	dbConfLower := strings.ToLower(strings.TrimSpace(database))
 	if strings.Contains(dbConfLower, "sqlite") || strings.HasSuffix(dbConfLower, ".db") {
@@ -344,20 +344,20 @@ func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPh
 		return nil, fmt.Errorf("invalid database connection string: PostgreSQL URL required (e.g. postgres://user:password@host:5432/dbname)")
 	}
 
-	Logger.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
+	logger.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
 	container, err := sqlstore.New(ctx, "postgres", dbConn, waLogger)
 	if err == nil && container != nil {
-		Logger.Info("successfully connected to PostgreSQL database")
+		logger.Info("successfully connected to PostgreSQL database")
 		return container, nil
 	}
 
 	// SSL fallback retry logic (if SSL fails, attempt with sslmode=disable)
 	if !strings.HasSuffix(dbConn, "?sslmode=disable") && !strings.Contains(dbConn, "sslmode=disable") {
 		disableURL := ensureSSLDisabled(dbConn)
-		Logger.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
+		logger.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
 		container, errDisable := sqlstore.New(ctx, "postgres", disableURL, waLogger)
 		if errDisable == nil && container != nil {
-			Logger.Info("successfully connected to PostgreSQL database with sslmode=disable")
+			logger.Info("successfully connected to PostgreSQL database with sslmode=disable")
 			return container, nil
 		}
 		return nil, fmt.Errorf("failed to connect to PostgreSQL (ssl retry also failed: %v): %w", errDisable, err)
@@ -2176,18 +2176,18 @@ func (c *PluginContext) SendSticker(data []byte) error {
 	}
 
 	if len(data) < 12 || string(data[0:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
-		Logger.Error("SendSticker: invalid payload data", "bytes", len(data))
+		logger.Error("SendSticker: invalid payload data", "bytes", len(data))
 		return fmt.Errorf("invalid sticker data: missing WebP header")
 	}
 
 	if meta, err := webp.GetStickerMetadata(data); err != nil || meta == nil {
 		pack := c.GetStickerPack()
 		author := c.GetStickerAuthor()
-		Logger.Debug("SendSticker: injecting clean WebP sticker metadata", "pack", pack, "author", author)
+		logger.Debug("SendSticker: injecting clean WebP sticker metadata", "pack", pack, "author", author)
 		if withMeta, err := webp.AddStickerMetadata(data, pack, author); err == nil {
 			data = withMeta
 		} else {
-			Logger.Warn("SendSticker: could not inject sticker metadata", "err", err)
+			logger.Warn("SendSticker: could not inject sticker metadata", "err", err)
 		}
 	}
 
@@ -2201,7 +2201,7 @@ func (c *PluginContext) SendSticker(data []byte) error {
 	isAnimated := false
 	mimetype := "image/webp"
 
-	Logger.Debug("SendSticker: outgoing StickerMessage debug info",
+	logger.Debug("SendSticker: outgoing StickerMessage debug info",
 		"chat", c.Chat.String(),
 		"bytes", len(data),
 		"url", uploaded.URL,
@@ -2516,30 +2516,30 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 	}
 
 	if len(data) < 12 || string(data[0:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
-		Logger.Error("ReplyWithSticker: invalid payload data", "bytes", len(data))
+		logger.Error("ReplyWithSticker: invalid payload data", "bytes", len(data))
 		return fmt.Errorf("invalid sticker data: missing WebP header")
 	}
 
 	if meta, err := webp.GetStickerMetadata(data); err != nil || meta == nil {
 		pack := c.GetStickerPack()
 		author := c.GetStickerAuthor()
-		Logger.Debug("ReplyWithSticker: injecting clean WebP sticker metadata", "pack", pack, "author", author)
+		logger.Debug("ReplyWithSticker: injecting clean WebP sticker metadata", "pack", pack, "author", author)
 		if withMeta, err := webp.AddStickerMetadata(data, pack, author); err == nil {
 			data = withMeta
 		} else {
-			Logger.Warn("ReplyWithSticker: could not inject sticker metadata", "err", err)
+			logger.Warn("ReplyWithSticker: could not inject sticker metadata", "err", err)
 		}
 	} else {
-		Logger.Debug("ReplyWithSticker: existing sticker metadata found", "pack", meta.PackName, "publisher", meta.Publisher)
+		logger.Debug("ReplyWithSticker: existing sticker metadata found", "pack", meta.PackName, "publisher", meta.Publisher)
 	}
 
-	Logger.Debug("ReplyWithSticker: uploading sticker payload", "chat", c.Chat.String(), "bytes", len(data))
+	logger.Debug("ReplyWithSticker: uploading sticker payload", "chat", c.Chat.String(), "bytes", len(data))
 	uploaded, err := c.Client.Upload(c.GetSendContext(), data, whatsmeow.MediaImage)
 	if err != nil {
-		Logger.Error("ReplyWithSticker: upload failed", "chat", c.Chat.String(), "err", err)
+		logger.Error("ReplyWithSticker: upload failed", "chat", c.Chat.String(), "err", err)
 		return fmt.Errorf("upload sticker failed: %w", err)
 	}
-	Logger.Debug("ReplyWithSticker: upload succeeded", "chat", c.Chat.String(), "url", uploaded.URL)
+	logger.Debug("ReplyWithSticker: upload succeeded", "chat", c.Chat.String(), "url", uploaded.URL)
 
 	width := uint32(512)
 	height := uint32(512)
@@ -2552,7 +2552,7 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 		stanzaID = *ci.StanzaID
 	}
 
-	Logger.Debug("ReplyWithSticker: outgoing StickerMessage debug info",
+	logger.Debug("ReplyWithSticker: outgoing StickerMessage debug info",
 		"chat", c.Chat.String(),
 		"bytes", len(data),
 		"url", uploaded.URL,
@@ -2583,9 +2583,9 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 	}
 	resp, err := c.Client.SendMessage(c.GetSendContext(), c.Chat, msg)
 	if err != nil {
-		Logger.Error("ReplyWithSticker: SendMessage failed", "chat", c.Chat.String(), "err", err)
+		logger.Error("ReplyWithSticker: SendMessage failed", "chat", c.Chat.String(), "err", err)
 	} else {
-		Logger.Debug("ReplyWithSticker: SendMessage succeeded", "chat", c.Chat.String(), "id", resp.ID)
+		logger.Debug("ReplyWithSticker: SendMessage succeeded", "chat", c.Chat.String(), "id", resp.ID)
 	}
 	return err
 }
@@ -3032,7 +3032,7 @@ func (c *PluginContext) GetMedia() ([]byte, string, error) {
 		}
 		data, err := c.Client.Download(c.GetSendContext(), downloadable)
 		if err != nil {
-			Logger.Warn("PluginContext.GetMedia: download failed", "mime", mime, "err", err)
+			logger.Warn("PluginContext.GetMedia: download failed", "mime", mime, "err", err)
 			return nil, "", false
 		}
 		return data, mime, true
@@ -3245,7 +3245,7 @@ var (
 	// InitCache initializes global caching.
 	InitCache = cache.Init
 	// NewWaLogger constructs a Zap protocol logger adapter.
-	NewWaLogger = Logger.NewWaLogger
+	NewWaLogger = logger.NewWaLogger
 	// GetSystemStats retrieves host hardware metrics.
 	GetSystemStats = system.GetStats
 	// FormatBytes formats byte counts.

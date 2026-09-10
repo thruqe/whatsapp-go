@@ -12,7 +12,7 @@ import (
 	"whatsrook/cmd/games"
 	"whatsrook/cmd/store"
 	"whatsrook/cmd/updater"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 	"whatsrook/system"
 
 	"go.mau.fi/whatsmeow"
@@ -508,7 +508,7 @@ func handleFilter(ctx *dispatch.Context) error {
 			return ctx.Reply("Failed to save filter: " + err.Error())
 		}
 
-		Logger.Debug("handleFilter: filter added", "trigger", trigger, "our_jid", ourJID)
+		logger.Debug("handleFilter: filter added", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("Filter added for word %q. Placeholders like `@user`, `@uptime`, `@bot`, `@time`, etc. will be rendered dynamically.", trigger)
 
 	case "del", "delete", "remove", "rm", "-":
@@ -520,7 +520,7 @@ func handleFilter(ctx *dispatch.Context) error {
 		if err := store.DeleteFilter(ctx.Ctx, s.SQLStore, trigger); err != nil {
 			return ctx.Reply("Failed to delete filter: " + err.Error())
 		}
-		Logger.Debug("handleFilter: filter removed", "trigger", trigger, "our_jid", ourJID)
+		logger.Debug("handleFilter: filter removed", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("Filter for word %q removed.", trigger)
 
 	case "list", "show", "all":
@@ -559,7 +559,7 @@ func handleFilter(ctx *dispatch.Context) error {
 			return ctx.Reply("Failed to save filter: " + err.Error())
 		}
 
-		Logger.Debug("handleFilter: filter added via shorthand", "trigger", trigger, "our_jid", ourJID)
+		logger.Debug("handleFilter: filter added via shorthand", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("Filter added for word %q. Placeholders like `@user`, `@uptime`, `@bot`, `@time`, etc. will be rendered dynamically.", trigger)
 	}
 }
@@ -608,7 +608,7 @@ func handleBGM(ctx *dispatch.Context) error {
 		if err := store.DeleteBGM(ctx.Ctx, s.SQLStore, trigger); err != nil {
 			return ctx.Reply("Failed to delete BGM: " + err.Error())
 		}
-		Logger.Debug("handleBGM: BGM removed", "trigger", trigger, "our_jid", ourJID)
+		logger.Debug("handleBGM: BGM removed", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("BGM for word %q removed.", trigger)
 
 	case "list", "show", "all":
@@ -655,7 +655,7 @@ func handleBGM(ctx *dispatch.Context) error {
 			return ctx.Reply("Failed to save BGM: " + err.Error())
 		}
 
-		Logger.Debug("handleBGM: BGM added", "trigger", trigger, "our_jid", ourJID)
+		logger.Debug("handleBGM: BGM added", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("BGM added for word %q.", trigger)
 	}
 
@@ -700,14 +700,14 @@ func handleMention(ctx *dispatch.Context) error {
 			return ctx.Reply("Failed to save mention setting: " + err.Error())
 		}
 
-		Logger.Debug("handleMention: tag auto-response updated", "our_jid", ourJID)
+		logger.Debug("handleMention: tag auto-response updated", "our_jid", ourJID)
 		return ctx.Reply("Tag auto-response configured with placeholder support.")
 
 	case "del", "remove", "clear", "-":
 		if err := store.DeleteSetting(ctx.Ctx, s.SQLStore, "mention_proto"); err != nil {
 			return ctx.Reply("Failed to delete mention setting: " + err.Error())
 		}
-		Logger.Debug("handleMention: tag auto-response removed", "our_jid", ourJID)
+		logger.Debug("handleMention: tag auto-response removed", "our_jid", ourJID)
 		return ctx.Reply("Tag auto-response removed.")
 
 	case "list", "show", "get", "test":
@@ -737,7 +737,7 @@ func handleMention(ctx *dispatch.Context) error {
 			return ctx.Reply("Failed to save mention setting: " + err.Error())
 		}
 
-		Logger.Debug("handleMention: tag auto-response updated via shorthand", "our_jid", ourJID)
+		logger.Debug("handleMention: tag auto-response updated via shorthand", "our_jid", ourJID)
 		return ctx.Reply("Tag auto-response configured with placeholder support.")
 	}
 }
@@ -831,6 +831,6 @@ func handleDelFilter(ctx *dispatch.Context) error {
 	if err := store.DeleteFilter(ctx.Ctx, s.SQLStore, trigger); err != nil {
 		return ctx.Reply("Failed to delete filter: " + err.Error())
 	}
-	Logger.Debug("handleDelFilter: filter removed", "trigger", trigger, "our_jid", ourJID)
+	logger.Debug("handleDelFilter: filter removed", "trigger", trigger, "our_jid", ourJID)
 	return ctx.Replyf("Filter for word %q removed.", trigger)
 }

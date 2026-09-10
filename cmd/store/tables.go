@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -80,7 +79,7 @@ func InitTables(ctx context.Context, s *sqlstore.SQLStore) {
 		}
 
 		if err := RunMigrations(ctx, db); err != nil {
-			Logger.Error("InitTables: failed to execute schema migrations", "err", err, "dialect", db.Dialect.String())
+			logger.Error("InitTables: failed to execute schema migrations", "err", err, "dialect", db.Dialect.String())
 		}
 	})
 }

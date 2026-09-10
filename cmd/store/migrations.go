@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 
 	"go.mau.fi/util/dbutil"
 )
@@ -102,7 +101,7 @@ func RunMigrations(ctx context.Context, db *dbutil.Database) error {
 			continue
 		}
 
-		Logger.Info("Applying CLI database migration...", "version", m.Version, "description", m.Description, "dialect", db.Dialect.String())
+		logger.Info("Applying CLI database migration...", "version", m.Version, "description", m.Description, "dialect", db.Dialect.String())
 		if err := m.Up(ctx, db); err != nil {
 			return fmt.Errorf("migration v%d (%s) failed: %w", m.Version, m.Description, err)
 		}
@@ -110,7 +109,7 @@ func RunMigrations(ctx context.Context, db *dbutil.Database) error {
 		if _, err := db.Exec(ctx, recordVersionQuery, m.Version, time.Now().UTC(), m.Description); err != nil {
 			return fmt.Errorf("failed to record migration v%d: %w", m.Version, err)
 		}
-		Logger.Info("Successfully applied CLI database migration", "version", m.Version)
+		logger.Info("Successfully applied CLI database migration", "version", m.Version)
 	}
 
 	return nil
@@ -233,9 +232,9 @@ func migration2RepairConstraintsAndColumns(ctx context.Context, db *dbutil.Datab
 	hasSender, _ := TableHasColumn(ctx, db, "call_media_config", "sender")
 	hasJID, _ := TableHasColumn(ctx, db, "call_media_config", "jid")
 	if hasSender && !hasJID {
-		Logger.Info("migration2: migrating call_media_config column sender -> jid")
+		logger.Info("migration2: migrating call_media_config column sender -> jid")
 		if _, err := db.Exec(ctx, "ALTER TABLE call_media_config RENAME COLUMN sender TO jid"); err != nil {
-			Logger.Warn("migration2: failed to rename column sender to jid, attempting fallback column add", "err", err)
+			logger.Warn("migration2: failed to rename column sender to jid, attempting fallback column add", "err", err)
 			_ = EnsureCustomColumnExists(ctx, db, "call_media_config", "jid", "TEXT DEFAULT ''")
 			_, _ = db.Exec(ctx, "UPDATE call_media_config SET jid = sender WHERE jid = '' OR jid IS NULL")
 		}
@@ -272,7 +271,7 @@ func migration3PerformanceIndexes(ctx context.Context, db *dbutil.Database) erro
 
 	for _, idxQuery := range indexes {
 		if _, err := db.Exec(ctx, idxQuery); err != nil {
-			Logger.Warn("migration3: failed creating index", "query", idxQuery, "err", err)
+			logger.Warn("migration3: failed creating index", "query", idxQuery, "err", err)
 		}
 	}
 	return nil

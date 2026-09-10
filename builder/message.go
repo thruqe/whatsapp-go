@@ -2,8 +2,7 @@ package builder
 
 import (
 	"fmt"
-
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/types"
 )
@@ -133,7 +132,7 @@ func (m *MessageBuilder) Send() error {
 		to = sender.GetChat()
 	}
 
-	Logger.Debug("WARook: MessageBuilder.Send", "to", to.String(), "mediaKind", m.mediaKind, "asReply", m.asReply)
+	logger.Debug("WARook: MessageBuilder.Send", "to", to.String(), "mediaKind", m.mediaKind, "asReply", m.asReply)
 
 	switch m.mediaKind {
 	case "reaction":

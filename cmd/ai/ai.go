@@ -11,7 +11,7 @@ import (
 
 	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -148,7 +148,7 @@ func init() {
 }
 
 func handleAutoAI(ctx *dispatch.Context) error {
-	Logger.Debug("handleAutoAI started", "args", ctx.Args)
+	logger.Debug("handleAutoAI started", "args", ctx.Args)
 
 	isAuthorized := ctx.IsSudo()
 	if !isAuthorized && ctx.Chat.Server == "g.us" {
@@ -185,7 +185,7 @@ func handleAutoAI(ctx *dispatch.Context) error {
 	// 1. Set for current chat JID
 	settingKey := "autoai:" + ctx.Chat.ToNonAD().String()
 	if err := s.PutSetting(ctx.Ctx, settingKey, val); err != nil {
-		Logger.Error("failed to update autoai setting", "err", err)
+		logger.Error("failed to update autoai setting", "err", err)
 		return ctx.Reply("Failed to update setting: " + err.Error())
 	}
 
@@ -434,7 +434,7 @@ func handleAI(ctx *dispatch.Context) error {
 	query := BuildAiQuery(instruction, customPrompt, data)
 	isMediaReq := isMediaGenerationPrompt(data.Question)
 
-	Logger.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String(), "is_media_req", isMediaReq)
+	logger.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String(), "is_media_req", isMediaReq)
 
 	var placeholderMsgID types.MessageID
 	var lastEditedText string
@@ -468,7 +468,7 @@ func handleAI(ctx *dispatch.Context) error {
 			if err == nil {
 				lastEditedText = trimmed
 			} else {
-				Logger.Error("handleAI: failed to send edit", "chat", ctx.Chat.String(), "err", err)
+				logger.Error("handleAI: failed to send edit", "chat", ctx.Chat.String(), "err", err)
 			}
 			return err
 		}
@@ -477,7 +477,7 @@ func handleAI(ctx *dispatch.Context) error {
 
 	res, err := QueryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
 	if err != nil {
-		Logger.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
+		logger.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
 		if strings.Contains(err.Error(), "488") {
 			errMsg := "This WA Account cannot use MetaAI"
 			if placeholderMsgID != "" {
@@ -528,14 +528,14 @@ func handleAI(ctx *dispatch.Context) error {
 		}
 
 		if strings.HasPrefix(mType, "video/") {
-			Logger.Debug("handleAI: sending generated video message to chat", "chat", ctx.Chat.String(), "video_len", len(mediaBytes), "mime", mType)
+			logger.Debug("handleAI: sending generated video message to chat", "chat", ctx.Chat.String(), "video_len", len(mediaBytes), "mime", mType)
 			if isGroup {
 				_ = ctx.ReplyWithVideo(mediaBytes, mType, caption)
 			} else {
 				_ = ctx.SendVideo(mediaBytes, mType, caption)
 			}
 		} else {
-			Logger.Debug("handleAI: sending generated image message to chat", "chat", ctx.Chat.String(), "img_len", len(mediaBytes), "mime", mType)
+			logger.Debug("handleAI: sending generated image message to chat", "chat", ctx.Chat.String(), "img_len", len(mediaBytes), "mime", mType)
 			if isGroup {
 				_ = ctx.ReplyWithImage(mediaBytes, mType, caption)
 			} else {
@@ -561,7 +561,7 @@ func handleAI(ctx *dispatch.Context) error {
 	if cmdName, rawArgs, ok := ParseRunCommand(reply); ok {
 		if cmdName == "sh" || cmdName == "exec" || cmdName == "run" || cmdName == "shell" {
 			if !ctx.IsSudo() {
-				Logger.Warn("handleAI: blocked unauthorized shell execution request", "sender", ctx.Sender.String())
+				logger.Warn("handleAI: blocked unauthorized shell execution request", "sender", ctx.Sender.String())
 				_, _ = ctx.Edit(placeholderMsgID, "You are not authorized to run shell commands.")
 				return nil
 			}
@@ -580,20 +580,20 @@ func handleAI(ctx *dispatch.Context) error {
 		}
 
 		if cmdName == "ai" || cmdName == "autoai" || cmdName == "gpt" || cmdName == "ask" {
-			Logger.Warn("handleAI: blocked recursive AI command execution", "command", cmdName)
+			logger.Warn("handleAI: blocked recursive AI command execution", "command", cmdName)
 			_, err := ctx.Edit(placeholderMsgID, "Recursive AI command execution is not allowed.")
 			return err
 		}
 
 		targetCmd, exists := dispatch.Get(cmdName)
 		if !exists {
-			Logger.Warn("handleAI: RUN_COMMAND referenced unknown command", "command", cmdName)
+			logger.Warn("handleAI: RUN_COMMAND referenced unknown command", "command", cmdName)
 			_, _ = ctx.Edit(placeholderMsgID, "Sorry, I don't have a command called \""+cmdName+"\".")
 			return nil
 		}
 
 		if !targetCmd.IsPublic && !ctx.IsSudo() {
-			Logger.Warn("handleAI: blocked unauthorized RUN_COMMAND", "sender", ctx.Sender.String(), "command", cmdName)
+			logger.Warn("handleAI: blocked unauthorized RUN_COMMAND", "sender", ctx.Sender.String(), "command", cmdName)
 			_, _ = ctx.Edit(placeholderMsgID, "You are not authorized to run this command.")
 			return nil
 		}
@@ -613,11 +613,11 @@ func handleAI(ctx *dispatch.Context) error {
 			Chat:    ctx.Chat,
 			Sender:  ctx.Sender,
 		}
-		Logger.Debug("handleAI: executing command on behalf of AI", "command", cmdName, "args", ctx.Args)
+		logger.Debug("handleAI: executing command on behalf of AI", "command", cmdName, "args", ctx.Args)
 		return targetCmd.Handler(cctx)
 	}
 
-	Logger.Debug("handleAI: completed successfully", "chat", ctx.Chat.String())
+	logger.Debug("handleAI: completed successfully", "chat", ctx.Chat.String())
 	return nil
 }
 
@@ -701,9 +701,9 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 		imgData, err := ctx.Client.Download(ctx.Ctx, imgMsg)
 		if err == nil && len(imgData) > 0 {
 			data.QuotedImageBase64 = base64.StdEncoding.EncodeToString(imgData)
-			Logger.Debug("extractContextFromQuotedMessage: extracted image base64", "len", len(data.QuotedImageBase64))
+			logger.Debug("extractContextFromQuotedMessage: extracted image base64", "len", len(data.QuotedImageBase64))
 		} else {
-			Logger.Warn("extractContextFromQuotedMessage: failed to download quoted image", "err", err)
+			logger.Warn("extractContextFromQuotedMessage: failed to download quoted image", "err", err)
 		}
 
 	case quotedMsg.GetVideoMessage() != nil:
@@ -748,9 +748,9 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 			stkData, err := ctx.Client.Download(ctx.Ctx, stkMsg)
 			if err == nil && len(stkData) > 0 {
 				data.QuotedImageBase64 = base64.StdEncoding.EncodeToString(stkData)
-				Logger.Debug("extractContextFromQuotedMessage: extracted sticker image base64", "len", len(data.QuotedImageBase64))
+				logger.Debug("extractContextFromQuotedMessage: extracted sticker image base64", "len", len(data.QuotedImageBase64))
 			} else {
-				Logger.Warn("extractContextFromQuotedMessage: failed to download quoted sticker image", "err", err)
+				logger.Warn("extractContextFromQuotedMessage: failed to download quoted sticker image", "err", err)
 			}
 		}
 
@@ -1083,7 +1083,7 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 	isGroup := c.Chat.Server == "g.us"
 	selfChat := isSelfChat(c)
 
-	Logger.Debug("HandleAutoAIIntercept: evaluating incoming message",
+	logger.Debug("HandleAutoAIIntercept: evaluating incoming message",
 		"chat", c.Chat.String(),
 		"is_from_me", c.Evt.Info.IsFromMe,
 		"is_self_chat", selfChat,
@@ -1094,23 +1094,23 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 	// In 1-on-1 chats, only intercept if incoming from the remote contact,
 	// or if the owner is messaging themselves ("Message Yourself").
 	if c.Evt.Info.IsFromMe && !selfChat {
-		Logger.Debug("HandleAutoAIIntercept: ignoring outgoing message in non-self chat", "chat", c.Chat.String())
+		logger.Debug("HandleAutoAIIntercept: ignoring outgoing message in non-self chat", "chat", c.Chat.String())
 		return false
 	}
 
 	s, ok := dispatch.GetStore(c)
 	if !ok {
-		Logger.Debug("HandleAutoAIIntercept: store not available")
+		logger.Debug("HandleAutoAIIntercept: store not available")
 		return false
 	}
 
 	if !isAutoAIEnabled(c, s) {
-		Logger.Debug("HandleAutoAIIntercept: AutoAI not enabled for chat", "chat", c.Chat.String())
+		logger.Debug("HandleAutoAIIntercept: AutoAI not enabled for chat", "chat", c.Chat.String())
 		return false
 	}
 
 	if isGroup && !isBotTaggedOrReplied(c, text) {
-		Logger.Debug("HandleAutoAIIntercept: group message did not tag bot", "chat", c.Chat.String())
+		logger.Debug("HandleAutoAIIntercept: group message did not tag bot", "chat", c.Chat.String())
 		return false
 	}
 
@@ -1138,7 +1138,7 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 		}
 	}
 
-	Logger.Debug("HandleAutoAIIntercept: triggering AI response", "chat", c.Chat.String(), "prompt", prompt)
+	logger.Debug("HandleAutoAIIntercept: triggering AI response", "chat", c.Chat.String(), "prompt", prompt)
 
 	go func() {
 		reqCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

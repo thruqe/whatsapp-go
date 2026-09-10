@@ -19,7 +19,7 @@ import (
 
 	utils "whatsrook"
 	"whatsrook/httpx"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
@@ -190,32 +190,32 @@ func (g *UnscrambleGame) IsHost(user types.JID) bool {
 	hMen := g.HostMention.ToNonAD()
 
 	if !hLID.IsEmpty() && hLID == u {
-		Logger.Debug("[Unscramble IsHost] direct match on HostLID", "user", u.String(), "hostLID", hLID.String())
+		logger.Debug("[Unscramble IsHost] direct match on HostLID", "user", u.String(), "hostLID", hLID.String())
 		return true
 	}
 	if !hMen.IsEmpty() && hMen == u {
-		Logger.Debug("[Unscramble IsHost] direct match on HostMention", "user", u.String(), "hostMention", hMen.String())
+		logger.Debug("[Unscramble IsHost] direct match on HostMention", "user", u.String(), "hostMention", hMen.String())
 		return true
 	}
 	if !hLID.IsEmpty() && hLID.Server == u.Server && hLID.User == u.User {
-		Logger.Debug("[Unscramble IsHost] same-server match on HostLID", "user", u.String(), "hostLID", hLID.String())
+		logger.Debug("[Unscramble IsHost] same-server match on HostLID", "user", u.String(), "hostLID", hLID.String())
 		return true
 	}
 	if !hMen.IsEmpty() && hMen.Server == u.Server && hMen.User == u.User {
-		Logger.Debug("[Unscramble IsHost] same-server match on HostMention", "user", u.String(), "hostMention", hMen.String())
+		logger.Debug("[Unscramble IsHost] same-server match on HostMention", "user", u.String(), "hostMention", hMen.String())
 		return true
 	}
 	if g.Client != nil {
 		if !g.HostLID.IsEmpty() && utils.IsSameUserRaw(context.Background(), g.Client, g.HostLID, u) {
-			Logger.Debug("[Unscramble IsHost] IsSameUserRaw match on HostLID", "user", u.String(), "hostLID", g.HostLID.String())
+			logger.Debug("[Unscramble IsHost] IsSameUserRaw match on HostLID", "user", u.String(), "hostLID", g.HostLID.String())
 			return true
 		}
 		if !g.HostMention.IsEmpty() && utils.IsSameUserRaw(context.Background(), g.Client, g.HostMention, u) {
-			Logger.Debug("[Unscramble IsHost] IsSameUserRaw match on HostMention", "user", u.String(), "hostMention", g.HostMention.String())
+			logger.Debug("[Unscramble IsHost] IsSameUserRaw match on HostMention", "user", u.String(), "hostMention", g.HostMention.String())
 			return true
 		}
 	}
-	Logger.Debug("[Unscramble IsHost] check failed (not host)", "user", u.String(), "hostLID", hLID.String(), "hostMention", hMen.String())
+	logger.Debug("[Unscramble IsHost] check failed (not host)", "user", u.String(), "hostLID", hLID.String(), "hostMention", hMen.String())
 	return false
 }
 
