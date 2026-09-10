@@ -16,7 +16,7 @@ import (
 	utils "whatsrook"
 	"whatsrook/cmd/store"
 	"whatsrook/external"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 	"whatsrook/system"
 
 	"go.mau.fi/whatsmeow"
@@ -83,7 +83,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 	}
 
-	Logger.Debug("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
+	logger.Debug("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
 
 	// Reactive dispatch: list button responses and poll votes
 	cctx := &Context{
@@ -109,20 +109,20 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		if key := pollUpdate.GetPollCreationMessageKey(); key != nil {
 			targetID = key.GetID()
 		}
-		Logger.Debug("Dispatcher: incoming poll vote message detected",
+		logger.Debug("Dispatcher: incoming poll vote message detected",
 			"targetPollMsgID", targetID,
 			"chat", evt.Info.Chat.String(),
 			"sender", evt.Info.Sender.String(),
 		)
 		if utils.DispatchPollVoteEvent(cctx, evt) {
-			Logger.Debug("Dispatcher: poll vote event successfully dispatched to reactive route",
+			logger.Debug("Dispatcher: poll vote event successfully dispatched to reactive route",
 				"targetPollMsgID", targetID,
 				"chat", evt.Info.Chat.String(),
 				"sender", evt.Info.Sender.String(),
 			)
 			return true
 		}
-		Logger.Debug("Dispatcher: poll vote event has no matching reactive route",
+		logger.Debug("Dispatcher: poll vote event has no matching reactive route",
 			"targetPollMsgID", targetID,
 			"chat", evt.Info.Chat.String(),
 			"sender", evt.Info.Sender.String(),
@@ -166,7 +166,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		stk := msgProto.GetStickerMessage()
 		if stk != nil {
 			if isStale(evt) {
-				Logger.Debug("Skipping sticker command from message sent before bot startup",
+				logger.Debug("Skipping sticker command from message sent before bot startup",
 					"timestamp", evt.Info.Timestamp,
 					"startupTime", GetStartupTime(),
 				)
@@ -181,7 +181,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	// 5. Bot Tagged / Mention Proto
 	if isBotMentioned(client, evt) && okStore {
 		if isStale(evt) {
-			Logger.Debug("Skipping bot mention response from message sent before bot startup",
+			logger.Debug("Skipping bot mention response from message sent before bot startup",
 				"timestamp", evt.Info.Timestamp,
 				"startupTime", GetStartupTime(),
 			)
@@ -199,7 +199,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	// 6. Filters & BGM Trigger Words
 	if text != "" && okStore {
 		if isStale(evt) {
-			Logger.Debug("Skipping filters and BGM from message sent before bot startup",
+			logger.Debug("Skipping filters and BGM from message sent before bot startup",
 				"timestamp", evt.Info.Timestamp,
 				"startupTime", GetStartupTime(),
 			)
@@ -227,7 +227,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 
 	prefixes := activePrefixes(ctx, client)
-	Logger.Debug("Checking active prefixes", "prefixes", prefixes, "text", text)
+	logger.Debug("Checking active prefixes", "prefixes", prefixes, "text", text)
 
 	hasEmpty := false
 	for _, p := range prefixes {
@@ -242,7 +242,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 				continue
 			}
 			if isStale(evt) {
-				Logger.Debug("Skipping command from message sent before bot startup",
+				logger.Debug("Skipping command from message sent before bot startup",
 					"prefix", p,
 					"body", body,
 					"timestamp", evt.Info.Timestamp,
@@ -272,7 +272,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			first := fields[0]
 			if _, exists := Get(strings.ToLower(first)); exists {
 				if isStale(evt) {
-					Logger.Debug("Skipping empty-prefix command from message sent before bot startup",
+					logger.Debug("Skipping empty-prefix command from message sent before bot startup",
 						"body", body,
 						"timestamp", evt.Info.Timestamp,
 						"startupTime", GetStartupTime(),
@@ -291,7 +291,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		rawArgs := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
 		if external.DefaultDispatcher.IsInstalled(cmdName) {
 			if isStale(evt) {
-				Logger.Debug("Skipping external command from message sent before bot startup",
+				logger.Debug("Skipping external command from message sent before bot startup",
 					"command", cmdName,
 					"timestamp", evt.Info.Timestamp,
 					"startupTime", GetStartupTime(),
@@ -305,7 +305,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	// 9. Sticker Commands via reply with arguments
 	if text != "" && okStore {
 		if isStale(evt) {
-			Logger.Debug("Skipping quoted sticker command from message sent before bot startup",
+			logger.Debug("Skipping quoted sticker command from message sent before bot startup",
 				"timestamp", evt.Info.Timestamp,
 				"startupTime", GetStartupTime(),
 			)
@@ -324,7 +324,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	for _, it := range fallbackList {
 		if isStale(evt) {
-			Logger.Debug("Skipping fallback interceptor from message sent before bot startup",
+			logger.Debug("Skipping fallback interceptor from message sent before bot startup",
 				"timestamp", evt.Info.Timestamp,
 				"startupTime", GetStartupTime(),
 			)
@@ -417,7 +417,7 @@ func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) 
 		return "", false
 	}
 	if isStale(cctx.Evt) {
-		Logger.Debug("Skipping unknown command from message sent before bot startup",
+		logger.Debug("Skipping unknown command from message sent before bot startup",
 			"prefix", prefix,
 			"cmdName", cmdName,
 			"timestamp", cctx.Evt.Info.Timestamp,
@@ -451,14 +451,14 @@ func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) 
 
 	msg := FormatUnknownCommandSuggestion(userTag, prefix, closest)
 
-	Logger.Debug("Dispatcher: unknown command with prefix detected, suggesting closest", "prefix", prefix, "input", cmdName, "suggestion", closest, "user", userTag, "mentions", mentions)
+	logger.Debug("Dispatcher: unknown command with prefix detected, suggesting closest", "prefix", prefix, "input", cmdName, "suggestion", closest, "user", userTag, "mentions", mentions)
 	_ = cctx.ReplyWithMentions(msg, mentions)
 	return msg, true
 }
 
 func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, cmdLine string) bool {
 	if isStale(evt) {
-		Logger.Debug("Skipping command execution from message sent before bot startup",
+		logger.Debug("Skipping command execution from message sent before bot startup",
 			"cmdLine", cmdLine,
 			"timestamp", evt.Info.Timestamp,
 			"startupTime", GetStartupTime(),
@@ -552,7 +552,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		defer func() {
 			if r := recover(); r != nil {
 				crashPath := system.RecordCrash(r, "command: "+cmdName, "user: "+cctx.Sender.String(), "chat: "+cctx.Chat.String())
-				Logger.Error("Panic recovered in command handler", "command", cmdName, "panic", r, "crash_log", crashPath)
+				logger.Error("Panic recovered in command handler", "command", cmdName, "panic", r, "crash_log", crashPath)
 				_ = cctx.Reply("⚠️ An unexpected internal error occurred while executing this command.")
 			}
 		}()

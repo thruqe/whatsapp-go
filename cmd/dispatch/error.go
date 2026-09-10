@@ -1,9 +1,7 @@
 // dispatch package provides structured error handling and friendly error responses for commands.
 package dispatch
 
-import (
-	Logger "whatsrook/logger"
-)
+import "whatsrook/logger"
 
 // PluginError wraps user-facing command error messages with an optional underlying root cause.
 type PluginError struct {
@@ -47,5 +45,5 @@ func LogHandlerErrWithContext(cctx *Context, name string, err error) {
 		chatStr = cctx.Chat.String()
 		senderStr = cctx.Sender.String()
 	}
-	Logger.Error("command handler failed", "command", name, "chat", chatStr, "sender", senderStr, "err", err)
+	logger.Error("command handler failed", "command", name, "chat", chatStr, "sender", senderStr, "err", err)
 }

@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
-
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -83,7 +82,7 @@ func DispatchListSelection(sender Sender, rowID, title string) bool {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				Logger.Error("WARook: list handler panicked", "rowID", rowID, "panic", r)
+				logger.Error("WARook: list handler panicked", "rowID", rowID, "panic", r)
 			}
 		}()
 		route.fn(req, res)
@@ -234,10 +233,10 @@ func (l *ListBuilder) sendMsg(to types.JID) error {
 		},
 	}
 
-	Logger.Debug("WARook: sending list", "to", to.String(), "sections", len(sections))
+	logger.Debug("WARook: sending list", "to", to.String(), "sections", len(sections))
 	_, err := cli.SendMessage(sender.GetSendContext(), to, msg)
 	if err != nil {
-		Logger.Error("WARook: sendListMsg failed", "to", to.String(), "err", err)
+		logger.Error("WARook: sendListMsg failed", "to", to.String(), "err", err)
 	}
 	return err
 }

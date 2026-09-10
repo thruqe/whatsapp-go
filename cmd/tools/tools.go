@@ -13,7 +13,7 @@ import (
 
 	"whatsrook/cmd/dispatch"
 	"whatsrook/httpx"
-	Logger "whatsrook/logger"
+	"whatsrook/logger"
 )
 
 func init() {
@@ -113,7 +113,7 @@ func handleSaveContact(ctx *dispatch.Context) error {
 		firstName = fields[0]
 	}
 
-	Logger.Debug("handleSaveContact: processing contact save", "target", targetJID.String(), "fullName", fullName, "firstName", firstName)
+	logger.Debug("handleSaveContact: processing contact save", "target", targetJID.String(), "fullName", fullName, "firstName", firstName)
 
 	var pnStr string
 	var lidStr string
@@ -171,19 +171,19 @@ func handleSaveContact(ctx *dispatch.Context) error {
 		},
 	}
 
-	Logger.Debug("handleSaveContact: sending AppState patch", "type", patch.Type, "indexJID", indexJID, "target", targetJID.String())
+	logger.Debug("handleSaveContact: sending AppState patch", "type", patch.Type, "indexJID", indexJID, "target", targetJID.String())
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		Logger.Error("handleSaveContact: failed to send AppState patch", "err", err, "target", targetJID.String())
+		logger.Error("handleSaveContact: failed to send AppState patch", "err", err, "target", targetJID.String())
 	} else {
-		Logger.Debug("handleSaveContact: AppState patch sent successfully", "target", targetJID.String())
+		logger.Debug("handleSaveContact: AppState patch sent successfully", "target", targetJID.String())
 	}
 
 	if ctx.Client.Store != nil && ctx.Client.Store.Contacts != nil {
 		if err := ctx.Client.Store.Contacts.PutContactName(ctx.Ctx, targetJID.ToNonAD(), firstName, fullName); err != nil {
-			Logger.Error("handleSaveContact: failed to update local contact store", "err", err, "target", targetJID.String())
+			logger.Error("handleSaveContact: failed to update local contact store", "err", err, "target", targetJID.String())
 		} else {
-			Logger.Debug("handleSaveContact: updated local contact store cache", "target", targetJID.String())
+			logger.Debug("handleSaveContact: updated local contact store cache", "target", targetJID.String())
 		}
 		if !pnJID.IsEmpty() {
 			_ = ctx.Client.Store.Contacts.PutContactName(ctx.Ctx, pnJID.ToNonAD(), firstName, fullName)
@@ -200,9 +200,9 @@ func handleSaveContact(ctx *dispatch.Context) error {
 
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, vcardMsg)
 	if err != nil {
-		Logger.Error("handleSaveContact: failed to send vCard message", "err", err, "chat", ctx.Chat.String())
+		logger.Error("handleSaveContact: failed to send vCard message", "err", err, "chat", ctx.Chat.String())
 	} else {
-		Logger.Debug("handleSaveContact: sent native vCard contact message", "chat", ctx.Chat.String())
+		logger.Debug("handleSaveContact: sent native vCard contact message", "chat", ctx.Chat.String())
 	}
 
 	resolvedJID, username := ctx.ResolveMention(targetJID)
