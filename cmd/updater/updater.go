@@ -22,41 +22,36 @@ import (
 	"time"
 
 	"whatsrook"
-	"whatsrook/cmd/store"
-
-	"go.mau.fi/whatsmeow/store/sqlstore"
 )
 
 const (
-	DefaultRepoOwner   = "ThruqeLabs"
-	DefaultRepoName    = "whatsrook"
-	DefaultVersionFile = "version.txt"
-	DefaultVersionURL  = "https://raw.githubusercontent.com/ThruqeLabs/whatsrook/refs/heads/master/version.txt"
-	ChannelKey         = "update_channel" // "stable" or "beta"
-	AutoUpdateKey      = "auto_update"    // "on" or "off"
+	DefaultRepoOwner = "ThruqeLabs"
+	DefaultRepoName  = "whatsrook"
 )
 
 var EmbeddedAppVersion = func() string {
 	if v, err := whatsrook.GetVersion(); err == nil && v.Raw != "" {
 		return v.Raw
 	}
-	return "4.9.26"
+	return "26.09.dev"
 }()
 
 // Backward-compatible exports for external callers.
 const (
-	RepoOwner     = DefaultRepoOwner
-	RepoName      = DefaultRepoName
-	VersionFile   = DefaultVersionFile
-	VersionGithub = DefaultVersionURL
+	RepoOwner = DefaultRepoOwner
+	RepoName  = DefaultRepoName
 )
 
-// Version holds a semantic version (major.minor.patch).
+// Version holds a parsed release version following the YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO format.
 type Version struct {
-	Major int
-	Minor int
-	Patch int
-	Raw   string
+	Year           int
+	Major          int // alias for Year for backward compatibility
+	Month          int
+	Minor          int // alias for Month for backward compatibility
+	Patch          string
+	NumericPatch   int
+	ExtraBuildInfo string
+	Raw            string
 }
 
 // UpdateResult describes the outcome of an update check or update operation.
@@ -74,7 +69,7 @@ type UpdateResult struct {
 type Options struct {
 	RepoOwner   string
 	RepoName    string
-	VersionFile string
+	VersionFile string    // Deprecated: releases are fetched via GitHub API
 	Channel     string    // "stable" or "beta"
 	Out         io.Writer // Writer for progress logs (e.g. os.Stdout)
 	HTTPClient  *http.Client
@@ -93,9 +88,6 @@ func New(opts Options) *Updater {
 	if opts.RepoName == "" {
 		opts.RepoName = DefaultRepoName
 	}
-	if opts.VersionFile == "" {
-		opts.VersionFile = DefaultVersionFile
-	}
 	if opts.Channel == "" {
 		opts.Channel = GetDefaultChannel()
 	}
@@ -103,11 +95,6 @@ func New(opts Options) *Updater {
 		opts.HTTPClient = &http.Client{Timeout: 60 * time.Second}
 	}
 	return &Updater{opts: opts}
-}
-
-// SetOutput sets the destination writer for progress logging.
-func (u *Updater) SetOutput(w io.Writer) {
-	u.opts.Out = w
 }
 
 func (u *Updater) logf(format string, args ...any) {
@@ -298,34 +285,6 @@ func SetStoredChannel(channel string) error {
 	return os.WriteFile(channelFilePath(), []byte(channel+"\n"), 0644)
 }
 
-// GetChannel gets configured update channel ("stable" or "beta").
-// It checks the SQLStore settings table first, falling back to the local file channel preference.
-func GetChannel(ctx context.Context, Sqlstore *sqlstore.SQLStore) string {
-	if Sqlstore != nil {
-		ch, err := store.GetSetting(ctx, Sqlstore, ChannelKey)
-		if err == nil && ch != "" {
-			chLower := strings.ToLower(strings.TrimSpace(ch))
-			if chLower == "stable" || chLower == "beta" {
-				return chLower
-			}
-		}
-	}
-	return GetStoredChannel()
-}
-
-// SetChannel sets update channel ("stable" or "beta") across both SQLStore and local file preference.
-func SetChannel(ctx context.Context, SQlstore *sqlstore.SQLStore, channel string) error {
-	channel = strings.TrimSpace(strings.ToLower(channel))
-	if channel != "stable" && channel != "beta" {
-		return fmt.Errorf("invalid channel %q: must be \"stable\" or \"beta\"", channel)
-	}
-	_ = SetStoredChannel(channel)
-	if SQlstore == nil {
-		return nil
-	}
-	return store.PutSetting(ctx, SQlstore, ChannelKey, channel)
-}
-
 // GetStoredAutoUpdate returns whether auto-update is enabled.
 // It checks AUTOUPDATE and AUTO_UPDATE environment variables first, then the local config file.
 func GetStoredAutoUpdate() bool {
@@ -352,77 +311,70 @@ func SetStoredAutoUpdate(enabled bool) error {
 	return os.WriteFile(autoUpdateFilePath(), []byte(val), 0644)
 }
 
-// GetAutoUpdate gets configured auto-update preference across SQLStore and local file preference.
-func GetAutoUpdate(ctx context.Context, Sqlstore *sqlstore.SQLStore) bool {
-	if Sqlstore != nil {
-		val, err := store.GetSetting(ctx, Sqlstore, AutoUpdateKey)
-		if err == nil && val != "" {
-			valLower := strings.ToLower(strings.TrimSpace(val))
-			return valLower == "on" || valLower == "true" || valLower == "1" || valLower == "yes" || valLower == "enable" || valLower == "enabled"
-		}
-	}
-	return GetStoredAutoUpdate()
-}
-
-// SetAutoUpdate sets auto-update preference across both SQLStore and local file preference.
-func SetAutoUpdate(ctx context.Context, SQlstore *sqlstore.SQLStore, enabled bool) error {
-	_ = SetStoredAutoUpdate(enabled)
-	if SQlstore == nil {
-		return nil
-	}
-	val := "off"
-	if enabled {
-		val = "on"
-	}
-	return store.PutSetting(ctx, SQlstore, AutoUpdateKey, val)
-}
-
-// ParseVersion converts a semver string into a Version struct.
+// ParseVersion converts a version string (e.g. "26.09.7a3b4c1", "26.09.7a3b4c1_prod", "4.9.26") into a Version struct.
 func ParseVersion(raw string) (Version, error) {
 	clean := strings.TrimSpace(raw)
 	clean = strings.TrimPrefix(clean, "v")
 
 	parts := strings.Split(clean, ".")
-	if len(parts) < 3 {
-		return Version{Raw: raw}, fmt.Errorf("invalid semver format: %s", raw)
+	if len(parts) < 2 {
+		return Version{Raw: raw}, fmt.Errorf("invalid version format: %s", raw)
 	}
 
-	major, err1 := strconv.Atoi(parts[0])
-	minor, err2 := strconv.Atoi(parts[1])
-	patchStr, _, _ := strings.Cut(parts[2], "-")
-	patch, err3 := strconv.Atoi(patchStr)
+	year, err1 := strconv.Atoi(parts[0])
+	month, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		return Version{Raw: raw}, fmt.Errorf("non-numeric year/month segment in %s", raw)
+	}
 
-	if err1 != nil || err2 != nil || err3 != nil {
-		return Version{Raw: raw}, fmt.Errorf("non-numeric semver component in %s", raw)
+	var patchStr, extra string
+	var numericPatch int
+	if len(parts) >= 3 {
+		patchRaw := strings.Join(parts[2:], ".")
+		if idx := strings.IndexAny(patchRaw, "_+"); idx != -1 {
+			patchStr = patchRaw[:idx]
+			extra = patchRaw[idx+1:]
+		} else {
+			patchStr = patchRaw
+		}
+		if num, err := strconv.Atoi(patchStr); err == nil {
+			numericPatch = num
+		}
 	}
 
 	return Version{
-		Major: major,
-		Minor: minor,
-		Patch: patch,
-		Raw:   raw,
+		Year:           year,
+		Major:          year,
+		Month:          month,
+		Minor:          month,
+		Patch:          patchStr,
+		NumericPatch:   numericPatch,
+		ExtraBuildInfo: extra,
+		Raw:            raw,
 	}, nil
 }
 
 // Compare compares two versions, returning -1/0/+1 like cmp.Compare.
 func (v Version) Compare(other Version) int {
-	if v.Major != other.Major {
-		if v.Major > other.Major {
+	if v.Year != other.Year {
+		if v.Year > other.Year {
 			return 1
 		}
 		return -1
 	}
-	if v.Minor != other.Minor {
-		if v.Minor > other.Minor {
+	if v.Month != other.Month {
+		if v.Month > other.Month {
 			return 1
 		}
 		return -1
 	}
-	if v.Patch != other.Patch {
-		if v.Patch > other.Patch {
-			return 1
+	if v.NumericPatch != 0 || other.NumericPatch != 0 {
+		if v.NumericPatch != other.NumericPatch {
+			if v.NumericPatch > other.NumericPatch {
+				return 1
+			}
+			return -1
 		}
-		return -1
 	}
 	return 0
 }
@@ -483,53 +435,6 @@ func GetAppVersion() string {
 		}
 	}
 	return FormatVersionDisplay(GetBinaryVersion())
-}
-
-// ReadEffectiveLocalVersion checks cwd, executable directory, and fallback embedded version.
-func ReadEffectiveLocalVersion(versionFile string) string {
-	if ver, err := ReadLocalVersion(versionFile); err == nil && strings.TrimSpace(ver) != "" {
-		return strings.TrimSpace(ver)
-	}
-	if exePath, err := ResolveExecutablePath(); err == nil {
-		exeDir := filepath.Dir(exePath)
-		if ver, err := ReadLocalVersion(filepath.Join(exeDir, versionFile)); err == nil && strings.TrimSpace(ver) != "" {
-			return strings.TrimSpace(ver)
-		}
-	}
-	return GetBinaryVersion()
-}
-
-// ReadLocalVersion reads and parses the version string from a local version file.
-func ReadLocalVersion(versionPath string) (string, error) {
-	data, err := os.ReadFile(versionPath)
-	if err != nil {
-		return "", err
-	}
-	clean := strings.TrimSpace(string(data))
-	if clean == "" {
-		return "", fmt.Errorf("empty version file %q", versionPath)
-	}
-	// Also support parsing legacy TOML format if present
-	if strings.Contains(clean, "version") && strings.Contains(clean, "=") {
-		return parseVersionFromTOML(clean)
-	}
-	return clean, nil
-}
-
-func parseVersionFromTOML(content string) (string, error) {
-	lines := strings.SplitSeq(content, "\n")
-	for line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "version") {
-			parts := strings.SplitN(line, "=", 2)
-			if len(parts) == 2 {
-				val := strings.TrimSpace(parts[1])
-				val = strings.Trim(val, `"'`)
-				return val, nil
-			}
-		}
-	}
-	return "", fmt.Errorf("version key not found in toml")
 }
 
 type githubAsset struct {
@@ -748,12 +653,13 @@ func (u *Updater) fetchRemoteBetaVersion(ctx context.Context) (string, error) {
 }
 
 func (u *Updater) fetchRemoteStableVersion(ctx context.Context) (string, error) {
-	versionURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/refs/heads/master/%s", u.opts.RepoOwner, u.opts.RepoName, u.opts.VersionFile)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, versionURL, nil)
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", u.opts.RepoOwner, u.opts.RepoName)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("User-Agent", "whatsrook-updater")
+	req.Header.Set("Accept", "application/vnd.github+json")
 
 	resp, err := u.opts.HTTPClient.Do(req)
 	if err != nil {
@@ -762,21 +668,20 @@ func (u *Updater) fetchRemoteStableVersion(ctx context.Context) (string, error) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("HTTP %d fetching remote %s", resp.StatusCode, u.opts.VersionFile)
+		return "", fmt.Errorf("HTTP %d fetching latest release", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
+	var rel githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+		return "", fmt.Errorf("failed to parse release metadata: %w", err)
 	}
-	clean := strings.TrimSpace(string(body))
-	if clean == "" {
-		return "", fmt.Errorf("empty remote version from %s", versionURL)
+
+	tag := strings.TrimSpace(rel.TagName)
+	tag = strings.TrimPrefix(tag, "v")
+	if tag == "" {
+		return "", fmt.Errorf("empty tag in latest release")
 	}
-	if strings.Contains(clean, "version") && strings.Contains(clean, "=") {
-		return parseVersionFromTOML(clean)
-	}
-	return clean, nil
+	return tag, nil
 }
 
 // Check compares local and remote versions for the configured repository and platform.
