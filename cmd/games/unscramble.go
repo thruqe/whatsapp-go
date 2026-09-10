@@ -1012,19 +1012,19 @@ func scrambleString(s string) string {
 func GetCXPTitle(xp int) string {
 	switch {
 	case xp >= 12000:
-		return "👑 Legendary Master"
+		return "Legendary Master"
 	case xp >= 7000:
-		return "🌟 Legend"
+		return "Legend"
 	case xp >= 3500:
-		return "⚡ Prolific"
+		return "Prolific"
 	case xp >= 1500:
-		return "🔥 Master"
+		return "Master"
 	case xp >= 500:
-		return "⚔️ Pro"
+		return "Pro"
 	case xp >= 100:
-		return "🌱 Beginner"
+		return "Beginner"
 	default:
-		return "🐣 Novice"
+		return "Novice"
 	}
 }
 

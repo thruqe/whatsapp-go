@@ -638,7 +638,6 @@ func HandleUnscrambleInput(ctx *dispatch.Context, text string) bool {
 	correct, gameOver, _, currentPlayer, elapsed := game.ProcessGuess(text, senderLID)
 
 	if correct {
-		_ = ctx.React("✅")
 		msg := dispatch.Sprintf("Correct! %s guessed '%s' in %.1fs! (+%d pts)\n\nAdvancing to the next level!",
 			currentPlayer.Tag, game.CurrentWord, elapsed.Seconds(), game.WordLength*10)
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
@@ -652,7 +651,6 @@ func HandleUnscrambleInput(ctx *dispatch.Context, text string) bool {
 		return true
 	}
 
-	_ = ctx.React("❌")
 	msg := dispatch.Sprintf("Incorrect guess by %s!\nThe correct word was: '%s'.\n%s has been eliminated from this match!",
 		currentPlayer.Tag, game.CurrentWord, currentPlayer.Tag)
 	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
@@ -875,7 +873,7 @@ func startUnscrambleTurn(ctx *dispatch.Context, game *UnscrambleGame) {
 		word := game.CurrentWord
 		gameOver, _ := game.EliminateCurrentPlayer()
 
-		timeoutMsg := dispatch.Sprintf("⏰ Time's up for %s!\nThe correct word was: '%s'.\n%s has been eliminated from this match!",
+		timeoutMsg := dispatch.Sprintf("Time's up for %s!\nThe correct word was: '%s'.\n%s has been eliminated from this match!",
 			currentPlayer.Tag, word, currentPlayer.Tag)
 		_ = cctx.ReplyWithMentions(timeoutMsg, []types.JID{currentPlayer.MentionJID})
 
@@ -901,7 +899,7 @@ func finishUnscrambleGame(ctx *dispatch.Context, game *UnscrambleGame) {
 
 	if isMultiplayer {
 		if winner != nil {
-			tb.Linef("🏆 Winner (Last Standing): %s\nTotal Score: %d pts | Correct Guesses: %d",
+			tb.Linef("Winner (Last Standing): %s\nTotal Score: %d pts | Correct Guesses: %d",
 				winner.Tag, winner.Score, winner.CorrectGuesses).Blank()
 			mentions = append(mentions, winner.MentionJID)
 		} else {
@@ -910,7 +908,7 @@ func finishUnscrambleGame(ctx *dispatch.Context, game *UnscrambleGame) {
 	} else {
 		// Single player game
 		if winner != nil {
-			tb.Linef("🏆 Congratulations %s! You completed all 16 levels with %d points!",
+			tb.Linef("Congratulations %s! You completed all 16 levels with %d points!",
 				winner.Tag, winner.Score).Blank()
 			mentions = append(mentions, winner.MentionJID)
 		} else if len(standings) > 0 {
@@ -1380,7 +1378,6 @@ func HandleWCGInput(ctx *dispatch.Context, text string) bool {
 	guess := strings.ToLower(strings.TrimSpace(text))
 
 	if len(guess) < game.MinLength {
-		_ = ctx.React("❌")
 		failMsg := dispatch.Sprintf("Word too short! Must be at least %d characters long (got %d).\n%s has been eliminated!", game.MinLength, len(guess), currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
@@ -1388,7 +1385,6 @@ func HandleWCGInput(ctx *dispatch.Context, text string) bool {
 	}
 
 	if len(guess) == 0 || unicode.ToUpper(rune(guess[0])) != unicode.ToUpper(game.RequiredChar) {
-		_ = ctx.React("❌")
 		failMsg := dispatch.Sprintf("Invalid start letter! Word must start with '%c'.\n%s has been eliminated!", unicode.ToUpper(game.RequiredChar), currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
@@ -1396,7 +1392,6 @@ func HandleWCGInput(ctx *dispatch.Context, text string) bool {
 	}
 
 	if game.IsWordUsed(guess) {
-		_ = ctx.React("❌")
 		failMsg := dispatch.Sprintf("Word '%s' was already used in this match!\n%s has been eliminated!", guess, currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
@@ -1404,7 +1399,6 @@ func HandleWCGInput(ctx *dispatch.Context, text string) bool {
 	}
 
 	if !ValidateWordParallel(guess) {
-		_ = ctx.React("❌")
 		failMsg := dispatch.Sprintf("'%s' is not recognized as a valid English word across dictionary sources!\n%s has been eliminated!", guess, currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
@@ -1414,7 +1408,6 @@ func HandleWCGInput(ctx *dispatch.Context, text string) bool {
 	correct, gameOver, winner, currentPlayer, elapsed := game.ProcessGuess(guess, senderLID)
 
 	if correct {
-		_ = ctx.React("✅")
 		game.Mu.Lock()
 		nextReqChar := unicode.ToUpper(game.RequiredChar)
 		game.Mu.Unlock()

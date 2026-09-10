@@ -480,7 +480,7 @@ func sendAliveCustomizeGuide(ctx *dispatch.Context) error {
 		Bullet("@rizz / {rizz} / [rizz]     : Random rizz from API").
 		Blank().
 		Section("Example Custom Templates").
-		Linef("%salive customize @user I am alive and kicking! 🚀 Uptime: @uptime", p).
+		Linef("%salive customize @user I am alive and operational. Uptime: @uptime", p).
 		Linef("%salive customize Hello @name, @bot is online!", p).
 		Reply()
 }

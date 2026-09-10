@@ -236,7 +236,7 @@ func handleStopShell(ctx *dispatch.Context) error {
 	if cancel != nil {
 		cancel()
 	}
-	return ctx.Reply("🛑 Shell command terminated.")
+	return ctx.Reply("Shell command terminated.")
 }
 
 // HandleShellInput checks if there is an active shell session in the chat and feeds stdin input to it.
@@ -268,7 +268,7 @@ func HandleShellInput(ctx *dispatch.Context, text string) bool {
 		session.Mu.Unlock()
 		if cancel != nil {
 			cancel()
-			_ = ctx.Reply("🛑 Shell command terminated.")
+			_ = ctx.Reply("Shell command terminated.")
 			return true
 		}
 	}
@@ -306,7 +306,6 @@ func HandleShellInput(ctx *dispatch.Context, text string) bool {
 			_ = ctx.Replyf("Failed to write to stdin: %v", err)
 			return true
 		}
-		_ = ctx.React("⌨️")
 		session.Buf.WriteString(dispatch.Sprintf("\n[stdin] %s\n", text))
 		select {
 		case session.UpdateCh <- struct{}{}:
@@ -403,7 +402,7 @@ func handleSh(ctx *dispatch.Context) error {
 		return ctx.Replyf("Failed to open stderr pipe: %v", err)
 	}
 
-	initialMsg := dispatch.Sprintf("🖥️ *Executing Shell Command...*\n`%s`\n\n```\n(starting process...)\n```\n💡 _Type in chat to send stdin input. Type `.stop` to kill._", commandStr)
+	initialMsg := dispatch.Sprintf("*Executing Shell Command...*\n`%s`\n\n```\n(starting process...)\n```\n_Type in chat to send stdin input. Type `.stop` to kill._", commandStr)
 	msgID, err := ctx.ReplyWithID(initialMsg)
 	if err != nil {
 		cancel()
@@ -433,7 +432,7 @@ func handleSh(ctx *dispatch.Context) error {
 		delete(ActiveShellSessions, chatKey)
 		ActiveShellSessionsMu.Unlock()
 		cancel()
-		_, _ = ctx.Edit(msgID, dispatch.Sprintf("🖥️ *Shell Error:*\n`%s`\n\n```\nFailed to start: %v\n```", commandStr, err))
+		_, _ = ctx.Edit(msgID, dispatch.Sprintf("*Shell Error:*\n`%s`\n\n```\nFailed to start: %v\n```", commandStr, err))
 		return nil
 	}
 
@@ -448,13 +447,14 @@ func handleSh(ctx *dispatch.Context) error {
 				session.Mu.Lock()
 				session.Buf.Write(buf[:n])
 				session.Mu.Unlock()
+
 				select {
 				case session.UpdateCh <- struct{}{}:
 				default:
 				}
 			}
 			if rErr != nil {
-				break
+				return
 			}
 		}
 	}
@@ -463,18 +463,15 @@ func handleSh(ctx *dispatch.Context) error {
 	go readStream(stdoutPipe)
 	go readStream(stderrPipe)
 
-	// Background streaming editor
+	// Debounced UI updater
 	go func() {
-		ticker := time.NewTicker(800 * time.Millisecond)
+		ticker := time.NewTicker(1200 * time.Millisecond)
 		defer ticker.Stop()
 
 		var lastEditedText string
 		var lastEditTime time.Time
 
 		doEdit := func() {
-			if ctx.Client == nil || !ctx.Client.IsConnected() || !ctx.Client.IsLoggedIn() {
-				return
-			}
 			session.Mu.Lock()
 			rawOutput := session.Buf.String()
 			session.Mu.Unlock()
@@ -489,7 +486,7 @@ func handleSh(ctx *dispatch.Context) error {
 			}
 
 			if cleaned != lastEditedText && time.Since(lastEditTime) >= 800*time.Millisecond {
-				updateText := dispatch.Sprintf("🖥️ *Executing Shell Command...*\n`%s`\n\n```\n%s\n```\n💡 _Type in chat to send stdin input. Type `.stop` to kill._", session.CommandStr, cleaned)
+				updateText := dispatch.Sprintf("*Executing Shell Command...*\n`%s`\n\n```\n%s\n```\n_Type in chat to send stdin input. Type `.stop` to kill._", session.CommandStr, cleaned)
 				_, _ = ctx.Edit(session.MsgID, updateText)
 				lastEditedText = cleaned
 				lastEditTime = time.Now()
@@ -544,7 +541,7 @@ func handleSh(ctx *dispatch.Context) error {
 			cleaned = "... (truncated)\n" + cleaned[len(cleaned)-3400:]
 		}
 
-		finalMsg := dispatch.Sprintf("🖥️ *Shell Output*\nCommand: `%s`\nStatus: *%s*\n\n```\n%s\n```", session.CommandStr, statusStr, cleaned)
+		finalMsg := dispatch.Sprintf("*Shell Output*\nCommand: `%s`\nStatus: *%s*\n\n```\n%s\n```", session.CommandStr, statusStr, cleaned)
 		_, _ = ctx.Edit(session.MsgID, finalMsg)
 	}()
 
@@ -941,7 +938,7 @@ func handleDelSudo(ctx *dispatch.Context) error {
 		return ctx.Replyf("Usage:\n- %sdelsudo @user\n- %sdelsudo 1234567890\n- Reply to a user's message with %sdelsudo", p, p, p)
 	}
 	if slices.ContainsFunc(targets, ctx.IsTargetOwner) {
-		return ctx.Reply("⚠️ Cannot remove the bot owner from sudoers.")
+		return ctx.Reply("Cannot remove the bot owner from sudoers.")
 	}
 
 	s, ok := dispatch.GetStore(ctx)

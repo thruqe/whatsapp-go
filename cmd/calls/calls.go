@@ -271,7 +271,7 @@ func handleCallAudio(ctx *dispatch.Context) error {
 		p := ctx.GetPrefix()
 		if path, ok := getSavedAudio(ctx, ctx.Sender); ok {
 			baseName := filepath.Base(path)
-			return ctx.Replyf("🎙️ Your default call audio is `%s`.\n\n• `%scallaudio <number>` to place a call\n• Reply to new audio with `%scallaudio` to change it", baseName, p, p)
+			return ctx.Replyf("Your default call audio is `%s`.\n\n• `%scallaudio <number>` to place a call\n• Reply to new audio with `%scallaudio` to change it", baseName, p, p)
 		}
 		return ctx.Replyf("Usage: `%scallaudio <number>`\n\nTo set a default, reply to any voice note or audio file with `%scallaudio`.", p, p)
 	}
@@ -348,13 +348,13 @@ func handleCallVideo(ctx *dispatch.Context) error {
 		p := ctx.GetPrefix()
 		if path, ok := getSavedVideo(ctx, ctx.Sender); ok {
 			baseName := filepath.Base(path)
-			return ctx.Replyf("📹 Your default call video is `%s`.\n\n• `%scallvideo <number>` to place a call\n• Reply to new video with `%scallvideo` to change it", baseName, p, p)
+			return ctx.Replyf("Your default call video is `%s`.\n\n• `%scallvideo <number>` to place a call\n• Reply to new video with `%scallvideo` to change it", baseName, p, p)
 		}
 		return ctx.Replyf("Usage: `%scallvideo <number>`\n\nTo set a default, reply to any video with `%scallvideo`.", p, p)
 	}
 
 	target := targets[0].String()
-	_ = ctx.Reply("⚠️ Heads up — outgoing video calls are unreliable on WhatsApp Web's protocol, so this may not go through cleanly.")
+	_ = ctx.Reply("Heads up: outgoing video calls are unreliable on WhatsApp Web's protocol, so this may not go through cleanly.")
 
 	if videoMsg != nil {
 		data, err := ctx.Client.Download(ctx.Ctx, videoMsg)

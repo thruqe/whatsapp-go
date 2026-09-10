@@ -6,6 +6,7 @@ import (
 	"time"
 	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
+	"whatsrook/logger"
 
 	"go.mau.fi/whatsmeow/appstate"
 	waBinary "go.mau.fi/whatsmeow/binary"
@@ -94,26 +95,26 @@ func init() {
 
 func handleArchive(ctx *dispatch.Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to sudoers only.")
+		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
 	}
 	patch := appstate.BuildArchive(ctx.Chat, true, time.Time{}, nil)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		return ctx.Reply("Failed to archive chat: " + err.Error())
+		return ctx.Reply("Could not archive this chat: " + err.Error())
 	}
-	return ctx.Reply("Chat archived.")
+	return ctx.Reply("This chat has been archived.")
 }
 
 func handleUnarchive(ctx *dispatch.Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to sudoers only.")
+		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
 	}
 	patch := appstate.BuildArchive(ctx.Chat, false, time.Time{}, nil)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		return ctx.Reply("Failed to unarchive chat: " + err.Error())
+		return ctx.Reply("Could not unarchive this chat: " + err.Error())
 	}
-	return ctx.Reply("Chat unarchived.")
+	return ctx.Reply("This chat has been unarchived.")
 }
 
 func handlePin(ctx *dispatch.Context) error {
@@ -129,7 +130,7 @@ func handlePin(ctx *dispatch.Context) error {
 			}
 		}
 		if !isAuthorized {
-			return ctx.Reply("Only sudoers or group admins can pin messages.")
+			return ctx.Reply("Only group admins or authorized bot users can pin messages.")
 		}
 
 		quotedSender, ok := ctx.GetQuotedSender()
@@ -161,20 +162,20 @@ func handlePin(ctx *dispatch.Context) error {
 
 		_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, pinMsg)
 		if err != nil {
-			return ctx.Reply("Failed to pin message: " + err.Error())
+			return ctx.Reply("Could not pin this message: " + err.Error())
 		}
-		return ctx.Reply("Message pinned.")
+		return ctx.Reply("The message has been pinned.")
 	}
 
 	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to sudoers only.")
+		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
 	}
 	patch := appstate.BuildPin(ctx.Chat, true)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		return ctx.Reply("Failed to pin chat: " + err.Error())
+		return ctx.Reply("Could not pin this chat: " + err.Error())
 	}
-	return ctx.Reply("Chat pinned.")
+	return ctx.Reply("This chat has been pinned.")
 }
 
 func handleUnpin(ctx *dispatch.Context) error {
@@ -190,7 +191,7 @@ func handleUnpin(ctx *dispatch.Context) error {
 			}
 		}
 		if !isAuthorized {
-			return ctx.Reply("Only sudoers or group admins can unpin messages.")
+			return ctx.Reply("Only group admins or authorized bot users can unpin messages.")
 		}
 
 		quotedSender, ok := ctx.GetQuotedSender()
@@ -219,25 +220,25 @@ func handleUnpin(ctx *dispatch.Context) error {
 
 		_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, unpinMsg)
 		if err != nil {
-			return ctx.Reply("Failed to unpin message: " + err.Error())
+			return ctx.Reply("Could not unpin this message: " + err.Error())
 		}
-		return ctx.Reply("Message unpinned.")
+		return ctx.Reply("The message has been unpinned.")
 	}
 
 	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to sudoers only.")
+		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
 	}
 	patch := appstate.BuildPin(ctx.Chat, false)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		return ctx.Reply("Failed to unpin chat: " + err.Error())
+		return ctx.Reply("Could not unpin this chat: " + err.Error())
 	}
-	return ctx.Reply("Chat unpinned.")
+	return ctx.Reply("This chat has been unpinned.")
 }
 
 func handleBlock(ctx *dispatch.Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to sudoers only.")
+		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
 	}
 	target := ctx.Chat
 	targets := ctx.GetTargets()
@@ -246,11 +247,11 @@ func handleBlock(ctx *dispatch.Context) error {
 	}
 
 	if target.Server == "g.us" {
-		return ctx.Reply("Cannot block a group JID. Block commands only apply to users.")
+		return ctx.Reply("Groups cannot be blocked. The block command only applies to individual contacts.")
 	}
 
 	if utils.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
-		return ctx.Reply("⚠️ Cannot block the bot owner or sudo users.")
+		return ctx.Reply("You cannot block the bot owner or authorized sudo users.")
 	}
 
 	bare := target.ToNonAD()
@@ -262,6 +263,11 @@ func handleBlock(ctx *dispatch.Context) error {
 				jidsToBlock = append(jidsToBlock, uInfo.LID.ToNonAD())
 			}
 		}
+	}
+
+	resolvedJID, username := ctx.ResolveMention(target)
+	if err := ctx.ReplyWithMentions(dispatch.Sprintf("@%s has been blocked.", username), []types.JID{resolvedJID}); err != nil {
+		logger.Warn("handleBlock: failed to send block confirmation message", "target", target.String(), "err", err)
 	}
 
 	var lastErr error
@@ -276,16 +282,16 @@ func handleBlock(ctx *dispatch.Context) error {
 	}
 
 	if !blockedAny && lastErr != nil {
-		return ctx.Reply("Failed to block user: " + lastErr.Error())
+		logger.Error("handleBlock: failed to block user", "target", target.String(), "err", lastErr)
+		return ctx.Reply("Could not block user: " + lastErr.Error())
 	}
 
-	resolvedJID, username := ctx.ResolveMention(target)
-	return ctx.ReplyWithMentions(dispatch.Sprintf("Blocked @%s.", username), []types.JID{resolvedJID})
+	return nil
 }
 
 func handleUnblock(ctx *dispatch.Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to sudoers only.")
+		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
 	}
 	target := ctx.Chat
 	targets := ctx.GetTargets()
@@ -294,7 +300,7 @@ func handleUnblock(ctx *dispatch.Context) error {
 	}
 
 	if target.Server == "g.us" {
-		return ctx.Reply("Cannot unblock a group. Unblock commands only apply to users.")
+		return ctx.Reply("Groups cannot be unblocked. The unblock command only applies to individual contacts.")
 	}
 
 	bare := target.ToNonAD()
@@ -320,23 +326,23 @@ func handleUnblock(ctx *dispatch.Context) error {
 	}
 
 	if !unblockedAny && lastErr != nil {
-		return ctx.Reply("Failed to unblock user: " + lastErr.Error())
+		return ctx.Reply("Could not unblock user: " + lastErr.Error())
 	}
 
 	resolvedJID, username := ctx.ResolveMention(target)
-	return ctx.ReplyWithMentions(dispatch.Sprintf("Unblocked @%s.", username), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(dispatch.Sprintf("@%s has been unblocked.", username), []types.JID{resolvedJID})
 }
 
 func handleClear(ctx *dispatch.Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to sudoers only.")
+		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
 	}
 	patch := appstate.BuildDeleteChat(ctx.Chat, time.Now(), nil, true)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		return ctx.Reply("Failed to clear chat: " + err.Error())
+		return ctx.Reply("Could not clear messages in this chat: " + err.Error())
 	}
-	return ctx.Reply("Chat messages cleared.")
+	return ctx.Reply("All messages in this chat have been cleared.")
 }
 
 func handleDelete(ctx *dispatch.Context) error {
@@ -346,7 +352,7 @@ func handleDelete(ctx *dispatch.Context) error {
 	} else {
 		ci := ctx.GetContextInfo()
 		if ci == nil || ci.StanzaID == nil {
-			return ctx.Reply("Reply to the message you want to delete, or specify a message ID.")
+			return ctx.Reply("Please reply to the message you want to delete, or provide its message ID.")
 		}
 		targetID = *ci.StanzaID
 	}
@@ -362,7 +368,7 @@ func handleDelete(ctx *dispatch.Context) error {
 	}
 
 	if !isAuthorized {
-		return ctx.Reply("Only sudoers or group admins can delete messages.")
+		return ctx.Reply("Only group admins or authorized bot users can delete messages.")
 	}
 
 	quotedSender, ok := ctx.GetQuotedSender()
@@ -376,7 +382,7 @@ func handleDelete(ctx *dispatch.Context) error {
 	revokeMsg := ctx.Client.BuildRevoke(ctx.Chat, revokeSender, targetID)
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, revokeMsg)
 	if err != nil {
-		return ctx.Reply("Failed to delete message: " + err.Error())
+		return ctx.Reply("Could not delete message: " + err.Error())
 	}
 	return nil
 }
@@ -387,12 +393,12 @@ func isJIDSudo(ctx *dispatch.Context, jid types.JID) bool {
 
 func handleReport(ctx *dispatch.Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to sudoers only.")
+		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
 	}
 
 	p := ctx.GetPrefix()
 	if len(ctx.Args) == 0 && ctx.GetQuotedMessage() == nil {
-		return ctx.Replyf("⚠️ *WARNING*: The %sreport command reports a target user or chat directly to WhatsApp for spam and terms violations.\n\nUsage:\n- Reply to a message with %sreport\n- %sreport @user\n- %sreport <count>x", p, p, p, p)
+		return ctx.Replyf("*Warning*: The %sreport command reports a target user or chat directly to WhatsApp for spam and terms violations.\n\nUsage:\n- Reply to a message with %sreport\n- %sreport @user\n- %sreport <count>x", p, p, p, p)
 	}
 
 	targetJID := ctx.Chat
@@ -424,7 +430,7 @@ func handleReport(ctx *dispatch.Context) error {
 	}
 
 	if isJIDSudo(ctx, targetJID) {
-		return ctx.Reply("Cannot report the bot or any of its sudo users.")
+		return ctx.Reply("You cannot report the bot or authorized sudo users.")
 	}
 
 	count := 1
@@ -484,7 +490,7 @@ func handleReport(ctx *dispatch.Context) error {
 		//lint:ignore SA1019 intentional use of internal API for spam reporting
 		_, err := ctx.Client.DangerousInternals().SendNodeAndGetData(ctx.Ctx, iqNode)
 		if err != nil {
-			return ctx.Replyf("Failed to submit spam report on iteration %d: %s", i+1, err.Error())
+			return ctx.Replyf("Could not submit spam report on attempt %d: %s", i+1, err.Error())
 		}
 
 		if count > 1 && i < count-1 {
@@ -499,16 +505,16 @@ func handleReport(ctx *dispatch.Context) error {
 			groupName = info.GroupName.Name
 		}
 		if count > 1 {
-			return ctx.Replyf("Reported %s for spam to whatsapp %dx.", groupName, count)
+			return ctx.Replyf("Reported %s for spam to WhatsApp (%d times).", groupName, count)
 		}
-		return ctx.Replyf("Reported %s for spam to whatsapp.", groupName)
+		return ctx.Replyf("Reported %s for spam to WhatsApp.", groupName)
 	}
 
 	resolvedJID, username := ctx.ResolveMention(targetJID)
 	if count > 1 {
-		return ctx.ReplyWithMentions(dispatch.Sprintf("Reported @%s for spam to whatsapp %dx.", username, count), []types.JID{resolvedJID})
+		return ctx.ReplyWithMentions(dispatch.Sprintf("Reported @%s for spam to WhatsApp (%d times).", username, count), []types.JID{resolvedJID})
 	}
-	return ctx.ReplyWithMentions(dispatch.Sprintf("Reported @%s for spam to whatsapp.", username), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(dispatch.Sprintf("Reported @%s for spam to WhatsApp.", username), []types.JID{resolvedJID})
 }
 
 func handleVV(ctx *dispatch.Context) error {
@@ -526,7 +532,7 @@ func handleVV(ctx *dispatch.Context) error {
 				_ = s.PutSetting(ctx.Ctx, "vv_destination", val)
 				return ctx.Replyf("ViewOnce media destination updated to: %s", val)
 			}
-			return ctx.Replyf("Usage: %svv dest chat | owner | <phone_number> | <group_jid>", ctx.GetPrefix())
+			return ctx.Replyf("Usage: %svv dest <chat|owner|<phone_number>|<group_jid>>", ctx.GetPrefix())
 		}
 	}
 
@@ -537,7 +543,7 @@ func handleVV(ctx *dispatch.Context) error {
 
 	if !utils.IsViewOnceMessage(quoted) {
 		if quoted.GetImageMessage() == nil && quoted.GetVideoMessage() == nil && quoted.GetAudioMessage() == nil && quoted.GetDocumentWithCaptionMessage() == nil {
-			return ctx.Reply("The replied message is not a ViewOnce or media message.")
+			return ctx.Reply("The selected message is not a ViewOnce or media message.")
 		}
 	}
 
@@ -586,7 +592,7 @@ func handleVV(ctx *dispatch.Context) error {
 	}
 	err := utils.UnwrapAndSendViewOnceMessage(ctx.Ctx, ctx.Client, quoted, senderJID, pushName, targetJID, quoteID, ctx.Chat)
 	if err != nil {
-		return ctx.Reply("Failed to unwrap ViewOnce message: " + err.Error())
+		return ctx.Reply("Could not unwrap ViewOnce message: " + err.Error())
 	}
 	return nil
 }
@@ -604,7 +610,7 @@ func sendVVMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 		Header("VIEWONCE UNWRAPPER").
 		Field("Destination", dest).
 		Blank().
-		Linef("Reply to any ViewOnce image, video, or audio message with %svv to unwrap it.", p).
+		Linef("Reply to any ViewOnce image, video, or audio message with %svv to unwrap and view it.", p).
 		Trimmed()
 
 	options := []string{
