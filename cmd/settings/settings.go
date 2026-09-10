@@ -774,7 +774,7 @@ func generateBioText(tzStr string) string {
 	quote := BioQuotes[AutoBioRng.Intn(len(BioQuotes))]
 	AutoBioRngMutex.Unlock()
 
-	return dispatch.Sprintf("⏰ %s | %s", timeFormatted, quote)
+	return dispatch.Sprintf("%s | %s", timeFormatted, quote)
 }
 
 func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error) {
@@ -1618,19 +1618,19 @@ func sendSetBotPage(ctx *dispatch.Context, pageNum int) error {
 		options = []string{
 			"Wizard",
 			"Bot Name",
-			"Next ▶️",
+			"Next",
 		}
 	case 2:
 		options = []string{
 			"Thumbnail",
 			"Prefix",
-			"Next ▶️",
+			"Next",
 		}
 	default:
 		options = []string{
 			"Bio",
 			"Reset All",
-			"◀️ Back",
+			"Back",
 		}
 	}
 
@@ -1723,7 +1723,7 @@ func sendLikeStatusMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 		Header("LIFESTATUS AUTO-REACTION").
 		Field("Status", strings.ToUpper(status)).
 		Blank().
-		Line("Automatically reacts to status broadcasts with random love emojis (❤️, 💕, 💖, 💗, 💓, 💞, 💘, 💌, 🥰, 😍).").
+		Line("Automatically reacts to status broadcasts with random love reaction emojis.").
 		Trimmed()
 
 	actionText := "Activate"
@@ -2636,7 +2636,7 @@ func sendAutoReactGuide(ctx *dispatch.Context) error {
 		Bulletf("`%sautoreact scope dm`          : React in DMs only", p).
 		Blank().
 		Section("Examples:").
-		Linef("`%sautoreact emoji ❤️ 🔥 👍 ✨ 🚀`", p).
+		Linef("`%sautoreact emoji <list of emojis>`", p).
 		Linef("`%sautoreact scope group`", p).
 		Reply()
 }

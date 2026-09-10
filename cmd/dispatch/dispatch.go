@@ -496,12 +496,12 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 
 	// Permission checks
 	if cmd.GroupOnly && evt.Info.Chat.Server != "g.us" {
-		_ = cctx.Reply("⚠️ This command can only be used in group chats.")
+		_ = cctx.Reply("This command can only be used in group chats.")
 		return true
 	}
 
 	if !cmd.IsPublic && !cctx.IsSudo() {
-		_ = cctx.Reply("⚠️ This command is restricted to sudoers/bot owners only.")
+		_ = cctx.Reply("This command is restricted to the bot owner and authorized users.")
 		return true
 	}
 
@@ -541,7 +541,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		if raw != "" {
 			for disabled := range strings.FieldsSeq(raw) {
 				if strings.EqualFold(disabled, cmdName) {
-					_ = cctx.Replyf("⚠️ Command %q is currently disabled.", cmdName)
+					_ = cctx.Replyf("Command %q is currently disabled.", cmdName)
 					return true
 				}
 			}
@@ -553,14 +553,14 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			if r := recover(); r != nil {
 				crashPath := system.RecordCrash(r, "command: "+cmdName, "user: "+cctx.Sender.String(), "chat: "+cctx.Chat.String())
 				logger.Error("Panic recovered in command handler", "command", cmdName, "panic", r, "crash_log", crashPath)
-				_ = cctx.Reply("⚠️ An unexpected internal error occurred while executing this command.")
+				_ = cctx.Reply("An unexpected internal error occurred while executing this command.")
 			}
 		}()
 
 		err := cmd.Handler(cctx)
 		if err != nil {
 			LogHandlerErrWithContext(cctx, cmdName, err)
-			_ = cctx.Replyf("⚠️ %v", err)
+			_ = cctx.Replyf("%v", err)
 		}
 	}()
 

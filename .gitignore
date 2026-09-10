@@ -8,3 +8,4 @@ bin/
 sessions/
 
 cmd/__debug_bin*
+.aider*

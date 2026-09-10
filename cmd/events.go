@@ -131,11 +131,11 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 		logger.Debug("anticall: caller warning updated", "caller", callerJID.String(), "warnCount", warnCount, "maxWarn", maxWarn)
 
 		if warnCount >= maxWarn {
-			_, _ = cli.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock)
-			logger.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
 			warnText := whatsrook.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
 			formatted := whatsrook.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
+			_, _ = cli.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock)
+			logger.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
 		} else {
 			warnText := whatsrook.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
 			formatted := whatsrook.FormatTextResponseRaw(warnText)

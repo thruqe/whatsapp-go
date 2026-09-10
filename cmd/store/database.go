@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+
 	"whatsrook/logger"
 
 	"go.mau.fi/util/dbutil"
@@ -17,6 +18,21 @@ var (
 	gormDBMap sync.Map // map[*sql.DB]*gorm.DB
 	gormMu    sync.Mutex
 )
+
+// autoMigrateModels is the canonical schema list applied by AutoMigrateAll.
+var autoMigrateModels = []any{
+	&BotSetting{},
+	&CallMediaConfig{},
+	&BotFilter{},
+	&BotBGM{},
+	&BotStickerCmd{},
+	&GroupStats{},
+	&BotUserXP{},
+	&BotGroupUserXP{},
+	&CachedGroup{},
+	&CachedGroupParticipant{},
+	&CachedNewsletter{},
+}
 
 // GetORM retrieves or initializes the *gorm.DB instance for the given sqlstore.SQLStore.
 func GetORM(ctx context.Context, s *sqlstore.SQLStore) (*gorm.DB, error) {
@@ -37,15 +53,20 @@ func GetORMFromDB(ctx context.Context, db *dbutil.Database) (*gorm.DB, error) {
 	}
 
 	if val, ok := gormDBMap.Load(db.RawDB); ok {
-		return val.(*gorm.DB), nil
+		if gdb, ok := val.(*gorm.DB); ok {
+			return gdb, nil
+		}
 	}
 
 	gormMu.Lock()
 	defer gormMu.Unlock()
 
-	// Double check after acquiring mutex
+	// Re-check under lock: gorm.Open + AutoMigrate are expensive, so we only
+	// hold the mutex for the (rare) first initialization of a given DB handle.
 	if val, ok := gormDBMap.Load(db.RawDB); ok {
-		return val.(*gorm.DB), nil
+		if gdb, ok := val.(*gorm.DB); ok {
+			return gdb, nil
+		}
 	}
 
 	dialector := postgres.New(postgres.Config{
@@ -61,7 +82,11 @@ func GetORMFromDB(ctx context.Context, db *dbutil.Database) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to open GORM database: %w", err)
 	}
 
-	// AutoMigrate all custom tables
+	// AutoMigrate all custom tables. Failures are logged but do not prevent
+	// caching the handle: settings.go's hot path (GetSetting/PutSetting/etc.)
+	// must not re-run gorm.Open + migrate on every call. Versioned schema
+	// correctness is owned by RunMigrations/InitTables; this is a best-effort
+	// net and must not contradict the hand-written DDL there.
 	if err := AutoMigrateAll(ctx, gdb); err != nil {
 		logger.Warn("GORM AutoMigrate encountered issue", "err", err)
 	}
@@ -76,20 +101,7 @@ func AutoMigrateAll(ctx context.Context, db *gorm.DB) error {
 		return fmt.Errorf("nil GORM instance")
 	}
 	migrator := db.WithContext(ctx).Migrator()
-	models := []any{
-		&BotSetting{},
-		&CallMediaConfig{},
-		&BotFilter{},
-		&BotBGM{},
-		&BotStickerCmd{},
-		&GroupStats{},
-		&BotUserXP{},
-		&BotGroupUserXP{},
-		&CachedGroup{},
-		&CachedGroupParticipant{},
-		&CachedNewsletter{},
-	}
-	for _, m := range models {
+	for _, m := range autoMigrateModels {
 		if !migrator.HasTable(m) {
 			if err := migrator.CreateTable(m); err != nil {
 				return err
