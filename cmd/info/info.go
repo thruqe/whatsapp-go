@@ -18,10 +18,10 @@ import (
 	"whatsrook/cmd/settings"
 	"whatsrook/cmd/tools"
 	"whatsrook/cmd/updater"
-	"whatsrook/media"
 	"whatsrook/util"
 	"whatsrook/util/httpx"
 	"whatsrook/util/logger"
+	"whatsrook/util/media"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"

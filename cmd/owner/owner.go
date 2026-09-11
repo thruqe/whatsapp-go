@@ -21,8 +21,8 @@ import (
 
 	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
-	"whatsrook/media"
 	"whatsrook/util/logger"
+	"whatsrook/util/media"
 )
 
 func init() {
