@@ -94,9 +94,6 @@ func init() {
 }
 
 func handleArchive(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
-	}
 	patch := appstate.BuildArchive(ctx.Chat, true, time.Time{}, nil)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
@@ -106,9 +103,6 @@ func handleArchive(ctx *dispatch.Context) error {
 }
 
 func handleUnarchive(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
-	}
 	patch := appstate.BuildArchive(ctx.Chat, false, time.Time{}, nil)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
@@ -237,9 +231,6 @@ func handleUnpin(ctx *dispatch.Context) error {
 }
 
 func handleBlock(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
-	}
 	target := ctx.Chat
 	targets := ctx.GetTargets()
 	if len(targets) > 0 {
@@ -290,9 +281,6 @@ func handleBlock(ctx *dispatch.Context) error {
 }
 
 func handleUnblock(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
-	}
 	target := ctx.Chat
 	targets := ctx.GetTargets()
 	if len(targets) > 0 {
@@ -334,9 +322,6 @@ func handleUnblock(ctx *dispatch.Context) error {
 }
 
 func handleClear(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
-	}
 	patch := appstate.BuildDeleteChat(ctx.Chat, time.Now(), nil, true)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
@@ -392,10 +377,6 @@ func isJIDSudo(ctx *dispatch.Context, jid types.JID) bool {
 }
 
 func handleReport(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("This command is restricted to the bot owner and authorized users.")
-	}
-
 	p := ctx.GetPrefix()
 	if len(ctx.Args) == 0 && ctx.GetQuotedMessage() == nil {
 		return ctx.Replyf("*Warning*: The %sreport command reports a target user or chat directly to WhatsApp for spam and terms violations.\n\nUsage:\n- Reply to a message with %sreport\n- %sreport @user\n- %sreport <count>x", p, p, p, p)
