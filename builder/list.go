@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"

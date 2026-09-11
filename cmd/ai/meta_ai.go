@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"whatsrook/builder"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"

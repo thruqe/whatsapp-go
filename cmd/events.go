@@ -12,7 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"whatsrook/logger"
+	"whatsrook/util"
+	"whatsrook/util/logger"
 
 	"whatsrook"
 	"whatsrook/cmd/calls"
@@ -23,7 +24,6 @@ import (
 	"whatsrook/cmd/store"
 	"whatsrook/cmd/updater"
 	"whatsrook/qr"
-	"whatsrook/system"
 
 	_ "whatsrook/cmd/ai"
 	_ "whatsrook/cmd/business"
@@ -393,12 +393,12 @@ func (b *Bot) GetStatsPayload(ctx context.Context) StatsPayload {
 	}
 
 	uptimeSec := int64(time.Since(b.startupTime).Seconds())
-	uptimeFmt := system.FormatDuration(time.Duration(uptimeSec) * time.Second)
+	uptimeFmt := util.FormatDuration(time.Duration(uptimeSec) * time.Second)
 
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
 	memUsed := ms.Alloc
-	memUsedFmt := whatsrook.FormatBytes(memUsed)
+	memUsedFmt := util.FormatBytes(memUsed)
 
 	wsClients := uint32(0)
 	if b.hub != nil {
@@ -507,7 +507,7 @@ func (b *Bot) runQR(ctx context.Context) error {
 func (b *Bot) WAEventHandler(evt any) {
 	defer func() {
 		if r := recover(); r != nil {
-			crashPath := system.RecordCrash(r, fmt.Sprintf("WAEventHandler: %T", evt))
+			crashPath := util.RecordCrash(r, fmt.Sprintf("WAEventHandler: %T", evt))
 			logger.Error("Panic recovered in WhatsApp event handler", "panic", r, "crash_log", crashPath)
 		}
 	}()

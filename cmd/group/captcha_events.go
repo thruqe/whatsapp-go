@@ -13,7 +13,7 @@ import (
 	"whatsrook"
 	"whatsrook/cmd/store"
 	"whatsrook/external"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"

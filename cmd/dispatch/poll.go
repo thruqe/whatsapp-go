@@ -11,7 +11,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 
 	"whatsrook/builder"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 )
 
 // MapOptionToCommandArgs maps a plain poll option label back to its intended subcommand payload.

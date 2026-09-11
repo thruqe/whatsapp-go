@@ -12,7 +12,7 @@ import (
 	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/tools"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 
 	"go.mau.fi/whatsmeow"
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"

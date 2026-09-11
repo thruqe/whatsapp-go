@@ -14,8 +14,8 @@ import (
 	_ "whatsrook"
 	"whatsrook/cache"
 	"whatsrook/cmd/updater"
-	"whatsrook/logger"
-	"whatsrook/system"
+	"whatsrook/util"
+	"whatsrook/util/logger"
 )
 
 func init() {}
@@ -23,7 +23,7 @@ func init() {}
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			crashPath := system.RecordCrash(r, "top-level process panic")
+			crashPath := util.RecordCrash(r, "top-level process panic")
 			logger.Error("Fatal runtime crash", "panic", r, "crash_log", crashPath)
 			os.Exit(1)
 		}

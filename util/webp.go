@@ -1,5 +1,4 @@
-// Package webp provides WebP image processing – encode, decode, and manipulate WebP images and sticker metadata.
-package webp
+package util
 
 import (
 	"bytes"

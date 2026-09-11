@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"whatsrook/builder"
-	"whatsrook/httpx"
+	"whatsrook/util/httpx"
 )
 
 var funHTTPClient = httpx.NewClient(4 * time.Second)

@@ -16,8 +16,8 @@ import (
 	"whatsrook/builder"
 	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/store"
-	"whatsrook/logger"
 	"whatsrook/media"
+	"whatsrook/util/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"

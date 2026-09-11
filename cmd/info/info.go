@@ -18,10 +18,10 @@ import (
 	"whatsrook/cmd/settings"
 	"whatsrook/cmd/tools"
 	"whatsrook/cmd/updater"
-	"whatsrook/httpx"
-	"whatsrook/logger"
 	"whatsrook/media"
-	"whatsrook/system"
+	"whatsrook/util"
+	"whatsrook/util/httpx"
+	"whatsrook/util/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -242,7 +242,7 @@ func handleAlive(ctx *dispatch.Context) error {
 
 func renderAliveResponse(ctx *dispatch.Context, tpl, fallbackMediaURL string) error {
 	startMeasure := time.Now()
-	uptime := system.FormatDuration(time.Since(system.BootTime))
+	uptime := util.FormatDuration(time.Since(util.BootTime))
 
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
@@ -625,7 +625,7 @@ func handleMenu(ctx *dispatch.Context) error {
 		displayedCount++
 	}
 
-	uptime := system.FormatDuration(time.Since(StartTime))
+	uptime := util.FormatDuration(time.Since(StartTime))
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
 	usedRAM := ms.Alloc
@@ -786,6 +786,6 @@ func handleRepo(ctx *dispatch.Context) error {
 }
 
 func handleUptime(ctx *dispatch.Context) error {
-	out := system.FormatDuration(time.Since(StartTime))
+	out := util.FormatDuration(time.Since(StartTime))
 	return ctx.Reply(out)
 }

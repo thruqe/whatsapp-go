@@ -1,9 +1,4 @@
-// Provides runtime environment inspection and host hardware metrics.
-//
-// It provides cross-platform helpers to query memory statistics, CPU core counts,
-// active goroutines, and operating system metadata without invoking heavy external
-// shell commands.
-package system
+package util
 
 import (
 	"errors"

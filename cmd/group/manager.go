@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"whatsrook/cmd/store"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"

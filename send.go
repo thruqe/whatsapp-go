@@ -11,8 +11,8 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 
 	"whatsrook/builder"
-	"whatsrook/logger"
-	"whatsrook/webp"
+	"whatsrook/util"
+	"whatsrook/util/logger"
 )
 
 // SendText sends a plain text message without quoting.
@@ -278,11 +278,11 @@ func (c *PluginContext) SendSticker(data []byte) error {
 		return fmt.Errorf("invalid sticker data: missing WebP header")
 	}
 
-	if meta, err := webp.GetStickerMetadata(data); err != nil || meta == nil {
+	if meta, err := util.GetStickerMetadata(data); err != nil || meta == nil {
 		pack := c.GetStickerPack()
 		author := c.GetStickerAuthor()
 		logger.Debug("SendSticker: injecting clean WebP sticker metadata", "pack", pack, "author", author)
-		if withMeta, err := webp.AddStickerMetadata(data, pack, author); err == nil {
+		if withMeta, err := util.AddStickerMetadata(data, pack, author); err == nil {
 			data = withMeta
 		} else {
 			logger.Warn("SendSticker: could not inject sticker metadata", "err", err)
@@ -618,11 +618,11 @@ func (c *PluginContext) ReplyWithSticker(data []byte) error {
 		return fmt.Errorf("invalid sticker data: missing WebP header")
 	}
 
-	if meta, err := webp.GetStickerMetadata(data); err != nil || meta == nil {
+	if meta, err := util.GetStickerMetadata(data); err != nil || meta == nil {
 		pack := c.GetStickerPack()
 		author := c.GetStickerAuthor()
 		logger.Debug("ReplyWithSticker: injecting clean WebP sticker metadata", "pack", pack, "author", author)
-		if withMeta, err := webp.AddStickerMetadata(data, pack, author); err == nil {
+		if withMeta, err := util.AddStickerMetadata(data, pack, author); err == nil {
 			data = withMeta
 		} else {
 			logger.Warn("ReplyWithSticker: could not inject sticker metadata", "err", err)

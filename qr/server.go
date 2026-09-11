@@ -5,7 +5,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 
 	"github.com/skip2/go-qrcode"
 )

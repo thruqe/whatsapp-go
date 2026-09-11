@@ -19,7 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 
 	utils "whatsrook"
 

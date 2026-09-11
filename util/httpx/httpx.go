@@ -1,8 +1,3 @@
-// httpx provides a high performance, unified HTTP client layer for WhatsRook.
-//
-// It transparently supports HTTP/3 (QUIC) with automatic fallback to HTTP/2 and HTTP/1.1,
-// connection pooling, retry logic with backoff, and configurable timeouts for outgoing
-// requests.
 package httpx
 
 import (

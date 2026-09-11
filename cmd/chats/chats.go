@@ -6,7 +6,7 @@ import (
 	"time"
 	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 
 	"go.mau.fi/whatsmeow/appstate"
 	waBinary "go.mau.fi/whatsmeow/binary"
