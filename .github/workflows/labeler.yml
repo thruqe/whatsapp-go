@@ -56,7 +56,7 @@ jobs:
                 /\bplugin(s)?\b/, /\bcommand(s)?\b/, /\bhandler\b/
               ],
               'area:core': [
-                /\bwa-core\b/, /\bcore\b/, /\bqr(code)?\b/, /\bpair(ing)?\b/,
+                /\blib\b/, /\bcore\b/, /\bqr(code)?\b/, /\bpair(ing)?\b/,
                 /\bsocket\b/, /\bbinary xml\b/, /\bhandshake\b/, /\bprotocol\b/
               ],
               'area:utils': [

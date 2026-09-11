@@ -1019,66 +1019,6 @@ func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, i
 	return targetPath, nil
 }
 
-func ExtractMediaFromEvent(evt *events.Message) (whatsmeow.DownloadableMessage, bool, string) {
-	if evt == nil || evt.Message == nil {
-		return nil, false, ""
-	}
-
-	msg := evt.Message
-	if msg.EphemeralMessage != nil && msg.EphemeralMessage.Message != nil {
-		msg = msg.EphemeralMessage.Message
-	}
-	if msg.ViewOnceMessage != nil && msg.ViewOnceMessage.Message != nil {
-		msg = msg.ViewOnceMessage.Message
-	} else if msg.ViewOnceMessageV2 != nil && msg.ViewOnceMessageV2.Message != nil {
-		msg = msg.ViewOnceMessageV2.Message
-	} else if msg.ViewOnceMessageV2Extension != nil && msg.ViewOnceMessageV2Extension.Message != nil {
-		msg = msg.ViewOnceMessageV2Extension.Message
-	}
-
-	if img := msg.GetImageMessage(); img != nil {
-		return img, false, img.GetMimetype()
-	}
-	if vid := msg.GetVideoMessage(); vid != nil {
-		return vid, true, vid.GetMimetype()
-	}
-	if doc := msg.GetDocumentMessage(); doc != nil {
-		mime := doc.GetMimetype()
-		filename := strings.ToLower(doc.GetFileName())
-		if strings.HasPrefix(mime, "video/") || strings.HasSuffix(filename, ".mp4") || strings.HasSuffix(filename, ".mkv") {
-			return doc, true, mime
-		}
-		if strings.HasPrefix(mime, "image/") || strings.HasSuffix(filename, ".jpg") || strings.HasSuffix(filename, ".png") || strings.HasSuffix(filename, ".jpeg") {
-			return doc, false, mime
-		}
-	}
-
-	if ext := msg.GetExtendedTextMessage(); ext != nil && ext.GetContextInfo() != nil && ext.GetContextInfo().QuotedMessage != nil {
-		q := ext.GetContextInfo().QuotedMessage
-		if q.EphemeralMessage != nil && q.EphemeralMessage.Message != nil {
-			q = q.EphemeralMessage.Message
-		}
-		if img := q.GetImageMessage(); img != nil {
-			return img, false, img.GetMimetype()
-		}
-		if vid := q.GetVideoMessage(); vid != nil {
-			return vid, true, vid.GetMimetype()
-		}
-		if doc := q.GetDocumentMessage(); doc != nil {
-			mime := doc.GetMimetype()
-			filename := strings.ToLower(doc.GetFileName())
-			if strings.HasPrefix(mime, "video/") || strings.HasSuffix(filename, ".mp4") {
-				return doc, true, mime
-			}
-			if strings.HasPrefix(mime, "image/") || strings.HasSuffix(filename, ".jpg") || strings.HasSuffix(filename, ".png") {
-				return doc, false, mime
-			}
-		}
-	}
-
-	return nil, false, ""
-}
-
 func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
 	if evt == nil || evt.Message == nil {
 		return false
@@ -1227,7 +1167,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		return true
 
 	case "thumb":
-		downloadable, isVideo, mime := ExtractMediaFromEvent(evt)
+		downloadable, isVideo, mime := whatsrook.ExtractMediaFromEvent(evt)
 		logger.Debug("Wizard Step 2/4 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
 
 		if downloadable == nil {

@@ -19,7 +19,7 @@ area:core:
   - changed-files:
       - any-glob-to-any-file:
           - '*.go'
-          - 'wa-core/**'
+          - 'lib/**'
 
 area:cli:
   - changed-files:
@@ -34,11 +34,11 @@ area:plugins:
 area:voip:
   - changed-files:
       - any-glob-to-any-file:
-          - 'wa-core/mlow/**'
-          - 'wa-core/rtp/**'
-          - 'wa-core/srtp/**'
-          - 'wa-core/stun/**'
-          - 'wa-core/call*.go'
+          - 'lib/mlow/**'
+          - 'lib/rtp/**'
+          - 'lib/srtp/**'
+          - 'lib/stun/**'
+          - 'lib/call*.go'
 
 area:utils:
   - changed-files:

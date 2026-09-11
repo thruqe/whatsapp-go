@@ -2576,7 +2576,7 @@ func handleSetGroupPP(ctx *dispatch.Context) error {
 		return ctx.Reply("Group settings are restricted to admins only. Please make me an admin so I can update the group picture!")
 	}
 
-	downloadable, _, mime := ExtractMediaFromEvent(ctx.Evt)
+	downloadable, _, mime := whatsrook.ExtractMediaFromEvent(ctx.Evt)
 	if downloadable == nil {
 		return ctx.Replyf("Please reply to an image or attach a photo with `%sgpp` to set it as the new group picture.", ctx.GetPrefix())
 	}
@@ -2637,7 +2637,7 @@ func handleWarn(ctx *dispatch.Context) error {
 		return ctx.Replyf("Who would you like to warn?\n\n• Reply to their message with `%swarn`\n• Or type: `%swarn @user [reason]`\n• Or type: `%swarn <phone-number> [reason]`", p, p, p)
 	}
 
-	if isJIDOwnerOrSudo(ctx, targetJID) {
+	if whatsrook.IsSudoRaw(ctx.Ctx, ctx.Client, targetJID) {
 		return ctx.Reply("You cannot issue warnings to bot owners or sudo users.")
 	}
 
@@ -2650,7 +2650,7 @@ func handleWarn(ctx *dispatch.Context) error {
 			return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
 		}
 
-		if isParticipantAdmin(groupInfo, targetJID) && !ctx.IsSudo() {
+		if ctx.IsAdmin(groupInfo, targetJID) && !ctx.IsSudo() {
 			return ctx.Reply("Group admins cannot be warned by the bot.")
 		}
 	}
@@ -2688,14 +2688,14 @@ func handleWarn(ctx *dispatch.Context) error {
 	}
 
 	if isGroup {
-		targetIsAdmin := isParticipantAdmin(groupInfo, targetJID)
+		targetIsAdmin := ctx.IsAdmin(groupInfo, targetJID)
 		botIsOwner := isBotGroupOwner(ctx, groupInfo)
 
 		if targetIsAdmin && !botIsOwner {
 			return ctx.ReplyWithMentions(dispatch.Sprintf("@%s has reached the maximum warning limit (%d/%d), but cannot be removed because they are a group admin.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
 		}
 
-		if !isBotAdmin(ctx, groupInfo) {
+		if !ctx.AmIAdmin(groupInfo) {
 			return ctx.ReplyWithMentions(dispatch.Sprintf("@%s has reached the maximum warning limit (%d/%d), but I need admin permissions to remove them from the group.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
 		}
 
@@ -2853,12 +2853,12 @@ func sendWarnCustomizeGuide(ctx *dispatch.Context) error {
 
 func extractWarnTarget(ctx *dispatch.Context, args []string) types.JID {
 	if quotedSender, ok := ctx.GetQuotedSender(); ok && !quotedSender.IsEmpty() {
-		return NormalizeUserJID(ctx.Ctx, ctx.Client, quotedSender)
+		return quotedSender.ToNonAD()
 	}
 	if ci := ctx.GetContextInfo(); ci != nil && len(ci.GetMentionedJID()) > 0 {
 		for _, m := range ci.GetMentionedJID() {
 			if parsed, err := parseUserJID(m); err == nil && !parsed.IsEmpty() {
-				return NormalizeUserJID(ctx.Ctx, ctx.Client, parsed)
+				return parsed.ToNonAD()
 			}
 		}
 	}
@@ -2871,28 +2871,10 @@ func extractWarnTarget(ctx *dispatch.Context, args []string) types.JID {
 			continue
 		}
 		if parsed, err := parseUserJID(arg); err == nil && !parsed.IsEmpty() {
-			return NormalizeUserJID(ctx.Ctx, ctx.Client, parsed)
+			return parsed.ToNonAD()
 		}
 	}
 	return types.EmptyJID
-}
-
-func isJIDOwnerOrSudo(ctx *dispatch.Context, target types.JID) bool {
-	return whatsrook.IsSudoRaw(ctx.Ctx, ctx.Client, target)
-}
-
-func isParticipantAdmin(info *types.GroupInfo, target types.JID) bool {
-	if info == nil || target.IsEmpty() {
-		return false
-	}
-	return whatsrook.IsAdminRaw(context.Background(), nil, info, target)
-}
-
-func isBotAdmin(ctx *dispatch.Context, info *types.GroupInfo) bool {
-	if ctx == nil || info == nil {
-		return false
-	}
-	return ctx.AmIAdmin(info)
 }
 
 func isBotGroupOwner(ctx *dispatch.Context, info *types.GroupInfo) bool {

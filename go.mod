@@ -155,6 +155,6 @@ require (
 	mvdan.cc/sh/v3 v3.13.2-0.20260817215856-d6550df7ed8d // indirect
 )
 
-replace go.mau.fi/whatsmeow => ./wa-core
+replace go.mau.fi/whatsmeow => ./lib
 
 tool github.com/go-task/task/v3/cmd/task

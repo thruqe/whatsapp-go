@@ -53,7 +53,7 @@ Usage:
 
 Available Commands:
   bump   [version]        Bump monthly release version (YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO) and update resources
-  proto  [--sync] [filter] Compile and update wa-core protobuf definitions (optional --sync pulls latest WAProto)
+  proto  [--sync] [filter] Compile and update lib protobuf definitions (optional --sync pulls latest WAProto)
   res    [version]        Generate Windows binary resources & metadata with app icon from assets/logo.png
   sign   <binary>         Digitally sign Windows PE binary with SHA-256 Authenticode signature
   help                    Display this help message

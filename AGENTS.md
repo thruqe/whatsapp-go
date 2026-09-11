@@ -1,6 +1,6 @@
 # AGENTS
 
-If you are an AI reading this, take every single word in this file literally. This project is a monorepo comprising [`wa-core`](./wa-core), [`cmd`](./cmd), and the project root itself.
+If you are an AI reading this, take every single word in this file literally. This project is a monorepo comprising [`lib`](./lib), [`cmd`](./cmd), and the project root itself.
 
 All code here adheres to a deliberate structure. It is built using modern patterns and idioms of the Go programming language. You must conduct thorough research into current Go standards, idiomatic implementations, and active library ecosystems to avoid deprecated functions, superseded APIs, or obsolete syntax.
 

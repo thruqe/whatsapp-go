@@ -6,7 +6,6 @@ import (
 	"context"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -115,25 +114,9 @@ func GetStore(ctx *Context) (*StoreWrapper, bool) {
 	return GetSQLStore(ctx.Client)
 }
 
-// RecentMessageStore caches recent incoming messages for call responses and media conversion lookups.
-type RecentMessageStore struct {
-	mu       sync.RWMutex
-	messages map[types.JID]*events.Message
-}
-
-var recentMessages = &RecentMessageStore{
-	messages: make(map[types.JID]*events.Message),
-}
-
-// RecordRecentMessage caches an incoming message event indexed by its chat JID.
+// RecordRecentMessage caches an incoming message event.
 func RecordRecentMessage(evt *events.Message) {
-	if evt == nil {
-		return
-	}
 	utils.RecordRecentMessage(evt)
-	recentMessages.mu.Lock()
-	defer recentMessages.mu.Unlock()
-	recentMessages.messages[evt.Info.Chat] = evt
 }
 
 func init() {

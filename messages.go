@@ -432,6 +432,47 @@ func ExtractTextFromProto(msg *waE2E.Message) string {
 	return ""
 }
 
+// ExtractMediaFromEvent extracts a downloadable media attachment (image, video, or media document),
+// checking both the primary message and any quoted reply message.
+func ExtractMediaFromEvent(evt *events.Message) (whatsmeow.DownloadableMessage, bool, string) {
+	if evt == nil || evt.Message == nil {
+		return nil, false, ""
+	}
+	extract := func(msg *waE2E.Message) (whatsmeow.DownloadableMessage, bool, string) {
+		msg = UnwrapMessageProto(msg)
+		if msg == nil {
+			return nil, false, ""
+		}
+		if img := msg.GetImageMessage(); img != nil {
+			return img, false, img.GetMimetype()
+		}
+		if vid := msg.GetVideoMessage(); vid != nil {
+			return vid, true, vid.GetMimetype()
+		}
+		if doc := msg.GetDocumentMessage(); doc != nil {
+			mime := doc.GetMimetype()
+			filename := strings.ToLower(doc.GetFileName())
+			if strings.HasPrefix(mime, "video/") || strings.HasSuffix(filename, ".mp4") || strings.HasSuffix(filename, ".mkv") {
+				return doc, true, mime
+			}
+			if strings.HasPrefix(mime, "image/") || strings.HasSuffix(filename, ".jpg") || strings.HasSuffix(filename, ".png") || strings.HasSuffix(filename, ".jpeg") {
+				return doc, false, mime
+			}
+		}
+		return nil, false, ""
+	}
+
+	if dl, isVid, mime := extract(evt.Message); dl != nil {
+		return dl, isVid, mime
+	}
+	if ci := GetContextInfoFromProto(evt.Message); ci != nil && ci.QuotedMessage != nil {
+		if dl, isVid, mime := extract(ci.QuotedMessage); dl != nil {
+			return dl, isVid, mime
+		}
+	}
+	return nil, false, ""
+}
+
 // ParticipantMatchesUser checks if a group participant matches the target JID,
 // comparing primary JID, LID, and PhoneNumber, as well as resolving through the client's store.
 func ParticipantMatchesUser(ctx context.Context, client *whatsmeow.Client, p types.GroupParticipant, target types.JID) bool {

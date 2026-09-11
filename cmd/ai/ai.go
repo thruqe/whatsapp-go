@@ -15,7 +15,6 @@ import (
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events"
 )
 
 func resolveUserPushName(ctx *dispatch.Context, pnjid, rawJID types.JID) string {
@@ -39,47 +38,6 @@ func resolveUserPushName(ctx *dispatch.Context, pnjid, rawJID types.JID) string 
 		return pnjid.User
 	}
 	return "User"
-}
-
-func NormalizeUserJID(_ any, _ any, jid types.JID) types.JID {
-	return jid.ToNonAD()
-}
-
-func getQuotedMessageFromEvent(evt *events.Message) *waE2E.Message {
-	if evt == nil || evt.Message == nil {
-		return nil
-	}
-	ci := utils.GetContextInfoFromProto(evt.Message)
-	if ci != nil && ci.QuotedMessage != nil {
-		return utils.UnwrapMessageProto(ci.QuotedMessage)
-	}
-	return nil
-}
-
-func extractTextFromProto(msg *waE2E.Message) string {
-	if msg == nil {
-		return ""
-	}
-	if msg.Conversation != nil {
-		return *msg.Conversation
-	}
-	if msg.ExtendedTextMessage != nil && msg.ExtendedTextMessage.Text != nil {
-		return *msg.ExtendedTextMessage.Text
-	}
-	if msg.ImageMessage != nil && msg.ImageMessage.Caption != nil {
-		return *msg.ImageMessage.Caption
-	}
-	if msg.VideoMessage != nil && msg.VideoMessage.Caption != nil {
-		return *msg.VideoMessage.Caption
-	}
-	if msg.DocumentMessage != nil && msg.DocumentMessage.Caption != nil {
-		return *msg.DocumentMessage.Caption
-	}
-	return ""
-}
-
-func sendPollReply(ctx *dispatch.Context, body string, options []string) error {
-	return dispatch.SendPollReply(ctx, body, options)
 }
 
 func init() {
@@ -332,7 +290,7 @@ func renderCSAIPage(ctx *dispatch.Context, s *dispatch.StoreWrapper, page int) e
 		Bulletf("%scsai custom <prompt> (e.g. %scsai custom Refer to me as Sir)", p, p).
 		Bulletf("%scsai reset (to restore default AI behavior)", p)
 
-	return sendPollReply(ctx, tb.Trimmed(), options)
+	return dispatch.SendPollReply(ctx, tb.Trimmed(), options)
 }
 
 func isMediaGenerationPrompt(prompt string) bool {
@@ -356,7 +314,7 @@ func isMediaGenerationPrompt(prompt string) bool {
 }
 
 func handleAI(ctx *dispatch.Context) error {
-	hasQuoted := ctx.Evt != nil && getQuotedMessageFromEvent(ctx.Evt) != nil
+	hasQuoted := ctx.GetQuotedMessage() != nil
 	if len(ctx.Args) == 0 && !hasQuoted {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage:\n- %sai <question>\n- %sask <question>\n\nExamples:\n- %sai What is the speed of light?\n- %sask Explain quantum computing in simple terms\n- Reply to an image or message with %sai Analyze this", p, p, p, p, p)
@@ -387,7 +345,7 @@ func handleAI(ctx *dispatch.Context) error {
 		msgID = ctx.Evt.Info.ID
 	}
 	if pushName == "" {
-		senderPNJID := NormalizeUserJID(ctx.Ctx, ctx.Client, ctx.Sender)
+		senderPNJID := ctx.Sender.ToNonAD()
 		pushName = resolveUserPushName(ctx, senderPNJID, ctx.Sender)
 	}
 
@@ -621,28 +579,13 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 	if ctx.Evt == nil {
 		return
 	}
-	quotedMsg := getQuotedMessageFromEvent(ctx.Evt)
+	quotedMsg := ctx.GetQuotedMessage()
 	if quotedMsg == nil {
 		return
 	}
 
 	var quotedParticipant string
-	msg := ctx.Evt.Message
-	var ci *waE2E.ContextInfo
-	switch {
-	case msg.GetExtendedTextMessage() != nil:
-		ci = msg.GetExtendedTextMessage().GetContextInfo()
-	case msg.GetImageMessage() != nil:
-		ci = msg.GetImageMessage().GetContextInfo()
-	case msg.GetVideoMessage() != nil:
-		ci = msg.GetVideoMessage().GetContextInfo()
-	case msg.GetAudioMessage() != nil:
-		ci = msg.GetAudioMessage().GetContextInfo()
-	case msg.GetDocumentMessage() != nil:
-		ci = msg.GetDocumentMessage().GetContextInfo()
-	case msg.GetStickerMessage() != nil:
-		ci = msg.GetStickerMessage().GetContextInfo()
-	}
+	ci := ctx.GetContextInfo()
 	if ci != nil {
 		quotedParticipant = ci.GetParticipant()
 		if ci.StanzaID != nil {
@@ -652,7 +595,7 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 
 	if quotedParticipant != "" {
 		if quotedJID, err := types.ParseJID(quotedParticipant); err == nil {
-			quotedPNJID := NormalizeUserJID(ctx.Ctx, ctx.Client, quotedJID)
+			quotedPNJID := quotedJID.ToNonAD()
 			quotedPushName := resolveUserPushName(ctx, quotedPNJID, quotedJID)
 			data.UserOfQuotedMessage = quotedPushName
 			if data.ChatType == "group" {
@@ -783,7 +726,7 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 		data.QuotedMessageOfQuestion = dispatch.Sprintf("Contact: %s", contMsg.GetDisplayName())
 
 	default:
-		if txt := extractTextFromProto(quotedMsg); txt != "" {
+		if txt := utils.ExtractTextFromProto(quotedMsg); txt != "" {
 			data.QuotedMessageType = "Other"
 			data.QuotedMessageOfQuestion = txt
 		}
@@ -1126,7 +1069,7 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 	}
 	prompt = strings.TrimLeft(prompt, ",:;! \t")
 	if prompt == "" {
-		if getQuotedMessageFromEvent(c.Evt) == nil {
+		if c.GetQuotedMessage() == nil {
 			prompt = text
 		}
 	}

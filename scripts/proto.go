@@ -20,7 +20,7 @@ func runProto(args []string) error {
 		return fmt.Errorf("error finding project root: %w", err)
 	}
 
-	protoDir := filepath.Join(rootDir, "wa-core", "proto")
+	protoDir := filepath.Join(rootDir, "lib", "proto")
 	if _, err := os.Stat(protoDir); os.IsNotExist(err) {
 		return fmt.Errorf("protobuf directory not found at: %s", protoDir)
 	}
@@ -385,7 +385,7 @@ func printProtocInstallInstructions() {
 }
 
 func syncProtosFromWaProto(rootDir, protoDir string) error {
-	clientPayloadPath := filepath.Join(rootDir, "wa-core", "store", "clientpayload.go")
+	clientPayloadPath := filepath.Join(rootDir, "lib", "store", "clientpayload.go")
 
 	// 1. Locate or fetch WAProto.proto
 	protoSource := ""
@@ -420,7 +420,7 @@ func syncProtosFromWaProto(rootDir, protoDir string) error {
 	}
 
 	// 2. Run wa-proto split command
-	fmt.Println("Splitting WAProto into modular wa-core/proto packages...")
+	fmt.Println("Splitting WAProto into modular lib/proto packages...")
 	var splitCmd *exec.Cmd
 	if _, err := os.Stat(filepath.Join(localWaProto, "main.go")); err == nil {
 		splitCmd = exec.Command("go", "run", ".", "split",

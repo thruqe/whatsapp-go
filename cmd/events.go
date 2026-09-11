@@ -213,7 +213,7 @@ func (b *Bot) runSession(ctx context.Context) error {
 
 	cli := b.client.WAClient()
 	if cli == nil {
-		return errors.New("failed to initialize wa-core client")
+		return errors.New("failed to initialize lib client")
 	}
 
 	if s, ok := cli.Store.Identities.(*sqlstore.SQLStore); ok && s != nil {
