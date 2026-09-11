@@ -81,7 +81,7 @@ func (cli *Client) handlePairDevice(ctx context.Context, node *waBinary.Node) {
 	cli.dispatchEvent(evt)
 }
 
-func (cli *Client) rotateADVSecret(ctx context.Context) {
+func (cli *Client) rotateADVSecret() {
 	oldSecret := cli.Store.AdvSecretKey
 	cli.Store.AdvSecretKey = random.Bytes(32)
 	cli.dispatchEvent(&events.RotateADVSecret{
