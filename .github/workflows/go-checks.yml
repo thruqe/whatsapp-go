@@ -39,20 +39,20 @@ jobs:
       - name: Vet Code (go vet)
         run: |
           go vet ./...
-          (cd wa-core && go vet ./...)
+          (cd lib && go vet ./...)
           (cd cmd && go vet ./...)
 
       - name: Static Analysis (staticcheck)
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@latest
           staticcheck ./...
-          (cd wa-core && staticcheck ./...)
+          (cd lib && staticcheck ./...)
           (cd cmd && staticcheck ./...)
 
       - name: Run Tests (go test)
         run: |
           go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
-          (cd wa-core && go test -v -race ./...)
+          (cd lib && go test -v -race ./...)
           (cd cmd && go test -v -race ./...)
 
       - name: Verify Build

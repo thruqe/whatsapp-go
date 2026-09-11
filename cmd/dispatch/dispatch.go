@@ -72,7 +72,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	chatStr := evt.Info.Chat.String()
 	senderStr := evt.Info.Sender.String()
-	text := extractText(evt)
+	text := utils.ExtractMessageText(evt)
 
 	if strings.HasPrefix(strings.TrimSpace(text), "{") {
 		var respJSON struct {
@@ -604,13 +604,6 @@ func matchesPrefix(text, prefix string) bool {
 		return true
 	}
 	return false
-}
-
-func extractText(evt *events.Message) string {
-	if evt == nil || evt.Message == nil {
-		return ""
-	}
-	return utils.ExtractMessageText(evt)
 }
 
 func extractInteractionDisplayText(evt *events.Message) string {

@@ -15,6 +15,7 @@ import (
 	"whatsrook"
 	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/games"
+	"whatsrook/cmd/settings"
 	"whatsrook/cmd/tools"
 	"whatsrook/cmd/updater"
 	"whatsrook/httpx"
@@ -107,7 +108,7 @@ func handleAlive(ctx *dispatch.Context) error {
 					_ = s.PutSetting(ctx.Ctx, AliveMediaMimeKey, mime)
 					_ = s.PutSetting(ctx.Ctx, AliveMediaFileKey, mediaFile)
 				}
-				caption := extractTextFromProto(quotedMsg)
+				caption := whatsrook.ExtractTextFromProto(quotedMsg)
 				if strings.TrimSpace(ctx.RawArgs) != "" && !strings.EqualFold(strings.Fields(ctx.RawArgs)[0], "media") {
 					caption = strings.TrimSpace(ctx.RawArgs)
 				}
@@ -535,7 +536,7 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 		}
 	}
 
-	downloadable, isVideo, mime := ExtractMediaFromEvent(evt)
+	downloadable, isVideo, mime := whatsrook.ExtractMediaFromEvent(evt)
 	if downloadable == nil {
 		return false
 	}
@@ -553,8 +554,8 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 		return true
 	}
 
-	authDir := GetSessionAuthDir(client)
-	targetPath, errProc := ProcessAndSaveThumbnail(ctx, authDir, data, isVideo)
+	authDir := settings.GetSessionAuthDir(client)
+	targetPath, errProc := settings.ProcessAndSaveThumbnail(ctx, authDir, data, isVideo)
 	if errProc != nil {
 		_ = fakeCtx.Replyf("Failed to process menu thumbnail: %v", errProc)
 		return true
@@ -588,7 +589,7 @@ func handleMenu(ctx *dispatch.Context) error {
 			delete(PendingMenuThumbPrompts, key)
 			MenuThumbPromptsMu.Unlock()
 
-			authDir := GetSessionAuthDir(ctx.Client)
+			authDir := settings.GetSessionAuthDir(ctx.Client)
 			if s, ok := dispatch.GetStore(ctx); ok {
 				_ = s.PutSetting(ctx.Ctx, "menu_thumbnail_path", "")
 			}
@@ -686,7 +687,7 @@ func handleMenu(ctx *dispatch.Context) error {
 
 	menuText := tb.Trimmed()
 
-	authDir := GetSessionAuthDir(ctx.Client)
+	authDir := settings.GetSessionAuthDir(ctx.Client)
 	mediaPath := ""
 	if ok {
 		if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {

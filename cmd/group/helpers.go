@@ -17,7 +17,6 @@ import (
 	"go.mau.fi/whatsmeow"
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events"
 )
 
 func sendPollReply(ctx *dispatch.Context, body string, options []string) error {
@@ -36,10 +35,6 @@ func splitCSV(s string) []string {
 		}
 	}
 	return parts
-}
-
-func NormalizeUserJID(_ any, _ any, jid types.JID) types.JID {
-	return jid.ToNonAD()
 }
 
 func parseUserJID(raw string) (types.JID, error) {
@@ -62,23 +57,6 @@ func getUserTimezone(ctx context.Context, s *dispatch.StoreWrapper) string {
 		return res.ID
 	}
 	return tz
-}
-
-func ExtractMediaFromEvent(evt *events.Message) (whatsmeow.DownloadableMessage, bool, string) {
-	if evt == nil || evt.Message == nil {
-		return nil, false, ""
-	}
-	msg := utils.UnwrapMessageProto(evt.Message)
-	if msg == nil {
-		return nil, false, ""
-	}
-	if img := msg.GetImageMessage(); img != nil {
-		return img, false, img.GetMimetype()
-	}
-	if vid := msg.GetVideoMessage(); vid != nil {
-		return vid, true, vid.GetMimetype()
-	}
-	return nil, false, ""
 }
 
 var (

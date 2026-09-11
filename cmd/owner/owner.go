@@ -179,7 +179,7 @@ func handleBlocklist(ctx *dispatch.Context) error {
 }
 
 func handleSetBotPP(ctx *dispatch.Context) error {
-	downloadable, _, _ := ExtractMediaFromEvent(ctx.Evt)
+	downloadable, _, _ := utils.ExtractMediaFromEvent(ctx.Evt)
 	if downloadable == nil {
 		return ctx.Replyf("Please upload or reply to an image to set as profile picture. Usage: %spp", ctx.GetPrefix())
 	}
@@ -574,7 +574,7 @@ func handleStatus(ctx *dispatch.Context) error {
 				msg.ImageMessage.Caption = &text
 			}
 
-			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, StatusBroadcastJID, msg)
+			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, types.StatusBroadcastJID, msg)
 			if sendErr != nil {
 				logger.Error("handleStatus: send image status failed", "err", sendErr)
 				return ctx.Replyf("Failed to post image status: %v", sendErr)
@@ -607,7 +607,7 @@ func handleStatus(ctx *dispatch.Context) error {
 				msg.VideoMessage.Caption = &text
 			}
 
-			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, StatusBroadcastJID, msg)
+			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, types.StatusBroadcastJID, msg)
 			if sendErr != nil {
 				logger.Error("handleStatus: send video status failed", "err", sendErr)
 				return ctx.Replyf("Failed to post video status: %v", sendErr)
@@ -627,7 +627,7 @@ func handleStatus(ctx *dispatch.Context) error {
 		},
 	}
 
-	_, sendErr := ctx.Client.SendMessage(ctx.Ctx, StatusBroadcastJID, msg)
+	_, sendErr := ctx.Client.SendMessage(ctx.Ctx, types.StatusBroadcastJID, msg)
 	if sendErr != nil {
 		logger.Error("handleStatus: send text status failed", "err", sendErr)
 		return ctx.Replyf("Failed to post text status: %v", sendErr)

@@ -11,33 +11,10 @@ import (
 	"sync"
 	"time"
 
-	utils "whatsrook"
-
-	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events"
 )
 
-func ExtractMediaFromEvent(evt *events.Message) (whatsmeow.DownloadableMessage, bool, string) {
-	if evt == nil || evt.Message == nil {
-		return nil, false, ""
-	}
-	msg := utils.UnwrapMessageProto(evt.Message)
-	if msg == nil {
-		return nil, false, ""
-	}
-	if img := msg.GetImageMessage(); img != nil {
-		return img, false, img.GetMimetype()
-	}
-	if vid := msg.GetVideoMessage(); vid != nil {
-		return vid, true, vid.GetMimetype()
-	}
-	return nil, false, ""
-}
-
 var (
-	StatusBroadcastJID = types.JID{User: "status", Server: "broadcast"}
-
 	ActiveShellSessions   = make(map[string]*ShellSession)
 	ActiveShellSessionsMu sync.Mutex
 	AnsiEscapeRegex       = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x1b\([a-zA-Z]|\x1b\][0-9];[^\a\x1b]*(?:\a|\x1b\\)`)

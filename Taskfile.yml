@@ -25,7 +25,7 @@ tasks:
     desc: Apply go fix modernizers across all modules
     cmds:
       - go fix ./...
-      - cd wa-core && go fix ./...
+      - cd lib && go fix ./...
       - cd cmd && go fix ./...
 
   fmt:
@@ -33,15 +33,15 @@ tasks:
     cmds:
       - go fmt ./...
       - gofmt -w -s .
-      - cd wa-core && go fmt ./...
-      - cd wa-core && gofmt -w -s .
+      - cd lib && go fmt ./...
+      - cd lib && gofmt -w -s .
       - cd cmd && go fmt ./...
       - cd cmd && gofmt -w -s .
       - go vet ./...
-      - cd wa-core && go vet ./...
+      - cd lib && go vet ./...
       - cd cmd && go vet ./...
       - command -v staticcheck >/dev/null 2>&1 && staticcheck ./... || ([ -x "$(go env GOPATH)/bin/staticcheck" ] && "$(go env GOPATH)/bin/staticcheck" ./...) || true
-      - cd wa-core && (command -v staticcheck >/dev/null 2>&1 && staticcheck ./... || ([ -x "$(go env GOPATH)/bin/staticcheck" ] && "$(go env GOPATH)/bin/staticcheck" ./...) || true)
+      - cd lib && (command -v staticcheck >/dev/null 2>&1 && staticcheck ./... || ([ -x "$(go env GOPATH)/bin/staticcheck" ] && "$(go env GOPATH)/bin/staticcheck" ./...) || true)
       - cd cmd && (command -v staticcheck >/dev/null 2>&1 && staticcheck ./... || ([ -x "$(go env GOPATH)/bin/staticcheck" ] && "$(go env GOPATH)/bin/staticcheck" ./...) || true)
 
   deadcode:
@@ -55,7 +55,7 @@ tasks:
       - |
         PKGS=$(go list -f '{{"{{"}}if .TestGoFiles{{"}}"}}{{"{{"}}.ImportPath{{"}}"}}{{"{{"}}end{{"}}"}}' ./...)
         if [ -n "$PKGS" ]; then go test -v -timeout 120s $PKGS; fi
-      - cd wa-core && go test -v -timeout 60s ./...
+      - cd lib && go test -v -timeout 60s ./...
       - cd cmd && go test -v -timeout 60s ./...
 
   update:
@@ -72,12 +72,12 @@ tasks:
       - go -C scripts run . bump {{.cmd_ARGS}}
 
   proto:
-    desc: Compile and update all wa-core protobuf definitions
+    desc: Compile and update all lib protobuf definitions
     cmds:
       - go -C scripts run . proto {{.cmd_ARGS}}
 
   proto:sync:
-    desc: Pull latest WAProto schema, split into modular wa-core/proto, and recompile
+    desc: Pull latest WAProto schema, split into modular lib/proto, and recompile
     cmds:
       - go -C scripts run . proto --sync {{.cmd_ARGS}}
 

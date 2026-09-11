@@ -20,14 +20,6 @@ import (
 	"whatsrook/logger"
 )
 
-func NormalizeUserJID(_ any, _ any, jid types.JID) types.JID {
-	return jid.ToNonAD()
-}
-
-func sendPollReplyWithMentions(ctx *dispatch.Context, body string, options []string, mentions []types.JID) error {
-	return dispatch.SendPollReplyWithMentions(ctx, body, options, mentions)
-}
-
 func init() {
 	dispatch.RegisterPreInterceptor("games_ttt", func(c *dispatch.Context, text string) bool {
 		chatStr := c.Chat.String()
@@ -322,7 +314,7 @@ func awardTTTXP(ctx *dispatch.Context, userJID types.JID, amount int, resultType
 	}
 
 	groupJID := ctx.Chat.ToNonAD().String()
-	normJID := NormalizeUserJID(ctx.Ctx, ctx.Client, userJID)
+	normJID := userJID.ToNonAD()
 	cleanJID := normJID.String()
 
 	_ = store.AddGroupUserTTTXP(ctx.Ctx, s.SQLStore, groupJID, cleanJID, amount, winInc, lossInc, drawInc)
@@ -375,7 +367,7 @@ func handleLeaderboard(ctx *dispatch.Context) error {
 		if pErr != nil {
 			continue
 		}
-		normJID := NormalizeUserJID(ctx.Ctx, ctx.Client, parsed)
+		normJID := parsed.ToNonAD()
 		key := normJID.String()
 
 		existing, found := mergedMap[key]
@@ -974,7 +966,7 @@ func saveUnscrambleStats(ctx *dispatch.Context, game *UnscrambleGame, winner *Un
 			}
 		}
 
-		normJID := NormalizeUserJID(ctx.Ctx, game.Client, p.MentionJID)
+		normJID := p.MentionJID.ToNonAD()
 		cleanJID := normJID.String()
 
 		_ = store.AddGroupUserUnscrambleXP(ctx.Ctx, s.SQLStore, groupJID, cleanJID, xpEarned, winInc, p.Score)
@@ -1029,7 +1021,7 @@ func sendUnscrambleInteractiveMenu(ctx *dispatch.Context, hostTag string, hostMe
 		"Leaderboard",
 	}
 
-	return sendPollReplyWithMentions(ctx, bodyText, options, []types.JID{hostMention})
+	return dispatch.SendPollReplyWithMentions(ctx, bodyText, options, []types.JID{hostMention})
 }
 
 func isPureEmoji(s string) bool {
@@ -1633,7 +1625,7 @@ func startWCGChainTurn(ctx *dispatch.Context, game *WCGGame) {
 		"Leaderboard",
 	}
 
-	err := sendPollReplyWithMentions(ctx, msg, options, []types.JID{currentPlayer.MentionJID})
+	err := dispatch.SendPollReplyWithMentions(ctx, msg, options, []types.JID{currentPlayer.MentionJID})
 	if err != nil {
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 	}
@@ -1733,7 +1725,7 @@ func finishWCGChainGame(ctx *dispatch.Context, game *WCGGame, winner *WCGPlayer)
 			"End Game",
 		}
 
-		_ = sendPollReplyWithMentions(ctx, promptMsg, options, []types.JID{winnerJID, highestJID})
+		_ = dispatch.SendPollReplyWithMentions(ctx, promptMsg, options, []types.JID{winnerJID, highestJID})
 	}
 }
 
@@ -1792,7 +1784,7 @@ func saveWCGChainStats(ctx *dispatch.Context, game *WCGGame, winner *WCGPlayer) 
 			}
 		}
 
-		normJID := NormalizeUserJID(ctx.Ctx, game.Client, p.MentionJID)
+		normJID := p.MentionJID.ToNonAD()
 		cleanJID := normJID.String()
 
 		_ = store.AddGroupUserWCGXP(ctx.Ctx, s.SQLStore, groupJID, cleanJID, xpEarned, winInc, 1, ratingDelta)
@@ -1847,7 +1839,7 @@ func sendWCGChainInteractiveMenu(ctx *dispatch.Context, hostTag string, hostMent
 		"End Game",
 	}
 
-	return sendPollReplyWithMentions(ctx, bodyText, options, []types.JID{hostMention})
+	return dispatch.SendPollReplyWithMentions(ctx, bodyText, options, []types.JID{hostMention})
 }
 
 func HandleWCGLobbyInput(ctx *dispatch.Context, text string) bool {
