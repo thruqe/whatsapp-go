@@ -31,10 +31,9 @@ import (
 	_ "github.com/lib/pq"
 
 	"whatsrook/cache"
-	"whatsrook/logger"
 	"whatsrook/qr"
-	"whatsrook/system"
-	"whatsrook/webp"
+	"whatsrook/util"
+	"whatsrook/util/logger"
 )
 
 // clienttype specifies the companion operating system and hardware profile to emulate during registration.
@@ -778,13 +777,13 @@ var (
 	// NewWaLogger constructs a Zap protocol logger adapter.
 	NewWaLogger = logger.NewWaLogger
 	// GetSystemStats retrieves host hardware metrics.
-	GetSystemStats = system.GetStats
+	GetSystemStats = util.GetStats
 	// FormatBytes formats byte counts.
-	FormatBytes = system.FormatBytes
+	FormatBytes = util.FormatBytes
 	// AddStickerMetadata injects EXIF metadata into WebP stickers.
-	AddStickerMetadata = webp.AddStickerMetadata
+	AddStickerMetadata = util.AddStickerMetadata
 	// WriteStickerMetadata writes EXIF metadata to a WebP file.
-	WriteStickerMetadata = webp.WriteStickerMetadata
+	WriteStickerMetadata = util.WriteStickerMetadata
 	// EncodePNG generates a QR code PNG image.
 	EncodePNG = qr.EncodePNG
 	// StartQRServer starts the local QR web pairing server.

@@ -17,7 +17,7 @@ import (
 
 	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/store"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 )
 
 func init() {

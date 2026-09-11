@@ -12,8 +12,8 @@ import (
 	"go.mau.fi/whatsmeow/types"
 
 	"whatsrook/cmd/dispatch"
-	"whatsrook/httpx"
-	"whatsrook/logger"
+	"whatsrook/util/httpx"
+	"whatsrook/util/logger"
 )
 
 func init() {

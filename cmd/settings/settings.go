@@ -31,7 +31,7 @@ import (
 	"whatsrook/cmd/store"
 	"whatsrook/cmd/tools"
 	"whatsrook/external"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 )
 
 func sendPollReply(ctx *dispatch.Context, body string, options []string) error {

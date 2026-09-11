@@ -21,7 +21,7 @@ import (
 	"whatsrook"
 	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/store"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 )
 
 func logHandlerErr(name string, err error) {

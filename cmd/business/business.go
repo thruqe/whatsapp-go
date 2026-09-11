@@ -5,7 +5,7 @@ import (
 	"whatsrook"
 
 	"whatsrook/cmd/dispatch"
-	"whatsrook/httpx"
+	"whatsrook/util/httpx"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"

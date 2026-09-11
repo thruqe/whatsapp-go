@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/whatsmeow/store/sqlstore"

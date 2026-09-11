@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"whatsrook"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 )
 
 // Version is the application version (set at build time).

@@ -44,7 +44,7 @@ func RunCmd(input string) (string, error) {
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		psScript := "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " + input
+		psScript := "[Console]::OutputEncoding = [util.Text.Encoding]::UTF8; " + input
 		if pwshPath, err := exec.LookPath("pwsh"); err == nil {
 			cmd = exec.Command(pwshPath, "-NoProfile", "-NonInteractive", "-Command", psScript)
 		} else if psPath, err := exec.LookPath("powershell"); err == nil {

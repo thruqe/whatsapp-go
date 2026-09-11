@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"whatsrook/builder"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 )
 
 // ─── Text & Formatting Facades ─────────────────────────────────────────────

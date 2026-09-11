@@ -11,7 +11,7 @@ import (
 	"os/exec"
 	"strings"
 	"time"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 
 	utils "whatsrook"
 

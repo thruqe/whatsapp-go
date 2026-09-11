@@ -17,9 +17,9 @@ import (
 	"time"
 	"unicode"
 
-	utils "whatsrook"
-	"whatsrook/httpx"
-	"whatsrook/logger"
+	"whatsrook"
+	"whatsrook/util/httpx"
+	"whatsrook/util/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
@@ -206,11 +206,11 @@ func (g *UnscrambleGame) IsHost(user types.JID) bool {
 		return true
 	}
 	if g.Client != nil {
-		if !g.HostLID.IsEmpty() && utils.IsSameUserRaw(context.Background(), g.Client, g.HostLID, u) {
+		if !g.HostLID.IsEmpty() && whatsrook.IsSameUserRaw(context.Background(), g.Client, g.HostLID, u) {
 			logger.Debug("[Unscramble IsHost] IsSameUserRaw match on HostLID", "user", u.String(), "hostLID", g.HostLID.String())
 			return true
 		}
-		if !g.HostMention.IsEmpty() && utils.IsSameUserRaw(context.Background(), g.Client, g.HostMention, u) {
+		if !g.HostMention.IsEmpty() && whatsrook.IsSameUserRaw(context.Background(), g.Client, g.HostMention, u) {
 			logger.Debug("[Unscramble IsHost] IsSameUserRaw match on HostMention", "user", u.String(), "hostMention", g.HostMention.String())
 			return true
 		}
@@ -257,7 +257,7 @@ func (g *UnscrambleGame) FindPlayerIndex(user types.JID) int {
 			return i
 		}
 		if g.Client != nil {
-			if utils.IsSameUserRaw(context.Background(), g.Client, p.LID, u) || utils.IsSameUserRaw(context.Background(), g.Client, p.MentionJID, u) {
+			if whatsrook.IsSameUserRaw(context.Background(), g.Client, p.LID, u) || whatsrook.IsSameUserRaw(context.Background(), g.Client, p.MentionJID, u) {
 				return i
 			}
 		}
@@ -525,13 +525,13 @@ func GetRandomWordWithHint(length int) (original string, scrambled string, hint 
 	words, ok := wordList[length]
 	if !ok || len(words) == 0 {
 		// Fallback: generate random letters
-		tb := utils.NewText()
+		tb := whatsrook.NewText()
 		for range length {
 			_ = tb.WriteByte(byte('a' + rand.Intn(26)))
 		}
 		original = tb.String()
 		scrambled = scrambleString(original)
-		hint = utils.Sprintf("A %d-letter word", length)
+		hint = whatsrook.Sprintf("A %d-letter word", length)
 		return original, scrambled, hint
 	}
 
@@ -539,7 +539,7 @@ func GetRandomWordWithHint(length int) (original string, scrambled string, hint 
 	scrambled = scrambleString(original)
 	hint = FetchWordMeaning(original)
 	if hint == "" {
-		hint = utils.Sprintf("A %d-letter English word", length)
+		hint = whatsrook.Sprintf("A %d-letter English word", length)
 	}
 	return original, scrambled, hint
 }
@@ -986,7 +986,7 @@ func cleanAndMaskDefinition(def, word, pos string) string {
 	}
 
 	if pos != "" {
-		return utils.Sprintf("[%s] %s", pos, def)
+		return whatsrook.Sprintf("[%s] %s", pos, def)
 	}
 	return def
 }

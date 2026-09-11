@@ -21,8 +21,8 @@ import (
 
 	utils "whatsrook"
 	"whatsrook/cmd/dispatch"
-	"whatsrook/logger"
 	"whatsrook/media"
+	"whatsrook/util/logger"
 )
 
 func init() {
@@ -335,7 +335,7 @@ func handleSh(ctx *dispatch.Context) error {
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		psScript := "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " + commandStr
+		psScript := "[Console]::OutputEncoding = [util.Text.Encoding]::UTF8; " + commandStr
 		if pwshPath, err := exec.LookPath("pwsh"); err == nil {
 			cmd = exec.CommandContext(execCtx, pwshPath, "-NoProfile", "-NonInteractive", "-Command", psScript)
 		} else if psPath, err := exec.LookPath("powershell"); err == nil {

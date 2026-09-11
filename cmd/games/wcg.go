@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
-	"whatsrook/logger"
+	"whatsrook/util/logger"
 
 	utils "whatsrook"
 
