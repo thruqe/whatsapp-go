@@ -620,7 +620,7 @@ func (cli *Client) handleNotification(ctx context.Context, node *waBinary.Node) 
 		_, refresh := node.GetOptionalChildByTag("companion_reg_refresh")
 		_, rotateQR := node.GetOptionalChildByTag("pair-device-rotate-qr")
 		if refresh || rotateQR {
-			cli.rotateADVSecret(ctx)
+			cli.rotateADVSecret()
 		} else {
 			cli.Log.Debugf("Unrecognized companion reg refresh notification: %s", node)
 		}
