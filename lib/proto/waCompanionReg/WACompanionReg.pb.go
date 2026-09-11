@@ -24,32 +24,34 @@ const (
 type DeviceProps_PlatformType int32
 
 const (
-	DeviceProps_UNKNOWN           DeviceProps_PlatformType = 0
-	DeviceProps_CHROME            DeviceProps_PlatformType = 1
-	DeviceProps_FIREFOX           DeviceProps_PlatformType = 2
-	DeviceProps_IE                DeviceProps_PlatformType = 3
-	DeviceProps_OPERA             DeviceProps_PlatformType = 4
-	DeviceProps_SAFARI            DeviceProps_PlatformType = 5
-	DeviceProps_EDGE              DeviceProps_PlatformType = 6
-	DeviceProps_DESKTOP           DeviceProps_PlatformType = 7
-	DeviceProps_IPAD              DeviceProps_PlatformType = 8
-	DeviceProps_ANDROID_TABLET    DeviceProps_PlatformType = 9
-	DeviceProps_OHANA             DeviceProps_PlatformType = 10
-	DeviceProps_ALOHA             DeviceProps_PlatformType = 11
-	DeviceProps_CATALINA          DeviceProps_PlatformType = 12
-	DeviceProps_TCL_TV            DeviceProps_PlatformType = 13
-	DeviceProps_IOS_PHONE         DeviceProps_PlatformType = 14
-	DeviceProps_IOS_CATALYST      DeviceProps_PlatformType = 15
-	DeviceProps_ANDROID_PHONE     DeviceProps_PlatformType = 16
-	DeviceProps_ANDROID_AMBIGUOUS DeviceProps_PlatformType = 17
-	DeviceProps_WEAR_OS           DeviceProps_PlatformType = 18
-	DeviceProps_AR_WRIST          DeviceProps_PlatformType = 19
-	DeviceProps_AR_DEVICE         DeviceProps_PlatformType = 20
-	DeviceProps_UWP               DeviceProps_PlatformType = 21
-	DeviceProps_VR                DeviceProps_PlatformType = 22
-	DeviceProps_CLOUD_API         DeviceProps_PlatformType = 23
-	DeviceProps_SMARTGLASSES      DeviceProps_PlatformType = 24
-	DeviceProps_PLATFORMTYPE_WAIL DeviceProps_PlatformType = 25
+	DeviceProps_UNKNOWN              DeviceProps_PlatformType = 0
+	DeviceProps_CHROME               DeviceProps_PlatformType = 1
+	DeviceProps_FIREFOX              DeviceProps_PlatformType = 2
+	DeviceProps_IE                   DeviceProps_PlatformType = 3
+	DeviceProps_OPERA                DeviceProps_PlatformType = 4
+	DeviceProps_SAFARI               DeviceProps_PlatformType = 5
+	DeviceProps_EDGE                 DeviceProps_PlatformType = 6
+	DeviceProps_DESKTOP              DeviceProps_PlatformType = 7
+	DeviceProps_IPAD                 DeviceProps_PlatformType = 8
+	DeviceProps_ANDROID_TABLET       DeviceProps_PlatformType = 9
+	DeviceProps_OHANA                DeviceProps_PlatformType = 10
+	DeviceProps_ALOHA                DeviceProps_PlatformType = 11
+	DeviceProps_CATALINA             DeviceProps_PlatformType = 12
+	DeviceProps_TCL_TV               DeviceProps_PlatformType = 13
+	DeviceProps_IOS_PHONE            DeviceProps_PlatformType = 14
+	DeviceProps_IOS_CATALYST         DeviceProps_PlatformType = 15
+	DeviceProps_ANDROID_PHONE        DeviceProps_PlatformType = 16
+	DeviceProps_ANDROID_AMBIGUOUS    DeviceProps_PlatformType = 17
+	DeviceProps_WEAR_OS              DeviceProps_PlatformType = 18
+	DeviceProps_AR_WRIST             DeviceProps_PlatformType = 19
+	DeviceProps_AR_DEVICE            DeviceProps_PlatformType = 20
+	DeviceProps_UWP                  DeviceProps_PlatformType = 21
+	DeviceProps_VR                   DeviceProps_PlatformType = 22
+	DeviceProps_CLOUD_API            DeviceProps_PlatformType = 23
+	DeviceProps_SMARTGLASSES         DeviceProps_PlatformType = 24
+	DeviceProps_PLATFORMTYPE_WAIL    DeviceProps_PlatformType = 25
+	DeviceProps_WASS                 DeviceProps_PlatformType = 26
+	DeviceProps_BUSINESS_BACK_OFFICE DeviceProps_PlatformType = 27
 )
 
 // Enum value maps for DeviceProps_PlatformType.
@@ -81,34 +83,38 @@ var (
 		23: "CLOUD_API",
 		24: "SMARTGLASSES",
 		25: "PLATFORMTYPE_WAIL",
+		26: "WASS",
+		27: "BUSINESS_BACK_OFFICE",
 	}
 	DeviceProps_PlatformType_value = map[string]int32{
-		"UNKNOWN":           0,
-		"CHROME":            1,
-		"FIREFOX":           2,
-		"IE":                3,
-		"OPERA":             4,
-		"SAFARI":            5,
-		"EDGE":              6,
-		"DESKTOP":           7,
-		"IPAD":              8,
-		"ANDROID_TABLET":    9,
-		"OHANA":             10,
-		"ALOHA":             11,
-		"CATALINA":          12,
-		"TCL_TV":            13,
-		"IOS_PHONE":         14,
-		"IOS_CATALYST":      15,
-		"ANDROID_PHONE":     16,
-		"ANDROID_AMBIGUOUS": 17,
-		"WEAR_OS":           18,
-		"AR_WRIST":          19,
-		"AR_DEVICE":         20,
-		"UWP":               21,
-		"VR":                22,
-		"CLOUD_API":         23,
-		"SMARTGLASSES":      24,
-		"PLATFORMTYPE_WAIL": 25,
+		"UNKNOWN":              0,
+		"CHROME":               1,
+		"FIREFOX":              2,
+		"IE":                   3,
+		"OPERA":                4,
+		"SAFARI":               5,
+		"EDGE":                 6,
+		"DESKTOP":              7,
+		"IPAD":                 8,
+		"ANDROID_TABLET":       9,
+		"OHANA":                10,
+		"ALOHA":                11,
+		"CATALINA":             12,
+		"TCL_TV":               13,
+		"IOS_PHONE":            14,
+		"IOS_CATALYST":         15,
+		"ANDROID_PHONE":        16,
+		"ANDROID_AMBIGUOUS":    17,
+		"WEAR_OS":              18,
+		"AR_WRIST":             19,
+		"AR_DEVICE":            20,
+		"UWP":                  21,
+		"VR":                   22,
+		"CLOUD_API":            23,
+		"SMARTGLASSES":         24,
+		"PLATFORMTYPE_WAIL":    25,
+		"WASS":                 26,
+		"BUSINESS_BACK_OFFICE": 27,
 	}
 )
 
@@ -960,7 +966,7 @@ const file_waCompanionReg_WACompanionReg_proto_rawDesc = "" +
 	"\n" +
 	"deviceType\x18\x02 \x01(\x0e2(.WACompanionReg.DeviceProps.PlatformTypeR\n" +
 	"deviceType\x12\x10\n" +
-	"\x03ref\x18\x03 \x01(\tR\x03ref\"\xe8\x11\n" +
+	"\x03ref\x18\x03 \x01(\tR\x03ref\"\x8c\x12\n" +
 	"\vDeviceProps\x12\x0e\n" +
 	"\x02os\x18\x01 \x01(\tR\x02os\x12@\n" +
 	"\aversion\x18\x02 \x01(\v2&.WACompanionReg.DeviceProps.AppVersionR\aversion\x12L\n" +
@@ -1002,7 +1008,7 @@ const file_waCompanionReg_WACompanionReg_proto_rawDesc = "" +
 	"\n" +
 	"quaternary\x18\x04 \x01(\rR\n" +
 	"quaternary\x12\x18\n" +
-	"\aquinary\x18\x05 \x01(\rR\aquinary\"\xf6\x02\n" +
+	"\aquinary\x18\x05 \x01(\rR\aquinary\"\x9a\x03\n" +
 	"\fPlatformType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\n" +
 	"\n" +
@@ -1033,7 +1039,9 @@ const file_waCompanionReg_WACompanionReg_proto_rawDesc = "" +
 	"\x02VR\x10\x16\x12\r\n" +
 	"\tCLOUD_API\x10\x17\x12\x10\n" +
 	"\fSMARTGLASSES\x10\x18\x12\x15\n" +
-	"\x11PLATFORMTYPE_WAIL\x10\x19\"U\n" +
+	"\x11PLATFORMTYPE_WAIL\x10\x19\x12\b\n" +
+	"\x04WASS\x10\x1a\x12\x18\n" +
+	"\x14BUSINESS_BACK_OFFICE\x10\x1b\"U\n" +
 	"\x17EncryptedPairingRequest\x12*\n" +
 	"\x10encryptedPayload\x18\x01 \x01(\fR\x10encryptedPayload\x12\x0e\n" +
 	"\x02IV\x18\x02 \x01(\fR\x02IV\"\x92\x01\n" +

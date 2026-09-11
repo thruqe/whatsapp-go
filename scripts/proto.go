@@ -288,6 +288,20 @@ func sanitizeProtoDefinitions(protoDir string) error {
 		return fmt.Errorf("failed scanning referenced proto types: %w", err)
 	}
 
+	waCommonFile := filepath.Join(protoDir, "waCommon", "WACommon.proto")
+	if _, err := os.Stat(waCommonFile); err == nil {
+		if err := sanitizeWaCommonProto(waCommonFile); err != nil {
+			return fmt.Errorf("failed sanitizing waCommon proto: %w", err)
+		}
+	}
+
+	waHistorySyncFile := filepath.Join(protoDir, "waHistorySync", "WAWebProtobufsHistorySync.proto")
+	if _, err := os.Stat(waHistorySyncFile); err == nil {
+		if err := sanitizeWaHistorySyncProto(waHistorySyncFile); err != nil {
+			return fmt.Errorf("failed sanitizing waHistorySync proto: %w", err)
+		}
+	}
+
 	waE2EFile := filepath.Join(protoDir, "waE2E", "WAWebProtobufsE2E.proto")
 	if _, err := os.Stat(waE2EFile); err == nil {
 		if err := sanitizeWaE2EProto(waE2EFile, referencedTypes); err != nil {
@@ -295,6 +309,39 @@ func sanitizeProtoDefinitions(protoDir string) error {
 		}
 	}
 
+	return nil
+}
+
+func sanitizeWaCommonProto(filePath string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	content := string(data)
+	if strings.Contains(content, "enum Trigger {") {
+		content = strings.Replace(content, "enum Trigger {", "enum TriggerType {", 1)
+		content = strings.Replace(content, "optional Trigger trigger = 2;", "optional TriggerType trigger = 2;", 1)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			return err
+		}
+		fmt.Printf("✓ Sanitized %s (updated Trigger enum to TriggerType)\n", filepath.Base(filePath))
+	}
+	return nil
+}
+
+func sanitizeWaHistorySyncProto(filePath string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	content := string(data)
+	if strings.Contains(content, "WACommon.LimitSharing.Trigger limitSharingTrigger") {
+		content = strings.ReplaceAll(content, "WACommon.LimitSharing.Trigger limitSharingTrigger", "WACommon.LimitSharing.TriggerType limitSharingTrigger")
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			return err
+		}
+		fmt.Printf("✓ Sanitized %s (updated LimitSharing.Trigger to LimitSharing.TriggerType)\n", filepath.Base(filePath))
+	}
 	return nil
 }
 
@@ -349,18 +396,87 @@ func sanitizeWaE2EProto(filePath string, referencedTypes map[string]bool) error 
 		cleanedLines = append(cleanedLines, line)
 	}
 
-	if prunedCount == 0 {
-		return nil
-	}
-
 	res := strings.Join(cleanedLines, "\n")
 	res = regexp.MustCompile(`\n{3,}`).ReplaceAllString(res, "\n\n")
+
+	modified := prunedCount > 0
+
+	// Scoping fixes: strip incorrect Message. prefix for types that are top-level messages
+	scopingFixes := []struct {
+		oldStr string
+		newStr string
+	}{
+		{"Message.ChatAnimatedWallpaper", "ChatAnimatedWallpaper"},
+		{"Message.FutureProofMessage", "FutureProofMessage"},
+		{"Message.SharedDeviceContactHashKeyShare", "SharedDeviceContactHashKeyShare"},
+		{"Message.SharedDeviceContactHashKeyRequest", "SharedDeviceContactHashKeyRequest"},
+	}
+	for _, fix := range scopingFixes {
+		if strings.Contains(res, fix.oldStr) {
+			res = strings.ReplaceAll(res, fix.oldStr, fix.newStr)
+			modified = true
+		}
+	}
+
+	// Ensure missing top-level message definitions are present in waE2E
+	if !strings.Contains(res, "message ChatAnimatedWallpaper {") {
+		chatAnimatedWallpaperDef := `message ChatAnimatedWallpaper {
+	optional string animatedWallpaperId = 1;
+	optional float dimLevel = 2;
+}
+
+`
+		if idx := strings.Index(res, "message ChatCustomImageWallpaper {"); idx != -1 {
+			res = res[:idx] + chatAnimatedWallpaperDef + res[idx:]
+		} else {
+			res += "\n" + chatAnimatedWallpaperDef
+		}
+		modified = true
+	}
+
+	if !strings.Contains(res, "message SharedDeviceContactHashKey {") {
+		sharedDeviceDefs := `message SharedDeviceContactHashKey {
+	enum Kind {
+		UNKNOWN = 0;
+		LID = 1;
+		PHONE_NUMBER = 2;
+	}
+
+	optional uint32 epoch = 1;
+	optional Kind kind = 2;
+	optional bytes keyData = 3;
+}
+
+message SharedDeviceContactHashKeyRequest {
+	optional uint32 knownEpoch = 1;
+}
+
+message SharedDeviceContactHashKeyShare {
+	repeated SharedDeviceContactHashKey keys = 1;
+}
+
+`
+		if idx := strings.Index(res, "message SessionStructure {"); idx != -1 {
+			res = res[:idx] + sharedDeviceDefs + res[idx:]
+		} else {
+			res += "\n" + sharedDeviceDefs
+		}
+		modified = true
+	}
+
+	if !modified {
+		return nil
+	}
 
 	if err := os.WriteFile(filePath, []byte(res), 0644); err != nil {
 		return err
 	}
 
-	fmt.Printf("✓ Sanitized %s (pruned %d unreferenced top-level enums)\n", filepath.Base(filePath), prunedCount)
+	if prunedCount > 0 {
+		fmt.Printf("✓ Sanitized %s (pruned %d unreferenced top-level enums)\n", filepath.Base(filePath), prunedCount)
+	} else {
+		fmt.Printf("✓ Sanitized %s\n", filepath.Base(filePath))
+	}
 	return nil
 }
 

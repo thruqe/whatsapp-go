@@ -142,24 +142,24 @@ func (Command_CommandType) EnumDescriptor() ([]byte, []int) {
 	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{0, 0}
 }
 
-type LimitSharing_Trigger int32
+type LimitSharing_TriggerType int32
 
 const (
-	LimitSharing_UNKNOWN                 LimitSharing_Trigger = 0
-	LimitSharing_CHAT_SETTING            LimitSharing_Trigger = 1
-	LimitSharing_BIZ_SUPPORTS_FB_HOSTING LimitSharing_Trigger = 2
-	LimitSharing_UNKNOWN_GROUP           LimitSharing_Trigger = 3
+	LimitSharing_UNKNOWN                 LimitSharing_TriggerType = 0
+	LimitSharing_CHAT_SETTING            LimitSharing_TriggerType = 1
+	LimitSharing_BIZ_SUPPORTS_FB_HOSTING LimitSharing_TriggerType = 2
+	LimitSharing_UNKNOWN_GROUP           LimitSharing_TriggerType = 3
 )
 
-// Enum value maps for LimitSharing_Trigger.
+// Enum value maps for LimitSharing_TriggerType.
 var (
-	LimitSharing_Trigger_name = map[int32]string{
+	LimitSharing_TriggerType_name = map[int32]string{
 		0: "UNKNOWN",
 		1: "CHAT_SETTING",
 		2: "BIZ_SUPPORTS_FB_HOSTING",
 		3: "UNKNOWN_GROUP",
 	}
-	LimitSharing_Trigger_value = map[string]int32{
+	LimitSharing_TriggerType_value = map[string]int32{
 		"UNKNOWN":                 0,
 		"CHAT_SETTING":            1,
 		"BIZ_SUPPORTS_FB_HOSTING": 2,
@@ -167,40 +167,40 @@ var (
 	}
 )
 
-func (x LimitSharing_Trigger) Enum() *LimitSharing_Trigger {
-	p := new(LimitSharing_Trigger)
+func (x LimitSharing_TriggerType) Enum() *LimitSharing_TriggerType {
+	p := new(LimitSharing_TriggerType)
 	*p = x
 	return p
 }
 
-func (x LimitSharing_Trigger) String() string {
+func (x LimitSharing_TriggerType) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (LimitSharing_Trigger) Descriptor() protoreflect.EnumDescriptor {
+func (LimitSharing_TriggerType) Descriptor() protoreflect.EnumDescriptor {
 	return file_waCommon_WACommon_proto_enumTypes[2].Descriptor()
 }
 
-func (LimitSharing_Trigger) Type() protoreflect.EnumType {
+func (LimitSharing_TriggerType) Type() protoreflect.EnumType {
 	return &file_waCommon_WACommon_proto_enumTypes[2]
 }
 
-func (x LimitSharing_Trigger) Number() protoreflect.EnumNumber {
+func (x LimitSharing_TriggerType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
 // Deprecated: Do not use.
-func (x *LimitSharing_Trigger) UnmarshalJSON(b []byte) error {
+func (x *LimitSharing_TriggerType) UnmarshalJSON(b []byte) error {
 	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
 	if err != nil {
 		return err
 	}
-	*x = LimitSharing_Trigger(num)
+	*x = LimitSharing_TriggerType(num)
 	return nil
 }
 
-// Deprecated: Use LimitSharing_Trigger.Descriptor instead.
-func (LimitSharing_Trigger) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use LimitSharing_TriggerType.Descriptor instead.
+func (LimitSharing_TriggerType) EnumDescriptor() ([]byte, []int) {
 	return file_waCommon_WACommon_proto_rawDescGZIP(), []int{1, 0}
 }
 
@@ -326,11 +326,11 @@ func (x *Command) GetValidationToken() string {
 }
 
 type LimitSharing struct {
-	state                        protoimpl.MessageState `protogen:"open.v1"`
-	SharingLimited               *bool                  `protobuf:"varint,1,opt,name=sharingLimited" json:"sharingLimited,omitempty"`
-	Trigger                      *LimitSharing_Trigger  `protobuf:"varint,2,opt,name=trigger,enum=WACommon.LimitSharing_Trigger" json:"trigger,omitempty"`
-	LimitSharingSettingTimestamp *int64                 `protobuf:"varint,3,opt,name=limitSharingSettingTimestamp" json:"limitSharingSettingTimestamp,omitempty"`
-	InitiatedByMe                *bool                  `protobuf:"varint,4,opt,name=initiatedByMe" json:"initiatedByMe,omitempty"`
+	state                        protoimpl.MessageState    `protogen:"open.v1"`
+	SharingLimited               *bool                     `protobuf:"varint,1,opt,name=sharingLimited" json:"sharingLimited,omitempty"`
+	Trigger                      *LimitSharing_TriggerType `protobuf:"varint,2,opt,name=trigger,enum=WACommon.LimitSharing_TriggerType" json:"trigger,omitempty"`
+	LimitSharingSettingTimestamp *int64                    `protobuf:"varint,3,opt,name=limitSharingSettingTimestamp" json:"limitSharingSettingTimestamp,omitempty"`
+	InitiatedByMe                *bool                     `protobuf:"varint,4,opt,name=initiatedByMe" json:"initiatedByMe,omitempty"`
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
 }
@@ -372,7 +372,7 @@ func (x *LimitSharing) GetSharingLimited() bool {
 	return false
 }
 
-func (x *LimitSharing) GetTrigger() LimitSharing_Trigger {
+func (x *LimitSharing) GetTrigger() LimitSharing_TriggerType {
 	if x != nil && x.Trigger != nil {
 		return *x.Trigger
 	}
@@ -665,13 +665,13 @@ const file_waCommon_WACommon_proto_rawDesc = "" +
 	"\x06SILENT\x10\x02\x12\x06\n" +
 	"\x02AI\x10\x03\x12\x0e\n" +
 	"\n" +
-	"AI_IMAGINE\x10\x04\"\xb4\x02\n" +
+	"AI_IMAGINE\x10\x04\"\xbc\x02\n" +
 	"\fLimitSharing\x12&\n" +
-	"\x0esharingLimited\x18\x01 \x01(\bR\x0esharingLimited\x128\n" +
-	"\atrigger\x18\x02 \x01(\x0e2\x1e.WACommon.LimitSharing.TriggerR\atrigger\x12B\n" +
+	"\x0esharingLimited\x18\x01 \x01(\bR\x0esharingLimited\x12<\n" +
+	"\atrigger\x18\x02 \x01(\x0e2\".WACommon.LimitSharing.TriggerTypeR\atrigger\x12B\n" +
 	"\x1climitSharingSettingTimestamp\x18\x03 \x01(\x03R\x1climitSharingSettingTimestamp\x12$\n" +
-	"\rinitiatedByMe\x18\x04 \x01(\bR\rinitiatedByMe\"X\n" +
-	"\aTrigger\x12\v\n" +
+	"\rinitiatedByMe\x18\x04 \x01(\bR\rinitiatedByMe\"\\\n" +
+	"\vTriggerType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\x10\n" +
 	"\fCHAT_SETTING\x10\x01\x12\x1b\n" +
 	"\x17BIZ_SUPPORTS_FB_HOSTING\x10\x02\x12\x11\n" +
@@ -718,20 +718,20 @@ func file_waCommon_WACommon_proto_rawDescGZIP() []byte {
 var file_waCommon_WACommon_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
 var file_waCommon_WACommon_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_waCommon_WACommon_proto_goTypes = []any{
-	(FutureProofBehavior)(0),  // 0: WACommon.FutureProofBehavior
-	(Command_CommandType)(0),  // 1: WACommon.Command.CommandType
-	(LimitSharing_Trigger)(0), // 2: WACommon.LimitSharing.Trigger
-	(Mention_MentionType)(0),  // 3: WACommon.Mention.MentionType
-	(*Command)(nil),           // 4: WACommon.Command
-	(*LimitSharing)(nil),      // 5: WACommon.LimitSharing
-	(*Mention)(nil),           // 6: WACommon.Mention
-	(*MessageKey)(nil),        // 7: WACommon.MessageKey
-	(*MessageText)(nil),       // 8: WACommon.MessageText
-	(*SubProtocol)(nil),       // 9: WACommon.SubProtocol
+	(FutureProofBehavior)(0),      // 0: WACommon.FutureProofBehavior
+	(Command_CommandType)(0),      // 1: WACommon.Command.CommandType
+	(LimitSharing_TriggerType)(0), // 2: WACommon.LimitSharing.TriggerType
+	(Mention_MentionType)(0),      // 3: WACommon.Mention.MentionType
+	(*Command)(nil),               // 4: WACommon.Command
+	(*LimitSharing)(nil),          // 5: WACommon.LimitSharing
+	(*Mention)(nil),               // 6: WACommon.Mention
+	(*MessageKey)(nil),            // 7: WACommon.MessageKey
+	(*MessageText)(nil),           // 8: WACommon.MessageText
+	(*SubProtocol)(nil),           // 9: WACommon.SubProtocol
 }
 var file_waCommon_WACommon_proto_depIdxs = []int32{
 	1, // 0: WACommon.Command.commandType:type_name -> WACommon.Command.CommandType
-	2, // 1: WACommon.LimitSharing.trigger:type_name -> WACommon.LimitSharing.Trigger
+	2, // 1: WACommon.LimitSharing.trigger:type_name -> WACommon.LimitSharing.TriggerType
 	3, // 2: WACommon.Mention.mentionType:type_name -> WACommon.Mention.MentionType
 	4, // 3: WACommon.MessageText.commands:type_name -> WACommon.Command
 	6, // 4: WACommon.MessageText.mentions:type_name -> WACommon.Mention
