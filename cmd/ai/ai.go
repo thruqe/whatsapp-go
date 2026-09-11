@@ -211,10 +211,6 @@ func handleAutoAI(ctx *dispatch.Context) error {
 }
 
 func handleCSAI(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Only Sudoers can configure global AI personality traits and custom behavior.")
-	}
-
 	s, okStore := dispatch.GetStore(ctx)
 	if !okStore {
 		return ctx.Reply("Database store is not available.")
@@ -841,9 +837,6 @@ func handleEditMsg(ctx *dispatch.Context) error {
 }
 
 func handleFFmpeg(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to sudoers/owner only.")
-	}
 	if ctx.RawArgs == "" {
 		return ctx.Reply("Usage: ffmpeg <args...>")
 	}

@@ -75,6 +75,7 @@ func init() {
 		Alias:       "leaderboard",
 		Description: "Show overall XP & game leaderboard",
 		Category:    "games",
+		GroupOnly:   true,
 		IsPublic:    true,
 		Handler:     handleLeaderboard,
 	})
@@ -328,10 +329,6 @@ func awardTTTXP(ctx *dispatch.Context, userJID types.JID, amount int, resultType
 }
 
 func handleLeaderboard(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply("Leaderboards are group-specific! Please use .leaderboard inside a group chat to view that group's leaderboard.")
-	}
-
 	s, ok := dispatch.GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Leaderboard store unavailable.")

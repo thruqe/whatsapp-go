@@ -231,18 +231,12 @@ func handleAFK(ctx *dispatch.Context) error {
 
 	args := strings.Fields(ctx.RawArgs)
 	if len(args) == 0 {
-		if !ctx.IsSudo() {
-			return ctx.Reply("Only sudoers/owners can set AFK status.")
-		}
 		return setAFKStatus(ctx, s, "AFK (No reason specified)")
 	}
 
 	sub := strings.ToLower(args[0])
 	switch sub {
 	case "off", "disable", "back", "done":
-		if !ctx.IsSudo() {
-			return ctx.Reply("Only sudoers/owners can turn off AFK status.")
-		}
 		_ = s.PutSetting(ctx.Ctx, AFKStatusKey, "off")
 		_ = s.PutSetting(ctx.Ctx, AFKReasonKey, "")
 		_ = s.PutSetting(ctx.Ctx, AFKTimeKey, "")
@@ -254,9 +248,6 @@ func handleAFK(ctx *dispatch.Context) error {
 		return sendAFKCustomizeGuide(ctx)
 
 	case "msg", "template", "text":
-		if !ctx.IsSudo() {
-			return ctx.Reply("Only sudoers/owners can customize the AFK template.")
-		}
 		if len(args) < 2 {
 			curr, _ := s.GetSetting(ctx.Ctx, AFKTemplateKey)
 			if curr == "" {
@@ -275,9 +266,6 @@ func handleAFK(ctx *dispatch.Context) error {
 		return ctx.Reply("Custom AFK message template updated successfully!\n\nUse `" + ctx.GetPrefix() + "afk msg reset` to restore default.")
 
 	case "media":
-		if !ctx.IsSudo() {
-			return ctx.Reply("Only sudoers/owners can set AFK media.")
-		}
 		if len(args) < 2 {
 			curr, _ := s.GetSetting(ctx.Ctx, AFKMediaKey)
 			if curr == "" {
@@ -296,9 +284,6 @@ func handleAFK(ctx *dispatch.Context) error {
 		return ctx.Reply("AFK media URL updated successfully!")
 
 	default:
-		if !ctx.IsSudo() {
-			return ctx.Reply("Only sudoers/owners can set AFK status.")
-		}
 		reason := strings.TrimSpace(ctx.RawArgs)
 		return setAFKStatus(ctx, s, reason)
 	}
@@ -1670,10 +1655,6 @@ func sendWizardSummaryCard(ctx *dispatch.Context) error {
 }
 
 func handleLikeStatusCmd(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to bot owner and sudoers.")
-	}
-
 	s, ok := dispatch.GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
@@ -1850,10 +1831,6 @@ func handleStpack(ctx *dispatch.Context) error {
 		return ctx.Reply("Settings store unavailable.")
 	}
 
-	if !ctx.IsSudo() {
-		return ctx.Reply("Only owner/sudo users can modify default sticker pack.")
-	}
-
 	key := ctx.Chat.ToNonAD().String() + ":" + ctx.Sender.ToNonAD().String()
 	StpackSessionMu.Lock()
 	PendingStpackSessions[key] = StpackSession{
@@ -1968,10 +1945,6 @@ func HandlePendingStpackInput(ctx *dispatch.Context, text string) bool {
 }
 
 func handlePrivacy(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Only owner/sudo users can view or modify account privacy settings.")
-	}
-
 	if len(ctx.Args) >= 2 {
 		name := strings.ToLower(ctx.Args[0])
 		val := strings.ToLower(ctx.Args[1])
@@ -2054,10 +2027,6 @@ func updatePrivacySetting(ctx *dispatch.Context, nameStr, valStr string) error {
 }
 
 func handleSetCmd(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	rawInput := strings.TrimSpace(ctx.RawArgs)
 	if rawInput == "" && len(ctx.Args) > 0 {
 		rawInput = strings.Join(ctx.Args, " ")
@@ -2122,10 +2091,6 @@ func handleSetCmd(ctx *dispatch.Context) error {
 }
 
 func handleDelCmd(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	s, ok := dispatch.GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
@@ -2189,10 +2154,6 @@ func handleGetCmd(ctx *dispatch.Context) error {
 }
 
 func handleDisableCmd(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage:\n- %sdisablecmd <command_name>\nExample:\n- %sdisablecmd weather", p, p)
@@ -2234,10 +2195,6 @@ func handleDisableCmd(ctx *dispatch.Context) error {
 }
 
 func handleEnableCmd(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage:\n- %senablecmd <command_name>\nExample:\n- %senablecmd weather", p, p)
@@ -2278,10 +2235,6 @@ func handleEnableCmd(ctx *dispatch.Context) error {
 }
 
 func handleAutoVV(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	s, ok := dispatch.GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
@@ -2370,10 +2323,6 @@ func handleAutoVV(ctx *dispatch.Context) error {
 }
 
 func handleAutoStatusSave(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	s, ok := dispatch.GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
@@ -2473,10 +2422,6 @@ func parseEmojiList(input string) []string {
 }
 
 func handleAutoReactCmd(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	s, ok := dispatch.GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
@@ -2642,10 +2587,6 @@ func sendAutoReactGuide(ctx *dispatch.Context) error {
 }
 
 func handleAutoReadCmd(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	s, ok := dispatch.GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")

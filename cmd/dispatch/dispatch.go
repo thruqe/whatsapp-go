@@ -495,7 +495,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	}
 
 	// Permission checks
-	if cmd.GroupOnly && evt.Info.Chat.Server != "g.us" {
+	if cmd.GroupOnly && !cctx.IsGroup() {
 		_ = cctx.Reply("This command can only be used in group chats.")
 		return true
 	}

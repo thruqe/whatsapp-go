@@ -276,9 +276,6 @@ func init() {
 }
 
 func handleTagAll(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply("This command can only be used inside a group chat.")
-	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -296,9 +293,6 @@ func handleTagAll(ctx *dispatch.Context) error {
 }
 
 func handleKick(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply("This command can only be used inside a group chat.")
-	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -340,9 +334,6 @@ func handleKick(ctx *dispatch.Context) error {
 }
 
 func handleAdd(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply("This command can only be used inside a group chat.")
-	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -380,9 +371,6 @@ func handleAdd(ctx *dispatch.Context) error {
 }
 
 func handlePromote(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply("This command can only be used inside a group chat.")
-	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -420,9 +408,6 @@ func handlePromote(ctx *dispatch.Context) error {
 }
 
 func handleDemote(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply("This command can only be used inside a group chat.")
-	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -464,9 +449,6 @@ func handleDemote(ctx *dispatch.Context) error {
 }
 
 func handleGroup(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply("This command can only be used inside a group chat.")
-	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -1262,11 +1244,6 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 }
 
 func handleListOnline(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		logger.Debug("handleListOnline: not a group chat", "chat", ctx.Chat.String())
-		return ctx.Reply("This command can only be used inside a group chat.")
-	}
-
 	logger.Debug("handleListOnline executing", "group", ctx.Chat.String())
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
@@ -1417,10 +1394,6 @@ func handleListOnline(ctx *dispatch.Context) error {
 }
 
 func handleKickAll(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply("This command can only be used inside a group chat.")
-	}
-
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -1468,10 +1441,6 @@ func handleKickAll(ctx *dispatch.Context) error {
 }
 
 func handleLeave(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply("This command can only be used inside a group chat.")
-	}
-
 	senderUser := ctx.Sender.ToNonAD().User
 
 	arg0 := ""
@@ -2595,10 +2564,6 @@ func sendEventsCustomizeGuide(ctx *dispatch.Context) error {
 }
 
 func handleSetGroupPP(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply("This command can only be used inside a group chat.")
-	}
-
 	groupInfo, errGroup := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if errGroup != nil || groupInfo == nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", errGroup)
@@ -3532,10 +3497,6 @@ func findPendingCaptchaByQuotedMsgID(chat types.JID, evt *events.Message) (*Pend
 }
 
 func handleCaptcha(ctx *dispatch.Context) error {
-	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply("Captcha verification can only be configured in groups.")
-	}
-
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Could not retrieve group information: %v", err)

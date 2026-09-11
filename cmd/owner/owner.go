@@ -98,45 +98,47 @@ func init() {
 		Alias:       "sudo,addsudo",
 		Description: "Add a user to the sudo list (replied user or numbers)",
 		Category:    "owner",
+		IsPublic:    false,
 		Handler:     handleSetSudo,
 	})
 	dispatch.Register(&dispatch.Command{
 		Name:        "delsudo",
 		Description: "Remove a user from the sudo list (replied user or numbers)",
 		Category:    "owner",
+		IsPublic:    false,
 		Handler:     handleDelSudo,
 	})
 	dispatch.Register(&dispatch.Command{
 		Name:        "listsudo",
 		Description: "List all sudo users",
 		Category:    "owner",
+		IsPublic:    false,
 		Handler:     handleListSudo,
 	})
 	dispatch.Register(&dispatch.Command{
 		Name:        "ban",
 		Description: "Block a user from using the bot commands (replied user or numbers)",
 		Category:    "owner",
+		IsPublic:    false,
 		Handler:     handleBan,
 	})
 	dispatch.Register(&dispatch.Command{
 		Name:        "unban",
 		Description: "Unblock a user (replied user or numbers)",
 		Category:    "owner",
+		IsPublic:    false,
 		Handler:     handleUnban,
 	})
 	dispatch.Register(&dispatch.Command{
 		Name:        "mode",
 		Description: "Toggle bot mode (public/private)",
 		Category:    "owner",
+		IsPublic:    false,
 		Handler:     handleMode,
 	})
 }
 
 func handleBio(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to bot owner and sudoers.")
-	}
-
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage: %sbio <new WhatsApp status bio text>\n\nExample: %sbio Available | WhatsRook AI Bot", p, p)
@@ -152,10 +154,6 @@ func handleBio(ctx *dispatch.Context) error {
 }
 
 func handleBlocklist(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to sudoers only.")
-	}
-
 	bl, err := ctx.Client.GetBlocklist(ctx.Ctx)
 	if err != nil || bl == nil {
 		return ctx.Replyf("Failed to fetch blocklist: %v", err)
@@ -181,10 +179,6 @@ func handleBlocklist(ctx *dispatch.Context) error {
 }
 
 func handleSetBotPP(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to bot owner and sudoers.")
-	}
-
 	downloadable, _, _ := ExtractMediaFromEvent(ctx.Evt)
 	if downloadable == nil {
 		return ctx.Replyf("Please upload or reply to an image to set as profile picture. Usage: %spp", ctx.GetPrefix())
@@ -216,10 +210,6 @@ func handleSetBotPP(ctx *dispatch.Context) error {
 }
 
 func handleStopShell(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to bot owner and sudoers.")
-	}
-
 	ActiveShellSessionsMu.Lock()
 	session, exists := ActiveShellSessions[ctx.Chat.String()]
 	ActiveShellSessionsMu.Unlock()
@@ -318,10 +308,6 @@ func HandleShellInput(ctx *dispatch.Context, text string) bool {
 }
 
 func handleSh(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to bot owner and sudoers.")
-	}
-
 	commandStr := strings.TrimSpace(ctx.RawArgs)
 	if commandStr == "" {
 		p := ctx.GetPrefix()
@@ -549,10 +535,6 @@ func handleSh(ctx *dispatch.Context) error {
 }
 
 func handleStatus(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Only owner/sudo users can post status updates.")
-	}
-
 	text := strings.TrimSpace(ctx.RawArgs)
 
 	mediaBytes, mimetype, err := ctx.GetMedia()
@@ -868,10 +850,6 @@ func removeUserTokens(ctx context.Context, client *whatsmeow.Client, chat types.
 }
 
 func handleSetSudo(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
 		p := ctx.GetPrefix()
@@ -925,9 +903,6 @@ func handleSetSudo(ctx *dispatch.Context) error {
 }
 
 func handleDelSudo(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
 	if !ctx.IsOwner() {
 		return ctx.Reply("Only the bot owner can remove users from the sudo list.")
 	}
@@ -976,9 +951,6 @@ func handleDelSudo(ctx *dispatch.Context) error {
 }
 
 func handleListSudo(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
 
 	s, ok := dispatch.GetStore(ctx)
 	if !ok {
@@ -1114,10 +1086,6 @@ func sanitizeSudoers(tokens []string) []string {
 }
 
 func handleBan(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
 		p := ctx.GetPrefix()
@@ -1178,10 +1146,6 @@ func handleBan(ctx *dispatch.Context) error {
 }
 
 func handleUnban(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
 		p := ctx.GetPrefix()
@@ -1222,10 +1186,6 @@ func handleUnban(ctx *dispatch.Context) error {
 }
 
 func handleMode(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("You are not authorized to use this command.")
-	}
-
 	s, ok := dispatch.GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
@@ -1289,10 +1249,6 @@ func handlePresence(ctx *dispatch.Context) error {
 }
 
 func handleLogoutCommand(ctx *dispatch.Context) error {
-	if !ctx.IsSudo() {
-		return ctx.Reply("Restricted to bot owner and sudoers.")
-	}
-
 	_ = ctx.Reply("Logging out and unpairing companion device...")
 
 	go func() {
