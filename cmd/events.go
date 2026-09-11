@@ -23,7 +23,7 @@ import (
 	"whatsrook/cmd/settings"
 	"whatsrook/cmd/store"
 	"whatsrook/cmd/updater"
-	"whatsrook/qr"
+	"whatsrook/util/qr"
 
 	_ "whatsrook/cmd/ai"
 	_ "whatsrook/cmd/business"

@@ -31,9 +31,9 @@ import (
 	_ "github.com/lib/pq"
 
 	"whatsrook/cache"
-	"whatsrook/qr"
 	"whatsrook/util"
 	"whatsrook/util/logger"
+	"whatsrook/util/qr"
 )
 
 // clienttype specifies the companion operating system and hardware profile to emulate during registration.
