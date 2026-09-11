@@ -258,7 +258,7 @@ func ResolvePostgresURL(dbConf string, sessionPhone ...string) string {
 		return strings.TrimSpace(env)
 	}
 
-	return "postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable"
+	return ""
 }
 
 // OpenStoreContainer opens and prepares a sqlstore.Container storage backend connected to PostgreSQL.

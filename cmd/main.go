@@ -11,14 +11,11 @@ import (
 	"time"
 
 	"whatsrook"
-	_ "whatsrook"
 	"whatsrook/cache"
 	"whatsrook/cmd/updater"
 	"whatsrook/util"
 	"whatsrook/util/logger"
 )
-
-func init() {}
 
 func main() {
 	defer func() {
@@ -126,9 +123,6 @@ func handleUpdate(op string) {
 			fmt.Printf("==> Already tracking channel: %s\n", current)
 		}
 	default:
-		// When no explicit channel switch was requested (e.g. `whatsrook update` or `whatsrook update check`),
-		// automatically determine channel from current binary:
-		// beta binary -> beta channel; stable binary -> stable channel.
 		if updater.CurrentIsBeta() {
 			targetChannel = "beta"
 		} else {
@@ -166,13 +160,13 @@ func handleUpdate(op string) {
 
 func handleAutoUpdateCLI(val string) {
 	switch val {
-	case "on", "enable", "true", "1":
+	case "on":
 		if err := updater.SetStoredAutoUpdate(true); err != nil {
 			logger.Error("failed to enable auto-update", "err", err)
 			os.Exit(1)
 		}
 		fmt.Println("==> Auto-update enabled. WhatsRook will automatically check and apply updates on startup.")
-	case "off", "disable", "false", "0":
+	case "off":
 		if err := updater.SetStoredAutoUpdate(false); err != nil {
 			logger.Error("failed to disable auto-update", "err", err)
 			os.Exit(1)
