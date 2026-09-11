@@ -20,8 +20,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"whatsrook"
 )
 
 const (
@@ -29,12 +27,7 @@ const (
 	DefaultRepoName  = "whatsrook"
 )
 
-var EmbeddedAppVersion = func() string {
-	if v, err := whatsrook.GetVersion(); err == nil && v.Raw != "" {
-		return v.Raw
-	}
-	return "26.09.dev"
-}()
+var EmbeddedAppVersion = "26.09.dev"
 
 // Backward-compatible exports for external callers.
 const (
@@ -402,9 +395,6 @@ func GetBinaryVersion() string {
 				return strings.TrimSpace(s.Value)
 			}
 		}
-	}
-	if v, err := whatsrook.GetVersion(); err == nil && strings.TrimSpace(v.Raw) != "" {
-		return strings.TrimSpace(v.Raw)
 	}
 	return EmbeddedAppVersion
 }

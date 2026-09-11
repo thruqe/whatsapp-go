@@ -131,7 +131,7 @@ jobs:
           if [ "${{ matrix.target.os }}" = "windows" ]; then
             GOOS="" GOARCH="" go -C scripts run . res "$APP_VERSION"
           fi
-          (cd cmd && go build -trimpath -ldflags="-s -w -buildid= -X main.Version=${APP_VERSION} -X whatsrook/cmd/updater.BinaryVersion=${APP_VERSION} -X whatsrook/cmd/updater.CommitSHA=${COMMIT_SHA} -X whatsrook.RawVersion=${APP_VERSION}" -v -o "../$BIN_NAME" .)
+          (cd cmd && go build -trimpath -ldflags="-s -w -buildid= -X main.Version=${APP_VERSION} -X whatsrook/cmd/updater.BinaryVersion=${APP_VERSION} -X whatsrook/cmd/updater.CommitSHA=${COMMIT_SHA}" -v -o "../$BIN_NAME" .)
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
 
       - name: Sign Windows Binary
