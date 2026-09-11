@@ -26,12 +26,12 @@ type CLIArgs struct {
 	Update        bool   // True if an update action was requested
 	UpdateOp      string // "check", "stable", "beta", or "" (direct update)
 	AutoUpdate    bool   // True if autoupdate action was requested
-	AutoUpdateVal string // "on", "off", or "status"
+	AutoUpdateVal string // "on" or "off"
 	Verbose       bool   // Enable verbose / debug logging
 	Version       bool   // Print version and exit
 }
 
-// printCLIUsage prints clean plain-word command line usage without short flags or leading dashes.
+// printCLIUsage prints clean plain-word command line usage.
 func printCLIUsage() {
 	fmt.Print(`Usage: whatsrook [options] [<phone>]
        whatsrook update [check | stable | beta]
@@ -40,20 +40,19 @@ func printCLIUsage() {
        whatsrook version
 
 Arguments:
-  <phone>                       Phone number used to identify the session
-                                (can appear anywhere in the argument list)
+  <phone>                    Phone number used to identify the session
 
 Commands & Options:
-  auth <pair | qr>              Authentication method (default: qr)
-  autoupdate <on | off>         Toggle automatic update checks and restarts on launch
-  business                      Enable WhatsApp Business mode (uses SMB platform signature)
-  client <type>                 Client profile: default (chrome), android, ios (default: default)
-  db <url>                      Database: PostgreSQL connection URL
-  logout                        Remove session credentials and exit
-  update [action]               Check or apply update (actions: check, stable, beta, or empty for direct)
-  verbose                       Enable verbose debug logging
-  version                       Print version and exit
-  help                          Show this help message
+  auth <pair | qr>           Authentication method (default: qr)
+  autoupdate <on | off>      Toggle automatic update checks
+  business                   Enable WhatsApp Business mode
+  client <type>              Client profile: default, android, ios (default: default)
+  db <url>                   PostgreSQL connection URL
+  logout                     Remove session credentials and exit
+  update [action]            Check or apply update (check, stable, beta)
+  verbose                    Enable verbose debug logging
+  version                    Print version and exit
+  help                       Show this help message
 `)
 }
 
@@ -68,7 +67,7 @@ func parseCLIArgs() CLIArgs {
 	return parseCLIArgsFrom(os.Args[1:])
 }
 
-// parseCLIArgsFrom parses arguments from an explicit string slice using plain words.
+// parseCLIArgsFrom parses arguments deterministically with strict single-token behaviors.
 func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 	var (
 		sessionVal    string
@@ -91,114 +90,68 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 			continue
 		}
 
-		// Normalize plain word: strip optional leading dashes for backward tolerance,
-		// but do NOT recognize single-letter short args (e.g. -a, -c, -v, -l, -u, -h, -db).
-		norm := strings.ToLower(raw)
-		for strings.HasPrefix(norm, "-") {
-			norm = norm[1:]
-		}
-
-		switch {
-		case norm == "help" || raw == "?":
+		switch raw {
+		case "help":
 			printCLIUsage()
 			os.Exit(0)
 
-		case norm == "version":
+		case "version":
 			versionVal = true
 
-		case norm == "verbose":
+		case "verbose":
 			verboseVal = true
 
-		case norm == "logout":
+		case "logout":
 			logoutVal = true
 
-		case norm == "update":
+		case "business":
+			businessVal = true
+
+		case "update":
 			isUpdate = true
 			if i+1 < len(cmdArgs) {
-				next := strings.ToLower(strings.TrimSpace(cmdArgs[i+1]))
-				for strings.HasPrefix(next, "-") {
-					next = next[1:]
-				}
+				next := strings.TrimSpace(cmdArgs[i+1])
 				if next == "check" || next == "stable" || next == "beta" {
 					updateOp = next
 					i++
 				}
 			}
 
-		case norm == "autoupdate" || norm == "auto-update":
+		case "autoupdate":
 			isAutoUpdate = true
 			if i+1 < len(cmdArgs) {
-				next := strings.ToLower(strings.TrimSpace(cmdArgs[i+1]))
-				for strings.HasPrefix(next, "-") {
-					next = next[1:]
-				}
-				if next == "on" || next == "off" || next == "status" || next == "enable" || next == "disable" || next == "true" || next == "false" {
+				next := strings.TrimSpace(cmdArgs[i+1])
+				if next == "on" || next == "off" {
 					autoUpdateVal = next
 					i++
 				}
 			}
-		case strings.HasPrefix(norm, "autoupdate=") || strings.HasPrefix(norm, "auto-update="):
-			isAutoUpdate = true
-			_, val, _ := strings.Cut(raw, "=")
-			autoUpdateVal = strings.ToLower(strings.TrimSpace(val))
 
-		case norm == "auth":
+		case "auth":
 			if i+1 < len(cmdArgs) {
-				next := strings.ToLower(strings.TrimSpace(cmdArgs[i+1]))
-				for strings.HasPrefix(next, "-") {
-					next = next[1:]
-				}
+				next := strings.TrimSpace(cmdArgs[i+1])
 				if next == "pair" || next == "qr" {
 					authVal = next
 					i++
 				}
 			}
-		case strings.HasPrefix(norm, "auth="):
-			val := strings.TrimPrefix(norm, "auth=")
-			if val == "pair" || val == "qr" {
-				authVal = val
-			}
-		case norm == "pair" || norm == "qr":
-			authVal = norm
 
-		case norm == "business" || norm == "biz" || norm == "smb":
-			businessVal = true
-
-		case strings.HasPrefix(norm, "business=") || strings.HasPrefix(norm, "biz=") || strings.HasPrefix(norm, "smb="):
-			_, val, _ := strings.Cut(raw, "=")
-			val = strings.ToLower(strings.TrimSpace(val))
-			businessVal = val == "true" || val == "1" || val == "yes" || val == "on"
-
-		case norm == "client":
+		case "client":
 			if i+1 < len(cmdArgs) {
-				next := strings.ToLower(strings.TrimSpace(cmdArgs[i+1]))
-				for strings.HasPrefix(next, "-") {
-					next = next[1:]
-				}
-				if next == "android" || next == "ios" || next == "chrome" || next == "default" ||
-					next == "smb_android" || next == "smba" || next == "smb_ios" || next == "smbi" {
+				next := strings.TrimSpace(cmdArgs[i+1])
+				if next == "android" || next == "ios" || next == "default" {
 					clientVal = next
 					i++
 				}
 			}
-		case strings.HasPrefix(norm, "client="):
-			val := strings.TrimPrefix(norm, "client=")
-			if val == "android" || val == "ios" || val == "chrome" || val == "default" ||
-				val == "smb_android" || val == "smba" || val == "smb_ios" || val == "smbi" {
-				clientVal = val
-			}
 
-		case norm == "db" || norm == "database" || norm == "db-url" || norm == "dburl":
+		case "db":
 			if i+1 < len(cmdArgs) {
 				dbVal = strings.TrimSpace(cmdArgs[i+1])
 				i++
 			}
-		case strings.HasPrefix(norm, "db=") || strings.HasPrefix(norm, "database=") || strings.HasPrefix(norm, "db-url="):
-			_, val, _ := strings.Cut(raw, "=")
-			dbVal = strings.TrimSpace(val)
 
 		default:
-			// Match session phone numbers (e.g. 2348000000000, +2348000000000)
 			cleanArg := strings.TrimPrefix(raw, "+")
 			if len(cleanArg) >= 7 && len(cleanArg) <= 15 && isNumeric(cleanArg) {
 				sessionVal = raw
@@ -206,76 +159,35 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		}
 	}
 
-	// 1. Session resolution from env fallback
+	// Single strict env var fallbacks (No multiple alias checks)
 	if sessionVal == "" && !isUpdate {
 		sessionVal = os.Getenv("SESSION")
 	}
 
-	// 2. Auth resolution (Plain Word > AUTH env > default "qr")
 	if authVal == "" {
-		authVal = strings.ToLower(strings.TrimSpace(os.Getenv("AUTH")))
+		authVal = os.Getenv("AUTH")
 	}
 	if authVal != "pair" && authVal != "qr" {
 		authVal = "qr"
 	}
 
-	// 3. Client platform resolution (Plain Word > CLIENT env > default "default")
 	if clientVal == "" {
-		clientVal = strings.ToLower(strings.TrimSpace(os.Getenv("CLIENT")))
+		clientVal = os.Getenv("CLIENT")
 	}
-	switch clientVal {
-	case "smb_android", "smba":
-		clientVal = "android"
-		businessVal = true
-	case "smb_ios", "smbi":
-		clientVal = "ios"
-		businessVal = true
-	case "android", "ios":
-	default:
+	if clientVal != "android" && clientVal != "ios" {
 		clientVal = "default"
 	}
 
-	// 3b. Business resolution (Plain Word > BUSINESS / WA_BUSINESS env > default false)
 	if !businessVal {
-		envBiz := strings.ToLower(strings.TrimSpace(os.Getenv("BUSINESS")))
-		envWABiz := strings.ToLower(strings.TrimSpace(os.Getenv("WA_BUSINESS")))
-		businessVal = envBiz == "true" || envBiz == "1" || envBiz == "yes" || envBiz == "on" ||
-			envWABiz == "true" || envWABiz == "1" || envWABiz == "yes" || envWABiz == "on"
+		businessVal = os.Getenv("BUSINESS") == "true"
 	}
 
-	// 4. Database resolution (Plain Word > DATABASE_URL_<phone> > DATABASE_URL > POSTGRES_URL > DB_URL > default PostgreSQL URL)
 	if dbVal == "" {
-		phone := strings.TrimPrefix(sessionVal, "+")
-		if phone != "" && os.Getenv("DATABASE_URL_"+phone) != "" {
-			dbVal = os.Getenv("DATABASE_URL_" + phone)
-		} else if envDB := os.Getenv("DATABASE_URL"); envDB != "" {
-			dbVal = envDB
-		} else if envPG := os.Getenv("POSTGRES_URL"); envPG != "" {
-			dbVal = envPG
-		} else if envDBURL := os.Getenv("DB_URL"); envDBURL != "" {
-			dbVal = envDBURL
-		} else {
-			dbVal = "postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable"
-		}
-	}
-	if dbVal == "default" || dbVal == "postgres" || dbVal == "postgresql" {
-		dbVal = "postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable"
+		dbVal = os.Getenv("DATABASE_URL")
 	}
 
-	// 5. Logout resolution (Plain Word > LOGOUT env)
-	if !logoutVal {
-		envLogout := strings.ToLower(os.Getenv("LOGOUT"))
-		logoutVal = envLogout == "true" || envLogout == "1"
-	}
-
-	// 6. Verbose resolution (Plain Word > VERBOSE env > DEBUG env > LOG_LEVEL)
 	if !verboseVal {
-		envVerbose := strings.ToLower(strings.TrimSpace(os.Getenv("VERBOSE")))
-		envDebug := strings.ToLower(strings.TrimSpace(os.Getenv("DEBUG")))
-		envLogLevel := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
-		verboseVal = envVerbose == "true" || envVerbose == "1" || envVerbose == "yes" || envVerbose == "on" ||
-			envDebug == "true" || envDebug == "1" || envDebug == "yes" || envDebug == "on" ||
-			envLogLevel == "debug" || envLogLevel == "trace"
+		verboseVal = os.Getenv("VERBOSE") == "true"
 	}
 
 	return CLIArgs{

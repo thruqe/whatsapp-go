@@ -10,9 +10,9 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// LogGroupMessage records message activity counters per group and user per day,
+// StoreGroupMessage records message activity counters per group and user per day,
 // scoped to the active session's our_jid.
-func LogGroupMessage(ctx context.Context, s *sqlstore.SQLStore, chat, sender types.JID) {
+func StoreGroupMessage(ctx context.Context, s *sqlstore.SQLStore, chat, sender types.JID) {
 	if s == nil {
 		return
 	}

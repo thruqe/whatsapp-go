@@ -135,7 +135,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 
 	if evt.Info.Chat.Server == "g.us" && okStore {
-		go store.LogGroupMessage(context.WithoutCancel(ctx), s.SQLStore, evt.Info.Chat, evt.Info.Sender)
+		go store.StoreGroupMessage(context.WithoutCancel(ctx), s.SQLStore, evt.Info.Chat, evt.Info.Sender)
 	}
 
 	// 1. Status Broadcast Auto-Save
