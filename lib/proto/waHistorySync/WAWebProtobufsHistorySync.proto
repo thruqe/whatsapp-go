@@ -107,7 +107,7 @@ message Conversation {
 	optional string accountLid = 49;
 	optional bool limitSharing = 50;
 	optional int64 limitSharingSettingTimestamp = 51;
-	optional WACommon.LimitSharing.Trigger limitSharingTrigger = 52;
+	optional WACommon.LimitSharing.TriggerType limitSharingTrigger = 52;
 	optional bool limitSharingInitiatedByMe = 53;
 	optional bool maibaAiThreadEnabled = 54;
 	optional bool isMarketingMessageThread = 55;
@@ -119,6 +119,7 @@ message Conversation {
 	optional string authAgentParentCompanyName = 61;
 	optional string authAgentObaPhoneNumber = 62;
 	optional IdentityVerificationState identityVerification = 63;
+	optional WAWebProtobufsE2E.ACP2Setting acp2Setting = 64;
 }
 
 message GlobalSettings {

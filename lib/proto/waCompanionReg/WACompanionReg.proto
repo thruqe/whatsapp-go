@@ -49,6 +49,8 @@ message DeviceProps {
 		CLOUD_API = 23;
 		SMARTGLASSES = 24;
 		PLATFORMTYPE_WAIL = 25;
+		WASS = 26;
+		BUSINESS_BACK_OFFICE = 27;
 	}
 
 	message HistorySyncConfig {

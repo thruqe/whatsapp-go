@@ -860,6 +860,8 @@ const (
 	WebMessageInfo_IDENTITY_TRUST_UNMARKED                                  WebMessageInfo_StubType = 227
 	WebMessageInfo_IDENTITY_TRUST_REVOKED                                   WebMessageInfo_StubType = 228
 	WebMessageInfo_CTWA_CONSUMER_DISCLOSURE                                 WebMessageInfo_StubType = 230
+	WebMessageInfo_CHANGE_ACP2_SETTING                                      WebMessageInfo_StubType = 240
+	WebMessageInfo_EPHEMERAL_CHANGED_FOR_COEX                               WebMessageInfo_StubType = 248
 )
 
 // Enum value maps for WebMessageInfo_StubType.
@@ -1095,6 +1097,8 @@ var (
 		227: "IDENTITY_TRUST_UNMARKED",
 		228: "IDENTITY_TRUST_REVOKED",
 		230: "CTWA_CONSUMER_DISCLOSURE",
+		240: "CHANGE_ACP2_SETTING",
+		248: "EPHEMERAL_CHANGED_FOR_COEX",
 	}
 	WebMessageInfo_StubType_value = map[string]int32{
 		"UNKNOWN":                                                  0,
@@ -1327,6 +1331,8 @@ var (
 		"IDENTITY_TRUST_UNMARKED":                                  227,
 		"IDENTITY_TRUST_REVOKED":                                   228,
 		"CTWA_CONSUMER_DISCLOSURE":                                 230,
+		"CHANGE_ACP2_SETTING":                                      240,
+		"EPHEMERAL_CHANGED_FOR_COEX":                               248,
 	}
 )
 
@@ -4482,7 +4488,7 @@ const file_waWeb_WAWebProtobufsWeb_proto_rawDesc = "" +
 	"\rFORCE_UPGRADE\x10\x01\x12\x0f\n" +
 	"\vDEVELOPMENT\x10\x02\x12\x0e\n" +
 	"\n" +
-	"PRODUCTION\x10\x03\"\xa2_\n" +
+	"PRODUCTION\x10\x03\"\xdd_\n" +
 	"\x0eWebMessageInfo\x12&\n" +
 	"\x03key\x18\x01 \x02(\v2\x14.WACommon.MessageKeyR\x03key\x124\n" +
 	"\amessage\x18\x02 \x01(\v2\x1a.WAWebProtobufsE2E.MessageR\amessage\x12*\n" +
@@ -4567,7 +4573,7 @@ const file_waWeb_WAWebProtobufsWeb_proto_rawDesc = "" +
 	"\x02FB\x10\x02\x12\a\n" +
 	"\x03BSP\x10\x01\x12\x0e\n" +
 	"\n" +
-	"BSP_AND_FB\x10\x03\"\xf9<\n" +
+	"BSP_AND_FB\x10\x03\"\xb4=\n" +
 	"\bStubType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\n" +
 	"\n" +
@@ -4802,7 +4808,9 @@ const file_waWeb_WAWebProtobufsWeb_proto_rawDesc = "" +
 	"\x15IDENTITY_TRUST_MARKED\x10\xe2\x01\x12\x1c\n" +
 	"\x17IDENTITY_TRUST_UNMARKED\x10\xe3\x01\x12\x1b\n" +
 	"\x16IDENTITY_TRUST_REVOKED\x10\xe4\x01\x12\x1d\n" +
-	"\x18CTWA_CONSUMER_DISCLOSURE\x10\xe6\x01\"X\n" +
+	"\x18CTWA_CONSUMER_DISCLOSURE\x10\xe6\x01\x12\x18\n" +
+	"\x13CHANGE_ACP2_SETTING\x10\xf0\x01\x12\x1f\n" +
+	"\x1aEPHEMERAL_CHANGED_FOR_COEX\x10\xf8\x01\"X\n" +
 	"\x06Status\x12\t\n" +
 	"\x05ERROR\x10\x00\x12\v\n" +
 	"\aPENDING\x10\x01\x12\x0e\n" +

@@ -78,6 +78,13 @@ enum WebLinkRenderConfig {
 	SYSTEM = 1;
 }
 
+message ACP2Setting {
+	optional bool enabled = 1;
+	optional WACommon.LimitSharing.TriggerType trigger = 2;
+	optional int64 settingTimestamp = 3;
+	optional bool initiatedByMe = 4;
+}
+
 message AIQueryFanout {
 	optional WACommon.MessageKey messageKey = 1;
 	optional Message message = 2;
@@ -297,6 +304,11 @@ message Chat {
 	optional string ID = 2;
 }
 
+message ChatAnimatedWallpaper {
+	optional string animatedWallpaperId = 1;
+	optional float dimLevel = 2;
+}
+
 message ChatCustomImageWallpaper {
 	optional string directPath = 1;
 	optional bytes mediaKey = 2;
@@ -369,6 +381,7 @@ message ChatThemeSetting {
 		ChatSolidColorWallpaper solidColor = 11;
 		ChatStockImageWallpaper stockImage = 12;
 		ChatCustomImageWallpaper customImage = 13;
+		ChatAnimatedWallpaper animatedWallpaper = 14;
 	}
 }
 
@@ -1656,6 +1669,7 @@ message Message {
 	optional StatusLinkPreviewMetadata statusLinkPreviewMetadata = 130;
 	optional FutureProofMessage botPlatformRegistrationSuccessMessage = 131;
 	optional FutureProofMessage newsletterScheduledMessage = 132;
+	optional FutureProofMessage acp2SettingMessage = 133;
 }
 
 message MessageAssociation {
@@ -1715,6 +1729,7 @@ message MessageContextInfo {
 	optional WAWebProtobufsAea.NonE2EEAttestation accountEncryptionAttestation = 18;
 	optional bytes associatedPrimaryIdentityKey = 19;
 	optional string teeContextAnchorMessageId = 20;
+	optional ACP2Setting acp2Setting = 21;
 }
 
 message MessageHistoryBundle {
@@ -2424,6 +2439,9 @@ message ProtocolMessage {
 		AI_METADATA_OPERATION = 35;
 		MARK_AS_VERIFIED_ACTION = 36;
 		COEX_STATE_SYNC = 37;
+		ACP2_SETTING = 39;
+		SHARED_DEVICE_CONTACT_HASH_KEY_SHARE = 40;
+		SHARED_DEVICE_CONTACT_HASH_KEY_REQUEST = 41;
 	}
 
 	optional WACommon.MessageKey key = 1;
@@ -2456,6 +2474,9 @@ message ProtocolMessage {
 	optional WAWebProtobufsAICommon.AIMetadataOperation aiMetadataOperation = 31;
 	optional MarkAsVerifiedAction markAsVerifiedAction = 32;
 	optional WAWebProtobufsServerSync.CoexStateSync coexStateSync = 33;
+	optional ACP2Setting acp2Setting = 35;
+	optional SharedDeviceContactHashKeyShare sharedDeviceContactHashKeyShare = 36;
+	optional SharedDeviceContactHashKeyRequest sharedDeviceContactHashKeyRequest = 37;
 }
 
 message QuestionResponseMessage {
@@ -2645,6 +2666,26 @@ message SessionStructure {
 	optional uint32 localRegistrationId = 11;
 	optional bool needsRefresh = 12;
 	optional bytes aliceBaseKey = 13;
+}
+
+message SharedDeviceContactHashKey {
+	enum Kind {
+		UNKNOWN = 0;
+		LID = 1;
+		PHONE_NUMBER = 2;
+	}
+
+	optional uint32 epoch = 1;
+	optional Kind kind = 2;
+	optional bytes keyData = 3;
+}
+
+message SharedDeviceContactHashKeyRequest {
+	optional uint32 knownEpoch = 1;
+}
+
+message SharedDeviceContactHashKeyShare {
+	repeated SharedDeviceContactHashKey keys = 1;
 }
 
 message SignalMessage {
