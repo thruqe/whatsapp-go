@@ -2,7 +2,19 @@ syntax = "proto2";
 package WAMsgTransport;
 option go_package = "go.mau.fi/whatsmeow/proto/waMsgTransport";
 
+import "waAdv/WAAdv.proto";
 import "waCommon/WACommon.proto";
+
+message DeviceListMetadata {
+	optional bytes senderKeyHash = 1;
+	optional uint64 senderTimestamp = 2;
+	optional bytes recipientKeyHash = 8;
+	optional uint64 recipientTimestamp = 9;
+	repeated uint32 senderKeyIndexes = 3 [packed=true];
+	optional WAAdv.ADVEncryptionType senderAccountType = 4;
+	optional WAAdv.ADVEncryptionType receiverAccountType = 5;
+	repeated uint32 recipientKeyIndexes = 10 [packed=true];
+}
 
 message MessageTransport {
 	message Payload {
@@ -65,11 +77,4 @@ message MessageTransport {
 
 	optional Payload payload = 1;
 	optional Protocol protocol = 2;
-}
-
-message DeviceListMetadata {
-	optional bytes senderKeyHash = 1;
-	optional uint64 senderTimestamp = 2;
-	optional bytes recipientKeyHash = 8;
-	optional uint64 recipientTimestamp = 9;
 }

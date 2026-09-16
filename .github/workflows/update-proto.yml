@@ -21,10 +21,30 @@ jobs:
           token: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
+      - name: Setup SSH
+        if: env.HAS_SSH != ''
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HAS_SSH: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          git remote set-url origin git@github.com:thruqelabs/whatsapp-go.git
+          git config core.sshCommand "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new"
+
       - name: Setup Git User
         run: |
-          git config --global user.name "Thruqe"
-          git config --global user.email "danielpeter0039@gmail.com"
+          git config --global user.name "thruqe"
+          git config --global user.email "thruqe@gmail.com"
+          if [ -f ~/.ssh/id_ed25519.pub ]; then
+            git config --global gpg.format ssh
+            git config --global user.signingkey ~/.ssh/id_ed25519.pub
+            git config --global commit.gpgsign true
+            git config --global tag.gpgsign true
+          fi
 
       - name: Setup Go Toolchain
         uses: actions/setup-go@v5

@@ -309,6 +309,13 @@ func sanitizeProtoDefinitions(protoDir string) error {
 		}
 	}
 
+	waBotMetadataFile := filepath.Join(protoDir, "waBotMetadata", "WABotMetadata.proto")
+	if _, err := os.Stat(waBotMetadataFile); err == nil {
+		if err := sanitizeWaBotMetadataProto(waBotMetadataFile); err != nil {
+			return fmt.Errorf("failed sanitizing waBotMetadata proto: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -341,6 +348,22 @@ func sanitizeWaHistorySyncProto(filePath string) error {
 			return err
 		}
 		fmt.Printf("✓ Sanitized %s (updated LimitSharing.Trigger to LimitSharing.TriggerType)\n", filepath.Base(filePath))
+	}
+	return nil
+}
+
+func sanitizeWaBotMetadataProto(filePath string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	content := string(data)
+	if strings.Contains(content, "WA_BOT_MSG = 0;") && strings.Contains(content, "WA_BOT_MSG = 1;") {
+		content = strings.Replace(content, "WA_BOT_MSG = 0;", "UNSPECIFIED = 0;", 1)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			return err
+		}
+		fmt.Printf("✓ Sanitized %s (updated BotSignatureUseCase duplicate enum)\n", filepath.Base(filePath))
 	}
 	return nil
 }

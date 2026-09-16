@@ -20,6 +20,7 @@ import (
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waServerSync"
+	"go.mau.fi/whatsmeow/proto/waSyncAction"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -473,6 +474,29 @@ func (cli *Client) dispatchAppState(ctx context.Context, name appstate.WAPatchNa
 			Action:       mutation.Action.GetQuickReplyAction(),
 			FromFullSync: fullSync,
 		}
+	case appstate.IndexWasaRootSecretAction:
+		if len(mutation.Index) < 2 {
+			return
+		}
+		botJID, _ := types.ParseJID(mutation.Index[1])
+		ownLID := cli.getOwnLID()
+		inputSecrets := mutation.Action.GetWasaRootSecretAction().GetSecrets()
+		ids := make([]string, 0, len(inputSecrets))
+		storeUpdateError = cli.Store.MsgSecrets.PutMessageSecrets(ctx, exslices.CastFunc(inputSecrets, func(secret *waSyncAction.WASARootSecretAction_RootSecretEntry) store.MessageSecretInsert {
+			ids = append(ids, secret.GetID())
+			return store.MessageSecretInsert{
+				Chat:   botJID,
+				Sender: ownLID,
+				ID:     secret.GetID(),
+				Secret: secret.GetRootSecret(),
+			}
+		}))
+		if storeUpdateError == nil {
+			zerolog.Ctx(ctx).Debug().
+				Strs("ids", ids).
+				Stringer("bot_jid", botJID).
+				Msg("Stored WASA root secrets from app state")
+		}
 	}
 	if storeUpdateError != nil {
 		cli.Log.Errorf("Failed to update device store after app state mutation: %v", storeUpdateError)
@@ -535,10 +559,19 @@ func (cli *Client) requestMissingAppStateKeys(ctx context.Context, patches *apps
 		}
 	}
 	cli.appStateKeyRequestsLock.Unlock()
-	cli.requestAppStateKeys(ctx, filteredKeyIDs)
+	if err := cli.requestAppStateKeys(ctx, filteredKeyIDs); err != nil {
+		// The request never went out, so the keys are still missing and nobody is going to
+		// send them. Forgetting that we asked lets the next attempt ask again instead of
+		// waiting out the 24 hours.
+		cli.appStateKeyRequestsLock.Lock()
+		for _, keyID := range filteredKeyIDs {
+			delete(cli.appStateKeyRequests, hex.EncodeToString(keyID))
+		}
+		cli.appStateKeyRequestsLock.Unlock()
+	}
 }
 
-func (cli *Client) requestAppStateKeys(ctx context.Context, rawKeyIDs [][]byte) {
+func (cli *Client) requestAppStateKeys(ctx context.Context, rawKeyIDs [][]byte) error {
 	keyIDs := make([]*waE2E.AppStateSyncKeyId, len(rawKeyIDs))
 	debugKeyIDs := make([]string, len(rawKeyIDs))
 	for i, keyID := range rawKeyIDs {
@@ -554,13 +587,15 @@ func (cli *Client) requestAppStateKeys(ctx context.Context, rawKeyIDs [][]byte) 
 		},
 	}
 	if len(debugKeyIDs) == 0 {
-		return
+		return nil
 	}
 	cli.Log.Infof("Sending key request for app state keys %+v", debugKeyIDs)
 	_, err := cli.SendPeerMessage(ctx, msg)
 	if err != nil {
 		cli.Log.Warnf("Failed to send app state key request: %v", err)
+		return err
 	}
+	return nil
 }
 
 // SendAppState sends the given app state patch, then triggers a background resync of that app state type
