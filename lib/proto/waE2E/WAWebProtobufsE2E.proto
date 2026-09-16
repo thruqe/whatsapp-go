@@ -7,6 +7,7 @@ import "waAICommonDeprecated/WAAICommonDeprecated.proto";
 import "waAdv/WAAdv.proto";
 import "waAea/WAWebProtobufsAea.proto";
 import "waCommon/WACommon.proto";
+import "waCommonParameterised/WACommonParameterised.proto";
 import "waCompanionReg/WACompanionReg.proto";
 import "waMmsRetry/WAMmsRetry.proto";
 import "waServerSync/WAWebProtobufsServerSync.proto";
@@ -740,6 +741,7 @@ message ContextInfo {
 	optional InstagramThreadLink instagramThreadLink = 80;
 	optional WAWebProtobufsAICommon.AIProvenance aiProvenance = 81;
 	repeated uint32 experienceIds = 82 [packed=true];
+	optional string partnerDeepLinkToken = 83;
 }
 
 message DeclinePaymentRequestMessage {

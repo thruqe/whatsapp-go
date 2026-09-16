@@ -1403,6 +1403,14 @@ const (
 )
 
 func (s *SQLStore) PutMessageSecrets(ctx context.Context, inserts []store.MessageSecretInsert) (err error) {
+	validInserts := make([]store.MessageSecretInsert, 0, len(inserts))
+	for _, insert := range inserts {
+		if insert.Chat.IsEmpty() || insert.Sender.IsEmpty() || insert.ID == "" || len(insert.Secret) == 0 {
+			continue
+		}
+		validInserts = append(validInserts, insert)
+	}
+	inserts = validInserts
 	if len(inserts) == 0 {
 		return nil
 	}

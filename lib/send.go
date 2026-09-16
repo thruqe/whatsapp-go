@@ -318,6 +318,9 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 	}
 
 	if isBotMode {
+		// TODO Muse/Hatch messages need to be wrapped
+		//      They probably also don't have the same persona ID as Meta AI
+
 		if message.MessageContextInfo.BotMetadata == nil {
 			message.MessageContextInfo.BotMetadata = &waAICommon.BotMetadata{
 				PersonaID: new("867051314767696$760019659443059"),
@@ -1284,9 +1287,20 @@ func (cli *Client) preparePeerMessageNode(
 			return nil, fmt.Errorf("failed to get LID for PN %s: %w", to, err)
 		}
 	}
+	// A peer message can be the first thing ever sent to the device, and then there is no
+	// session to encrypt it with: an app state key request from a client whose store was
+	// restored from somewhere else is exactly that. Fetch the prekeys first, the way
+	// encryptMessageForDevices does for any device it has no session with.
+	var bundle *prekey.Bundle
+	hasSession, err := cli.Store.ContainsSession(ctx, encryptionIdentity.SignalAddress())
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if there is a session with %s: %w", encryptionIdentity, err)
+	} else if !hasSession {
+		bundle = cli.fetchPreKeysNoError(ctx, []types.JID{to})[to]
+	}
 	start = time.Now()
 	unlockSession := cli.Store.LockSession(encryptionIdentity.SignalAddress().String())
-	encrypted, isPreKey, err := cli.encryptMessageForDevice(ctx, plaintext, encryptionIdentity, nil, nil, nil)
+	encrypted, isPreKey, err := cli.encryptMessageForDevice(ctx, plaintext, encryptionIdentity, bundle, nil, nil)
 	unlockSession()
 	timings.PeerEncrypt = time.Since(start)
 	if err != nil {
