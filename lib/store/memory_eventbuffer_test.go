@@ -82,7 +82,6 @@ func TestMemoryEventBuffer_OutgoingEvents(t *testing.T) {
 	defer func() { _ = buf.Close() }()
 
 	chatJID := types.NewJID("12345", types.DefaultUserServer)
-	altJID := types.NewJID("12345", types.HiddenUserServer)
 	msgID := types.MessageID("3EB0123456789")
 	format := "wa"
 	payload := []byte("proto-outgoing-message")
@@ -98,11 +97,8 @@ func TestMemoryEventBuffer_OutgoingEvents(t *testing.T) {
 		t.Fatalf("GetOutgoingEvent failed: fmt=%s, payload=%s, err=%v", fmtRet, string(retPayload), err)
 	}
 
-	// 3. GetOutgoingEvent with alt JID
-	fmtRet, retPayload, err = buf.GetOutgoingEvent(ctx, types.EmptyJID, altJID, msgID)
-	// altJID has same user "12345" but different server, but our key is chatJID.ToNonAD().String()
-	// Let's test using chatJID
-	fmtRet, retPayload, err = buf.GetOutgoingEvent(ctx, chatJID, altJID, msgID)
+	// 3. GetOutgoingEvent with alt JID fallback
+	fmtRet, retPayload, err = buf.GetOutgoingEvent(ctx, types.EmptyJID, chatJID, msgID)
 	if err != nil || fmtRet != format || string(retPayload) != string(payload) {
 		t.Fatalf("GetOutgoingEvent with alt failed: fmt=%s, payload=%s, err=%v", fmtRet, string(retPayload), err)
 	}
