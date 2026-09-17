@@ -280,14 +280,6 @@ func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPh
 		return nil, fmt.Errorf("invalid database connection string: PostgreSQL URL required (e.g. postgres://user:password@host:5432/dbname)")
 	}
 
-	// Supabase Pooler Auto-Optimization:
-	// Port 5432 on pooler.supabase.com is session-mode, strictly capped to pool_size: 15.
-	// Port 6543 on pooler.supabase.com is transaction-mode, supporting high-concurrency client multiplexing.
-	if strings.Contains(dbConn, "pooler.supabase.com:5432") {
-		logger.Info("Supabase session-mode pooler (:5432) detected with 15-connection limit; switching to high-concurrency transaction-mode pooler (:6543)")
-		dbConn = strings.Replace(dbConn, "pooler.supabase.com:5432", "pooler.supabase.com:6543", 1)
-	}
-
 	logger.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
 	container, err := sqlstore.New(ctx, "postgres", dbConn, waLogger)
 	if err == nil && container != nil {
@@ -319,16 +311,18 @@ func configureConnectionPool(container *sqlstore.Container, dbConn string) {
 			maxOpen := 50
 			maxIdle := 25
 
+			if strings.Contains(dbConn, "pooler.supabase.com") || strings.Contains(dbConn, "supabase.co") {
+				// Supabase PgBouncer session mode is strictly limited to pool_size: 15.
+				// Clamp max open connections to 8 (and max idle to 4) so Go's pooler
+				// queues queries internally without exceeding the 15-connection limit or throwing EMAXCONNSESSION.
+				maxOpen = 8
+				maxIdle = 4
+			}
+
 			if val := os.Getenv("DB_MAX_OPEN_CONNS"); val != "" {
 				if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
 					maxOpen = parsed
 				}
-			} else if strings.Contains(dbConn, "pooler.supabase.com:5432") {
-				// If strictly forced to session mode on Supabase with pool_size: 15,
-				// clamp max open connections to 10 so Go queues queries locally rather
-				// than exhausting the server pool and throwing EMAXCONNSESSION.
-				maxOpen = 10
-				maxIdle = 5
 			}
 
 			if val := os.Getenv("DB_MAX_IDLE_CONNS"); val != "" {
@@ -341,8 +335,8 @@ func configureConnectionPool(container *sqlstore.Container, dbConn string) {
 
 			db.RawDB.SetMaxOpenConns(maxOpen)
 			db.RawDB.SetMaxIdleConns(maxIdle)
-			db.RawDB.SetConnMaxLifetime(15 * time.Minute)
-			db.RawDB.SetConnMaxIdleTime(5 * time.Minute)
+			db.RawDB.SetConnMaxLifetime(10 * time.Minute)
+			db.RawDB.SetConnMaxIdleTime(2 * time.Minute)
 			logger.Debug("Configured database connection pool", "max_open", maxOpen, "max_idle", maxIdle)
 		}
 	}

@@ -124,7 +124,7 @@ const (
 
 // asyncDBSem limits concurrent background database persistence tasks to avoid exhausting
 // database connection pools.
-var asyncDBSem = make(chan struct{}, 16)
+var asyncDBSem = make(chan struct{}, 3)
 
 func setBoundedCacheEntry[K comparable, V any](cache map[K]V, key K, value V, limit int) {
 	if _, exists := cache[key]; !exists && len(cache) >= limit {
