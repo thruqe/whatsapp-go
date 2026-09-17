@@ -36,6 +36,7 @@ import (
 	"go.mau.fi/whatsmeow/proto/waAICommon"
 	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -85,12 +86,14 @@ type MessageDebugTimings struct {
 	GetParticipants  time.Duration
 	GetDevices       time.Duration
 	FetchLIDs        time.Duration
+	LockSessions     time.Duration
 	PrefetchSessions time.Duration
 	FetchPreKeys     time.Duration
 	DeviceEncrypt    time.Duration
 	SaveSessions     time.Duration
 	GroupEncrypt     time.Duration
 	PeerEncrypt      time.Duration
+	TCToken          time.Duration
 
 	AddRecentMessage time.Duration
 	PutMessageSecret time.Duration
@@ -114,6 +117,9 @@ func (mdt MessageDebugTimings) MarshalZerologObject(evt *zerolog.Event) {
 	if mdt.FetchLIDs != 0 {
 		evt.Dur("fetch_lids", mdt.FetchLIDs)
 	}
+	if mdt.LockSessions != 0 {
+		evt.Dur("lock_sessions", mdt.LockSessions)
+	}
 	if mdt.PrefetchSessions != 0 {
 		evt.Dur("prefetch_sessions", mdt.PrefetchSessions)
 	}
@@ -127,6 +133,9 @@ func (mdt MessageDebugTimings) MarshalZerologObject(evt *zerolog.Event) {
 		evt.Dur("group_encrypt", mdt.GroupEncrypt)
 	}
 	evt.Dur("peer_encrypt", mdt.PeerEncrypt)
+	if mdt.TCToken != 0 {
+		evt.Dur("tc_token", mdt.TCToken)
+	}
 	if mdt.SaveSessions != 0 {
 		evt.Dur("save_sessions", mdt.SaveSessions)
 	}
@@ -258,6 +267,20 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 
 	defer func() {
 		resp.DebugTimings.Total = time.Since(totalStart)
+		if cli != nil && cli.Log != nil {
+			t := resp.DebugTimings
+			msgID := req.ID
+			if msgID == "" {
+				msgID = resp.ID
+			}
+			if err != nil {
+				cli.Log.Warnf("[PERF] SendMessage FAILED id=%s to=%s err=%v total=%s (queue=%s, marshal=%s, get_parts=%s, get_devs=%s, fetch_lids=%s, lock_sess=%s, prefetch=%s, prekeys=%s, dev_enc=%s, grp_enc=%s, peer_enc=%s, tc_token=%s, save_sess=%s, recent=%s, sec=%s, send=%s, resp=%s, retry=%s)",
+					msgID, to.String(), err, t.Total, t.Queue, t.Marshal, t.GetParticipants, t.GetDevices, t.FetchLIDs, t.LockSessions, t.PrefetchSessions, t.FetchPreKeys, t.DeviceEncrypt, t.GroupEncrypt, t.PeerEncrypt, t.TCToken, t.SaveSessions, t.AddRecentMessage, t.PutMessageSecret, t.Send, t.Resp, t.Retry)
+			} else {
+				cli.Log.Infof("[PERF] SendMessage id=%s to=%s total=%s (queue=%s, marshal=%s, get_parts=%s, get_devs=%s, fetch_lids=%s, lock_sess=%s, prefetch=%s, prekeys=%s, dev_enc=%s, grp_enc=%s, peer_enc=%s, tc_token=%s, save_sess=%s, recent=%s, sec=%s, send=%s, resp=%s, retry=%s)",
+					msgID, to.String(), t.Total, t.Queue, t.Marshal, t.GetParticipants, t.GetDevices, t.FetchLIDs, t.LockSessions, t.PrefetchSessions, t.FetchPreKeys, t.DeviceEncrypt, t.GroupEncrypt, t.PeerEncrypt, t.TCToken, t.SaveSessions, t.AddRecentMessage, t.PutMessageSecret, t.Send, t.Resp, t.Retry)
+			}
+		}
 	}()
 
 	if cli == nil {
@@ -544,6 +567,8 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 				asyncResp, asyncErr := handleAckResponse(rNode, ackStart)
 				if asyncErr != nil {
 					cli.Log.Warnf("Async server ACK error for message %s to %s: %v", reqID, to, asyncErr)
+				} else {
+					cli.Log.Infof("[PERF] Async ACK received for id=%s to=%s (ack_wait=%s)", reqID, to, time.Since(ackStart))
 				}
 				if req.OnAck != nil {
 					req.OnAck(asyncResp, asyncErr)
@@ -1005,7 +1030,11 @@ func (cli *Client) sendDM(
 		node.Content = append(node.GetChildren(), cli.getMessageReportingToken(messagePlaintext, message, ownID, to, id))
 	}
 
+	startTC := time.Now()
 	tcTokenBytes, tcErr := cli.ensureTCToken(ctx, to)
+	if timings != nil {
+		timings.TCToken = time.Since(startTC)
+	}
 	if tcErr != nil {
 		cli.Log.Warnf("Failed to get privacy token for %s: %v", to, tcErr)
 	}
@@ -1542,11 +1571,18 @@ func (cli *Client) encryptMessageForDevices(
 		sessionAddressToJID[addr] = jid
 	}
 
+	startLock := time.Now()
 	unlockSessions := cli.Store.LockSessions(sessionAddresses)
+	if t != nil {
+		t.LockSessions = time.Since(startLock)
+	}
 	defer func() { unlockSessions() }()
 	baseCtx := ctx
 	startPrefetch := time.Now()
 	existingSessions, ctx, err := cli.Store.WithCachedSessions(ctx, sessionAddresses)
+	if reader, ok := cli.Store.Identities.(store.IdentityKeyReader); ok {
+		_, _, _ = reader.GetManyIdentities(ctx, sessionAddresses)
+	}
 	if t != nil {
 		t.PrefetchSessions = time.Since(startPrefetch)
 	}
@@ -1568,7 +1604,11 @@ func (cli *Client) encryptMessageForDevices(
 		if t != nil {
 			t.FetchPreKeys = time.Since(startPrekeys)
 		}
+		startRelock := time.Now()
 		unlockSessions = cli.Store.LockSessions(sessionAddresses)
+		if t != nil {
+			t.LockSessions += time.Since(startRelock)
+		}
 		existingSessions, ctx, err = cli.Store.WithCachedSessions(baseCtx, sessionAddresses)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to prefetch sessions: %w", err)

@@ -751,13 +751,23 @@ func handleMenu(ctx *dispatch.Context) error {
 }
 
 func handlePing(ctx *dispatch.Context) error {
-	start := time.Now()
+	startTotal := time.Now()
+	var incomingLatency time.Duration
+	if ctx.Evt != nil {
+		incomingLatency = time.Since(ctx.Evt.Info.Timestamp)
+	}
+	logger.Info("[PERF] ping command received", "incoming_latency", incomingLatency, "chat", ctx.Chat.String())
+
+	startReply := time.Now()
 	msgID, err := ctx.ReplyWithID("Ping...")
+	replyDuration := time.Since(startReply)
 	if err != nil {
+		logger.Error("[PERF] ping ReplyWithID failed", "err", err, "duration", replyDuration)
 		return err
 	}
+	logger.Info("[PERF] ping ReplyWithID finished", "reply_duration", replyDuration, "msg_id", msgID)
 
-	elapsed := time.Since(start)
+	elapsed := replyDuration
 	var respText string
 	if ms := elapsed.Milliseconds(); ms > 0 {
 		respText = dispatch.Sprintf("%d ms", ms)
@@ -767,9 +777,22 @@ func handlePing(ctx *dispatch.Context) error {
 		respText = dispatch.Sprintf("%d μs", elapsed.Nanoseconds())
 	}
 
-	if _, editErr := ctx.Edit(msgID, respText); editErr != nil {
+	startEdit := time.Now()
+	_, editErr := ctx.Edit(msgID, respText)
+	editDuration := time.Since(startEdit)
+	if editErr != nil {
+		logger.Warn("[PERF] ping Edit failed, falling back to Reply", "err", editErr, "duration", editDuration)
 		_ = ctx.Reply(respText)
+	} else {
+		logger.Info("[PERF] ping Edit finished", "edit_duration", editDuration, "msg_id", msgID)
 	}
+
+	logger.Info("[PERF] ping command completed",
+		"incoming_latency", incomingLatency,
+		"reply_duration", replyDuration,
+		"edit_duration", editDuration,
+		"total_duration", time.Since(startTotal),
+	)
 	return nil
 }
 

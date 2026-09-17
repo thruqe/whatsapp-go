@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"whatsrook/cache"
@@ -710,6 +711,13 @@ func InitTables(ctx context.Context, s *sqlstore.SQLStore) {
 		if err := RunMigrations(ctx, db); err != nil {
 			logger.Error("InitTables: failed to execute schema migrations", "err", err, "dialect", db.Dialect.String())
 		}
+		go func() {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := PrewarmSettings(bgCtx, s); err != nil {
+				logger.Warn("Failed to prewarm bot settings", "err", err)
+			}
+		}()
 	})
 }
 
@@ -721,6 +729,7 @@ func GetFilter(ctx context.Context, s *sqlstore.SQLStore, trigger string) (strin
 	if s == nil {
 		return "", nil
 	}
+	start := time.Now()
 	db, err := getDBFromStore(s)
 	if err != nil {
 		return "", err
@@ -735,6 +744,7 @@ func GetFilter(ctx context.Context, s *sqlstore.SQLStore, trigger string) (strin
 		return val, nil
 	}
 
+	dbStart := time.Now()
 	var msgProto string
 	query := `
 		SELECT message_proto FROM bot_filters 
@@ -743,6 +753,10 @@ func GetFilter(ctx context.Context, s *sqlstore.SQLStore, trigger string) (strin
 		LIMIT 1
 	`
 	err = db.QueryRow(ctx, query, ourJID, s.JID, trigger).Scan(&msgProto)
+	durDB := time.Since(dbStart)
+	if durDB > 1*time.Millisecond {
+		logger.Info("[PERF] store.GetFilter DB query", "trigger", trigger, "dbDuration", durDB, "total", time.Since(start))
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		_ = cache.Set(ctx, cacheKey, cacheSentinelNil, filterNegativeCacheTTL)
 		return "", nil
@@ -843,6 +857,7 @@ func GetBGM(ctx context.Context, s *sqlstore.SQLStore, trigger string) (string, 
 	if s == nil {
 		return "", nil
 	}
+	start := time.Now()
 	db, err := getDBFromStore(s)
 	if err != nil {
 		return "", err
@@ -857,6 +872,7 @@ func GetBGM(ctx context.Context, s *sqlstore.SQLStore, trigger string) (string, 
 		return val, nil
 	}
 
+	dbStart := time.Now()
 	var msgProto string
 	query := `
 		SELECT message_proto FROM bot_bgm 
@@ -865,6 +881,10 @@ func GetBGM(ctx context.Context, s *sqlstore.SQLStore, trigger string) (string, 
 		LIMIT 1
 	`
 	err = db.QueryRow(ctx, query, ourJID, s.JID, trigger).Scan(&msgProto)
+	durDB := time.Since(dbStart)
+	if durDB > 1*time.Millisecond {
+		logger.Info("[PERF] store.GetBGM DB query", "trigger", trigger, "dbDuration", durDB, "total", time.Since(start))
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		_ = cache.Set(ctx, cacheKey, cacheSentinelNil, filterNegativeCacheTTL)
 		return "", nil
@@ -1082,22 +1102,81 @@ func ListStickerCmds(ctx context.Context, s *sqlstore.SQLStore) ([]BotStickerCmd
 
 // Bot Settings
 
+var (
+	hotSettingsMu     sync.RWMutex
+	hotSettingsCache  = make(map[string]string)
+	hotSettingsLoaded atomic.Bool
+)
+
+// PrewarmSettings loads all bot_settings rows into hot in-memory cache at startup.
+func PrewarmSettings(ctx context.Context, s *sqlstore.SQLStore) error {
+	if s == nil {
+		return nil
+	}
+	db, err := getDBFromStore(s)
+	if err != nil {
+		return err
+	}
+	ourJID := ourJIDStr(s)
+	query := `SELECT our_jid, key, value FROM bot_settings WHERE (our_jid = $1 OR our_jid = $2 OR our_jid = '' OR our_jid IS NULL)`
+	rows, err := db.Query(ctx, query, ourJID, s.JID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	hotSettingsMu.Lock()
+	count := 0
+	for rows.Next() {
+		var oJID, key, value string
+		if err := rows.Scan(&oJID, &key, &value); err == nil {
+			hotSettingsCache[settingCacheKey(ourJID, key)] = value
+			_ = cache.Set(ctx, settingCacheKey(ourJID, key), value, settingCacheTTL)
+			if s.JID != "" && s.JID != ourJID {
+				hotSettingsCache[settingCacheKey(s.JID, key)] = value
+				_ = cache.Set(ctx, settingCacheKey(s.JID, key), value, settingCacheTTL)
+			}
+			count++
+		}
+	}
+	hotSettingsLoaded.Store(true)
+	hotSettingsMu.Unlock()
+	logger.Info("[PERF] Prewarmed bot settings into memory", "count", count)
+	return rows.Err()
+}
+
 func GetSetting(ctx context.Context, s *sqlstore.SQLStore, key string) (string, error) {
 	if s == nil {
 		return "", nil
 	}
+	ourJID := ourJIDStr(s)
+	cacheKey := settingCacheKey(ourJID, key)
+
+	hotSettingsMu.RLock()
+	val, ok := hotSettingsCache[cacheKey]
+	hotSettingsMu.RUnlock()
+	if ok {
+		return val, nil
+	}
+
+	if val, ok, _ := cache.Get(ctx, cacheKey); ok {
+		hotSettingsMu.Lock()
+		hotSettingsCache[cacheKey] = val
+		hotSettingsMu.Unlock()
+		return val, nil
+	}
+
+	if hotSettingsLoaded.Load() {
+		return "", nil
+	}
+
+	start := time.Now()
 	db, err := getDBFromStore(s)
 	if err != nil {
 		return "", err
 	}
 
-	ourJID := ourJIDStr(s)
-	cacheKey := settingCacheKey(ourJID, key)
-
-	if val, ok, _ := cache.Get(ctx, cacheKey); ok {
-		return val, nil
-	}
-
+	dbStart := time.Now()
 	var value string
 	query := `
 		SELECT value FROM bot_settings 
@@ -1106,13 +1185,27 @@ func GetSetting(ctx context.Context, s *sqlstore.SQLStore, key string) (string, 
 		LIMIT 1
 	`
 	err = db.QueryRow(ctx, query, ourJID, s.JID, key).Scan(&value)
+	durDB := time.Since(dbStart)
+	if durDB > 1*time.Millisecond {
+		logger.Info("[PERF] store.GetSetting DB query", "key", key, "dbDuration", durDB, "total", time.Since(start))
+	}
 	if errors.Is(err, sql.ErrNoRows) {
+		hotSettingsMu.Lock()
+		hotSettingsCache[cacheKey] = ""
+		hotSettingsMu.Unlock()
 		_ = cache.Set(ctx, cacheKey, "", settingNegativeCacheTTL)
 		return "", nil
 	}
 	if err != nil {
 		return "", err
 	}
+
+	hotSettingsMu.Lock()
+	hotSettingsCache[cacheKey] = value
+	if s.JID != "" && s.JID != ourJID {
+		hotSettingsCache[settingCacheKey(s.JID, key)] = value
+	}
+	hotSettingsMu.Unlock()
 
 	_ = cache.Set(ctx, cacheKey, value, settingCacheTTL)
 	if s.JID != "" && s.JID != ourJID {
@@ -1125,16 +1218,24 @@ func PutSetting(ctx context.Context, s *sqlstore.SQLStore, key, value string) er
 	if s == nil {
 		return nil
 	}
-	db, err := getDBFromStore(s)
-	if err != nil {
-		return err
-	}
-
 	ourJID := ourJIDStr(s)
 	cacheKey := settingCacheKey(ourJID, key)
+
+	hotSettingsMu.Lock()
+	hotSettingsCache[cacheKey] = value
+	if s.JID != "" && s.JID != ourJID {
+		hotSettingsCache[settingCacheKey(s.JID, key)] = value
+	}
+	hotSettingsMu.Unlock()
+
 	_ = cache.Set(ctx, cacheKey, value, settingCacheTTL)
 	if s.JID != "" && s.JID != ourJID {
 		_ = cache.Set(ctx, settingCacheKey(s.JID, key), value, settingCacheTTL)
+	}
+
+	db, err := getDBFromStore(s)
+	if err != nil {
+		return err
 	}
 
 	query := `
@@ -1151,17 +1252,27 @@ func DeleteSetting(ctx context.Context, s *sqlstore.SQLStore, key string) error 
 	if s == nil {
 		return nil
 	}
-	db, err := getDBFromStore(s)
-	if err != nil {
-		return err
-	}
-
 	ourJID := ourJIDStr(s)
-	_ = cache.Delete(ctx, settingCacheKey(ourJID, key))
+	cacheKey := settingCacheKey(ourJID, key)
+
+	hotSettingsMu.Lock()
+	delete(hotSettingsCache, cacheKey)
+	if s.JID != "" && s.JID != ourJID {
+		delete(hotSettingsCache, settingCacheKey(s.JID, key))
+	}
+	delete(hotSettingsCache, settingCacheKey("", key))
+	hotSettingsMu.Unlock()
+
+	_ = cache.Delete(ctx, cacheKey)
 	if s.JID != "" && s.JID != ourJID {
 		_ = cache.Delete(ctx, settingCacheKey(s.JID, key))
 	}
 	_ = cache.Delete(ctx, settingCacheKey("", key))
+
+	db, err := getDBFromStore(s)
+	if err != nil {
+		return err
+	}
 
 	query := `
 		DELETE FROM bot_settings 
@@ -1476,24 +1587,59 @@ func SaveCachedGroupParticipants(ctx context.Context, db *dbutil.Database, ourJI
 	}
 
 	seenUsers := make(map[string]bool)
-	query := `
-		INSERT INTO cached_group_participants (our_jid, group_jid, user_jid, lid, is_admin, is_super_admin, display_name)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (our_jid, group_jid, user_jid) DO UPDATE SET
-			lid = EXCLUDED.lid,
-			is_admin = EXCLUDED.is_admin,
-			is_super_admin = EXCLUDED.is_super_admin,
-			display_name = EXCLUDED.display_name
-	`
-
+	type participantRow struct {
+		userJID      string
+		lid          string
+		isAdmin      bool
+		isSuperAdmin bool
+		displayName  string
+	}
+	validRows := make([]participantRow, 0, len(participants))
 	for _, p := range participants {
 		uStr := p.JID.String()
 		if uStr == "" || seenUsers[uStr] {
 			continue
 		}
 		seenUsers[uStr] = true
+		validRows = append(validRows, participantRow{
+			userJID:      uStr,
+			lid:          p.LID.String(),
+			isAdmin:      p.IsAdmin,
+			isSuperAdmin: p.IsSuperAdmin,
+			displayName:  p.DisplayName,
+		})
+	}
 
-		_, _ = db.Exec(ctx, query, ourJID, groupJID, uStr, p.LID.String(), p.IsAdmin, p.IsSuperAdmin, p.DisplayName)
+	const chunkSize = 50
+	for i := 0; i < len(validRows); i += chunkSize {
+		end := min(i+chunkSize, len(validRows))
+		chunk := validRows[i:end]
+
+		var queryBuilder strings.Builder
+		queryBuilder.WriteString(`
+			INSERT INTO cached_group_participants (our_jid, group_jid, user_jid, lid, is_admin, is_super_admin, display_name)
+			VALUES `)
+
+		args := make([]any, 0, len(chunk)*7)
+		paramIndex := 1
+		for j, row := range chunk {
+			if j > 0 {
+				queryBuilder.WriteString(",")
+			}
+			queryBuilder.WriteString(fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+				paramIndex, paramIndex+1, paramIndex+2, paramIndex+3, paramIndex+4, paramIndex+5, paramIndex+6))
+			args = append(args, ourJID, groupJID, row.userJID, row.lid, row.isAdmin, row.isSuperAdmin, row.displayName)
+			paramIndex += 7
+		}
+		queryBuilder.WriteString(`
+			ON CONFLICT (our_jid, group_jid, user_jid) DO UPDATE SET
+				lid = EXCLUDED.lid,
+				is_admin = EXCLUDED.is_admin,
+				is_super_admin = EXCLUDED.is_super_admin,
+				display_name = EXCLUDED.display_name
+		`)
+
+		_, _ = db.Exec(ctx, queryBuilder.String(), args...)
 	}
 	return nil
 }

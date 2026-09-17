@@ -78,6 +78,18 @@ type SQLStore struct {
 	identityCacheLock sync.RWMutex
 	identityDeleteGen uint64
 
+	senderKeyCache     map[string][]byte
+	senderKeyCacheLock sync.RWMutex
+
+	msgSecretCache     map[string]msgSecretCacheEntry
+	msgSecretCacheLock sync.RWMutex
+
+	sessionCache     map[string]sessionCacheEntry
+	sessionCacheLock sync.RWMutex
+
+	privacyTokenCache     map[types.JID]privacyTokenCacheEntry
+	privacyTokenCacheLock sync.RWMutex
+
 	migratedPNSessionsCache *exsync.Set[string]
 }
 
@@ -86,10 +98,33 @@ type identityCacheEntry struct {
 	Present bool
 }
 
+type sessionCacheEntry struct {
+	Session []byte
+	Present bool
+}
+
+type msgSecretCacheEntry struct {
+	Secret     []byte
+	RealSender types.JID
+}
+
+type privacyTokenCacheEntry struct {
+	Token   *store.PrivacyToken
+	Present bool
+}
+
 const (
-	maxContactCacheEntries  = 256
-	maxIdentityCacheEntries = 2048
+	maxContactCacheEntries      = 4096
+	maxIdentityCacheEntries     = 4096
+	maxSenderKeyCacheEntries    = 8192
+	maxMsgSecretCacheEntries    = 16384
+	maxSessionCacheEntries      = 8192
+	maxPrivacyTokenCacheEntries = 4096
 )
+
+// asyncDBSem limits concurrent background database persistence tasks to avoid exhausting
+// database connection pools (such as Supabase PgBouncer session mode limited to 15 connections).
+var asyncDBSem = make(chan struct{}, 4)
 
 func setBoundedCacheEntry[K comparable, V any](cache map[K]V, key K, value V, limit int) {
 	if _, exists := cache[key]; !exists && len(cache) >= limit {
@@ -108,11 +143,39 @@ func (s *SQLStore) setCachedIdentityLocked(address string, entry identityCacheEn
 	setBoundedCacheEntry(s.identityCache, address, entry, maxIdentityCacheEntries)
 }
 
+func (s *SQLStore) setCachedSessionLocked(address string, entry sessionCacheEntry) {
+	if s.sessionCache == nil {
+		s.sessionCache = make(map[string]sessionCacheEntry)
+	}
+	setBoundedCacheEntry(s.sessionCache, address, entry, maxSessionCacheEntries)
+}
+
 func (s *SQLStore) setCachedContactLocked(user types.JID, info *types.ContactInfo) {
 	if s.contactCache == nil {
 		s.contactCache = make(map[types.JID]*types.ContactInfo)
 	}
 	setBoundedCacheEntry(s.contactCache, user, info, maxContactCacheEntries)
+}
+
+func (s *SQLStore) setCachedSenderKeyLocked(key string, session []byte) {
+	if s.senderKeyCache == nil {
+		s.senderKeyCache = make(map[string][]byte)
+	}
+	setBoundedCacheEntry(s.senderKeyCache, key, session, maxSenderKeyCacheEntries)
+}
+
+func (s *SQLStore) setCachedMsgSecretLocked(key string, entry msgSecretCacheEntry) {
+	if s.msgSecretCache == nil {
+		s.msgSecretCache = make(map[string]msgSecretCacheEntry)
+	}
+	setBoundedCacheEntry(s.msgSecretCache, key, entry, maxMsgSecretCacheEntries)
+}
+
+func (s *SQLStore) setCachedPrivacyTokenLocked(user types.JID, entry privacyTokenCacheEntry) {
+	if s.privacyTokenCache == nil {
+		s.privacyTokenCache = make(map[types.JID]privacyTokenCacheEntry)
+	}
+	setBoundedCacheEntry(s.privacyTokenCache, user, entry, maxPrivacyTokenCacheEntries)
 }
 
 // NewSQLStore creates a new SQLStore with the given database container and user JID.
@@ -407,26 +470,59 @@ const (
 )
 
 func (s *SQLStore) GetSession(ctx context.Context, address string) (session []byte, err error) {
+	s.sessionCacheLock.RLock()
+	if cached, ok := s.sessionCache[address]; ok {
+		s.sessionCacheLock.RUnlock()
+		if cached.Present {
+			return cached.Session, nil
+		}
+		return nil, nil
+	}
+	s.sessionCacheLock.RUnlock()
+
 	err = s.db.QueryRow(ctx, getSessionQuery, s.JID, address).Scan(&session)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
+	}
+	if err == nil {
+		s.sessionCacheLock.Lock()
+		s.setCachedSessionLocked(address, sessionCacheEntry{Session: session, Present: len(session) > 0})
+		s.sessionCacheLock.Unlock()
 	}
 	return
 }
 
 func (s *SQLStore) IterateSession(ctx context.Context, address string, callback func([]byte) error) (bool, error) {
+	s.sessionCacheLock.RLock()
+	if cached, ok := s.sessionCache[address]; ok {
+		s.sessionCacheLock.RUnlock()
+		if cached.Present && len(cached.Session) > 0 {
+			return true, callback(cached.Session)
+		}
+		return false, nil
+	}
+	s.sessionCacheLock.RUnlock()
+
 	rows, err := s.db.Query(ctx, getSessionQuery, s.JID, address)
 	if err != nil {
 		return false, err
 	}
 	defer rows.Close()
 	if !rows.Next() {
+		s.sessionCacheLock.Lock()
+		s.setCachedSessionLocked(address, sessionCacheEntry{Present: false})
+		s.sessionCacheLock.Unlock()
 		return false, rows.Err()
 	}
 	var session sql.RawBytes
 	if err = rows.Scan(&session); err != nil {
 		return false, err
 	}
+	sessionBytes := append([]byte(nil), session...)
+	s.sessionCacheLock.Lock()
+	s.setCachedSessionLocked(address, sessionCacheEntry{Session: sessionBytes, Present: true})
+	s.sessionCacheLock.Unlock()
+
 	if err = callback(session); err != nil {
 		return false, err
 	}
@@ -434,6 +530,13 @@ func (s *SQLStore) IterateSession(ctx context.Context, address string, callback 
 }
 
 func (s *SQLStore) HasSession(ctx context.Context, address string) (has bool, err error) {
+	s.sessionCacheLock.RLock()
+	if cached, ok := s.sessionCache[address]; ok {
+		s.sessionCacheLock.RUnlock()
+		return cached.Present && len(cached.Session) > 0, nil
+	}
+	s.sessionCacheLock.RUnlock()
+
 	err = s.db.QueryRow(ctx, hasSessionQuery, s.JID, address).Scan(&has)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -470,18 +573,50 @@ func (s *SQLStore) GetManySessions(ctx context.Context, addresses []string) (map
 		return nil, nil
 	}
 
-	rows, err := s.queryManySessions(ctx, addresses)
 	result := make(map[string][]byte, len(addresses))
+	var missing []string
+
+	s.sessionCacheLock.RLock()
 	for _, addr := range addresses {
-		result[addr] = nil
+		if cached, ok := s.sessionCache[addr]; ok {
+			if cached.Present {
+				result[addr] = cached.Session
+			} else {
+				result[addr] = nil
+			}
+		} else {
+			missing = append(missing, addr)
+		}
+	}
+	s.sessionCacheLock.RUnlock()
+
+	if len(missing) == 0 {
+		return result, nil
+	}
+
+	rows, err := s.queryManySessions(ctx, missing)
+	if err != nil {
+		return nil, err
+	}
+	fetched := make(map[string][]byte, len(missing))
+	for _, addr := range missing {
+		fetched[addr] = nil
 	}
 	err = sessionScanner.NewRowIter(rows, err).Iter(func(tuple addressSessionTuple) (bool, error) {
-		result[tuple.Address] = tuple.Session
+		fetched[tuple.Address] = tuple.Session
 		return true, nil
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	s.sessionCacheLock.Lock()
+	for addr, sess := range fetched {
+		result[addr] = sess
+		s.setCachedSessionLocked(addr, sessionCacheEntry{Session: sess, Present: len(sess) > 0})
+	}
+	s.sessionCacheLock.Unlock()
+
 	return result, nil
 }
 
@@ -499,10 +634,44 @@ func (s *SQLStore) IterateSessions(ctx context.Context, addresses []string, call
 	if len(addresses) == 0 {
 		return nil
 	}
-	rows, err := s.queryManySessions(ctx, addresses)
-	return rawSessionScanner.NewRowIter(rows, err).Iter(func(tuple rawAddressSessionTuple) (bool, error) {
+	missing := make([]string, 0, len(addresses))
+	s.sessionCacheLock.RLock()
+	for _, addr := range addresses {
+		if cached, ok := s.sessionCache[addr]; ok {
+			if cached.Present && len(cached.Session) > 0 {
+				_ = callback(addr, cached.Session)
+			}
+		} else {
+			missing = append(missing, addr)
+		}
+	}
+	s.sessionCacheLock.RUnlock()
+
+	if len(missing) == 0 {
+		return nil
+	}
+
+	rows, err := s.queryManySessions(ctx, missing)
+	if err != nil {
+		return err
+	}
+	fetched := make(map[string][]byte, len(missing))
+	for _, addr := range missing {
+		fetched[addr] = nil
+	}
+	err = rawSessionScanner.NewRowIter(rows, err).Iter(func(tuple rawAddressSessionTuple) (bool, error) {
+		fetched[tuple.Address] = tuple.Session
 		return true, callback(tuple.Address, tuple.Session)
 	})
+	if err != nil {
+		return err
+	}
+	s.sessionCacheLock.Lock()
+	for addr, sess := range fetched {
+		s.setCachedSessionLocked(addr, sessionCacheEntry{Session: sess, Present: len(sess) > 0})
+	}
+	s.sessionCacheLock.Unlock()
+	return nil
 }
 
 func (s *SQLStore) PutManySessions(ctx context.Context, sessions map[string][]byte) error {
@@ -513,6 +682,12 @@ func (s *SQLStore) PutManySessions(ctx context.Context, sessions map[string][]by
 	for address := range sessions {
 		addresses = append(addresses, address)
 	}
+	s.sessionCacheLock.Lock()
+	for _, address := range addresses {
+		s.setCachedSessionLocked(address, sessionCacheEntry{Session: sessions[address], Present: len(sessions[address]) > 0})
+	}
+	s.sessionCacheLock.Unlock()
+
 	slices.Sort(addresses)
 	if len(addresses) == 1 {
 		return s.PutSession(ctx, addresses[0], sessions[addresses[0]])
@@ -571,8 +746,21 @@ func buildSharedMassInsertQuery(prefix, suffix string, rows, valuesPerRow int) s
 }
 
 func (s *SQLStore) PutSession(ctx context.Context, address string, session []byte) error {
-	_, err := s.db.Exec(ctx, putSessionQuery, s.JID, address, session)
-	return err
+	sessionCopy := append([]byte(nil), session...)
+	s.sessionCacheLock.Lock()
+	s.setCachedSessionLocked(address, sessionCacheEntry{Session: sessionCopy, Present: true})
+	s.sessionCacheLock.Unlock()
+
+	go func() {
+		asyncDBSem <- struct{}{}
+		defer func() { <-asyncDBSem }()
+		bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if _, err := s.db.Exec(bgCtx, putSessionQuery, s.JID, address, sessionCopy); err != nil {
+			s.log.Warnf("Failed to asynchronously persist session for %s: %v", address, err)
+		}
+	}()
+	return nil
 }
 
 func (s *SQLStore) DeleteAllSessions(ctx context.Context, phone string) error {
@@ -580,6 +768,17 @@ func (s *SQLStore) DeleteAllSessions(ctx context.Context, phone string) error {
 }
 
 func (s *SQLStore) deleteAllSessions(ctx context.Context, phone string) error {
+	s.sessionCacheLock.Lock()
+	if s.sessionCache != nil {
+		prefix := phone + ":"
+		for addr := range s.sessionCache {
+			if strings.HasPrefix(addr, prefix) {
+				delete(s.sessionCache, addr)
+			}
+		}
+	}
+	s.sessionCacheLock.Unlock()
+
 	lower, upper := signalAddressRange(phone)
 	_, err := s.db.Exec(ctx, deleteAllSessionsQuery, s.JID, lower, upper)
 	return err
@@ -600,6 +799,12 @@ func (s *SQLStore) deleteAllIdentityKeys(ctx context.Context, phone string) erro
 }
 
 func (s *SQLStore) DeleteSession(ctx context.Context, address string) error {
+	s.sessionCacheLock.Lock()
+	if s.sessionCache != nil {
+		delete(s.sessionCache, address)
+	}
+	s.sessionCacheLock.Unlock()
+
 	_, err := s.db.Exec(ctx, deleteSessionQuery, s.JID, address)
 	return err
 }
@@ -674,6 +879,9 @@ func (s *SQLStore) MigratePNToLID(ctx context.Context, pn, lid types.JID) error 
 	s.identityCacheLock.Lock()
 	clear(s.identityCache)
 	s.identityCacheLock.Unlock()
+	s.sessionCacheLock.Lock()
+	clear(s.sessionCache)
+	s.sessionCacheLock.Unlock()
 	if sessionsUpdated > 0 || senderKeysUpdated > 0 || identityKeysUpdated > 0 {
 		s.log.Infof("Migrated %d sessions, %d identity keys and %d sender keys from %s to %s", sessionsUpdated, identityKeysUpdated, senderKeysUpdated, pnSignal, lidSignal)
 	} else {
@@ -790,15 +998,45 @@ const (
 	`
 )
 
+func senderKeyCacheKey(group, user string) string {
+	return group + ":" + user
+}
+
 func (s *SQLStore) PutSenderKey(ctx context.Context, group, user string, session []byte) error {
-	_, err := s.db.Exec(ctx, putSenderKeyQuery, s.JID, group, user, session)
-	return err
+	k := senderKeyCacheKey(group, user)
+	s.senderKeyCacheLock.Lock()
+	s.setCachedSenderKeyLocked(k, session)
+	s.senderKeyCacheLock.Unlock()
+
+	go func(sess []byte) {
+		asyncDBSem <- struct{}{}
+		defer func() { <-asyncDBSem }()
+		bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err := s.db.Exec(bgCtx, putSenderKeyQuery, s.JID, group, user, sess)
+		if err != nil && s.Container != nil && s.Container.log != nil {
+			s.Container.log.Warnf("Failed to asynchronously persist sender key for %s/%s: %v", group, user, err)
+		}
+	}(session)
+	return nil
 }
 
 func (s *SQLStore) GetSenderKey(ctx context.Context, group, user string) (key []byte, err error) {
+	k := senderKeyCacheKey(group, user)
+	s.senderKeyCacheLock.RLock()
+	if cached, ok := s.senderKeyCache[k]; ok {
+		s.senderKeyCacheLock.RUnlock()
+		return cached, nil
+	}
+	s.senderKeyCacheLock.RUnlock()
+
 	err = s.db.QueryRow(ctx, getSenderKeyQuery, s.JID, group, user).Scan(&key)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
+	} else if err == nil && len(key) > 0 {
+		s.senderKeyCacheLock.Lock()
+		s.setCachedSenderKeyLocked(k, key)
+		s.senderKeyCacheLock.Unlock()
 	}
 	return
 }
@@ -1439,15 +1677,45 @@ func (s *SQLStore) putMessageSecretsChunk(ctx context.Context, inserts []store.M
 	return err
 }
 
+func msgSecretCacheKey(chat, sender types.JID, id types.MessageID) string {
+	return chat.ToNonAD().String() + ":" + sender.ToNonAD().String() + ":" + string(id)
+}
+
 func (s *SQLStore) PutMessageSecret(ctx context.Context, chat, sender types.JID, id types.MessageID, secret []byte) (err error) {
-	_, err = s.db.Exec(ctx, putMsgSecret, s.JID, chat.ToNonAD(), sender.ToNonAD(), id, secret)
-	return
+	k := msgSecretCacheKey(chat, sender, id)
+	s.msgSecretCacheLock.Lock()
+	s.setCachedMsgSecretLocked(k, msgSecretCacheEntry{Secret: secret, RealSender: sender.ToNonAD()})
+	s.msgSecretCacheLock.Unlock()
+
+	go func(sec []byte) {
+		asyncDBSem <- struct{}{}
+		defer func() { <-asyncDBSem }()
+		bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, execErr := s.db.Exec(bgCtx, putMsgSecret, s.JID, chat.ToNonAD(), sender.ToNonAD(), id, sec)
+		if execErr != nil && s.Container != nil && s.Container.log != nil {
+			s.Container.log.Warnf("Failed to asynchronously persist message secret for %s/%s: %v", chat, id, execErr)
+		}
+	}(secret)
+	return nil
 }
 
 func (s *SQLStore) GetMessageSecret(ctx context.Context, chat, sender types.JID, id types.MessageID) (secret []byte, realSender types.JID, err error) {
+	k := msgSecretCacheKey(chat, sender, id)
+	s.msgSecretCacheLock.RLock()
+	if cached, ok := s.msgSecretCache[k]; ok {
+		s.msgSecretCacheLock.RUnlock()
+		return cached.Secret, cached.RealSender, nil
+	}
+	s.msgSecretCacheLock.RUnlock()
+
 	err = s.db.QueryRow(ctx, getMsgSecret, s.JID, chat.ToNonAD(), sender.ToNonAD(), id).Scan(&secret, &realSender)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
+	} else if err == nil && len(secret) > 0 {
+		s.msgSecretCacheLock.Lock()
+		s.setCachedMsgSecretLocked(k, msgSecretCacheEntry{Secret: secret, RealSender: realSender})
+		s.msgSecretCacheLock.Unlock()
 	}
 	return
 }
@@ -1490,32 +1758,64 @@ const (
 )
 
 func (s *SQLStore) PutPrivacyTokens(ctx context.Context, tokens ...store.PrivacyToken) error {
-	args := make([]any, 1+len(tokens)*4)
-	placeholders := make([]string, len(tokens))
-	args[0] = s.JID
-	for i, token := range tokens {
-		args[i*4+1] = token.User.ToNonAD().String()
-		args[i*4+2] = token.Token
-		args[i*4+3] = token.Timestamp.Unix()
-		if token.SenderTimestamp.IsZero() {
-			args[i*4+4] = nil
-		} else {
-			args[i*4+4] = token.SenderTimestamp.Unix()
-		}
-		placeholders[i] = fmt.Sprintf("($1, $%d, $%d, $%d, $%d)", i*4+2, i*4+3, i*4+4, i*4+5)
+	s.privacyTokenCacheLock.Lock()
+	for _, token := range tokens {
+		t := token
+		t.User = t.User.ToNonAD()
+		s.setCachedPrivacyTokenLocked(t.User, privacyTokenCacheEntry{Token: &t, Present: true})
 	}
-	query := strings.ReplaceAll(putPrivacyTokens, "($1, $2, $3, $4, $5)", strings.Join(placeholders, ","))
-	_, err := s.db.Exec(ctx, query, args...)
-	return err
+	s.privacyTokenCacheLock.Unlock()
+
+	go func(toks []store.PrivacyToken) {
+		asyncDBSem <- struct{}{}
+		defer func() { <-asyncDBSem }()
+		bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		args := make([]any, 1+len(toks)*4)
+		placeholders := make([]string, len(toks))
+		args[0] = s.JID
+		for i, token := range toks {
+			args[i*4+1] = token.User.ToNonAD().String()
+			args[i*4+2] = token.Token
+			args[i*4+3] = token.Timestamp.Unix()
+			if token.SenderTimestamp.IsZero() {
+				args[i*4+4] = nil
+			} else {
+				args[i*4+4] = token.SenderTimestamp.Unix()
+			}
+			placeholders[i] = fmt.Sprintf("($1, $%d, $%d, $%d, $%d)", i*4+2, i*4+3, i*4+4, i*4+5)
+		}
+		query := strings.ReplaceAll(putPrivacyTokens, "($1, $2, $3, $4, $5)", strings.Join(placeholders, ","))
+		_, err := s.db.Exec(bgCtx, query, args...)
+		if err != nil && s.Container != nil && s.Container.log != nil {
+			s.Container.log.Warnf("Failed to asynchronously persist privacy tokens: %v", err)
+		}
+	}(tokens)
+	return nil
 }
 
 func (s *SQLStore) GetPrivacyToken(ctx context.Context, user types.JID) (*store.PrivacyToken, error) {
+	u := user.ToNonAD()
+	s.privacyTokenCacheLock.RLock()
+	if cached, ok := s.privacyTokenCache[u]; ok {
+		s.privacyTokenCacheLock.RUnlock()
+		if !cached.Present {
+			return nil, nil
+		}
+		return cached.Token, nil
+	}
+	s.privacyTokenCacheLock.RUnlock()
+
 	var token store.PrivacyToken
-	token.User = user.ToNonAD()
+	token.User = u
 	var ts int64
 	var senderTS sql.NullInt64
 	err := s.db.QueryRow(ctx, getPrivacyToken, s.JID, token.User).Scan(&token.Token, &ts, &senderTS)
 	if errors.Is(err, sql.ErrNoRows) {
+		s.privacyTokenCacheLock.Lock()
+		s.setCachedPrivacyTokenLocked(u, privacyTokenCacheEntry{Present: false})
+		s.privacyTokenCacheLock.Unlock()
 		return nil, nil
 	} else if err != nil {
 		return nil, err
@@ -1524,6 +1824,9 @@ func (s *SQLStore) GetPrivacyToken(ctx context.Context, user types.JID) (*store.
 		if senderTS.Valid {
 			token.SenderTimestamp = time.Unix(senderTS.Int64, 0)
 		}
+		s.privacyTokenCacheLock.Lock()
+		s.setCachedPrivacyTokenLocked(u, privacyTokenCacheEntry{Token: &token, Present: true})
+		s.privacyTokenCacheLock.Unlock()
 		return &token, nil
 	}
 }
@@ -1550,6 +1853,16 @@ func (s *SQLStore) DeleteNCTSalt(ctx context.Context) error {
 }
 
 func (s *SQLStore) DeleteExpiredPrivacyTokens(ctx context.Context, cutoff time.Time) (int64, error) {
+	s.privacyTokenCacheLock.Lock()
+	if s.privacyTokenCache != nil {
+		for u, entry := range s.privacyTokenCache {
+			if entry.Present && entry.Token != nil && entry.Token.Timestamp.Before(cutoff) {
+				delete(s.privacyTokenCache, u)
+			}
+		}
+	}
+	s.privacyTokenCacheLock.Unlock()
+
 	res, err := s.db.Exec(ctx, deleteExpiredPrivacyTokens, s.JID, cutoff.Unix())
 	if err != nil {
 		return 0, err

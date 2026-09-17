@@ -76,12 +76,13 @@ func ParseClientType(s string) (ClientType, bool) {
 
 // Config configures client session parameters.
 type Config struct {
-	DataDir    string
-	Database   string
-	Session    string // Phone number
-	ClientType ClientType
-	Business   bool // Emulate WhatsApp Business client
-	Verbose    bool // Verbose logging toggle
+	DataDir         string
+	Database        string
+	Session         string // Phone number
+	ClientType      ClientType
+	Business        bool // Emulate WhatsApp Business client
+	Verbose         bool // Verbose logging toggle
+	AsyncMessageAck bool // Asynchronous message ACK delivery toggle
 }
 
 // Client wraps whatsmeow.Client with session lifecycle and event dispatching.
@@ -133,6 +134,7 @@ func (c *Client) InitSession(ctx context.Context) error {
 
 	waLogger := logger.NewWaLogger("client")
 	cli := whatsmeow.NewClient(deviceStore, waLogger)
+	cli.AsyncMessageAck = c.Config.AsyncMessageAck
 	cli.SetCallLogger(logger.ZerologStyle("wacaller"))
 
 	// Configure companion platform registration headers and os version payloads
@@ -373,6 +375,9 @@ func (c *Client) Disconnect() {
 
 	if cli != nil {
 		cli.Disconnect()
+		if cli.Store != nil {
+			_ = cli.Store.FlushSessions(context.Background())
+		}
 	}
 }
 

@@ -86,12 +86,13 @@ func (b *Bot) Start(ctx context.Context) error {
 	}
 
 	client := whatsrook.NewClient(whatsrook.Config{
-		Session:    b.cfg.Session,
-		DataDir:    whatsrook.DefaultDataDir(),
-		Database:   b.cfg.Database,
-		ClientType: b.cfg.ClientType,
-		Business:   b.cfg.Business,
-		Verbose:    b.cfg.Verbose,
+		Session:         b.cfg.Session,
+		DataDir:         whatsrook.DefaultDataDir(),
+		Database:        b.cfg.Database,
+		ClientType:      b.cfg.ClientType,
+		Business:        b.cfg.Business,
+		Verbose:         b.cfg.Verbose,
+		AsyncMessageAck: b.cfg.AsyncMessageAck,
 	})
 
 	b.mu.Lock()
@@ -600,6 +601,12 @@ func (b *Bot) WAEventHandler(evt any) {
 	case *events.Message:
 		logger.Debug("incoming message received", "event", v)
 		go func(v *events.Message) {
+			msgStart := time.Now()
+			msgID := v.Info.ID
+			defer func() {
+				logger.Info("[PERF] events.Message handler finished", "msgID", msgID, "elapsed", time.Since(msgStart))
+			}()
+
 			if v.Info.Chat.Server == "broadcast" || v.Info.Chat.String() == "status@broadcast" {
 				settings.HandleStatusBroadcast(context.Background(), cli, v, b.startupTime)
 			}
@@ -623,22 +630,48 @@ func (b *Bot) WAEventHandler(evt any) {
 				return
 			}
 
+			t0 := time.Now()
 			if calls.HandlePendingAudioReply(context.Background(), cli, v) {
+				logger.Info("[PERF] HandlePendingAudioReply intercepted", "msgID", msgID, "elapsed", time.Since(t0))
 				return
 			}
-			if info.HandlePendingMenuMediaReply(context.Background(), cli, v) {
-				return
-			}
-			if settings.HandlePendingBotCustomizationReply(context.Background(), cli, v) {
-				return
-			}
-			if group.HandlePendingCaptchaReply(context.Background(), cli, v) {
-				return
-			}
+			tAudio := time.Since(t0)
 
-			if dispatch.Dispatch(context.Background(), cli, v) {
+			t0 = time.Now()
+			if info.HandlePendingMenuMediaReply(context.Background(), cli, v) {
+				logger.Info("[PERF] HandlePendingMenuMediaReply intercepted", "msgID", msgID, "elapsed", time.Since(t0))
 				return
 			}
+			tMenu := time.Since(t0)
+
+			t0 = time.Now()
+			if settings.HandlePendingBotCustomizationReply(context.Background(), cli, v) {
+				logger.Info("[PERF] HandlePendingBotCustomizationReply intercepted", "msgID", msgID, "elapsed", time.Since(t0))
+				return
+			}
+			tCustom := time.Since(t0)
+
+			t0 = time.Now()
+			if group.HandlePendingCaptchaReply(context.Background(), cli, v) {
+				logger.Info("[PERF] HandlePendingCaptchaReply intercepted", "msgID", msgID, "elapsed", time.Since(t0))
+				return
+			}
+			tCaptcha := time.Since(t0)
+
+			logger.Info("[PERF] Pre-dispatch reply checks completed",
+				"msgID", msgID,
+				"audio", tAudio,
+				"menu", tMenu,
+				"customization", tCustom,
+				"captcha", tCaptcha,
+			)
+
+			t0 = time.Now()
+			if dispatch.Dispatch(context.Background(), cli, v) {
+				logger.Info("[PERF] dispatch.Dispatch completed (handled)", "msgID", msgID, "elapsed", time.Since(t0))
+				return
+			}
+			logger.Info("[PERF] dispatch.Dispatch completed (unhandled)", "msgID", msgID, "elapsed", time.Since(t0))
 
 			payload := buildIncomingMessagePayload(v)
 			b.hub.Broadcast(EventMessage{

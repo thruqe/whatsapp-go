@@ -9,6 +9,9 @@ package store
 import (
 	"context"
 	"fmt"
+	"maps"
+	"sync"
+	"time"
 
 	"github.com/polymorfa/libsignal-protocol-go/state/record"
 	"github.com/rs/zerolog"
@@ -148,23 +151,50 @@ func (device *Device) WithCachedSessions(ctx context.Context, addresses []string
 
 	// 1. Check in-memory L1 cache first
 	l1 := device.getL1SessionCache()
-	var missingAddresses []string
+	var l1Misses []string
 	for _, addr := range addresses {
 		if entry, ok := l1.Get(addr); ok && len(entry.raw) > 0 {
 			if err := loadSession(addr, entry.raw); err == nil && existingSessions[addr] {
 				continue
 			}
 		}
-		// 2. Check universal cache (Redis / In-Memory Universal Store)
+		l1Misses = append(l1Misses, addr)
+	}
+
+	// 2. Check universal cache (Redis / In-Memory Universal Store) for L1 misses
+	var missingAddresses []string
+	if len(l1Misses) > 0 {
 		if device.ExternalCache != nil {
-			if rawBytes, ok, _ := device.ExternalCache.GetBytes(ctx, device.sessionCacheKey(addr)); ok && len(rawBytes) > 0 {
-				if err := loadSession(addr, rawBytes); err == nil && existingSessions[addr] {
-					l1.Set(addr, l1SessionEntry{raw: rawBytes})
-					continue
+			if multi, ok := device.ExternalCache.(MultiByteCache); ok {
+				cacheKeys := make([]string, len(l1Misses))
+				for i, a := range l1Misses {
+					cacheKeys[i] = device.sessionCacheKey(a)
+				}
+				if fetched, err := multi.GetManyBytes(ctx, cacheKeys); err == nil && len(fetched) > 0 {
+					for _, a := range l1Misses {
+						key := device.sessionCacheKey(a)
+						if rawBytes, found := fetched[key]; found && len(rawBytes) > 0 {
+							if err := loadSession(a, rawBytes); err == nil && existingSessions[a] {
+								l1.Set(a, l1SessionEntry{raw: rawBytes})
+							}
+						}
+					}
+				}
+			} else {
+				for _, a := range l1Misses {
+					if rawBytes, ok, _ := device.ExternalCache.GetBytes(ctx, device.sessionCacheKey(a)); ok && len(rawBytes) > 0 {
+						if err := loadSession(a, rawBytes); err == nil && existingSessions[a] {
+							l1.Set(a, l1SessionEntry{raw: rawBytes})
+						}
+					}
 				}
 			}
 		}
-		missingAddresses = append(missingAddresses, addr)
+		for _, a := range l1Misses {
+			if !existingSessions[a] {
+				missingAddresses = append(missingAddresses, a)
+			}
+		}
 	}
 
 	// 3. Query database only for cache misses
@@ -186,12 +216,26 @@ func (device *Device) WithCachedSessions(ctx context.Context, addresses []string
 		}
 
 		// Store retrieved sessions into L1 and Universal Cache
-		for _, addr := range missingAddresses {
-			if sess, ok := wrapped[addr]; ok && sess.Found {
-				rawBytes := sess.Record.Serialize()
-				l1.Set(addr, l1SessionEntry{raw: rawBytes})
-				if device.ExternalCache != nil {
-					_ = device.ExternalCache.Set(ctx, device.sessionCacheKey(addr), rawBytes, 0)
+		if multi, ok := device.ExternalCache.(MultiByteCache); ok {
+			toCache := make(map[string][]byte, len(missingAddresses))
+			for _, addr := range missingAddresses {
+				if sess, ok := wrapped[addr]; ok && sess.Found {
+					rawBytes := sess.Record.Serialize()
+					l1.Set(addr, l1SessionEntry{raw: rawBytes})
+					toCache[device.sessionCacheKey(addr)] = rawBytes
+				}
+			}
+			if len(toCache) > 0 {
+				_ = multi.SetMany(ctx, toCache, 0)
+			}
+		} else {
+			for _, addr := range missingAddresses {
+				if sess, ok := wrapped[addr]; ok && sess.Found {
+					rawBytes := sess.Record.Serialize()
+					l1.Set(addr, l1SessionEntry{raw: rawBytes})
+					if device.ExternalCache != nil {
+						_ = device.ExternalCache.Set(ctx, device.sessionCacheKey(addr), rawBytes, 0)
+					}
 				}
 			}
 		}
@@ -212,22 +256,167 @@ func (device *Device) PutCachedSessions(ctx context.Context) error {
 		if item.Dirty {
 			raw := item.Record.Serialize()
 			dirtySessions[addr] = raw
-			// Update in-memory L1 session cache & Universal Cache immediately
+			// Update in-memory L1 session cache immediately
 			l1.Set(addr, l1SessionEntry{raw: raw})
-			if device.ExternalCache != nil {
-				_ = device.ExternalCache.Set(ctx, device.sessionCacheKey(addr), raw, 0)
-			}
 		}
 	}
 	if len(dirtySessions) > 0 {
-		// Persist updated sessions to database asynchronously in the background
-		go func(dirty map[string][]byte) {
-			err := device.Sessions.PutManySessions(context.Background(), dirty)
-			if err != nil && device.Log != nil {
-				device.Log.Warnf("Failed to asynchronously persist cached sessions: %v", err)
+		if multi, ok := device.ExternalCache.(MultiByteCache); ok {
+			toCache := make(map[string][]byte, len(dirtySessions))
+			for addr, raw := range dirtySessions {
+				toCache[device.sessionCacheKey(addr)] = raw
 			}
-		}(dirtySessions)
+			_ = multi.SetMany(ctx, toCache, 0)
+		} else if device.ExternalCache != nil {
+			for addr, raw := range dirtySessions {
+				_ = device.ExternalCache.Set(ctx, device.sessionCacheKey(addr), raw, 0)
+			}
+		}
+
+		// Enqueue into coalesced session flusher instead of spawning uncoordinated goroutines
+		device.getSessionCoalescer().enqueue(dirtySessions)
 	}
 	cache.Clear()
 	return nil
+}
+
+type sessionCoalescer struct {
+	mu       sync.Mutex
+	dirty    map[string][]byte
+	device   *Device
+	flushMu  sync.Mutex
+	flushReq chan struct{}
+	stopChan chan struct{}
+	doneChan chan struct{}
+	closed   bool
+}
+
+func newSessionCoalescer(device *Device) *sessionCoalescer {
+	c := &sessionCoalescer{
+		dirty:    make(map[string][]byte),
+		device:   device,
+		flushReq: make(chan struct{}, 1),
+		stopChan: make(chan struct{}),
+		doneChan: make(chan struct{}),
+	}
+	go c.worker()
+	return c
+}
+
+func (c *sessionCoalescer) worker() {
+	ticker := time.NewTicker(1 * time.Second)
+	defer func() {
+		ticker.Stop()
+		close(c.doneChan)
+	}()
+
+	for {
+		select {
+		case <-c.stopChan:
+			return
+		case <-ticker.C:
+			_ = c.flush(context.Background())
+		case <-c.flushReq:
+			_ = c.flush(context.Background())
+		}
+	}
+}
+
+func (c *sessionCoalescer) enqueue(entries map[string][]byte) {
+	if len(entries) == 0 {
+		return
+	}
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
+	maps.Copy(c.dirty, entries)
+	shouldSignal := len(c.dirty) >= 50
+	c.mu.Unlock()
+
+	if shouldSignal {
+		select {
+		case c.flushReq <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (c *sessionCoalescer) flush(ctx context.Context) error {
+	c.mu.Lock()
+	if len(c.dirty) == 0 {
+		c.mu.Unlock()
+		return nil
+	}
+	batch := c.dirty
+	c.dirty = make(map[string][]byte, len(batch))
+	c.mu.Unlock()
+
+	c.flushMu.Lock()
+	defer c.flushMu.Unlock()
+
+	if c.device == nil || c.device.Sessions == nil {
+		return nil
+	}
+	err := c.device.Sessions.PutManySessions(ctx, batch)
+	if err != nil {
+		c.mu.Lock()
+		for k, v := range batch {
+			if _, exists := c.dirty[k]; !exists {
+				c.dirty[k] = v
+			}
+		}
+		c.mu.Unlock()
+		if c.device.Log != nil {
+			c.device.Log.Warnf("Failed to persist coalesced session batch: %v", err)
+		}
+		return err
+	}
+	return nil
+}
+
+func (c *sessionCoalescer) close() {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
+	c.closed = true
+	close(c.stopChan)
+	c.mu.Unlock()
+
+	<-c.doneChan
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = c.flush(ctx)
+}
+
+func (device *Device) getSessionCoalescer() *sessionCoalescer {
+	device.sessionCoalescerLock.Lock()
+	defer device.sessionCoalescerLock.Unlock()
+	if device.sessionCoalescer == nil {
+		device.sessionCoalescer = newSessionCoalescer(device)
+	}
+	return device.sessionCoalescer.(*sessionCoalescer)
+}
+
+func (device *Device) flushSessions(ctx context.Context) error {
+	device.sessionCoalescerLock.Lock()
+	coalescer := device.sessionCoalescer
+	device.sessionCoalescerLock.Unlock()
+	if coalescer != nil {
+		return coalescer.(*sessionCoalescer).flush(ctx)
+	}
+	return nil
+}
+
+func (device *Device) closeSessionCoalescer() {
+	device.sessionCoalescerLock.Lock()
+	coalescer := device.sessionCoalescer
+	device.sessionCoalescer = nil
+	device.sessionCoalescerLock.Unlock()
+	if coalescer != nil {
+		coalescer.(*sessionCoalescer).close()
+	}
 }

@@ -383,6 +383,13 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 	if client == nil || client.Store == nil || client.Store.ID == nil || evt == nil {
 		return false
 	}
+	afkStart := time.Now()
+	defer func() {
+		dur := time.Since(afkStart)
+		if dur > 1*time.Millisecond {
+			logger.Info("[PERF] HandleAFKAutoResponse", "elapsed", dur)
+		}
+	}()
 	s, ok := dispatch.GetSQLStore(client)
 	if !ok {
 		return false
@@ -1023,6 +1030,13 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	if evt == nil || evt.Message == nil {
 		return false
 	}
+	wizStart := time.Now()
+	defer func() {
+		dur := time.Since(wizStart)
+		if dur > 1*time.Millisecond {
+			logger.Info("[PERF] HandlePendingBotCustomizationReply", "elapsed", dur)
+		}
+	}()
 
 	// Never intercept poll votes in text message handler — let Dispatch handle them
 	unwrapped := whatsrook.UnwrapMessageProto(evt.Message)

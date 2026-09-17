@@ -60,6 +60,17 @@ func isStale(evt *events.Message) bool {
 // Dispatch evaluates an incoming message event against all registered commands and routing middleware.
 // returns true if the message was handled by a command or reactive route.
 func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
+	dispatchStart := time.Now()
+	msgID := ""
+	if evt != nil {
+		msgID = evt.Info.ID
+	}
+	defer func() {
+		dur := time.Since(dispatchStart)
+		if dur > 1*time.Millisecond {
+			logger.Info("[PERF] Dispatch total execution", "msgID", msgID, "elapsed", dur)
+		}
+	}()
 	RecordRecentMessage(evt)
 
 	if evt == nil || evt.Message == nil || client == nil || client.Store == nil || !client.IsConnected() || !client.IsLoggedIn() {
@@ -196,8 +207,57 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 	}
 
-	// 6. Filters & BGM Trigger Words
-	if text != "" && okStore {
+	if text == "" {
+		return false
+	}
+
+	tPre := time.Now()
+	prefixes := activePrefixes(ctx, client)
+	logger.Info("[PERF] Dispatch: activePrefixes", "msgID", msgID, "elapsed", time.Since(tPre), "prefixes", prefixes)
+
+	isCommand := false
+	matchedBody := ""
+	matchedPrefix := ""
+	hasEmpty := false
+
+	for _, p := range prefixes {
+		if p == "" {
+			hasEmpty = true
+			continue
+		}
+		if matchesPrefix(text, p) {
+			body := strings.TrimLeft(strings.TrimSpace(text[len(p):]), ",:;! \t")
+			fields := strings.Fields(body)
+			if len(fields) > 0 {
+				cmdName := strings.ToLower(fields[0])
+				if clean := strings.TrimRight(cmdName, ",:;!? \t"); clean != "" {
+					cmdName = clean
+				}
+				if _, exists := Get(cmdName); exists || external.DefaultDispatcher.IsInstalled(cmdName) || isLikelyCommandName(cmdName) {
+					isCommand = true
+					matchedBody = body
+					matchedPrefix = p
+					break
+				}
+			}
+		}
+	}
+
+	if !isCommand && hasEmpty {
+		body := strings.TrimSpace(text)
+		fields := strings.Fields(body)
+		if len(fields) > 0 {
+			first := strings.ToLower(fields[0])
+			if _, exists := Get(first); exists || external.DefaultDispatcher.IsInstalled(first) {
+				isCommand = true
+				matchedBody = body
+				matchedPrefix = ""
+			}
+		}
+	}
+
+	// 6. Filters & BGM Trigger Words (Only evaluate for non-commands)
+	if !isCommand && okStore {
 		if isStale(evt) {
 			logger.Debug("Skipping filters and BGM from message sent before bot startup",
 				"timestamp", evt.Info.Timestamp,
@@ -205,7 +265,13 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			)
 			return true
 		}
-		if handleFiltersAndBGM(ctx, client, s.SQLStore, evt, text) {
+		tFilt := time.Now()
+		handled := handleFiltersAndBGM(ctx, client, s.SQLStore, evt, text)
+		durFilt := time.Since(tFilt)
+		if durFilt > 1*time.Millisecond || handled {
+			logger.Info("[PERF] Dispatch: handleFiltersAndBGM", "msgID", msgID, "elapsed", durFilt, "handled", handled)
+		}
+		if handled {
 			return true
 		}
 	}
@@ -217,71 +283,44 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	preInterceptorsMu.RUnlock()
 
 	for _, it := range preList {
-		if it.fn(cctx, text) {
+		tIt := time.Now()
+		handled := it.fn(cctx, text)
+		durIt := time.Since(tIt)
+		if durIt > 1*time.Millisecond || handled {
+			logger.Info("[PERF] Dispatch: pre-interceptor", "name", it.name, "elapsed", durIt, "handled", handled)
+		}
+		if handled {
 			return true
 		}
 	}
 
-	if text == "" {
-		return false
-	}
-
-	prefixes := activePrefixes(ctx, client)
-	logger.Debug("Checking active prefixes", "prefixes", prefixes, "text", text)
-
-	hasEmpty := false
-	for _, p := range prefixes {
-		if p == "" {
-			hasEmpty = true
-			continue
+	// If message was matched as a command, execute it
+	if isCommand {
+		if isStale(evt) {
+			logger.Debug("Skipping command from message sent before bot startup",
+				"prefix", matchedPrefix,
+				"body", matchedBody,
+				"timestamp", evt.Info.Timestamp,
+				"startupTime", GetStartupTime(),
+			)
+			return true
 		}
-		if matchesPrefix(text, p) {
-			body := strings.TrimLeft(strings.TrimSpace(text[len(p):]), ",:;! \t")
-			fields := strings.Fields(body)
-			if len(fields) == 0 {
-				continue
-			}
-			if isStale(evt) {
-				logger.Debug("Skipping command from message sent before bot startup",
-					"prefix", p,
-					"body", body,
-					"timestamp", evt.Info.Timestamp,
-					"startupTime", GetStartupTime(),
-				)
-				return true
-			}
-			if runCommand(ctx, client, evt, body) {
-				return true
-			}
+		if runCommand(ctx, client, evt, matchedBody) {
+			return true
+		}
+		fields := strings.Fields(matchedBody)
+		if len(fields) > 0 {
 			cmdName := strings.ToLower(fields[0])
 			if clean := strings.TrimRight(cmdName, ",:;!? \t"); clean != "" {
 				cmdName = clean
 			}
 			if isLikelyCommandName(cmdName) {
-				if _, handled := HandleUnknownCommand(cctx, p, cmdName); handled {
+				if _, handled := HandleUnknownCommand(cctx, matchedPrefix, cmdName); handled {
 					return true
 				}
 			}
 		}
-	}
-
-	if hasEmpty {
-		body := strings.TrimSpace(text)
-		fields := strings.Fields(body)
-		if len(fields) > 0 {
-			first := fields[0]
-			if _, exists := Get(strings.ToLower(first)); exists {
-				if isStale(evt) {
-					logger.Debug("Skipping empty-prefix command from message sent before bot startup",
-						"body", body,
-						"timestamp", evt.Info.Timestamp,
-						"startupTime", GetStartupTime(),
-					)
-					return true
-				}
-				return runCommand(ctx, client, evt, body)
-			}
-		}
+		return false
 	}
 
 	fields := strings.Fields(strings.TrimSpace(text))
@@ -457,6 +496,7 @@ func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) 
 }
 
 func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, cmdLine string) bool {
+	runStart := time.Now()
 	if isStale(evt) {
 		logger.Debug("Skipping command execution from message sent before bot startup",
 			"cmdLine", cmdLine,
@@ -505,6 +545,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		return true
 	}
 
+	tChecks := time.Now()
 	if s, okStore := GetSQLStore(client); okStore {
 		if !cctx.IsSudo() {
 			if rawBanned, _ := s.GetSetting(ctx, "banned_users"); rawBanned != "" {
@@ -547,6 +588,10 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			}
 		}
 	}
+	durChecks := time.Since(tChecks)
+	if durChecks > 1*time.Millisecond {
+		logger.Info("[PERF] runCommand: permission and ban checks", "cmd", cmdName, "elapsed", durChecks)
+	}
 
 	go func() {
 		defer func() {
@@ -557,7 +602,10 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			}
 		}()
 
+		cmdStart := time.Now()
+		logger.Info("[PERF] Invoking cmd.Handler", "cmd", cmdName, "preHandlerElapsed", time.Since(runStart))
 		err := cmd.Handler(cctx)
+		logger.Info("[PERF] cmd.Handler finished", "cmd", cmdName, "duration", time.Since(cmdStart), "err", err)
 		if err != nil {
 			LogHandlerErrWithContext(cctx, cmdName, err)
 			_ = cctx.Replyf("%v", err)
@@ -759,18 +807,36 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, s *sqlst
 		return false
 	}
 
-	bgmProto, err := store.GetBGM(ctx, s, trigger)
-	if err == nil && bgmProto != "" {
-		if msg, err := utils.DecodeProtoMessage(bgmProto); err == nil {
+	type lookupResult struct {
+		proto string
+		err   error
+	}
+
+	bgmChan := make(chan lookupResult, 1)
+	filterChan := make(chan lookupResult, 1)
+
+	go func() {
+		p, err := store.GetBGM(ctx, s, trigger)
+		bgmChan <- lookupResult{proto: p, err: err}
+	}()
+
+	go func() {
+		p, err := store.GetFilter(ctx, s, trigger)
+		filterChan <- lookupResult{proto: p, err: err}
+	}()
+
+	bgmRes := <-bgmChan
+	if bgmRes.err == nil && bgmRes.proto != "" {
+		if msg, err := utils.DecodeProtoMessage(bgmRes.proto); err == nil {
 			setReplyContextInfo(msg, evt)
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
 			return true
 		}
 	}
 
-	filterProto, err := store.GetFilter(ctx, s, trigger)
-	if err == nil && filterProto != "" {
-		if msg, err := utils.DecodeProtoMessage(filterProto); err == nil {
+	filterRes := <-filterChan
+	if filterRes.err == nil && filterRes.proto != "" {
+		if msg, err := utils.DecodeProtoMessage(filterRes.proto); err == nil {
 			setReplyContextInfo(msg, evt)
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
 			return true
