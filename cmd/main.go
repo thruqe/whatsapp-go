@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"whatsrook"
-	"whatsrook/cache"
 	"whatsrook/cmd/updater"
 	"whatsrook/util"
+	"whatsrook/util/cache"
 	"whatsrook/util/logger"
 )
 

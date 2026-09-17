@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"whatsrook/cmd/dispatch"
-	"whatsrook/external"
+	"whatsrook/util/external"
 )
 
 func init() {

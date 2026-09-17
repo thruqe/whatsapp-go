@@ -13,9 +13,9 @@ import (
 	"unicode"
 
 	"whatsrook"
-	"whatsrook/builder"
 	"whatsrook/cmd/dispatch"
 	"whatsrook/cmd/store"
+	"whatsrook/util/builder"
 	"whatsrook/util/logger"
 	"whatsrook/util/media"
 

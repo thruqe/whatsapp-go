@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"whatsrook/builder"
+	"whatsrook/util/builder"
 	"whatsrook/util/httpx"
 )
 

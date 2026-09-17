@@ -30,7 +30,7 @@ import (
 	"whatsrook/cmd/games"
 	"whatsrook/cmd/store"
 	"whatsrook/cmd/tools"
-	"whatsrook/external"
+	"whatsrook/util/external"
 	"whatsrook/util/logger"
 )
 

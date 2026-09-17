@@ -15,8 +15,8 @@ import (
 
 	utils "whatsrook"
 	"whatsrook/cmd/store"
-	"whatsrook/external"
 	"whatsrook/util"
+	"whatsrook/util/external"
 	"whatsrook/util/logger"
 
 	"go.mau.fi/whatsmeow"
