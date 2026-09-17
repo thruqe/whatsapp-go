@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -279,10 +280,18 @@ func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPh
 		return nil, fmt.Errorf("invalid database connection string: PostgreSQL URL required (e.g. postgres://user:password@host:5432/dbname)")
 	}
 
+	// Supabase Pooler Auto-Optimization:
+	// Port 5432 on pooler.supabase.com is session-mode, strictly capped to pool_size: 15.
+	// Port 6543 on pooler.supabase.com is transaction-mode, supporting high-concurrency client multiplexing.
+	if strings.Contains(dbConn, "pooler.supabase.com:5432") {
+		logger.Info("Supabase session-mode pooler (:5432) detected with 15-connection limit; switching to high-concurrency transaction-mode pooler (:6543)")
+		dbConn = strings.Replace(dbConn, "pooler.supabase.com:5432", "pooler.supabase.com:6543", 1)
+	}
+
 	logger.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
 	container, err := sqlstore.New(ctx, "postgres", dbConn, waLogger)
 	if err == nil && container != nil {
-		configureConnectionPool(container)
+		configureConnectionPool(container, dbConn)
 		logger.Info("successfully connected to PostgreSQL database")
 		return container, nil
 	}
@@ -293,7 +302,7 @@ func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPh
 		logger.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
 		container, errDisable := sqlstore.New(ctx, "postgres", disableURL, waLogger)
 		if errDisable == nil && container != nil {
-			configureConnectionPool(container)
+			configureConnectionPool(container, disableURL)
 			logger.Info("successfully connected to PostgreSQL database with sslmode=disable")
 			return container, nil
 		}
@@ -304,13 +313,37 @@ func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPh
 }
 
 // configureConnectionPool tunes PostgreSQL connection pool limits to prevent connection churn and network latency.
-func configureConnectionPool(container *sqlstore.Container) {
+func configureConnectionPool(container *sqlstore.Container, dbConn string) {
 	if container != nil {
 		if db := container.Database(); db != nil && db.RawDB != nil {
-			db.RawDB.SetMaxOpenConns(50)
-			db.RawDB.SetMaxIdleConns(25)
+			maxOpen := 50
+			maxIdle := 25
+
+			if val := os.Getenv("DB_MAX_OPEN_CONNS"); val != "" {
+				if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+					maxOpen = parsed
+				}
+			} else if strings.Contains(dbConn, "pooler.supabase.com:5432") {
+				// If strictly forced to session mode on Supabase with pool_size: 15,
+				// clamp max open connections to 10 so Go queues queries locally rather
+				// than exhausting the server pool and throwing EMAXCONNSESSION.
+				maxOpen = 10
+				maxIdle = 5
+			}
+
+			if val := os.Getenv("DB_MAX_IDLE_CONNS"); val != "" {
+				if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+					maxIdle = parsed
+				}
+			} else if maxIdle > maxOpen {
+				maxIdle = maxOpen
+			}
+
+			db.RawDB.SetMaxOpenConns(maxOpen)
+			db.RawDB.SetMaxIdleConns(maxIdle)
 			db.RawDB.SetConnMaxLifetime(15 * time.Minute)
 			db.RawDB.SetConnMaxIdleTime(5 * time.Minute)
+			logger.Debug("Configured database connection pool", "max_open", maxOpen, "max_idle", maxIdle)
 		}
 	}
 }

@@ -123,8 +123,8 @@ const (
 )
 
 // asyncDBSem limits concurrent background database persistence tasks to avoid exhausting
-// database connection pools (such as Supabase PgBouncer session mode limited to 15 connections).
-var asyncDBSem = make(chan struct{}, 4)
+// database connection pools.
+var asyncDBSem = make(chan struct{}, 16)
 
 func setBoundedCacheEntry[K comparable, V any](cache map[K]V, key K, value V, limit int) {
 	if _, exists := cache[key]; !exists && len(cache) >= limit {
