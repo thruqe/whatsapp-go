@@ -12,8 +12,8 @@ import (
 	"strings"
 	"sync"
 	utils "whatsrook"
-	"whatsrook/builder"
-	"whatsrook/external"
+	"whatsrook/util/builder"
+	"whatsrook/util/external"
 )
 
 // Context aliases the core whatsrook.PluginContext execution context.

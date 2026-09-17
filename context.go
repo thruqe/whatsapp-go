@@ -12,7 +12,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 
-	"whatsrook/builder"
+	"whatsrook/util/builder"
 	"whatsrook/util/logger"
 )
 

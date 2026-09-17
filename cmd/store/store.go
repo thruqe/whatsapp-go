@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"whatsrook/cache"
+	"whatsrook/util/cache"
 	"whatsrook/util/logger"
 
 	"go.mau.fi/util/dbutil"

@@ -31,8 +31,8 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"whatsrook/cache"
 	"whatsrook/util"
+	"whatsrook/util/cache"
 	"whatsrook/util/logger"
 	"whatsrook/util/qr"
 )

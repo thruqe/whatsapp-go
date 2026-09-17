@@ -10,7 +10,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"whatsrook/builder"
+	"whatsrook/util/builder"
 	"whatsrook/util/logger"
 )
 
