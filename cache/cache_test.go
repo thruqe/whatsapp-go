@@ -3,7 +3,9 @@ package cache
 import (
 	"container/list"
 	"context"
+	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"testing"
 	"time"
@@ -344,4 +346,119 @@ func TestMemoryStore_Concurrency(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestMemoryStore_BatchOperations(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore(100)
+	defer func() { _ = store.Close() }()
+
+	entries := map[string][]byte{
+		"batch:1": []byte("one"),
+		"batch:2": []byte("two"),
+		"batch:3": []byte("three"),
+	}
+
+	if err := store.SetMany(ctx, entries, time.Minute); err != nil {
+		t.Fatalf("SetMany failed: %v", err)
+	}
+
+	res, err := store.GetManyBytes(ctx, []string{"batch:1", "batch:2", "batch:3", "batch:missing"})
+	if err != nil {
+		t.Fatalf("GetManyBytes failed: %v", err)
+	}
+	if len(res) != 3 {
+		t.Fatalf("expected 3 entries in GetManyBytes result, got %d", len(res))
+	}
+	if string(res["batch:1"]) != "one" || string(res["batch:2"]) != "two" || string(res["batch:3"]) != "three" {
+		t.Fatalf("unexpected content in GetManyBytes: %+v", res)
+	}
+
+	if err := store.DeleteMany(ctx, []string{"batch:1", "batch:3"}); err != nil {
+		t.Fatalf("DeleteMany failed: %v", err)
+	}
+
+	resAfter, err := store.GetManyBytes(ctx, []string{"batch:1", "batch:2", "batch:3"})
+	if err != nil {
+		t.Fatalf("GetManyBytes after DeleteMany failed: %v", err)
+	}
+	if len(resAfter) != 1 || string(resAfter["batch:2"]) != "two" {
+		t.Fatalf("expected only batch:2 remaining, got %+v", resAfter)
+	}
+}
+
+func TestWriteBehindBuffer_CoalescingAndFlush(t *testing.T) {
+	var mu sync.Mutex
+	var flushes []map[string]string
+
+	flushFn := func(ctx context.Context, batch map[string]string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		copyMap := make(map[string]string, len(batch))
+		maps.Copy(copyMap, batch)
+		flushes = append(flushes, copyMap)
+		return nil
+	}
+
+	buf := NewWriteBehindBuffer(flushFn, WriteBehindOptions{
+		FlushInterval: 100 * time.Millisecond,
+		MaxBatchSize:  10,
+	})
+
+	// Put multiple updates to the same key to verify coalescing
+	_ = buf.Put("key1", "val1")
+	_ = buf.Put("key1", "val2")
+	_ = buf.Put("key1", "val3")
+	_ = buf.Put("key2", "valA")
+
+	// Wait for periodic ticker flush
+	time.Sleep(200 * time.Millisecond)
+
+	mu.Lock()
+	if len(flushes) == 0 {
+		mu.Unlock()
+		t.Fatal("expected at least one flush to occur")
+	}
+	// Verify coalescing: key1 should have only val3
+	var foundKey1 string
+	for _, f := range flushes {
+		if v, ok := f["key1"]; ok {
+			foundKey1 = v
+		}
+	}
+	mu.Unlock()
+
+	if foundKey1 != "val3" {
+		t.Fatalf("expected coalesced value 'val3' for key1, got %q", foundKey1)
+	}
+
+	// Verify threshold-based flush
+	mu.Lock()
+	flushes = nil
+	mu.Unlock()
+
+	entries := make(map[string]string)
+	for i := range 15 {
+		entries[fmt.Sprintf("k:%d", i)] = "val"
+	}
+	_ = buf.PutMany(entries)
+
+	// MaxBatchSize is 10, so should signal flush immediately
+	time.Sleep(50 * time.Millisecond)
+
+	mu.Lock()
+	flushCount := len(flushes)
+	mu.Unlock()
+	if flushCount == 0 {
+		t.Fatal("expected immediate flush on batch size threshold")
+	}
+
+	// Close buffer and verify clean shutdown
+	if err := buf.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	if err := buf.Put("keyAfterClose", "val"); !errors.Is(err, ErrBufferClosed) {
+		t.Fatalf("expected ErrBufferClosed, got %v", err)
+	}
 }

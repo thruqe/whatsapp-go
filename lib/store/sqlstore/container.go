@@ -13,6 +13,8 @@ import (
 	"fmt"
 	mathRand "math/rand/v2"
 
+	"time"
+
 	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/util/random"
@@ -90,10 +92,16 @@ func NewWithWrappedDB(wrapped *dbutil.Database, log waLog.Logger) *Container {
 	if log == nil {
 		log = waLog.Noop
 	}
+	lidMap := NewCachedLIDMap(wrapped)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = lidMap.FillCache(ctx)
+	}()
 	return &Container{
 		db:     wrapped,
 		log:    log,
-		LIDMap: NewCachedLIDMap(wrapped),
+		LIDMap: lidMap,
 	}
 }
 
@@ -291,6 +299,7 @@ func (c *Container) PutDevice(ctx context.Context, device *store.Device) error {
 func (c *Container) initializeDevice(device *store.Device) {
 	innerStore := NewSQLStore(c, *device.ID)
 	device.SetAllStores(innerStore)
+	device.EventBuffer = store.NewMemoryEventBuffer()
 	device.LIDs = c.LIDMap
 	device.Container = c
 	device.Initialized = true

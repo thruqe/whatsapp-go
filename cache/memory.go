@@ -232,6 +232,100 @@ func (m *MemoryStore) Delete(_ context.Context, key string) error {
 	return nil
 }
 
+// GetManyBytes retrieves raw byte payloads for multiple keys in a single atomic lock acquisition.
+// Expired or missing entries are omitted from the returned map.
+func (m *MemoryStore) GetManyBytes(_ context.Context, keys []string) (map[string][]byte, error) {
+	if len(keys) == 0 {
+		return make(map[string][]byte), nil
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	now := time.Now()
+	res := make(map[string][]byte, len(keys))
+	for _, key := range keys {
+		elem, ok := m.items[key]
+		if !ok {
+			continue
+		}
+
+		entry := elem.Value.(*cacheEntry)
+		if entry.isExpired(now) {
+			m.removeElement(elem)
+			continue
+		}
+
+		m.evictList.MoveToFront(elem)
+		val := make([]byte, len(entry.value))
+		copy(val, entry.value)
+		res[key] = val
+	}
+
+	return res, nil
+}
+
+// SetMany persists multiple key-value pairs with a uniform expiration ttl in a single lock cycle.
+func (m *MemoryStore) SetMany(_ context.Context, entries map[string][]byte, ttl time.Duration) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	var expiresAt time.Time
+	if ttl > 0 {
+		expiresAt = time.Now().Add(ttl)
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for key, data := range entries {
+		// update existing key in place
+		if elem, ok := m.items[key]; ok {
+			m.evictList.MoveToFront(elem)
+			entry := elem.Value.(*cacheEntry)
+			entry.value = data
+			entry.expiresAt = expiresAt
+			continue
+		}
+
+		// enforce capacity bounds by evicting tail
+		if m.evictList.Len() >= m.maxEntries {
+			oldest := m.evictList.Back()
+			if oldest != nil {
+				m.removeElement(oldest)
+			}
+		}
+
+		entry := &cacheEntry{
+			key:       key,
+			value:     data,
+			expiresAt: expiresAt,
+		}
+		elem := m.evictList.PushFront(entry)
+		m.items[key] = elem
+	}
+
+	return nil
+}
+
+// DeleteMany removes multiple keys from the cache in a single lock acquisition.
+func (m *MemoryStore) DeleteMany(_ context.Context, keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, key := range keys {
+		if elem, ok := m.items[key]; ok {
+			m.removeElement(elem)
+		}
+	}
+	return nil
+}
+
 // deleteprefix invalidates all keys matching the lexical prefix via linear traversal $\mathcal{o}(n)$.
 // note: this locks the store across the full list scan; use with discretion on large keyspaces.
 // todo: consider a trie index or radix tree if prefix-based invalidation becomes a hot execution path.

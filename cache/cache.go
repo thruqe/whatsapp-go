@@ -60,6 +60,16 @@ type Store interface {
 	// delete removes a key from the cache. it is safe to call even if the key does not exist.
 	Delete(ctx context.Context, key string) error
 
+	// GetManyBytes retrieves raw byte payloads for multiple keys in a single operation.
+	// Keys not found or expired are omitted from the returned map.
+	GetManyBytes(ctx context.Context, keys []string) (map[string][]byte, error)
+
+	// SetMany saves multiple key-value pairs with a uniform expiration ttl in a single operation.
+	SetMany(ctx context.Context, entries map[string][]byte, ttl time.Duration) error
+
+	// DeleteMany removes multiple keys from the cache in a single operation.
+	DeleteMany(ctx context.Context, keys []string) error
+
 	// deleteprefix deletes all keys starting with the given prefix.
 	// note: for remote stores, use cursor-based scanning (like scan) instead of blocking commands.
 	// todo: check that remote drivers use safe batch sizes when deleting by prefix.
@@ -162,6 +172,21 @@ func SetJSON(ctx context.Context, key string, value any, ttl time.Duration) erro
 // delete removes an entry from the default cache.
 func Delete(ctx context.Context, key string) error {
 	return Default().Delete(ctx, key)
+}
+
+// GetManyBytes fetches raw bytes for multiple keys from the default cache.
+func GetManyBytes(ctx context.Context, keys []string) (map[string][]byte, error) {
+	return Default().GetManyBytes(ctx, keys)
+}
+
+// SetMany saves multiple key-value pairs with a uniform ttl in the default cache.
+func SetMany(ctx context.Context, entries map[string][]byte, ttl time.Duration) error {
+	return Default().SetMany(ctx, entries, ttl)
+}
+
+// DeleteMany removes multiple keys from the default cache.
+func DeleteMany(ctx context.Context, keys []string) error {
+	return Default().DeleteMany(ctx, keys)
 }
 
 // deleteprefix removes all keys starting with prefix from the default cache.

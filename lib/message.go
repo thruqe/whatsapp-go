@@ -42,6 +42,13 @@ import (
 var pbSerializer = store.SignalProtobufSerializer
 
 func (cli *Client) handleEncryptedMessage(ctx context.Context, node *waBinary.Node) {
+	start := time.Now()
+	defer func() {
+		dur := time.Since(start)
+		if dur > 5*time.Millisecond {
+			cli.Log.Infof("[PERF] handleEncryptedMessage took %s", dur)
+		}
+	}()
 	info, err := cli.parseMessageInfo(node)
 	if err != nil {
 		cli.Log.Warnf("Failed to parse message: %v", err)
@@ -341,6 +348,13 @@ func (cli *Client) migrateSessionStore(ctx context.Context, pn, lid types.JID) {
 }
 
 func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo, node *waBinary.Node) {
+	decryptStart := time.Now()
+	defer func() {
+		dur := time.Since(decryptStart)
+		if dur > 5*time.Millisecond {
+			cli.Log.Infof("[PERF] decryptMessages id=%s took %s", info.ID, dur)
+		}
+	}()
 	defer func() {
 		if err := recover(); err != nil {
 			cli.Log.Errorf("Message decryption for %s panicked: %v\n%s", info.ID, err, debug.Stack())

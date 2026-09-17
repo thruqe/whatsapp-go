@@ -92,6 +92,13 @@ func HandleGroupModeration(c *dispatch.Context, text string) bool {
 	if c.Chat.Server != "g.us" {
 		return false
 	}
+	modStart := time.Now()
+	defer func() {
+		dur := time.Since(modStart)
+		if dur > 1*time.Millisecond {
+			logger.Info("[PERF] HandleGroupModeration", "chat", c.Chat.String(), "elapsed", dur)
+		}
+	}()
 	ctx := c.Ctx
 	client := c.Client
 	evt := c.Evt

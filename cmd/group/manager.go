@@ -9,7 +9,9 @@ import (
 	"whatsrook/cmd/store"
 	"whatsrook/util/logger"
 
+	"go.mau.fi/util/dbutil"
 	"go.mau.fi/whatsmeow"
+	waStore "go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -104,10 +106,6 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 		for _, g := range joinedGroups {
 			meta := gm.convertGroupInfo(g)
 			syncedGroups = append(syncedGroups, meta)
-
-			if s != nil && s.GetDB() != nil {
-				_ = store.SaveCachedGroup(ctx, s.GetDB(), ourJID, meta)
-			}
 		}
 
 		gm.mu.Lock()
@@ -115,6 +113,14 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 			gm.groups[meta.JID] = meta
 		}
 		gm.mu.Unlock()
+
+		if s != nil && s.GetDB() != nil {
+			go func(groups []*store.GroupMetadata, db *dbutil.Database, jid string) {
+				for _, meta := range groups {
+					_ = store.SaveCachedGroup(context.Background(), db, jid, meta)
+				}
+			}(syncedGroups, s.GetDB(), ourJID)
+		}
 	}
 
 	// 2. Fetch subscribed newsletters (channels)
@@ -126,10 +132,6 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 		for _, n := range newsletters {
 			meta := gm.convertNewsletterMetadata(n)
 			syncedNewsletters = append(syncedNewsletters, meta)
-
-			if s != nil && s.GetDB() != nil {
-				_ = store.SaveCachedNewsletter(ctx, s.GetDB(), ourJID, meta)
-			}
 		}
 
 		gm.mu.Lock()
@@ -137,6 +139,14 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 			gm.newsletters[meta.JID] = meta
 		}
 		gm.mu.Unlock()
+
+		if s != nil && s.GetDB() != nil {
+			go func(news []*store.NewsletterMetadata, db *dbutil.Database, jid string) {
+				for _, meta := range news {
+					_ = store.SaveCachedNewsletter(context.Background(), db, jid, meta)
+				}
+			}(syncedNewsletters, s.GetDB(), ourJID)
+		}
 	}
 
 	// Calculate community stats
@@ -211,13 +221,16 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 		}
 	}
 
-	// Pre-warm in-memory L1 Signal sessions for all companion devices
+	// Pre-warm in-memory L1 Signal sessions and identities for all companion devices
 	if len(allDeviceJIDs) > 0 && cli.Store != nil {
 		var addrs []string
 		for _, d := range allDeviceJIDs {
 			addrs = append(addrs, d.SignalAddress().String())
 		}
 		_, _, _ = cli.Store.WithCachedSessions(ctx, addrs)
+		if reader, ok := cli.Store.Identities.(waStore.IdentityKeyReader); ok {
+			_, _, _ = reader.GetManyIdentities(ctx, addrs)
+		}
 	}
 
 	logger.Info("GroupManager: device and session cache warm up complete",

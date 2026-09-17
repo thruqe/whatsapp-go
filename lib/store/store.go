@@ -225,6 +225,14 @@ type ByteCache interface {
 	Delete(ctx context.Context, key string) error
 }
 
+// MultiByteCache extends ByteCache with multi-key batch operations.
+type MultiByteCache interface {
+	ByteCache
+	GetManyBytes(ctx context.Context, keys []string) (map[string][]byte, error)
+	SetMany(ctx context.Context, entries map[string][]byte, ttl time.Duration) error
+	DeleteMany(ctx context.Context, keys []string) error
+}
+
 type AllSessionSpecificStores interface {
 	IdentityStore
 	SessionStore
@@ -289,12 +297,21 @@ type Device struct {
 	Container     DeviceContainer
 	ExternalCache ByteCache
 
-	l1SessionCache     any
-	l1SessionCacheLock sync.Mutex
-	sessionLocks       sync.Map
+	l1SessionCache       any
+	l1SessionCacheLock   sync.Mutex
+	sessionCoalescer     any
+	sessionCoalescerLock sync.Mutex
+	sessionLocks         sync.Map
 
 	saveDeleteLockInit sync.Once
 	saveDeleteLock     chan struct{}
+}
+
+func (device *Device) FlushSessions(ctx context.Context) error {
+	if device == nil {
+		return nil
+	}
+	return device.flushSessions(ctx)
 }
 
 func (device *Device) GetJID() types.JID {
@@ -346,6 +363,7 @@ func (device *Device) Save(ctx context.Context) error {
 	if device.Deleted {
 		return ErrDeviceDeleted
 	}
+	_ = device.flushSessions(ctx)
 	return device.Container.PutDevice(ctx, device)
 }
 
@@ -356,6 +374,10 @@ func (device *Device) Delete(ctx context.Context) error {
 	defer device.unlockSaveDelete()
 	if device.Deleted {
 		return nil
+	}
+	device.closeSessionCoalescer()
+	if eb, ok := device.EventBuffer.(*MemoryEventBuffer); ok {
+		_ = eb.Close()
 	}
 	err := device.Container.DeleteDevice(ctx, device)
 	if err != nil {

@@ -347,19 +347,24 @@ func (s *CachedLIDMap) PutLIDMapping(ctx context.Context, lid, pn types.JID) err
 		return fmt.Errorf("invalid PutLIDMapping call %s/%s", lid, pn)
 	}
 	s.lidCacheLock.Lock()
-	defer s.lidCacheLock.Unlock()
 	cachedLID, ok := s.pnToLIDCache[pn.User]
 	if ok && cachedLID == lid.User {
+		s.lidCacheLock.Unlock()
 		return nil
 	}
-	return s.db.DoTxn(ctx, nil, func(ctx context.Context) error {
-		return s.unlockedPutLIDMapping(ctx, lid, pn)
-	})
+	s.cacheMappingLocked(lid.User, pn.User)
+	s.lidCacheLock.Unlock()
+
+	go func() {
+		_ = s.db.DoTxn(context.Background(), nil, func(ctx context.Context) error {
+			return s.unlockedPutLIDMapping(ctx, lid, pn)
+		})
+	}()
+	return nil
 }
 
 func (s *CachedLIDMap) PutManyLIDMappings(ctx context.Context, mappings []store.LIDMapping) error {
 	s.lidCacheLock.Lock()
-	defer s.lidCacheLock.Unlock()
 	mappings = slices.DeleteFunc(mappings, func(mapping store.LIDMapping) bool {
 		if mapping.LID.Server != types.HiddenUserServer || mapping.PN.Server != types.DefaultUserServer {
 			zerolog.Ctx(ctx).Debug().
@@ -372,21 +377,27 @@ func (s *CachedLIDMap) PutManyLIDMappings(ctx context.Context, mappings []store.
 		if ok && cachedLID == mapping.LID.User {
 			return true
 		}
+		s.cacheMappingLocked(mapping.LID.User, mapping.PN.User)
 		return false
 	})
+	s.lidCacheLock.Unlock()
+
 	mappings = exslices.DeduplicateUnsortedOverwrite(mappings)
 	if len(mappings) == 0 {
 		return nil
 	}
-	return s.db.DoTxn(ctx, nil, func(ctx context.Context) error {
-		for _, mapping := range mappings {
-			err := s.unlockedPutLIDMapping(ctx, mapping.LID, mapping.PN)
-			if err != nil {
-				return err
+	go func(toPersist []store.LIDMapping) {
+		_ = s.db.DoTxn(context.Background(), nil, func(ctx context.Context) error {
+			for _, mapping := range toPersist {
+				err := s.unlockedPutLIDMapping(ctx, mapping.LID, mapping.PN)
+				if err != nil {
+					return err
+				}
 			}
-		}
-		return nil
-	})
+			return nil
+		})
+	}(mappings)
+	return nil
 }
 
 func (s *CachedLIDMap) unlockedPutLIDMapping(ctx context.Context, lid, pn types.JID) error {
