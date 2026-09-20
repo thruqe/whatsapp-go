@@ -616,23 +616,34 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 }
 
 func activePrefixes(ctx context.Context, client *whatsmeow.Client) []string {
-	if client == nil || client.Store == nil || client.Store.Identities == nil {
-		return []string{"."}
-	}
-	s, ok := client.Store.Identities.(interface {
+	type settingGetter interface {
 		GetSetting(ctx context.Context, key string) (string, error)
-	})
-	if !ok {
+	}
+
+	var s settingGetter
+	if storeWrap, ok := GetSQLStore(client); ok && storeWrap != nil {
+		s = storeWrap
+	} else if client != nil && client.Store != nil && client.Store.Identities != nil {
+		// Fallback check on Identities interface if GetSQLStore fails
+		if identStore, identOK := client.Store.Identities.(settingGetter); identOK {
+			s = identStore
+		}
+	}
+
+	if s == nil {
 		return []string{"."}
 	}
+
 	raw, err := s.GetSetting(ctx, "prefix")
 	if err != nil || raw == "" {
 		return []string{"."}
 	}
+
 	parts := strings.Fields(raw)
 	if len(parts) == 0 {
 		return []string{"."}
 	}
+
 	var res []string
 	for _, p := range parts {
 		if strings.EqualFold(p, "none") || strings.EqualFold(p, "empty") {
