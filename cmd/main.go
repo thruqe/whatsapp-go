@@ -92,9 +92,13 @@ func main() {
 		}
 	}
 
-	// Resolve target database connection with SQLite fallback if unpassed, empty, or nonexistent
-	_, resolvedDB := store.ResolveDatabaseTarget(args.Database)
-	args.Database = resolvedDB
+	// Resolve database target: keep args.Database empty for SQLite fallback
+	dialect, resolvedDB := store.ResolveDatabaseTarget(args.Database)
+	if dialect == "postgres" {
+		args.Database = resolvedDB
+	} else {
+		args.Database = ""
+	}
 
 	if args.Logout {
 		handleLogoutCLI(ctx, args)

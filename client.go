@@ -1,11 +1,3 @@
-// package whatsrook implements the core session manager, database coordinator, and lifecycle bridge
-// for the whatsmeow whatsapp protocol engine.
-//
-// architectural mechanics:
-// this is the central orchestrator coordinating persistent storage (PostgreSQL),
-// device registration identity resolution, companion hardware profile emulation (chrome, android, ios),
-// and event-driven message dispatching. it encapsulates raw connection primitives inside a thread-safe
-// client abstraction, providing structured fallback strategies, integrated caching layers, and high-level messaging helpers.
 package whatsrook
 
 import (
@@ -30,6 +22,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 
 	_ "github.com/lib/pq"
+	_ "modernc.org/sqlite"
 
 	"whatsrook/util"
 	"whatsrook/util/cache"
@@ -37,31 +30,21 @@ import (
 	"whatsrook/util/qr"
 )
 
-// clienttype specifies the companion operating system and hardware profile to emulate during registration.
 type ClientType int
 
 var (
-	// errloggedout is the sentinel error indicating that the active session has been explicitly
-	// terminated by the remote whatsapp server or unlinked by the primary device.
 	ErrLoggedOut = errors.New("logged out from WhatsApp")
 
-	// ErrPairingTimedOut indicates that the phone pairing handshake failed or timed out.
 	ErrPairingTimedOut = errors.New("pairing timed out")
-	// ErrPairTimeout is an alias for ErrPairingTimedOut.
-	ErrPairTimeout = ErrPairingTimedOut
+	ErrPairTimeout     = ErrPairingTimedOut
 )
 
 const (
-	// clientchrome emulates a desktop web client running on linux.
 	ClientChrome ClientType = iota
-	// clientandroid emulates an android mobile companion device.
 	ClientAndroid
-	// clientios emulates an ios mobile companion device.
 	ClientIos
 )
 
-// parseclienttype parses an arbitrary platform string into its corresponding clienttype enum.
-// this performs case-insensitive normalization; returns false if the platform identifier is unknown.
 func ParseClientType(s string) (ClientType, bool) {
 	c, ok := map[string]ClientType{
 		"chrome":      ClientChrome,
@@ -75,18 +58,16 @@ func ParseClientType(s string) (ClientType, bool) {
 	return c, ok
 }
 
-// Config configures client session parameters.
 type Config struct {
 	DataDir         string
 	Database        string
-	Session         string // Phone number
+	Session         string
 	ClientType      ClientType
-	Business        bool // Emulate WhatsApp Business client
-	Verbose         bool // Verbose logging toggle
-	AsyncMessageAck bool // Asynchronous message ACK delivery toggle
+	Business        bool
+	Verbose         bool
+	AsyncMessageAck bool
 }
 
-// Client wraps whatsmeow.Client with session lifecycle and event dispatching.
 type Client struct {
 	Config Config
 
@@ -95,7 +76,6 @@ type Client struct {
 	container *sqlstore.Container
 }
 
-// NewClient creates an uninitialized Client instance.
 func NewClient(cfg Config) *Client {
 	if cfg.DataDir == "" {
 		cfg.DataDir = DefaultDataDir()
@@ -105,18 +85,12 @@ func NewClient(cfg Config) *Client {
 	}
 }
 
-// WAClient returns the underlying whatsmeow.Client instance, or nil if uninitialized.
 func (c *Client) WAClient() *whatsmeow.Client {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.rawClient
 }
 
-// InitSession initializes persistent storage drivers, retrieves or provisions the companion device record,
-// and constructs the active whatsmeow client instance.
-//
-// it automatically connects to the PostgreSQL database, resolves the companion device record
-// based on the configured phone session, and binds zap-based structured loggers.
 func (c *Client) InitSession(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -138,7 +112,6 @@ func (c *Client) InitSession(ctx context.Context) error {
 	cli.AsyncMessageAck = c.Config.AsyncMessageAck
 	cli.SetCallLogger(logger.ZerologStyle("wacaller"))
 
-	// Configure companion platform registration headers and os version payloads
 	isBusiness := c.Config.Business || (deviceStore != nil && (deviceStore.BusinessName != "" || strings.HasPrefix(strings.ToLower(deviceStore.Platform), "smb")))
 	configureCompanionPlatform(c.Config.ClientType, isBusiness)
 
@@ -146,7 +119,6 @@ func (c *Client) InitSession(ctx context.Context) error {
 	return nil
 }
 
-// configureCompanionPlatform configures device properties and base client payload based on client type and business status.
 func configureCompanionPlatform(clientType ClientType, isBusiness bool) {
 	switch clientType {
 	case ClientAndroid:
@@ -188,7 +160,6 @@ func configureCompanionPlatform(clientType ClientType, isBusiness bool) {
 	}
 }
 
-// sanitizeDBURL redacts sensitive database credentials prior to log emission.
 func sanitizeDBURL(rawURL string) string {
 	if rawURL == "" {
 		return ""
@@ -207,7 +178,6 @@ func sanitizeDBURL(rawURL string) string {
 	return rawURL
 }
 
-// ensureSSLDisabled injects or overrides sslmode=disable on postgresql connection strings during fallback attempts.
 func ensureSSLDisabled(rawURL string) string {
 	if strings.HasSuffix(rawURL, "?sslmode=disable") {
 		return rawURL
@@ -225,13 +195,6 @@ func ensureSSLDisabled(rawURL string) string {
 	return u.String()
 }
 
-// ResolvePostgresURL resolves the PostgreSQL database connection string following precedence:
-// 1. Explicit database configuration argument (if postgres:// or postgresql://)
-// 2. DATABASE_URL_<phone>
-// 3. DATABASE_URL
-// 4. POSTGRES_URL
-// 5. DB_URL
-// 6. Default fallback
 func ResolvePostgresURL(dbConf string, sessionPhone ...string) string {
 	dbConf = strings.TrimSpace(dbConf)
 	if dbConf != "" && dbConf != "default" && dbConf != "postgres" && dbConf != "postgresql" {
@@ -264,47 +227,83 @@ func ResolvePostgresURL(dbConf string, sessionPhone ...string) string {
 	return ""
 }
 
-// OpenStoreContainer opens and prepares a sqlstore.Container storage backend connected to PostgreSQL.
-//
-// it automatically handles connection retries, SSL mode fallbacks, and binds structured logging diagnostics.
 func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPhone ...string) (*sqlstore.Container, error) {
 	waLogger := logger.NewWaLogger("database")
 
-	dbConfLower := strings.ToLower(strings.TrimSpace(database))
-	if strings.Contains(dbConfLower, "sqlite") || strings.HasSuffix(dbConfLower, ".db") {
-		return nil, fmt.Errorf("sqlite is not supported: PostgreSQL is the only supported database engine (e.g. postgres://user:password@host:5432/dbname)")
-	}
+	trimmedDB := strings.TrimSpace(database)
+	dbConn := ResolvePostgresURL(trimmedDB, sessionPhone...)
 
-	dbConn := ResolvePostgresURL(database, sessionPhone...)
-	if !strings.HasPrefix(dbConn, "postgres://") && !strings.HasPrefix(dbConn, "postgresql://") {
-		return nil, fmt.Errorf("invalid database connection string: PostgreSQL URL required (e.g. postgres://user:password@host:5432/dbname)")
-	}
-
-	logger.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
-	container, err := sqlstore.New(ctx, "postgres", dbConn, waLogger)
-	if err == nil && container != nil {
-		configureConnectionPool(container, dbConn)
-		logger.Info("successfully connected to PostgreSQL database")
-		return container, nil
-	}
-
-	// SSL fallback retry logic (if SSL fails, attempt with sslmode=disable)
-	if !strings.HasSuffix(dbConn, "?sslmode=disable") && !strings.Contains(dbConn, "sslmode=disable") {
-		disableURL := ensureSSLDisabled(dbConn)
-		logger.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
-		container, errDisable := sqlstore.New(ctx, "postgres", disableURL, waLogger)
-		if errDisable == nil && container != nil {
-			configureConnectionPool(container, disableURL)
-			logger.Info("successfully connected to PostgreSQL database with sslmode=disable")
+	// If resolved to a PostgreSQL URI, connect to Postgres
+	if strings.HasPrefix(dbConn, "postgres://") || strings.HasPrefix(dbConn, "postgresql://") {
+		logger.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
+		container, err := sqlstore.New(ctx, "postgres", dbConn, waLogger)
+		if err == nil && container != nil {
+			configureConnectionPool(container, dbConn)
+			logger.Info("successfully connected to PostgreSQL database")
 			return container, nil
 		}
-		return nil, fmt.Errorf("failed to connect to PostgreSQL (ssl retry also failed: %v): %w", errDisable, err)
+
+		// SSL fallback retry logic
+		if !strings.HasSuffix(dbConn, "?sslmode=disable") && !strings.Contains(dbConn, "sslmode=disable") {
+			disableURL := ensureSSLDisabled(dbConn)
+			logger.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
+			container, errDisable := sqlstore.New(ctx, "postgres", disableURL, waLogger)
+			if errDisable == nil && container != nil {
+				configureConnectionPool(container, disableURL)
+				logger.Info("successfully connected to PostgreSQL database with sslmode=disable")
+				return container, nil
+			}
+			return nil, fmt.Errorf("failed to connect to PostgreSQL (ssl retry also failed: %v): %w", errDisable, err)
+		}
+
+		return nil, fmt.Errorf("failed to connect to PostgreSQL database: %w", err)
 	}
 
-	return nil, fmt.Errorf("failed to connect to PostgreSQL database: %w", err)
+	// SQLite fallback logic
+	targetPath := trimmedDB
+	if targetPath == "" || targetPath == "default" {
+		if dataDir == "" {
+			dataDir = DefaultDataDir()
+		}
+		targetPath = filepath.Join(dataDir, "whatsrook.db")
+	}
+
+	sqliteDSN := targetPath
+	if !strings.HasPrefix(sqliteDSN, "file:") {
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return nil, fmt.Errorf("failed to create sqlite storage directory: %w", err)
+		}
+		// Extreme performance tuning for SQLite:
+		// - WAL: Write-Ahead Logging for concurrency
+		// - synchronous=NORMAL: Safe for WAL, removes fsync bottleneck
+		// - busy_timeout=30000: Wait up to 30s for lock to clear instead of erroring out
+		// - cache_size=-64000: 64MB in-memory page cache
+		// - temp_store=MEMORY: Store temporary tables/indices in RAM
+		// - mmap_size=268435456: 256MB memory-mapped I/O
+		sqliteDSN = fmt.Sprintf(
+			"file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(30000)&_pragma=cache_size(-64000)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)",
+			filepath.ToSlash(targetPath),
+		)
+	}
+
+	logger.Info("attempting connection to SQLite database...", "dsn", sqliteDSN)
+	container, err := sqlstore.New(ctx, "sqlite", sqliteDSN, waLogger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
+	}
+
+	// CRITICAL FOR SQLITE: Limit pool to 1 open connection so Go's SQL pool
+	// queues concurrent goroutine queries in RAM instead of hammering the filesystem lock
+	if db := container.Database(); db != nil && db.RawDB != nil {
+		db.RawDB.SetMaxOpenConns(1)
+		db.RawDB.SetMaxIdleConns(1)
+		db.RawDB.SetConnMaxLifetime(0) // keep connection open
+	}
+
+	logger.Info("successfully initialized SQLite database store")
+	return container, nil
 }
 
-// configureConnectionPool tunes PostgreSQL connection pool limits to prevent connection churn and network latency.
 func configureConnectionPool(container *sqlstore.Container, dbConn string) {
 	if container != nil {
 		if db := container.Database(); db != nil && db.RawDB != nil {
@@ -312,9 +311,6 @@ func configureConnectionPool(container *sqlstore.Container, dbConn string) {
 			maxIdle := 25
 
 			if strings.Contains(dbConn, "pooler.supabase.com") || strings.Contains(dbConn, "supabase.co") {
-				// Supabase PgBouncer session mode is strictly limited to pool_size: 15.
-				// Clamp max open connections to 8 (and max idle to 4) so Go's pooler
-				// queues queries internally without exceeding the 15-connection limit or throwing EMAXCONNSESSION.
 				maxOpen = 8
 				maxIdle = 4
 			}
@@ -342,13 +338,14 @@ func configureConnectionPool(container *sqlstore.Container, dbConn string) {
 	}
 }
 
-// ParseDatabaseConfig parses a database configuration string or URL into driver name and DSN.
 func ParseDatabaseConfig(dbConf string, sessionPhone ...string) (string, string, error) {
 	dbConn := ResolvePostgresURL(dbConf, sessionPhone...)
-	return "postgres", dbConn, nil
+	if dbConn != "" {
+		return "postgres", dbConn, nil
+	}
+	return "sqlite", filepath.Join(DefaultDataDir(), "whatsrook.db"), nil
 }
 
-// resolveDeviceStore retrieves an existing registered device or creates a fresh companion device identity.
 func (c *Client) resolveDeviceStore(ctx context.Context, container *sqlstore.Container) (*store.Device, error) {
 	cleanPhone := strings.TrimPrefix(c.Config.Session, "+")
 	cleanPhone = strings.ReplaceAll(cleanPhone, " ", "")
@@ -381,7 +378,6 @@ func (c *Client) resolveDeviceStore(ctx context.Context, container *sqlstore.Con
 	return container.NewDevice(), nil
 }
 
-// Connect starts the background network connection loop.
 func (c *Client) Connect() error {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -394,7 +390,6 @@ func (c *Client) Connect() error {
 	return cli.Connect()
 }
 
-// Disconnect gracefully terminates the active network connection.
 func (c *Client) Disconnect() {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -408,7 +403,6 @@ func (c *Client) Disconnect() {
 	}
 }
 
-// IsConnected returns whether the client is currently connected.
 func (c *Client) IsConnected() bool {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -420,7 +414,6 @@ func (c *Client) IsConnected() bool {
 	return cli.IsConnected()
 }
 
-// IsLoggedIn returns whether the client has an active authenticated session.
 func (c *Client) IsLoggedIn() bool {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -432,7 +425,6 @@ func (c *Client) IsLoggedIn() bool {
 	return cli.IsLoggedIn()
 }
 
-// WaitForConnection blocks until the client is connected or timeout expires.
 func (c *Client) WaitForConnection(ctx context.Context, timeout time.Duration) bool {
 	if c.IsConnected() {
 		return true
@@ -452,7 +444,6 @@ func (c *Client) WaitForConnection(ctx context.Context, timeout time.Duration) b
 	return c.IsConnected()
 }
 
-// SetPresence sends an explicit presence state to the WhatsApp servers.
 func (c *Client) SetPresence(state types.Presence) error {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -465,7 +456,6 @@ func (c *Client) SetPresence(state types.Presence) error {
 	return cli.SendPresence(context.Background(), state)
 }
 
-// SetOnline sets the bot's presence to online (available).
 func (c *Client) SetOnline() error {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -481,7 +471,6 @@ func (c *Client) SetOnline() error {
 	return cli.SendPresence(context.Background(), types.PresenceAvailable)
 }
 
-// SetBrowserActive instructs the server whether this companion browser session is in the foreground.
 func (c *Client) SetBrowserActive(active bool) error {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -494,7 +483,6 @@ func (c *Client) SetBrowserActive(active bool) error {
 	return cli.SendPresence(context.Background(), types.PresenceAvailable)
 }
 
-// StartPresenceKeepalive starts a background goroutine that periodically sends PresenceAvailable.
 func (c *Client) StartPresenceKeepalive(ctx context.Context, interval time.Duration) func() {
 	if interval <= 0 {
 		interval = 25 * time.Second
@@ -524,7 +512,6 @@ func (c *Client) StartPresenceKeepalive(ctx context.Context, interval time.Durat
 	}
 }
 
-// HandleSessionReset attempts to gracefully tear down and re-establish a session.
 func (c *Client) HandleSessionReset(ctx context.Context) error {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -547,7 +534,6 @@ func (c *Client) HandleSessionReset(ctx context.Context) error {
 	return c.InitSession(ctx)
 }
 
-// Close gracefully closes the client connection and database storage container.
 func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -566,9 +552,6 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// PairPhone initiates the modern 8-character pairing code linking procedure.
-//
-// it requests an alphanumeric pairing code for the provided international phone number.
 func (c *Client) PairPhone(ctx context.Context, phone string) (string, error) {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -603,7 +586,6 @@ func (c *Client) PairPhone(ctx context.Context, phone string) (string, error) {
 	return code, nil
 }
 
-// PairQR requests a live QR authentication channel for pairing via visual camera scan.
 func (c *Client) PairQR(ctx context.Context) (<-chan whatsmeow.QRChannelItem, error) {
 	c.mu.Lock()
 	cli := c.rawClient
@@ -627,17 +609,14 @@ func (c *Client) PairQR(ctx context.Context) (<-chan whatsmeow.QRChannelItem, er
 	return qrChan, nil
 }
 
-// GetQRChannel is an alias for PairQR.
 func (c *Client) GetQRChannel(ctx context.Context) (<-chan whatsmeow.QRChannelItem, error) {
 	return c.PairQR(ctx)
 }
 
-// QRChannel is an alias for GetQRChannel.
 func (c *Client) QRChannel(ctx context.Context) (<-chan whatsmeow.QRChannelItem, error) {
 	return c.PairQR(ctx)
 }
 
-// defaultdatadir returns the default filesystem storage path across target operating systems.
 func DefaultDataDir() string {
 	if dir := os.Getenv("WHATSROOK_DATA_DIR"); dir != "" {
 		return dir
@@ -649,19 +628,14 @@ func DefaultDataDir() string {
 	return filepath.Join(home, ".whatsrook")
 }
 
-// storedsession describes an existing whatsapp device session found in the store.
 type StoredSession struct {
 	JID      string
-	User     string // phone number (without plus)
+	User     string
 	PushName string
 	Platform string
 	Business bool
 }
 
-// ListStoredSessions queries the database store for all saved companion device sessions in PostgreSQL.
-//
-// it inspects registered device records without opening active network websockets, returning
-// structured metadata such as JID, push name, emulated platform, and business account indicators.
 func ListStoredSessions(ctx context.Context, dataDir, database string) ([]StoredSession, error) {
 	container, err := OpenStoreContainer(ctx, dataDir, database)
 	if err != nil {
@@ -696,8 +670,6 @@ func ListStoredSessions(ctx context.Context, dataDir, database string) ([]Stored
 	return sessions, nil
 }
 
-// DeleteStoredSession initiates a graceful server-side logout request to unpair the companion device,
-// followed by complete purging of local session keys and device records from persistent storage.
 func DeleteStoredSession(ctx context.Context, dataDir, database, phone string) error {
 	if dataDir == "" {
 		dataDir = DefaultDataDir()
@@ -750,7 +722,6 @@ func DeleteStoredSession(ctx context.Context, dataDir, database, phone string) e
 	return fallbackDeleteDevice(ctx, dataDir, database, phone)
 }
 
-// fallbackDeleteDevice performs direct database-level removal of device records when network logout is impossible or failed.
 func fallbackDeleteDevice(ctx context.Context, dataDir, database, phone string) error {
 	container, err := OpenStoreContainer(ctx, dataDir, database)
 	if err != nil {
@@ -788,7 +759,6 @@ func fallbackDeleteDevice(ctx context.Context, dataDir, database, phone string) 
 	return nil
 }
 
-// ClearSessionDB deletes the device record associated with this client or phone number.
 func (c *Client) ClearSessionDB(ctx context.Context, phone string) {
 	c.mu.Lock()
 	raw := c.rawClient
@@ -802,22 +772,13 @@ func (c *Client) ClearSessionDB(ctx context.Context, phone string) {
 }
 
 var (
-	// NewMemoryStore initializes a memory cache store.
-	NewMemoryStore = cache.NewMemoryStore
-	// InitCache initializes global caching.
-	InitCache = cache.Init
-	// NewWaLogger constructs a Zap protocol logger adapter.
-	NewWaLogger = logger.NewWaLogger
-	// GetSystemStats retrieves host hardware metrics.
-	GetSystemStats = util.GetStats
-	// FormatBytes formats byte counts.
-	FormatBytes = util.FormatBytes
-	// AddStickerMetadata injects EXIF metadata into WebP stickers.
-	AddStickerMetadata = util.AddStickerMetadata
-	// WriteStickerMetadata writes EXIF metadata to a WebP file.
+	NewMemoryStore       = cache.NewMemoryStore
+	InitCache            = cache.Init
+	NewWaLogger          = logger.NewWaLogger
+	GetSystemStats       = util.GetStats
+	FormatBytes          = util.FormatBytes
+	AddStickerMetadata   = util.AddStickerMetadata
 	WriteStickerMetadata = util.WriteStickerMetadata
-	// EncodePNG generates a QR code PNG image.
-	EncodePNG = qr.EncodePNG
-	// StartQRServer starts the local QR web pairing server.
-	StartQRServer = qr.StartServer
+	EncodePNG            = qr.EncodePNG
+	StartQRServer        = qr.StartServer
 )
