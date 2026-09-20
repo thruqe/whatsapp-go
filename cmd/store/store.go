@@ -5,13 +5,20 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"whatsrook"
 	"whatsrook/util/cache"
 	"whatsrook/util/logger"
+
+	_ "github.com/lib/pq"
+	_ "modernc.org/sqlite"
 
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -33,7 +40,7 @@ const (
 	CallMediaVideo CallMediaKind = "video"
 )
 
-// Structural Data Types (replacing GORM structs)
+// Structural Data Types
 
 type BotSetting struct {
 	OurJID string
@@ -206,7 +213,60 @@ type NewsletterMetadata struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-// Utility Helpers
+// Utility Helpers & Target Resolution
+
+// ResolveDatabaseTarget determines the active database dialect and DSN.
+// If the argument is missing, empty, invalid, or references a non-existent file,
+// it defaults to a local SQLite database in the application's data directory.
+func ResolveDatabaseTarget(dbInput string) (dialect string, dsn string) {
+	trimmed := strings.TrimSpace(dbInput)
+
+	defaultSQLitePath := filepath.Join(whatsrook.DefaultDataDir(), "whatsrook.db")
+	defaultSQLiteDSN := fmt.Sprintf("file:%s?_foreign_keys=on&_journal_mode=WAL", defaultSQLitePath)
+
+	if trimmed == "" {
+		ensureParentDir(defaultSQLitePath)
+		logger.Info("No database specified; using default SQLite database", "path", defaultSQLitePath)
+		return "sqlite3", defaultSQLiteDSN
+	}
+
+	// 1. PostgreSQL connection string
+	if strings.HasPrefix(trimmed, "postgres://") || strings.HasPrefix(trimmed, "postgresql://") {
+		return "postgres", trimmed
+	}
+
+	// 2. Explicit SQLite URI
+	if strings.HasPrefix(trimmed, "file:") {
+		u, err := url.Parse(trimmed)
+		if err == nil && u.Path != "" {
+			ensureParentDir(u.Path)
+		}
+		return "sqlite3", trimmed
+	}
+
+	// 3. Explicit SQLite file extension
+	if strings.HasSuffix(trimmed, ".db") || strings.HasSuffix(trimmed, ".sqlite") || strings.HasSuffix(trimmed, ".sqlite3") {
+		ensureParentDir(trimmed)
+		return "sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on&_journal_mode=WAL", trimmed)
+	}
+
+	// 4. File existence verification
+	if fi, err := os.Stat(trimmed); err == nil && !fi.IsDir() {
+		return "sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on&_journal_mode=WAL", trimmed)
+	}
+
+	// Unrecognized target or non-existent file -> SQLite fallback
+	ensureParentDir(defaultSQLitePath)
+	logger.Warn("Database target not provided or invalid; falling back to SQLite", "input", dbInput, "fallback", defaultSQLitePath)
+	return "sqlite3", defaultSQLiteDSN
+}
+
+func ensureParentDir(filePath string) {
+	dir := filepath.Dir(filePath)
+	if dir != "" && dir != "." {
+		_ = os.MkdirAll(dir, 0750)
+	}
+}
 
 func ourJIDStr(s *sqlstore.SQLStore) string {
 	if s == nil {
@@ -642,13 +702,35 @@ func migration7SessionIsolation(ctx context.Context, db *dbutil.Database) error 
 	return nil
 }
 
-// Database Diagnostics & Initialization Functions
+// Diagnostics & Setup
 
 var tablesInitOnce sync.Once
 
 func TableHasColumn(ctx context.Context, db *dbutil.Database, table, column string) (bool, error) {
 	if db == nil {
 		return false, fmt.Errorf("nil database")
+	}
+
+	// SQLite uses PRAGMA table_info rather than information_schema
+	if db.Dialect == dbutil.SQLite {
+		rows, err := db.Query(ctx, fmt.Sprintf("PRAGMA table_info(%s)", table))
+		if err != nil {
+			return false, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var cid int
+			var name, cType string
+			var notNull, pk int
+			var dfltValue sql.NullString
+			if err := rows.Scan(&cid, &name, &cType, &notNull, &dfltValue, &pk); err == nil {
+				if strings.EqualFold(name, column) {
+					return true, nil
+				}
+			}
+		}
+		return false, nil
 	}
 
 	var exists bool
@@ -721,7 +803,7 @@ func InitTables(ctx context.Context, s *sqlstore.SQLStore) {
 	})
 }
 
-// Low-Level Direct SQL Operations (Bot Data Store)
+// Low-Level Direct SQL Operations
 
 // Filters & BGM
 
@@ -1032,7 +1114,7 @@ func PutStickerCmd(ctx context.Context, s *sqlstore.SQLStore, shaHex, cmdName st
 	query := `
 		INSERT INTO bot_sticker_cmds (our_jid, sticker_sha256, command_name)
 		VALUES ($1, $2, $3)
-		ON CONFLICT (our_jid, sticker_sha256)
+		ON CONFLICT (our_jid, sticker_sha256) 
 		DO UPDATE SET command_name = EXCLUDED.command_name
 	`
 	_, err = db.Exec(ctx, query, ourJID, shaHex, cmdName)
@@ -1108,7 +1190,6 @@ var (
 	hotSettingsLoaded atomic.Bool
 )
 
-// PrewarmSettings loads all bot_settings rows into hot in-memory cache at startup.
 func PrewarmSettings(ctx context.Context, s *sqlstore.SQLStore) error {
 	if s == nil {
 		return nil
@@ -1626,8 +1707,8 @@ func SaveCachedGroupParticipants(ctx context.Context, db *dbutil.Database, ourJI
 			if j > 0 {
 				queryBuilder.WriteString(",")
 			}
-			queryBuilder.WriteString(fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-				paramIndex, paramIndex+1, paramIndex+2, paramIndex+3, paramIndex+4, paramIndex+5, paramIndex+6))
+			fmt.Fprintf(&queryBuilder, "($%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+				paramIndex, paramIndex+1, paramIndex+2, paramIndex+3, paramIndex+4, paramIndex+5, paramIndex+6)
 			args = append(args, ourJID, groupJID, row.userJID, row.lid, row.isAdmin, row.isSuperAdmin, row.displayName)
 			paramIndex += 7
 		}

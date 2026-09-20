@@ -9,7 +9,7 @@ require (
 	github.com/rs/zerolog v1.35.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
-	go.mau.fi/whatsmeow v0.0.0-20260916100317-2375e1751bbd
+	go.mau.fi/whatsmeow v0.0.0-20260919103545-0057a822e79a
 	go.uber.org/zap v1.28.0
 	go.uber.org/zap/exp v0.3.0
 	google.golang.org/protobuf v1.36.12
@@ -101,7 +101,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
-	github.com/petermattis/goid v0.0.0-20260820044319-269ab09b5261 // indirect
+	github.com/petermattis/goid v0.0.0-20260918085751-abfca077860b // indirect
 	github.com/pierrec/lz4/v4 v4.1.27 // indirect
 	github.com/pion/datachannel v1.6.3 // indirect
 	github.com/pion/dtls/v3 v3.1.9 // indirect
