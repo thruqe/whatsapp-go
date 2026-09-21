@@ -71,7 +71,7 @@ func runSign(args []string) error {
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			CommonName:   "WhatsRook Authenticode Signing",
-			Organization: []string{"ThruqeLabs"},
+			Organization: []string{"thruqe"},
 			Country:      []string{"US"},
 		},
 		NotBefore:             now.Add(-1 * time.Hour),
@@ -126,7 +126,7 @@ func runSign(args []string) error {
 			"-key", keyPath,
 			"-h", "sha256",
 			"-n", "WhatsRook",
-			"-i", "https://github.com/thruqelabs/whatsapp-go",
+			"-i", "https://github.com/thruqe/whatsapp-go",
 			"-in", targetBinary,
 			"-out", signedOutput,
 		)
@@ -142,7 +142,7 @@ func runSign(args []string) error {
 			"/a",
 			"/fd", "sha256",
 			"/d", "WhatsRook",
-			"/du", "https://github.com/thruqelabs/whatsapp-go",
+			"/du", "https://github.com/thruqe/whatsapp-go",
 			targetBinary,
 		)
 		signCmd.Stdout = os.Stdout

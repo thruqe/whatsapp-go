@@ -2,13 +2,13 @@ name: Monthly Release
 
 on:
   schedule:
-    - cron: '0 0 1 * *' # Runs on the 1st of every month at 00:00 UTC
-  workflow_dispatch:     # Allows manual execution from GitHub Actions UI
+    - cron: "0 0 1 * *" # Runs on the 1st of every month at 00:00 UTC
+  workflow_dispatch: # Allows manual execution from GitHub Actions UI
     inputs:
       extra_build_info:
-        description: 'Optional extra build info suffix (e.g. prod, hotfix)'
+        description: "Optional extra build info suffix (e.g. prod, hotfix)"
         required: false
-        default: ''
+        default: ""
 
 permissions:
   contents: write
@@ -73,7 +73,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
           ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-          git remote set-url origin git@github.com:thruqelabs/whatsapp-go.git
+          git remote set-url origin git@github.com:thruqe/whatsapp-go.git
           git config core.sshCommand "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new"
 
       - name: Generate Version and Create Tag

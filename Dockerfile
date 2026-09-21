@@ -16,7 +16,7 @@ WORKDIR /app
 
 RUN mkdir -p /app/bin
 
-RUN curl -fsSL https://github.com/thruqelabs/whatsapp-go/releases/download/alpha/whatsrook-linux-amd64.tar.gz -o /tmp/whatsrook.tar.gz \
+RUN curl -fsSL https://github.com/thruqe/whatsapp-go/releases/download/alpha/whatsrook-linux-amd64.tar.gz -o /tmp/whatsrook.tar.gz \
     && tar -xzf /tmp/whatsrook.tar.gz -C /app/bin \
     && rm -f /tmp/whatsrook.tar.gz \
     && chmod +x /app/bin/whatsrook

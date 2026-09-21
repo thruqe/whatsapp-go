@@ -14,14 +14,14 @@ _WhatsRook is an automated WhatsApp client with built-in utilities for managing 
 
   <div style="margin-bottom: 20px;">
     <h4 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #5e5e5e;">Cloud Hosting</h4>
-    <a href="https://heroku.com/deploy?template=https://github.com/thruqelabs/whatsapp-go">
+    <a href="https://heroku.com/deploy?template=https://github.com/thruqe/whatsapp-go">
       <img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" />
     </a>
   </div>
 
   <div>
     <h4 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #5e5e5e;">Cloud Development</h4>
-    <a href="https://codespaces.new/thruqelabs/whatsapp-go">
+    <a href="https://codespaces.new/thruqe/whatsapp-go">
       <img src="https://github.com/codespaces/badge.svg" alt="Open in GitHub Codespaces" />
     </a>
   </div>
@@ -50,7 +50,7 @@ If you want to install on your system, see the [Installation Guide](./INSTALLATI
 
 ## Contributions
 
-If you want to help make this project better, please take the time to read this contribution [doc](./CONTRIBUTING.md) and [fork](https://github.com/thruqelabs/whatsapp-go/fork) this repository. Then open a pull request with your changes.
+If you want to help make this project better, please take the time to read this contribution [doc](./CONTRIBUTING.md) and [fork](https://github.com/thruqe/whatsapp-go/fork) this repository. Then open a pull request with your changes.
 
 If you are using any AI agent for assistance, please refer to the [AGENTS documentation](./AGENTS.md) Guide.
 

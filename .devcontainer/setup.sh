@@ -35,7 +35,7 @@ sudo apt-get install -y ffmpeg git-lfs
 git lfs install
 
 # Ensure remote points to SSH
-git remote set-url origin git@github.com:ThruqeLabs/whatsrook.git 2>/dev/null || true
+git remote set-url origin git@github.com:thruqe/whatsrook.git 2>/dev/null || true
 
 # Install Taskfile
 sudo sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
