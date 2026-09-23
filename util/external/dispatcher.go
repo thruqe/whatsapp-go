@@ -126,7 +126,7 @@ func (d *Dispatcher) IsInstalled(name string) bool {
 	return info.Mode().Perm()&0o111 != 0
 }
 
-// IsOfficial returns true if name is one of the 13 official WhatsRook external plugins.
+// IsOfficial returns true if name is in the official WhatsRook external plugin registry.
 func (d *Dispatcher) IsOfficial(name string) bool {
 	name = strings.ToLower(strings.TrimSpace(name))
 	return slices.Contains(OfficialPlugins, name)
