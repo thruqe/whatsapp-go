@@ -12,7 +12,7 @@ require (
 	github.com/rs/zerolog v1.35.1
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	go.mau.fi/util v0.10.1
-	go.mau.fi/whatsmeow v0.0.0-20260919103545-0057a822e79a
+	go.mau.fi/whatsmeow v0.0.0-20260925162019-b3832c2bd1d1
 	modernc.org/sqlite v1.59.0
 	whatsrook v0.0.0-00010101000000-000000000000
 )
@@ -31,11 +31,11 @@ require (
 	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/opus v0.1.0 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/sctp v1.11.2 // indirect
-	github.com/pion/transport/v5 v5.0.1 // indirect
+	github.com/pion/sctp v1.11.3 // indirect
+	github.com/pion/transport/v5 v5.1.1 // indirect
 	github.com/polymorfa/libsignal-protocol-go v0.2.3-0.20260806162910-a2adef2e8a11 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
-	github.com/quic-go/quic-go v0.62.0 // indirect
+	github.com/quic-go/quic-go v0.63.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
 	go.uber.org/multierr v1.11.0 // indirect
@@ -48,7 +48,7 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-	modernc.org/libc v1.77.0 // indirect
+	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
