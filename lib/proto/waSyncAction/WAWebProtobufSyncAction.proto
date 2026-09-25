@@ -119,6 +119,7 @@ enum MutationProps {
 	SHARED_DEVICE_ALLOWLIST_ACTION = 94;
 	CONTACT_MANAGER_METADATA_ACTION = 95;
 	BUSINESS_FOLDER_ACTIVATION_ACTION = 96;
+	GROUP_HISTORY_TOGGLE_ACTION = 97;
 }
 
 message AgentAction {
@@ -882,6 +883,16 @@ message SyncActionValue {
 		optional bool allowed = 1;
 	}
 
+	message GroupHistoryToggleAction {
+		enum GroupHistoryToggleMode {
+			GROUP_HISTORY_TOGGLE_MODE_UNKNOWN = 0;
+			GROUP_HISTORY_TOGGLE_MODE_ON = 1;
+			GROUP_HISTORY_TOGGLE_MODE_OFF = 2;
+		}
+
+		optional SyncActionValue.GroupHistoryToggleAction.GroupHistoryToggleMode groupHistoryToggleMode = 1;
+	}
+
 	optional int64 timestamp = 1;
 	optional StarAction starAction = 2;
 	optional ContactAction contactAction = 3;
@@ -969,6 +980,7 @@ message SyncActionValue {
 	optional SharedDeviceAllowlistAction sharedDeviceAllowlistAction = 94;
 	optional ContactManagerMetadataAction contactManagerMetadataAction = 95;
 	optional BusinessFolderActivationAction businessFolderActivationAction = 96;
+	optional SyncActionValue.GroupHistoryToggleAction groupHistoryToggleAction = 97;
 }
 
 message ThreadPinAction {
