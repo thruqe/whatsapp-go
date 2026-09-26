@@ -457,7 +457,15 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 			cli.Log.Warnf("Ignoring message %s from %s: %v", info.ID, info.SourceString(), err)
 			continue
 		} else if err != nil {
-			cli.Log.Warnf("Error decrypting message %s from %s: %v", info.ID, info.SourceString(), err)
+			retryCountInMsg := ag.OptionalInt("count")
+			cli.messageRetriesLock.Lock()
+			localRetryCount := cli.messageRetries[string(info.ID)]
+			cli.messageRetriesLock.Unlock()
+			if localRetryCount > 0 || retryCountInMsg > 0 {
+				cli.Log.Warnf("Error decrypting message %s from %s: %v", info.ID, info.SourceString(), err)
+			} else {
+				cli.Log.Debugf("Error decrypting message %s from %s (first attempt, skipping ack and requesting retry): %v", info.ID, info.SourceString(), err)
+			}
 			if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 				return
 			}
@@ -485,6 +493,9 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 		}
 		retryCount := ag.OptionalInt("count")
 		cli.cancelDelayedRequestFromPhone(info.ID)
+		cli.messageRetriesLock.Lock()
+		delete(cli.messageRetries, string(info.ID))
+		cli.messageRetriesLock.Unlock()
 
 		var msg waE2E.Message
 		var handlerFailed bool

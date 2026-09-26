@@ -177,6 +177,10 @@ type Client struct {
 	incomingRetryRequestCounter     map[incomingRetryKey]int
 	incomingRetryRequestCounterLock sync.Mutex
 
+	server401Errors      map[types.MessageID]int
+	server401ErrorsLock  sync.Mutex
+	server401ErrorsReset time.Time
+
 	callMu                           sync.Mutex
 	callEng                          *engine
 	callLogger                       zerolog.Logger

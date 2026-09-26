@@ -9,6 +9,7 @@ const (
 	maxIncomingRetryEntries        = 1024
 	maxAppStateKeyRequestEntries   = 1024
 	maxSessionRecreateHistoryItems = 1024
+	maxServer401Entries            = 1024
 	retryCounterWindow             = time.Hour
 )
 

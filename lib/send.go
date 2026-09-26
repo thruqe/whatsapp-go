@@ -533,7 +533,28 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 		subResp.Timestamp = ag.UnixTime("t")
 		var respErr error
 		if errorCode := ag.Int("error"); errorCode != 0 {
-			respErr = fmt.Errorf("%w %d", ErrServerReturnedError, errorCode)
+			if errorCode == 401 {
+				cli.server401ErrorsLock.Lock()
+				count, _ := incrementBoundedCounter(
+					ensureMap(&cli.server401Errors),
+					req.ID,
+					maxServer401Entries,
+					&cli.server401ErrorsReset,
+					time.Now(),
+				)
+				cli.server401ErrorsLock.Unlock()
+				if count == 1 {
+					cli.Log.Debugf("Server returned error 401 for message %s to %s on first attempt, skipping ack error", req.ID, to)
+				} else {
+					respErr = fmt.Errorf("%w %d", ErrServerReturnedError, errorCode)
+				}
+			} else {
+				respErr = fmt.Errorf("%w %d", ErrServerReturnedError, errorCode)
+			}
+		} else {
+			cli.server401ErrorsLock.Lock()
+			delete(cli.server401Errors, req.ID)
+			cli.server401ErrorsLock.Unlock()
 		}
 		expectedPHash := ag.OptionalString("phash")
 		if setParticipantHashMismatch(&subResp, phash, expectedPHash) {
