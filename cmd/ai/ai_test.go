@@ -813,6 +813,46 @@ func TestHandleAutoAIIntercept_Filtering(t *testing.T) {
 	if HandleAutoAIIntercept(ctxFromMe, "hello") {
 		t.Errorf("expected IsFromMe to other chats to return false")
 	}
+
+	// 3. Messages from newsletters should be ignored
+	newsletterChat := types.NewJID("120363174593809831", types.NewsletterServer)
+	evtNewsletter := &events.Message{
+		Info: types.MessageInfo{
+			Chat:     newsletterChat,
+			IsFromMe: false,
+		},
+		Message: &waE2E.Message{
+			Conversation: new("news update"),
+		},
+	}
+	ctxNewsletter := &dispatch.Context{
+		Client: client,
+		Evt:    evtNewsletter,
+		Chat:   newsletterChat,
+	}
+	if HandleAutoAIIntercept(ctxNewsletter, "news update") {
+		t.Errorf("expected newsletter message to be ignored by AutoAI")
+	}
+
+	// 4. Messages from broadcast should be ignored
+	broadcastChat := types.StatusBroadcastJID
+	evtBroadcast := &events.Message{
+		Info: types.MessageInfo{
+			Chat:     broadcastChat,
+			IsFromMe: false,
+		},
+		Message: &waE2E.Message{
+			Conversation: new("status post"),
+		},
+	}
+	ctxBroadcast := &dispatch.Context{
+		Client: client,
+		Evt:    evtBroadcast,
+		Chat:   broadcastChat,
+	}
+	if HandleAutoAIIntercept(ctxBroadcast, "status post") {
+		t.Errorf("expected broadcast message to be ignored by AutoAI")
+	}
 }
 
 func TestIsSelfChat(t *testing.T) {

@@ -108,6 +108,10 @@ func init() {
 func handleAutoAI(ctx *dispatch.Context) error {
 	logger.Debug("handleAutoAI started", "args", ctx.Args)
 
+	if isNewsletterOrBroadcast(ctx.Chat, ctx.Sender) {
+		return ctx.Reply("AutoAI is not supported in newsletter or broadcast channels.")
+	}
+
 	isAuthorized := ctx.IsSudo()
 	if !isAuthorized && ctx.Chat.Server == "g.us" {
 		info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
@@ -964,9 +968,17 @@ func resolveAltJID(c *dispatch.Context) types.JID {
 	return types.EmptyJID
 }
 
+func isNewsletterOrBroadcast(chat, sender types.JID) bool {
+	return chat.Server == types.NewsletterServer || chat.Server == types.BroadcastServer || chat.String() == "status@broadcast" ||
+		sender.Server == types.NewsletterServer || sender.Server == types.BroadcastServer
+}
+
 // isAutoAIEnabled checks if AutoAI is enabled for this chat across direct chat, alternative JIDs, self-chat IDs, and global settings.
 func isAutoAIEnabled(c *dispatch.Context, s *dispatch.StoreWrapper) bool {
 	if c == nil || s == nil {
+		return false
+	}
+	if isNewsletterOrBroadcast(c.Chat, c.Sender) || (c.Evt != nil && isNewsletterOrBroadcast(c.Evt.Info.Chat, c.Evt.Info.Sender)) {
 		return false
 	}
 	ctx := c.Ctx
@@ -1014,6 +1026,11 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 		return false
 	}
 	if c.Client == nil || c.Client.Store == nil || c.Client.Store.ID == nil {
+		return false
+	}
+
+	if isNewsletterOrBroadcast(c.Chat, c.Sender) || isNewsletterOrBroadcast(c.Evt.Info.Chat, c.Evt.Info.Sender) {
+		logger.Debug("HandleAutoAIIntercept: ignoring message from newsletter or broadcast", "chat", c.Chat.String())
 		return false
 	}
 
