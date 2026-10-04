@@ -1994,6 +1994,7 @@ message Message {
 	optional Message.FutureProofMessage newsletterScheduledMessage = 132;
 	optional Message.FutureProofMessage acp2SettingMessage = 133;
 	optional Message.FutureProofMessage audioStickerMessage = 134;
+	optional Message.FutureProofMessage botGroupParticipantMessage = 137;
 }
 
 message MessageContextInfo {

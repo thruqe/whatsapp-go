@@ -120,6 +120,7 @@ enum MutationProps {
 	CONTACT_MANAGER_METADATA_ACTION = 95;
 	BUSINESS_FOLDER_ACTIVATION_ACTION = 96;
 	GROUP_HISTORY_TOGGLE_ACTION = 97;
+	BB_PRO_PENDING_CUSTOMER_BASE_ACTION = 98;
 }
 
 message AgentAction {
@@ -255,6 +256,11 @@ message CallLogRecord {
 	message ParticipantInfo {
 		optional string userJID = 1;
 		optional CallResult callResult = 2;
+		optional CallLogRecord.GuestInfo guestInfo = 3;
+	}
+
+	message GuestInfo {
+		optional string pushName = 1;
 	}
 
 	optional CallResult callResult = 1;
@@ -893,6 +899,10 @@ message SyncActionValue {
 		optional SyncActionValue.GroupHistoryToggleAction.GroupHistoryToggleMode groupHistoryToggleMode = 1;
 	}
 
+	message BBProPendingCustomerBaseAction {
+		optional bool pending = 1;
+	}
+
 	optional int64 timestamp = 1;
 	optional StarAction starAction = 2;
 	optional ContactAction contactAction = 3;
@@ -981,6 +991,7 @@ message SyncActionValue {
 	optional ContactManagerMetadataAction contactManagerMetadataAction = 95;
 	optional BusinessFolderActivationAction businessFolderActivationAction = 96;
 	optional SyncActionValue.GroupHistoryToggleAction groupHistoryToggleAction = 97;
+	optional SyncActionValue.BBProPendingCustomerBaseAction bbProPendingCustomerBaseAction = 98;
 }
 
 message ThreadPinAction {
