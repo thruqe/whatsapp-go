@@ -41,10 +41,10 @@ func TestSumAbsPCM16Equivalence(t *testing.T) {
 
 	// Randomized fuzz tests
 	rng := rand.New(rand.NewSource(42))
-	for iter := 0; iter < 500; iter++ {
+	for range 500 {
 		length := rng.Intn(1000)
 		buf := make([]byte, length*2)
-		for i := 0; i < length; i++ {
+		for i := range length {
 			val := int16(rng.Intn(65536) - 32768)
 			binary.LittleEndian.PutUint16(buf[i*2:], uint16(val))
 		}
@@ -59,7 +59,7 @@ func TestSumAbsPCM16Equivalence(t *testing.T) {
 func BenchmarkSumAbsPCM16_Generic(b *testing.B) {
 	// Simulate 1 second of 8000Hz PCM16 audio
 	data := make([]byte, 8000*2)
-	for i := 0; i < 8000; i++ {
+	for i := range 8000 {
 		binary.LittleEndian.PutUint16(data[i*2:], uint16(i%3000-1500))
 	}
 
@@ -72,7 +72,7 @@ func BenchmarkSumAbsPCM16_Generic(b *testing.B) {
 
 func BenchmarkSumAbsPCM16_Assembly(b *testing.B) {
 	data := make([]byte, 8000*2)
-	for i := 0; i < 8000; i++ {
+	for i := range 8000 {
 		binary.LittleEndian.PutUint16(data[i*2:], uint16(i%3000-1500))
 	}
 

@@ -8,18 +8,24 @@ import (
 	"go.mau.fi/whatsmeow/types"
 
 	"whatsrook"
+	"whatsrook/util/external"
 )
 
 const metaAiSystemPrompt = `[SYSTEM CONTEXT:
-You are {NAME}, a helpful, intelligent, and capable AI assistant on WhatsApp.
-The bot has registered commands available to perform actions. When the user asks to run a command, execute an action, or confirms with 'yes' (for example: "run the menu command", "open menu", "show commands", "check ping", "search repo", "yes"), you must trigger the command by responding with EXACTLY:
+You are {NAME}, a helpful, highly intelligent, and capable AI assistant on WhatsApp.
+The bot has registered commands available to perform actions. When the user asks to run a command, execute an action, or confirms with affirmative language (for example: "run the menu command", "open menu", "show commands", "check ping", "yes", "yes install it for me", "install it", "do it", "yes please", "sure go ahead"), you must trigger the command by responding with EXACTLY:
 RUN_COMMAND: {PREFIX}<command_name> [args]
 (with no other text, markdown, or commentary).
 
-When the user is chatting, asking a general knowledge question, or having a conversation, answer naturally, thoughtfully, and directly.
-Do NOT use emojis anywhere in your responses.
-When referencing commands in natural conversation, always use the active prefix '{PREFIX}' (for example: "{PREFIX}menu", "{PREFIX}help", "{PREFIX}ping").
-Address the user by their display name.
+CRITICAL RULES FOR COMMAND EXECUTION & CONTEXTUAL REASONING:
+1. Multi-Turn Context & Pronoun Resolution: Always maintain full conversational context. When the user uses pronouns or references previous statements (e.g. "yes install it for me", "do it", "install that", "run it", "check the weather there"), identify the exact target, item, plugin, or query from the recent conversation history or quoted message and supply it as [args].
+   - Example: If the previous message discusses the weather plugin and the user replies "yes install it for me", you MUST output:
+     RUN_COMMAND: {PREFIX}install weather
+   - NEVER output a bare command like "RUN_COMMAND: {PREFIX}install" without arguments when the user intended to install, view, or operate on a specific item!
+2. Parameter Accuracy: Always provide the necessary arguments expected by the command (e.g. plugin name for {PREFIX}install, city for {PREFIX}weather, expression for {PREFIX}calc).
+3. Plain Text Responses: When chatting, answering questions, or having a conversation, answer naturally, thoughtfully, and directly without emojis.
+4. Active Prefix: When referencing commands in conversation, always use the active prefix '{PREFIX}' (e.g., "{PREFIX}menu", "{PREFIX}install weather", "{PREFIX}help").
+5. Display Name: Address the user by their display name.
 
 Available bot commands:
 {{COMMANDS_LIST}}
@@ -64,8 +70,16 @@ func BuildRunCommandInstructionWithNameAndPrefix(cmds []CommandInfo, botName, pr
 			sudoStr = " [sudo-only]"
 		}
 		desc := c.Description
-		if len(desc) > 80 {
-			desc = desc[:77] + "..."
+		nameLower := strings.ToLower(c.Name)
+		switch nameLower {
+		case "install":
+			desc = whatsrook.Sprintf("Install an official or custom external plugin (`%sinstall <name>` or `%sinstall all`). Official plugins: %s", prefix, prefix, strings.Join(external.OfficialPlugins, ", "))
+		case "uninstall":
+			desc = whatsrook.Sprintf("Uninstall an extra plugin (`%suninstall <name>` or `%suninstall all`)", prefix, prefix)
+		default:
+			if len(desc) > 80 {
+				desc = desc[:77] + "..."
+			}
 		}
 		cmdsTb.Linef("- %s%s%s%s: %s", prefix, c.Name, aliasStr, sudoStr, desc)
 	}
@@ -218,6 +232,22 @@ func RenderCurrentMessage(d Data) string {
 	return tb.String()
 }
 
+// RenderConversationHistory turns recent multi-turn chat history into a text block for Meta AI.
+func RenderConversationHistory(history string) string {
+	history = strings.TrimSpace(history)
+	if history == "" {
+		return ""
+	}
+
+	tb := whatsrook.NewText().
+		Line("[RECENT CONVERSATION HISTORY]").
+		Line(history).
+		Line("[/RECENT CONVERSATION HISTORY]").
+		Blank()
+
+	return tb.String()
+}
+
 // BuildAiQuery compiles instructions, personality prompts, group context,
 // quoted message context, and user prompt into a structured query for Meta AI.
 func BuildAiQuery(instruction, customPrompt string, data Data) string {
@@ -242,6 +272,12 @@ func BuildAiQuery(instruction, customPrompt string, data Data) string {
 
 	if usr := RenderUserContext(data); usr != "" {
 		b.WriteString(usr)
+	}
+
+	if data.ConversationHistory != "" {
+		if conv := RenderConversationHistory(data.ConversationHistory); conv != "" {
+			b.WriteString(conv)
+		}
 	}
 
 	if qtd := RenderQuotedContext(data); qtd != "" {
@@ -277,43 +313,52 @@ func CleanAiResponseText(text string) string {
 		}
 	}
 
-	// 3. Strip [CURRENT MESSAGE] ... [/CURRENT MESSAGE]
+	// 3. Strip [RECENT CONVERSATION HISTORY] ... [/RECENT CONVERSATION HISTORY]
+	if start := strings.Index(cleaned, "[RECENT CONVERSATION HISTORY]"); start != -1 {
+		if end := strings.Index(cleaned, "[/RECENT CONVERSATION HISTORY]"); end != -1 {
+			cleaned = cleaned[:start] + cleaned[end+len("[/RECENT CONVERSATION HISTORY]"):]
+		}
+	}
+
+	// 4. Strip [CURRENT MESSAGE] ... [/CURRENT MESSAGE]
 	if start := strings.Index(cleaned, "[CURRENT MESSAGE]"); start != -1 {
 		if end := strings.Index(cleaned, "[/CURRENT MESSAGE]"); end != -1 {
 			cleaned = cleaned[:start] + cleaned[end+len("[/CURRENT MESSAGE]"):]
 		}
 	}
 
-	// 4. Strip [GROUP CONTEXT] ... [/GROUP CONTEXT]
+	// 5. Strip [GROUP CONTEXT] ... [/GROUP CONTEXT]
 	if start := strings.Index(cleaned, "[GROUP CONTEXT]"); start != -1 {
 		if end := strings.Index(cleaned, "[/GROUP CONTEXT]"); end != -1 {
 			cleaned = cleaned[:start] + cleaned[end+len("[/GROUP CONTEXT]"):]
 		}
 	}
 
-	// 5. Strip [USER CONTEXT] ... [/USER CONTEXT]
+	// 6. Strip [USER CONTEXT] ... [/USER CONTEXT]
 	if start := strings.Index(cleaned, "[USER CONTEXT]"); start != -1 {
 		if end := strings.Index(cleaned, "[/USER CONTEXT]"); end != -1 {
 			cleaned = cleaned[:start] + cleaned[end+len("[/USER CONTEXT]"):]
 		}
 	}
 
-	// 6. Strip [REPLYING TO A MESSAGE — EXTRACTED CONTEXT] ... [/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]
+	// 7. Strip [REPLYING TO A MESSAGE — EXTRACTED CONTEXT] ... [/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]
 	if start := strings.Index(cleaned, "[REPLYING TO A MESSAGE — EXTRACTED CONTEXT]"); start != -1 {
 		if end := strings.Index(cleaned, "[/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]"); end != -1 {
 			cleaned = cleaned[:start] + cleaned[end+len("[/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]"):]
 		}
 	}
 
-	// 7. Strip [QUOTED MESSAGE] ... [/QUOTED MESSAGE]
+	// 8. Strip [QUOTED MESSAGE] ... [/QUOTED MESSAGE]
 	if start := strings.Index(cleaned, "[QUOTED MESSAGE]"); start != -1 {
 		if end := strings.Index(cleaned, "[/QUOTED MESSAGE]"); end != -1 {
 			cleaned = cleaned[:start] + cleaned[end+len("[/QUOTED MESSAGE]"):]
 		}
 	}
 
-	// 8. Strip any stray context tags
+	// 9. Strip any stray context tags
 	strayTags := []string{
+		"[/RECENT CONVERSATION HISTORY]",
+		"[RECENT CONVERSATION HISTORY]",
 		"[/CURRENT MESSAGE]",
 		"[/GROUP CONTEXT]",
 		"[/USER CONTEXT]",

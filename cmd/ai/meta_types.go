@@ -22,6 +22,7 @@ type Data struct {
 	ChatType                     string          `json:"chat_type"`
 	IsSudo                       bool            `json:"is_sudo"`
 	GroupMetaData                types.GroupInfo `json:"group_meta_data"`
+	ConversationHistory          string          `json:"conversation_history,omitempty"`
 }
 
 // Tools describes which tools the AI may invoke in its response.

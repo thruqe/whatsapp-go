@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -434,8 +435,8 @@ func cleanYtdlpOutput(raw string) string {
 		if strings.Contains(line, "\r") {
 			parts := strings.Split(line, "\r")
 			var last string
-			for i := len(parts) - 1; i >= 0; i-- {
-				t := strings.TrimRight(parts[i], " \t")
+			for _, part := range slices.Backward(parts) {
+				t := strings.TrimRight(part, " \t")
 				if t != "" {
 					last = t
 					break

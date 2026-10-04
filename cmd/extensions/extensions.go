@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"whatsrook/cmd/dispatch"
+	"whatsrook/util/cache"
 	"whatsrook/util/external"
 )
 
@@ -93,6 +94,7 @@ func handlePluginInstall(ctx *dispatch.Context) error {
 		if err := external.DefaultDispatcher.Install(ctx.GetSendContext(), name, url, sess); err != nil {
 			return ctx.Replyf("Plugin installation failed for %q:\n%v", name, err)
 		}
+		_ = cache.DeletePrefix(ctx.Ctx, "instruction:")
 		return ctx.Replyf("External plugin %q installed successfully for %s/%s.", name, runtime.GOOS, runtime.GOARCH)
 	}
 
@@ -105,6 +107,7 @@ func handlePluginInstall(ctx *dispatch.Context) error {
 	if err := external.DefaultDispatcher.Install(ctx.GetSendContext(), name, source, sess); err != nil {
 		return ctx.Replyf("Plugin installation failed: %v", err)
 	}
+	_ = cache.DeletePrefix(ctx.Ctx, "instruction:")
 	return ctx.Replyf("External plugin %q installed.", strings.ToLower(strings.TrimSpace(name)))
 }
 
@@ -124,12 +127,14 @@ func handlePluginUninstall(ctx *dispatch.Context) error {
 		if len(removed) == 0 {
 			return ctx.Reply("No external plugins currently installed.")
 		}
+		_ = cache.DeletePrefix(ctx.Ctx, "instruction:")
 		return ctx.Replyf("Uninstalled %d external plugin(s): %s", len(removed), strings.Join(removed, ", "))
 	}
 
 	if err := external.DefaultDispatcher.Uninstall(targetName, sess); err != nil {
 		return ctx.Replyf("Plugin uninstall failed: %v", err)
 	}
+	_ = cache.DeletePrefix(ctx.Ctx, "instruction:")
 	return ctx.Replyf("External plugin %q uninstalled.", targetName)
 }
 

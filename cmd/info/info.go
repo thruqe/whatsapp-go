@@ -17,6 +17,7 @@ import (
 	"whatsrook/cmd/games"
 	"whatsrook/cmd/settings"
 	"whatsrook/cmd/tools"
+	"whatsrook/util/external"
 	"whatsrook/util/httpx"
 	"whatsrook/util/logger"
 	"whatsrook/util/media"
@@ -563,6 +564,133 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 	return true
 }
 
+func buildMenuText(ctx *dispatch.Context, args []string) string {
+	type entry struct{ name, desc string }
+	categoryOrder := []string{}
+	categories := map[string][]entry{}
+	seenCat := map[string]bool{}
+
+	hiddenCmds := map[string]bool{
+		"menu": true,
+	}
+
+	sess := ""
+	if ctx != nil && ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
+		sess = ctx.Client.Store.ID.User
+	}
+	if sess == "" && ctx != nil && ctx.Sender.User != "" {
+		sess = ctx.Sender.User
+	}
+
+	displayedCount := 0
+	seenCmd := map[string]bool{}
+	for _, cmd := range dispatch.All() {
+		if hiddenCmds[strings.ToLower(cmd.Name)] || cmd.HideFromMenu {
+			continue
+		}
+		seenCmd[strings.ToLower(cmd.Name)] = true
+		cat := cmd.Category
+		if cat == "" {
+			cat = "misc"
+		}
+		if !seenCat[cat] {
+			seenCat[cat] = true
+			categoryOrder = append(categoryOrder, cat)
+		}
+		categories[cat] = append(categories[cat], entry{name: cmd.Name, desc: cmd.Description})
+		displayedCount++
+	}
+
+	if external.DefaultDispatcher != nil {
+		if extPlugins, err := external.DefaultDispatcher.List(sess); err == nil && len(extPlugins) > 0 {
+			cat := "externals"
+			for _, ep := range extPlugins {
+				nameLower := strings.ToLower(ep.Name)
+				if ep.Name == "" || hiddenCmds[nameLower] || seenCmd[nameLower] {
+					continue
+				}
+				seenCmd[nameLower] = true
+				if !seenCat[cat] {
+					seenCat[cat] = true
+					categoryOrder = append(categoryOrder, cat)
+				}
+				categories[cat] = append(categories[cat], entry{name: ep.Name, desc: ep.Description})
+				displayedCount++
+			}
+		}
+	}
+
+	uptime := system.FormatDuration(time.Since(StartTime))
+
+	user := "User"
+	if ctx != nil {
+		if ctx.Evt != nil && ctx.Evt.Info.PushName != "" {
+			user = ctx.Evt.Info.PushName
+		} else if ctx.Sender.User != "" {
+			user = ctx.Sender.User
+		}
+	}
+
+	botMode := "Public"
+	if ctx != nil {
+		if s, ok := dispatch.GetStore(ctx); ok {
+			if rawMode, err := s.GetSetting(ctx.Ctx, "mode"); err == nil && rawMode != "" {
+				if strings.EqualFold(rawMode, "private") {
+					botMode = "Private"
+				}
+			}
+		}
+	}
+
+	var matchedCat string
+	if len(args) > 0 {
+		sub := strings.ToLower(args[0])
+		for _, cat := range categoryOrder {
+			if strings.EqualFold(cat, sub) || (cat == "externals" && (sub == "external" || sub == "ext")) {
+				matchedCat = cat
+				break
+			}
+		}
+	}
+	if matchedCat != "" {
+		categoryOrder = []string{matchedCat}
+	}
+
+	botName := "WhatsRook"
+	prefix := "."
+	if ctx != nil {
+		botName = ctx.GetBotName()
+		prefix = ctx.GetPrefix()
+	}
+
+	introBuilder := whatsrook.NewText().
+		Header(botName).
+		Field("User", user).
+		Field("Prefix", prefix).
+		Field("Commands", strconv.Itoa(displayedCount)).
+		Field("Mode", botMode).
+		Field("Uptime", uptime)
+
+	tb := whatsrook.NewText()
+	tb.Line("```\n" + introBuilder.Trimmed() + "\n```")
+	tb.Blank()
+
+	for _, cat := range categoryOrder {
+		cmds := categories[cat]
+		sort.Slice(cmds, func(i, j int) bool {
+			return cmds[i].name < cmds[j].name
+		})
+		tb.Linef(" ╭─❏ %s ❏", tools.ToSmallCaps(cat))
+		for _, e := range cmds {
+			tb.Linef(" │ %s", tools.ToSmallCaps(e.name))
+		}
+		tb.Line(" ╰─────────────────")
+		tb.Blank()
+	}
+
+	return tb.Trimmed()
+}
+
 func handleMenu(ctx *dispatch.Context) error {
 	args := strings.Fields(ctx.RawArgs)
 	if len(args) > 0 {
@@ -593,93 +721,11 @@ func handleMenu(ctx *dispatch.Context) error {
 		}
 	}
 
-	type entry struct{ name, desc string }
-	categoryOrder := []string{}
-	categories := map[string][]entry{}
-	seenCat := map[string]bool{}
-
-	hiddenCmds := map[string]bool{
-		"menu": true,
-	}
-
-	displayedCount := 0
-	for _, cmd := range dispatch.All() {
-		if hiddenCmds[strings.ToLower(cmd.Name)] || cmd.HideFromMenu {
-			continue
-		}
-		cat := cmd.Category
-		if cat == "" {
-			cat = "misc"
-		}
-		if !seenCat[cat] {
-			seenCat[cat] = true
-			categoryOrder = append(categoryOrder, cat)
-		}
-		categories[cat] = append(categories[cat], entry{name: cmd.Name, desc: cmd.Description})
-		displayedCount++
-	}
-
-	uptime := system.FormatDuration(time.Since(StartTime))
-
-	user := ctx.Evt.Info.PushName
-	if user == "" {
-		user = ctx.Sender.User
-	}
-
-	botMode := "Public"
-	s, ok := dispatch.GetStore(ctx)
-	if ok {
-		if rawMode, err := s.GetSetting(ctx.Ctx, "mode"); err == nil && rawMode != "" {
-			if strings.EqualFold(rawMode, "private") {
-				botMode = "Private"
-			}
-		}
-	}
-
-	var matchedCat string
-	if len(args) > 0 {
-		sub := strings.ToLower(args[0])
-		for _, cat := range categoryOrder {
-			if strings.EqualFold(cat, sub) {
-				matchedCat = cat
-				break
-			}
-		}
-	}
-	if matchedCat != "" {
-		categoryOrder = []string{matchedCat}
-	}
-
-	introBuilder := ctx.Text().
-		Header(ctx.GetBotName()).
-		Field("User", user).
-		Field("Prefix", ctx.GetPrefix()).
-		Field("Commands", strconv.Itoa(displayedCount)).
-		Field("Mode", botMode).
-		Field("Uptime", uptime)
-
-	tb := ctx.Text()
-	tb.Line("```\n" + introBuilder.Trimmed() + "\n```")
-	tb.Blank()
-
-	for _, cat := range categoryOrder {
-		cmds := categories[cat]
-		sort.Slice(cmds, func(i, j int) bool {
-			return cmds[i].name < cmds[j].name
-		})
-		tb.Linef(" ╭─❏ %s ❏", tools.ToSmallCaps(cat))
-		for _, e := range cmds {
-			tb.Linef(" │ %s", tools.ToSmallCaps(e.name))
-		}
-		tb.Line(" ╰─────────────────")
-		tb.Blank()
-	}
-
-	menuText := tb.Trimmed()
+	menuText := buildMenuText(ctx, args)
 
 	authDir := settings.GetSessionAuthDir(ctx.Client)
 	mediaPath := ""
-	if ok {
+	if s, ok := dispatch.GetStore(ctx); ok {
 		if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
 			if _, errStat := os.Stat(custom); errStat == nil {
 				mediaPath = custom

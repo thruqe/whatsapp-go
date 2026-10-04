@@ -12,6 +12,7 @@ import (
 
 	"whatsrook"
 	"whatsrook/cmd/dispatch"
+	"whatsrook/util/external"
 	"whatsrook/util/logger"
 
 	"go.mau.fi/whatsmeow/types"
@@ -481,6 +482,28 @@ func handleAI(ctx *dispatch.Context) error {
 				IsPublic:    info.IsPublic,
 			})
 		}
+		if external.DefaultDispatcher != nil {
+			sess := ""
+			if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
+				sess = ctx.Client.Store.ID.User
+			}
+			if sess == "" && ctx.Sender.User != "" {
+				sess = ctx.Sender.User
+			}
+			if plugins, err := external.DefaultDispatcher.List(sess); err == nil {
+				for _, ep := range plugins {
+					desc := ep.Description
+					if desc == "" {
+						desc = "External plugin command"
+					}
+					metaCmds = append(metaCmds, CommandInfo{
+						Name:        ep.Name,
+						Description: desc + " [category: externals]",
+						IsPublic:    ep.IsPublic,
+					})
+				}
+			}
+		}
 		return BuildRunCommandInstructionWithNameAndPrefix(metaCmds, botName, p)
 	})
 
@@ -498,13 +521,15 @@ func handleAI(ctx *dispatch.Context) error {
 	}
 
 	data := Data{
-		ChatID:    ctx.Chat.String(),
-		Question:  ctx.RawArgs,
-		MessageID: msgID,
-		User:      ctx.Sender,
-		PushName:  pushName,
-		IsSudo:    ctx.IsSudo(),
+		ChatID:              ctx.Chat.String(),
+		Question:            ctx.RawArgs,
+		MessageID:           msgID,
+		User:                ctx.Sender,
+		PushName:            pushName,
+		IsSudo:              ctx.IsSudo(),
+		ConversationHistory: FormatRecentHistory(ctx.Chat.String(), ctx.RawArgs),
 	}
+	RecordUserMessage(ctx.Chat.String(), pushName, ctx.RawArgs)
 
 	isGroup := ctx.Chat.Server == "g.us"
 
@@ -647,6 +672,7 @@ func handleAI(ctx *dispatch.Context) error {
 		}
 	} else if placeholderMsgID == "" && reply != "" {
 		if _, _, ok := ParseRunCommand(reply); !ok {
+			RecordBotMessage(ctx.Chat.String(), botName, reply)
 			if isGroup {
 				_ = ctx.Reply(reply)
 			} else {
@@ -655,6 +681,7 @@ func handleAI(ctx *dispatch.Context) error {
 		}
 	} else if placeholderMsgID != "" && reply != "" {
 		if _, _, ok := ParseRunCommand(reply); !ok {
+			RecordBotMessage(ctx.Chat.String(), botName, reply)
 			if reply != lastEditedText && len(reply) >= len(lastEditedText) {
 				_, _ = ctx.Edit(placeholderMsgID, reply)
 			}
@@ -662,6 +689,7 @@ func handleAI(ctx *dispatch.Context) error {
 	}
 
 	if cmdName, rawArgs, ok := ParseRunCommand(reply); ok {
+		rawArgs = InferContextualArgs(cmdName, rawArgs, data.Question, data.QuotedMessageOfQuestion, GetRecentTurns(ctx.Chat.String()))
 		if cmdName == "sh" || cmdName == "exec" || cmdName == "run" || cmdName == "shell" {
 			if !ctx.IsSudo() {
 				logger.Warn("handleAI: blocked unauthorized shell execution request", "sender", ctx.Sender.String())
@@ -678,6 +706,7 @@ func handleAI(ctx *dispatch.Context) error {
 			}
 
 			resText := dispatch.Sprintf("Output:\n```\n%s\n```", output)
+			RecordBotMessage(ctx.Chat.String(), botName, resText)
 			_, err = ctx.Edit(placeholderMsgID, resText)
 			return err
 		}
@@ -716,7 +745,8 @@ func handleAI(ctx *dispatch.Context) error {
 			Chat:    ctx.Chat,
 			Sender:  ctx.Sender,
 		}
-		logger.Debug("handleAI: executing command on behalf of AI", "command", cmdName, "args", ctx.Args)
+		logger.Debug("handleAI: executing command on behalf of AI", "command", cmdName, "args", cctx.Args)
+		RecordBotMessage(ctx.Chat.String(), botName, dispatch.Sprintf("Executed command: %s%s %s", p, cmdName, rawArgs))
 		return targetCmd.Handler(cctx)
 	}
 

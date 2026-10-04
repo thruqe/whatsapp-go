@@ -40,7 +40,7 @@ func smallestFactor(n int) int {
 }
 
 func fftButterfly2_generic(out, sub0, sub1, tw []cpx, m int) {
-	for k := 0; k < m; k++ {
+	for k := range m {
 		tRe := sub1[k].re*tw[k].re - sub1[k].im*tw[k].im
 		tIm := sub1[k].re*tw[k].im + sub1[k].im*tw[k].re
 		out[k] = cpx{re: sub0[k].re + tRe, im: sub0[k].im + tIm}
@@ -65,7 +65,7 @@ func init() {
 		m := n / 2
 		twFwd := make([]cpx, m)
 		twBwd := make([]cpx, m)
-		for k := 0; k < m; k++ {
+		for k := range m {
 			angFwd := -1.0 * 2.0 * smplPI * float32(k) / float32(n)
 			twFwd[k] = cpx{re: float32(math.Cos(float64(angFwd))), im: float32(math.Sin(float64(angFwd)))}
 			angBwd := 1.0 * 2.0 * smplPI * float32(k) / float32(n)
@@ -75,8 +75,8 @@ func init() {
 		twiddleTableBwd[n] = twBwd
 	}
 
-	for k := 0; k < 9; k++ {
-		for q := 0; q < 3; q++ {
+	for k := range 9 {
+		for q := range 3 {
 			angFwd := -1.0 * 2.0 * smplPI * float32(k) * float32(q) / 9.0
 			tw9TableFwd[k][q] = cpx{re: float32(math.Cos(float64(angFwd))), im: float32(math.Sin(float64(angFwd)))}
 			angBwd := 1.0 * 2.0 * smplPI * float32(k) * float32(q) / 9.0
@@ -99,7 +99,7 @@ func getTwiddles(n int, sign float32) []cpx {
 	}
 	m := n / 2
 	tw := make([]cpx, m)
-	for k := 0; k < m; k++ {
+	for k := range m {
 		ang := sign * 2.0 * smplPI * float32(k) / float32(n)
 		tw[k] = cpx{re: float32(math.Cos(float64(ang))), im: float32(math.Sin(float64(ang)))}
 	}
@@ -168,7 +168,7 @@ func fftRecFast(x []cpx, stride, n int, sign float32, out []cpx, scratch []cpx) 
 		if sign > 0 {
 			twTable = &tw9TableBwd
 		}
-		for k := 0; k < 9; k++ {
+		for k := range 9 {
 			kmod := k % 3
 			s0 := sub[kmod]
 			s1 := sub[3+kmod].mul(twTable[k][1])

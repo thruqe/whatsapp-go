@@ -332,8 +332,8 @@ func getOwnerPhone(ctx *dispatch.Context) string {
 	// 2. Check environment variables
 	for _, envKey := range []string{"OWNER", "SUDO", "SUDOERS"} {
 		if val := strings.TrimSpace(os.Getenv(envKey)); val != "" {
-			parts := strings.Fields(val)
-			for _, part := range parts {
+			parts := strings.FieldsSeq(val)
+			for part := range parts {
 				clean := strings.TrimPrefix(part, "+")
 				if idx := strings.Index(clean, "@"); idx != -1 {
 					clean = clean[:idx]

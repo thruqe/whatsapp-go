@@ -1260,3 +1260,175 @@ func TestAutoAI_GroupAndDMScoping(t *testing.T) {
 		t.Errorf("expected isAutoAIEnabled to be false for group when explicitly overridden to off")
 	}
 }
+
+func TestConversationMemory(t *testing.T) {
+	chatID := "12345@s.whatsapp.net"
+	ClearChatHistory(chatID)
+	defer ClearChatHistory(chatID)
+
+	// 1. Initial state empty
+	if turns := GetRecentTurns(chatID); len(turns) != 0 {
+		t.Errorf("expected 0 turns, got %d", len(turns))
+	}
+
+	// 2. Record bot message
+	RecordBotMessage(chatID, "WhatsRook", "Alright тняυqє, the install menu should be open. You can pick the weather plugin from the list — if you have a specific GitHub gist or raw URL for it, send it and I will install it with .install .")
+
+	// 3. Record user message
+	RecordUserMessage(chatID, "тняυqє", "yes install it for me")
+
+	turns := GetRecentTurns(chatID)
+	if len(turns) != 2 {
+		t.Fatalf("expected 2 turns, got %d", len(turns))
+	}
+	if !turns[0].IsBot || turns[0].Sender != "WhatsRook" {
+		t.Errorf("turn 0 mismatch: %+v", turns[0])
+	}
+	if turns[1].IsBot || turns[1].Sender != "тняυqє" {
+		t.Errorf("turn 1 mismatch: %+v", turns[1])
+	}
+
+	// 4. Format history
+	hist := FormatRecentHistory(chatID, "yes install it for me")
+	if !strings.Contains(hist, "WhatsRook: Alright тняυqє, the install menu should be open.") {
+		t.Errorf("expected bot message in formatted history, got: %s", hist)
+	}
+	// The current question should be omitted to avoid duplicating current message
+	if strings.Contains(hist, "yes install it for me") {
+		t.Errorf("current question should not be duplicated in history: %s", hist)
+	}
+
+	// 5. Clear history
+	ClearChatHistory(chatID)
+	if turns := GetRecentTurns(chatID); len(turns) != 0 {
+		t.Errorf("expected 0 turns after clear, got %d", len(turns))
+	}
+}
+
+func TestInferContextualArgs(t *testing.T) {
+	history := []ChatTurn{
+		{
+			Sender: "WhatsRook",
+			IsBot:  true,
+			Text:   "Alright тняυqє, the install menu should be open. You can pick the weather plugin from the list — if you have a specific GitHub gist or raw URL for it, send it and I will install it with .install .",
+		},
+	}
+
+	// 1. Exact user scenario: AI discussed weather plugin, user says "yes install it for me"
+	got := InferContextualArgs("install", "", "yes install it for me", "", history)
+	if got != "weather" {
+		t.Errorf("InferContextualArgs() = %q, want %q", got, "weather")
+	}
+
+	// 2. User confirms with "yes install all"
+	gotAll := InferContextualArgs("install", "", "yes install all", "", history)
+	if gotAll != "all" {
+		t.Errorf("InferContextualArgs(all) = %q, want 'all'", gotAll)
+	}
+
+	// 3. User already provided explicit arguments
+	gotExplicit := InferContextualArgs("install", "calc", "yes install it for me", "", history)
+	if gotExplicit != "calc" {
+		t.Errorf("InferContextualArgs(explicit) = %q, want 'calc'", gotExplicit)
+	}
+
+	// 4. Plugin mentioned in quoted message
+	gotQuoted := InferContextualArgs("install", "", "install it please", "Can you configure the urban dictionary plugin?", nil)
+	if gotQuoted != "urban" {
+		t.Errorf("InferContextualArgs(quoted) = %q, want 'urban'", gotQuoted)
+	}
+
+	// 5. Plugin mentioned in user question directly
+	gotDirect := InferContextualArgs("install", "", "please install the btc plugin", "", nil)
+	if gotDirect != "btc" {
+		t.Errorf("InferContextualArgs(direct) = %q, want 'btc'", gotDirect)
+	}
+
+	// 6. Uninstall command inference
+	uninstHistory := []ChatTurn{
+		{
+			Sender: "WhatsRook",
+			IsBot:  true,
+			Text:   "Do you want to uninstall quotes plugin?",
+		},
+	}
+	gotUninst := InferContextualArgs("uninstall", "", "yes uninstall it", "", uninstHistory)
+	if gotUninst != "quotes" {
+		t.Errorf("InferContextualArgs(uninstall) = %q, want 'quotes'", gotUninst)
+	}
+
+	// 7. Non-install command with empty args should return untouched
+	gotOther := InferContextualArgs("ping", "", "yes do it", "", history)
+	if gotOther != "" {
+		t.Errorf("InferContextualArgs(ping) = %q, want ''", gotOther)
+	}
+}
+
+func TestBuildAiQuery_WithConversationHistory(t *testing.T) {
+	instruction := "[SYSTEM INSTRUCTION]\n"
+	data := Data{
+		ChatType:            "direct",
+		PushName:            "тняυqє",
+		Question:            "yes install it for me",
+		ConversationHistory: "WhatsRook: Alright тняυqє, the install menu should be open. You can pick the weather plugin from the list.",
+	}
+
+	query := BuildAiQuery(instruction, "", data)
+	if !strings.Contains(query, "[RECENT CONVERSATION HISTORY]") {
+		t.Errorf("expected [RECENT CONVERSATION HISTORY] block in query: %s", query)
+	}
+	if !strings.Contains(query, "WhatsRook: Alright тняυqє, the install menu should be open.") {
+		t.Errorf("expected history body in query: %s", query)
+	}
+	if !strings.Contains(query, "[/RECENT CONVERSATION HISTORY]") {
+		t.Errorf("expected [/RECENT CONVERSATION HISTORY] block footer: %s", query)
+	}
+	if !strings.Contains(query, "Message: yes install it for me") {
+		t.Errorf("expected current message in query: %s", query)
+	}
+}
+
+func TestCleanAiResponseText_ConversationHistory(t *testing.T) {
+	echoed := `[RECENT CONVERSATION HISTORY]
+WhatsRook: Pick the weather plugin
+тняυqє: yes install it
+[/RECENT CONVERSATION HISTORY]
+RUN_COMMAND: .install weather`
+
+	cleaned := CleanAiResponseText(echoed)
+	if strings.Contains(cleaned, "[RECENT CONVERSATION HISTORY]") {
+		t.Errorf("failed to clean echoed history tag: %s", cleaned)
+	}
+	if cleaned != "RUN_COMMAND: .install weather" {
+		t.Errorf("CleanAiResponseText() = %q, want %q", cleaned, "RUN_COMMAND: .install weather")
+	}
+}
+
+func TestBuildRunCommandInstructionWithNameAndPrefix_InstallDetails(t *testing.T) {
+	cmds := []CommandInfo{
+		{
+			Name:        "install",
+			Description: "Install an extra plugin (Owner only)",
+			IsPublic:    false,
+		},
+		{
+			Name:        "uninstall",
+			Description: "Remove an installed plugin (Owner only)",
+			IsPublic:    false,
+		},
+	}
+
+	instruction := BuildRunCommandInstructionWithNameAndPrefix(cmds, "WhatsRook", ".")
+	if !strings.Contains(instruction, ".install <name>") {
+		t.Errorf("missing .install <name> syntax in instruction: %s", instruction)
+	}
+	if !strings.Contains(instruction, "weather") {
+		t.Errorf("missing official plugin 'weather' in install command info: %s", instruction)
+	}
+	if !strings.Contains(instruction, ".uninstall <name>") {
+		t.Errorf("missing .uninstall syntax in instruction: %s", instruction)
+	}
+	if !strings.Contains(instruction, "Multi-Turn Context & Pronoun Resolution") {
+		t.Errorf("missing multi-turn rules in prompt: %s", instruction)
+	}
+}

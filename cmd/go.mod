@@ -7,12 +7,11 @@ replace whatsrook => ../
 replace go.mau.fi/whatsmeow => ../pkg/wacore
 
 require (
-	github.com/lib/pq v1.12.3
 	github.com/rs/zerolog v1.35.1
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
+	github.com/thruqe/duosql v0.0.0-20261004112745-b2e7e82fa6bb
 	go.mau.fi/util v0.10.1
 	go.mau.fi/whatsmeow v0.0.0-20260927171547-45cfce066cd2
-	modernc.org/sqlite v1.59.0
 	whatsrook v0.0.0-00010101000000-000000000000
 )
 
@@ -22,6 +21,11 @@ require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/pgx/v5 v5.11.0 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/lib/pq v1.12.3 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
@@ -51,4 +55,7 @@ require (
 	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
+	modernc.org/sqlite v1.60.1 // indirect
 )
+
+replace github.com/thruqe/duosql => ../../duosql

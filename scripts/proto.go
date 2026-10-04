@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 )
@@ -152,10 +153,8 @@ func setupGoBinPath() {
 
 	currPath := os.Getenv("PATH")
 	paths := filepath.SplitList(currPath)
-	for _, p := range paths {
-		if p == goBinDir {
-			return
-		}
+	if slices.Contains(paths, goBinDir) {
+		return
 	}
 
 	_ = os.Setenv("PATH", goBinDir+string(os.PathListSeparator)+currPath)

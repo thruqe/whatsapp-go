@@ -10,7 +10,7 @@ func TestDirectAsmButterfly(t *testing.T) {
 		sub0 := make([]cpx, m)
 		sub1 := make([]cpx, m)
 		tw := make([]cpx, m)
-		for i := 0; i < m; i++ {
+		for i := range m {
 			sub0[i] = cpx{re: float32(i*2 + 1), im: float32(i*3 + 2)}
 			sub1[i] = cpx{re: float32(i*4 - 5), im: float32(i*5 + 1)}
 			ang := -2.0 * smplPI * float32(i) / float32(2*m)

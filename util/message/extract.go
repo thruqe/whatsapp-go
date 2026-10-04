@@ -200,11 +200,11 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 
 	clone := proto.Clone(unwrapped).(*waE2E.Message)
 	if img := clone.GetImageMessage(); img != nil {
-		img.ViewOnce = proto.Bool(false)
+		img.ViewOnce = new(false)
 	} else if vid := clone.GetVideoMessage(); vid != nil {
-		vid.ViewOnce = proto.Bool(false)
+		vid.ViewOnce = new(false)
 	} else if aud := clone.GetAudioMessage(); aud != nil {
-		aud.ViewOnce = proto.Bool(false)
+		aud.ViewOnce = new(false)
 	}
 
 	header := fmt.Sprintf("*Anti-ViewOnce*: from @%s", senderJID.User)
@@ -217,15 +217,15 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 
 	if img := clone.GetImageMessage(); img != nil {
 		if origCap := img.GetCaption(); origCap != "" {
-			img.Caption = proto.String(header + "\n\n" + origCap)
+			img.Caption = new(header + "\n\n" + origCap)
 		} else {
-			img.Caption = proto.String(header)
+			img.Caption = new(header)
 		}
 	} else if vid := clone.GetVideoMessage(); vid != nil {
 		if origCap := vid.GetCaption(); origCap != "" {
-			vid.Caption = proto.String(header + "\n\n" + origCap)
+			vid.Caption = new(header + "\n\n" + origCap)
 		} else {
-			vid.Caption = proto.String(header)
+			vid.Caption = new(header)
 		}
 	}
 

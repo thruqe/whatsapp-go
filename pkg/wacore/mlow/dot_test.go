@@ -7,7 +7,7 @@ import (
 
 func dotProdGoRef(a, b []float32, l int) float32 {
 	var s float32
-	for i := 0; i < l; i++ {
+	for i := range l {
 		s += a[i] * b[i]
 	}
 	return s
@@ -19,7 +19,7 @@ func TestDotProdF32_Correctness(t *testing.T) {
 	for _, l := range lengths {
 		a := make([]float32, l)
 		b := make([]float32, l)
-		for i := 0; i < l; i++ {
+		for i := range l {
 			a[i] = float32(i)*0.25 - 5.0
 			b[i] = float32(l-i)*0.125 + 1.5
 		}
