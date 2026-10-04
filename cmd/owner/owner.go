@@ -22,6 +22,7 @@ import (
 
 	"whatsrook"
 	"whatsrook/cmd/dispatch"
+	"whatsrook/cmd/store"
 	"whatsrook/util/logger"
 	"whatsrook/util/media"
 )
@@ -1375,6 +1376,13 @@ func handleLogoutCommand(ctx *dispatch.Context) error {
 				logger.Warn("Remote logout command returned error", "err", err)
 			}
 			ctx.Client.Disconnect()
+			if s, ok := dispatch.GetSQLStore(ctx.Client); ok && s != nil {
+				phone := ""
+				if ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
+					phone = ctx.Client.Store.ID.User
+				}
+				_ = store.PurgeSessionDataFromStore(logoutCtx, s.SQLStore, phone)
+			}
 			if ctx.Client.Store != nil {
 				_ = ctx.Client.Store.Delete(logoutCtx)
 			}

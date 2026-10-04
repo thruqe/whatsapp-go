@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"go.mau.fi/util/dbutil"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waWa6"
@@ -679,6 +680,11 @@ func ListStoredSessions(ctx context.Context, dataDir, database string) ([]Stored
 	return sessions, nil
 }
 
+// SessionPurgerFunc defines a callback to purge custom bot domain data from the database.
+type SessionPurgerFunc func(ctx context.Context, db *dbutil.Database, session string) error
+
+var GlobalSessionPurger SessionPurgerFunc
+
 func DeleteStoredSession(ctx context.Context, dataDir, database, phone string) error {
 	if dataDir == "" {
 		dataDir = DefaultDataDir()
@@ -723,6 +729,10 @@ func DeleteStoredSession(ctx context.Context, dataDir, database, phone string) e
 		case <-time.After(8 * time.Second):
 		}
 
+		if GlobalSessionPurger != nil && client.container != nil && phone != "" {
+			_ = GlobalSessionPurger(ctx, client.container.GetDB(), phone)
+		}
+
 		_ = cli.Store.Delete(ctx)
 		_ = fallbackDeleteDevice(ctx, dataDir, database, phone)
 		return nil
@@ -739,6 +749,10 @@ func fallbackDeleteDevice(ctx context.Context, dataDir, database, phone string) 
 	defer func() {
 		_ = container.Close()
 	}()
+
+	if GlobalSessionPurger != nil && phone != "" {
+		_ = GlobalSessionPurger(ctx, container.GetDB(), phone)
+	}
 
 	cleanPhone := strings.TrimPrefix(phone, "+")
 	jid := types.NewJID(cleanPhone, types.DefaultUserServer)
@@ -771,7 +785,26 @@ func fallbackDeleteDevice(ctx context.Context, dataDir, database, phone string) 
 func (c *Client) ClearSessionDB(ctx context.Context, phone string) {
 	c.mu.Lock()
 	raw := c.rawClient
+	container := c.container
 	c.mu.Unlock()
+
+	if phone == "" && raw != nil && raw.Store != nil && raw.Store.ID != nil {
+		phone = raw.Store.ID.User
+	}
+	if phone == "" {
+		phone = c.Config.Session
+	}
+
+	if GlobalSessionPurger != nil && phone != "" {
+		if container != nil && container.GetDB() != nil {
+			_ = GlobalSessionPurger(ctx, container.GetDB(), phone)
+		} else if raw != nil && raw.Store != nil {
+			if s, ok := raw.Store.Identities.(*sqlstore.SQLStore); ok && s != nil {
+				_ = GlobalSessionPurger(ctx, s.GetDB(), phone)
+			}
+		}
+	}
+
 	if raw != nil && raw.Store != nil {
 		_ = raw.Store.Delete(ctx)
 	}

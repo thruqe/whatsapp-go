@@ -60,6 +60,24 @@ type GroupStats struct {
 	MsgCount int    `db:"msg_count"`
 }
 
+// BotUserXP tracks global user message, sticker, and minigame progression.
+type BotUserXP struct {
+	OurJID    string `db:"our_jid"`
+	UserJID   string `db:"user_jid"`
+	XP        int    `db:"xp"`
+	Level     int    `db:"level"`
+	Messages  int64  `db:"messages"`
+	Stickers  int64  `db:"stickers"`
+	Commands  int64  `db:"commands"`
+	UpdatedAt int64  `db:"updated_at"`
+	TTTWins   int    `db:"ttt_wins"`
+	TTTLosses int    `db:"ttt_losses"`
+	TTTDraws  int    `db:"ttt_draws"`
+	WCGWins   int    `db:"wcg_wins"`
+	WCGGames  int    `db:"wcg_games"`
+	WCGRating int    `db:"wcg_rating"`
+}
+
 // BotGroupUserXP tracks scoped leaderboard progress and competitive stats per group chat.
 type BotGroupUserXP struct {
 	OurJID          string `db:"our_jid"`
@@ -195,6 +213,7 @@ func (BotFilter) TableName() string              { return "bot_filters" }
 func (BotBGM) TableName() string                 { return "bot_bgm" }
 func (BotStickerCmd) TableName() string          { return "bot_sticker_cmds" }
 func (GroupStats) TableName() string             { return "group_stats" }
+func (BotUserXP) TableName() string              { return "bot_user_xp" }
 func (BotGroupUserXP) TableName() string         { return "bot_group_user_xp" }
 func (CachedGroup) TableName() string            { return "cached_groups" }
 func (CachedGroupParticipant) TableName() string { return "cached_group_participants" }
