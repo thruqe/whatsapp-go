@@ -55,6 +55,21 @@ message DeviceCapabilities {
 		optional bool refreshSupported = 1;
 	}
 
+	message NewsletterChatsMigration {
+		optional bool effectiveMigrated = 1;
+		optional int64 countdownEndsAt = 2;
+		optional bool rolledBack = 3;
+	}
+
+	message ReverseHistorySync {
+		enum Product {
+			PRODUCT_UNSPECIFIED = 0;
+			HATCH = 1;
+		}
+
+		repeated DeviceCapabilities.ReverseHistorySync.Product enabledProducts = 1;
+	}
+
 	optional ChatLockSupportLevel chatLockSupportLevel = 1;
 	optional LIDMigration lidMigration = 2;
 	optional BusinessBroadcast businessBroadcast = 3;
@@ -64,4 +79,6 @@ message DeviceCapabilities {
 	optional AiFbidMigration aiFbidMigration = 7;
 	optional BizAiSettingsSync bizAiSettingsSync = 8;
 	optional ContactRefresh contactRefresh = 9;
+	optional DeviceCapabilities.ReverseHistorySync reverseHistorySync = 10;
+	optional DeviceCapabilities.NewsletterChatsMigration newsletterChatsMigration = 11;
 }
