@@ -4,6 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types/events"
+
+	"whatsrook/cmd/dispatch"
 )
 
 func TestShellWorkingDirPersistence(t *testing.T) {
@@ -69,5 +74,69 @@ func TestShellSessionRCPath(t *testing.T) {
 
 	if !filepath.IsAbs(rcPath) {
 		t.Errorf("expected absolute rcPath, got %q", rcPath)
+	}
+}
+
+func TestExtractImageFromContext(t *testing.T) {
+	// 1. Direct attached image
+	directImg := &waE2E.ImageMessage{
+		Mimetype: new(string),
+	}
+	*directImg.Mimetype = "image/jpeg"
+	ctxDirect := &dispatch.Context{
+		Evt: &events.Message{
+			Message: &waE2E.Message{
+				ImageMessage: directImg,
+			},
+		},
+	}
+	dl, mime := extractImageFromContext(ctxDirect)
+	if dl == nil || mime != "image/jpeg" {
+		t.Errorf("expected direct image extraction, got dl=%v, mime=%q", dl, mime)
+	}
+
+	// 2. Quoted image message in reply
+	quotedImg := &waE2E.ImageMessage{
+		Mimetype: new(string),
+	}
+	*quotedImg.Mimetype = "image/png"
+	textWithQuote := ".pp"
+	ctxQuoted := &dispatch.Context{
+		Evt: &events.Message{
+			Message: &waE2E.Message{
+				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+					Text: &textWithQuote,
+					ContextInfo: &waE2E.ContextInfo{
+						QuotedMessage: &waE2E.Message{
+							ImageMessage: quotedImg,
+						},
+					},
+				},
+			},
+		},
+	}
+	dlQuoted, mimeQuoted := extractImageFromContext(ctxQuoted)
+	if dlQuoted == nil || mimeQuoted != "image/png" {
+		t.Errorf("expected quoted image extraction, got dl=%v, mime=%q", dlQuoted, mimeQuoted)
+	}
+
+	// 3. Plain text message without any image or quote
+	plainText := "hello"
+	ctxPlain := &dispatch.Context{
+		Evt: &events.Message{
+			Message: &waE2E.Message{
+				Conversation: &plainText,
+			},
+		},
+	}
+	dlPlain, _ := extractImageFromContext(ctxPlain)
+	if dlPlain != nil {
+		t.Errorf("expected nil media for plain message, got %v", dlPlain)
+	}
+
+	// 4. Nil context
+	dlNil, _ := extractImageFromContext(nil)
+	if dlNil != nil {
+		t.Errorf("expected nil for nil context, got %v", dlNil)
 	}
 }

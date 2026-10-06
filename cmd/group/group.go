@@ -2578,6 +2578,14 @@ func handleSetGroupPP(ctx *dispatch.Context) error {
 
 	downloadable, _, mime := whatsrook.ExtractMediaFromEvent(ctx.Evt)
 	if downloadable == nil {
+		if quoted := ctx.GetQuotedMessage(); quoted != nil {
+			if dl, m, ok := whatsrook.ExtractMedia(quoted); ok && dl != nil {
+				downloadable = dl
+				mime = m
+			}
+		}
+	}
+	if downloadable == nil {
 		return ctx.Replyf("Please reply to an image or attach a photo with `%sgpp` to set it as the new group picture.", ctx.GetPrefix())
 	}
 

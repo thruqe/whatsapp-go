@@ -180,8 +180,27 @@ func handleBlocklist(ctx *dispatch.Context) error {
 	return ctx.ReplyWithMentions(tb.String(), mentions)
 }
 
+func extractImageFromContext(ctx *dispatch.Context) (whatsmeow.DownloadableMessage, string) {
+	if ctx == nil {
+		return nil, ""
+	}
+	// 1. Check direct message attachment
+	if ctx.Evt != nil && ctx.Evt.Message != nil {
+		if dl, _, mime := whatsrook.ExtractMediaFromEvent(ctx.Evt); dl != nil {
+			return dl, mime
+		}
+	}
+	// 2. Check quoted / replied message
+	if quoted := ctx.GetQuotedMessage(); quoted != nil {
+		if dl, mime, ok := whatsrook.ExtractMedia(quoted); ok && dl != nil {
+			return dl, mime
+		}
+	}
+	return nil, ""
+}
+
 func handleSetBotPP(ctx *dispatch.Context) error {
-	downloadable, _, _ := whatsrook.ExtractMediaFromEvent(ctx.Evt)
+	downloadable, mime := extractImageFromContext(ctx)
 	if downloadable == nil {
 		return ctx.Replyf("Please upload or reply to an image to set as profile picture. Usage: %spp", ctx.GetPrefix())
 	}
@@ -200,8 +219,11 @@ func handleSetBotPP(ctx *dispatch.Context) error {
 	if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
 		ownJID = ctx.Client.Store.ID.ToNonAD()
 	}
+	if ownJID.IsEmpty() {
+		return ctx.Reply("Could not determine bot account JID.")
+	}
 
-	logger.Debug("handleSetBotPP: Setting bot profile picture", "rawBytes", len(rawBytes), "jpegBytes", len(jpegData), "targetJID", ownJID.String())
+	logger.Debug("handleSetBotPP: Setting bot profile picture", "rawBytes", len(rawBytes), "jpegBytes", len(jpegData), "mime", mime, "targetJID", ownJID.String())
 	picID, errSet := ctx.Client.SetGroupPhoto(ctx.Ctx, ownJID, jpegData)
 	if errSet != nil {
 		logger.Error("handleSetBotPP failed", "err", errSet)
