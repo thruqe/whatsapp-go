@@ -7,11 +7,14 @@ replace whatsrook => ../
 replace go.mau.fi/whatsmeow => ../pkg/wacore
 
 require (
+	fortio.org/log v1.18.3
+	github.com/dop251/goja v0.0.0-20261004200024-481fdb442bb4
 	github.com/rs/zerolog v1.35.1
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	github.com/thruqe/duosql v0.0.0-20261004120954-128081466b84
 	go.mau.fi/util v0.10.1
 	go.mau.fi/whatsmeow v0.0.0-20260929112325-8b41cfe6d9c4
+	grol.io/grol v0.99.1
 	whatsrook v0.0.0-00010101000000-000000000000
 )
 
@@ -19,15 +22,16 @@ require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	fortio.org/cli v1.12.3 // indirect
 	fortio.org/duration v1.0.4 // indirect
-	fortio.org/log v1.18.3 // indirect
-	fortio.org/progressbar v1.2.0 // indirect
 	fortio.org/safecast v1.2.0 // indirect
 	fortio.org/sets v1.3.0 // indirect
 	fortio.org/struct2env v0.4.2 // indirect
 	fortio.org/terminal v0.63.5 // indirect
 	fortio.org/version v1.0.4 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
+	github.com/dlclark/regexp2/v2 v2.8.1 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
+	github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -67,7 +71,6 @@ require (
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-	grol.io/grol v0.99.1 // indirect
 	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
