@@ -1779,7 +1779,24 @@ func (cli *Client) encryptMessageForDevice(
 	cipher := session.NewCipher(builder, to.SignalAddress())
 	ciphertext, err := cipher.Encrypt(ctx, padMessage(plaintext))
 	if err != nil {
-		return nil, false, fmt.Errorf("cipher encryption failed: %w", err)
+		if cli.AutoTrustIdentity && errors.Is(err, signalerror.ErrUntrustedIdentity) {
+			cli.Log.Warnf("Got %v error while trying to encrypt for %s, clearing stored identity and retrying with fresh bundle", err, to)
+			clearErr := cli.clearUntrustedIdentity(ctx, to)
+			if clearErr == nil {
+				freshBundle := cli.fetchPreKeysNoError(ctx, []types.JID{to})[to]
+				if freshBundle != nil {
+					bundle = freshBundle
+					err = builder.ProcessBundle(ctx, bundle)
+					if err == nil {
+						cipher = session.NewCipher(builder, to.SignalAddress())
+						ciphertext, err = cipher.Encrypt(ctx, padMessage(plaintext))
+					}
+				}
+			}
+		}
+		if err != nil {
+			return nil, false, fmt.Errorf("cipher encryption failed: %w", err)
+		}
 	}
 
 	encAttrs := waBinary.Attrs{
