@@ -156,19 +156,19 @@ func handleBio(ctx *dispatch.Context) error {
 }
 
 func handleBlocklist(ctx *dispatch.Context) error {
-	bl, err := ctx.Client.GetBlocklist(ctx.Ctx)
+	bl, err := ctx.Client.GetBlocklist(ctx.Ctx, "")
 	if err != nil || bl == nil {
 		return ctx.Replyf("Failed to fetch blocklist: %v", err)
 	}
 
-	if len(bl.JIDs) == 0 {
+	if len(bl.Items) == 0 {
 		return ctx.Reply("Your blocklist is currently empty.")
 	}
 
-	tb := ctx.Text().Headerf("BLOCKED CONTACTS (%d total)", len(bl.JIDs))
+	tb := ctx.Text().Headerf("BLOCKED CONTACTS (%d total)", len(bl.Items))
 
 	var mentions []types.JID
-	for i, jid := range bl.JIDs {
+	for i, jid := range bl.LIDs() {
 		bare := jid.ToNonAD()
 		mentions = append(mentions, bare)
 		tb.Numberedf(i+1, "+%s (@%s)", bare.User, bare.User)

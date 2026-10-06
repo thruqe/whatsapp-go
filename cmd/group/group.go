@@ -2699,7 +2699,7 @@ func handleWarn(ctx *dispatch.Context) error {
 			return ctx.ReplyWithMentions(dispatch.Sprintf("@%s has reached the maximum warning limit (%d/%d), but I need admin permissions to remove them from the group.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
 		}
 
-		_, _ = ctx.Client.UpdateBlocklist(ctx.Ctx, targetJID, events.BlocklistChangeActionBlock)
+		_, _ = ctx.Client.UpdateBlocklist(ctx.Ctx, targetJID, events.BlocklistChangeActionBlock, "")
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{targetJID}, whatsmeow.ParticipantChangeRemove)
 		if err != nil {
 			return ctx.Replyf("Failed to remove @%s from the group: %v", username, err)
@@ -2711,7 +2711,7 @@ func handleWarn(ctx *dispatch.Context) error {
 
 	_ = ctx.ReplyWithMentions(dispatch.Sprintf("@%s reached the maximum warning limit (%d/%d) and has been blocked.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
 	_ = s.PutSetting(ctx.Ctx, warnKey, "0")
-	if _, err := ctx.Client.UpdateBlocklist(ctx.Ctx, targetJID, events.BlocklistChangeActionBlock); err != nil {
+	if _, err := ctx.Client.UpdateBlocklist(ctx.Ctx, targetJID, events.BlocklistChangeActionBlock, ""); err != nil {
 		logger.Error("handleWarn: failed to block user in DM", "target", targetJID.String(), "err", err)
 	}
 	return nil

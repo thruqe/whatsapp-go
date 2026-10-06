@@ -264,7 +264,7 @@ func handleBlock(ctx *dispatch.Context) error {
 	var lastErr error
 	blockedAny := false
 	for _, j := range jidsToBlock {
-		_, err := ctx.Client.UpdateBlocklist(ctx.Ctx, j, events.BlocklistChangeActionBlock)
+		_, err := ctx.Client.UpdateBlocklist(ctx.Ctx, j, events.BlocklistChangeActionBlock, "")
 		if err == nil {
 			blockedAny = true
 		} else {
@@ -305,7 +305,7 @@ func handleUnblock(ctx *dispatch.Context) error {
 	var lastErr error
 	unblockedAny := false
 	for _, j := range jidsToUnblock {
-		_, err := ctx.Client.UpdateBlocklist(ctx.Ctx, j, events.BlocklistChangeActionUnblock)
+		_, err := ctx.Client.UpdateBlocklist(ctx.Ctx, j, events.BlocklistChangeActionUnblock, "")
 		if err == nil {
 			unblockedAny = true
 		} else {
