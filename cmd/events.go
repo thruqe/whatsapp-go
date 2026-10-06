@@ -29,6 +29,7 @@ import (
 	_ "whatsrook/cmd/filters"
 	_ "whatsrook/cmd/games"
 	_ "whatsrook/cmd/owner"
+	_ "whatsrook/cmd/test"
 	_ "whatsrook/cmd/tools"
 
 	"go.mau.fi/whatsmeow"
