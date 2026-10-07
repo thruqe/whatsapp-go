@@ -14,7 +14,7 @@ func TestPublicPageURL(t *testing.T) {
 		t.Skip("skipping tunnel test in short mode")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	u, err := publicPageURL(ctx)
@@ -44,7 +44,7 @@ func TestPublicPageURL(t *testing.T) {
 
 	// Wait briefly for Cloudflare DNS edge propagation
 	var resp *http.Response
-	for i := range 10 {
+	for i := range 15 {
 		time.Sleep(1 * time.Second)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 		if err != nil {
@@ -54,7 +54,7 @@ func TestPublicPageURL(t *testing.T) {
 		if err == nil {
 			break
 		}
-		if i == 9 {
+		if i == 14 {
 			t.Fatalf("fetch tunnel URL after retries: %v", err)
 		}
 	}

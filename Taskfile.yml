@@ -19,39 +19,49 @@ tasks:
     cmds:
       - go mod download
       - go mod tidy
-      - go -C pkg/wacore mod download
-      - go -C pkg/wacore mod tidy
+      - go -C pkg/engine mod download
+      - go -C pkg/engine mod tidy
       - go -C cmd mod download
       - go -C cmd mod tidy
       - go -C scripts mod download
       - go -C scripts mod tidy
+      - go -C pkg/addons/sdk mod download
+      - go -C pkg/addons/sdk mod tidy
+      - go -C pkg/addons mod download
+      - go -C pkg/addons mod tidy
 
   fix:
     desc: Apply go fix modernizers across all modules
     cmds:
       - go fix ./...
-      - go -C pkg/wacore fix ./...
+      - go -C pkg/engine fix ./...
       - go -C cmd fix ./...
       - go -C scripts fix ./...
+      - go -C pkg/addons/sdk fix ./...
+      - go -C pkg/addons fix ./...
 
   fmt:
     desc: Format, vet, and staticcheck all Go code
     cmds:
       - go fmt ./...
-      - go -C pkg/wacore fmt ./...
+      - go -C pkg/engine fmt ./...
       - go -C cmd fmt ./...
       - go -C scripts fmt ./...
+      - go -C pkg/addons/sdk fmt ./...
+      - go -C pkg/addons fmt ./...
       - gofmt -w -s .
       - go vet ./...
-      - go -C pkg/wacore vet ./...
+      - go -C pkg/engine vet ./...
       - go -C cmd vet ./...
       - go -C scripts vet ./...
+      - go -C pkg/addons/sdk vet ./...
+      - go -C pkg/addons vet ./...
       - staticcheck ./...
-      - (cd pkg/wacore && staticcheck ./...)
+      - (cd pkg/engine && staticcheck ./...)
       - (cd cmd && staticcheck ./...)
       - (cd scripts && staticcheck ./...)
-      - cargo fmt --manifest-path pkg/sdk/Cargo.toml --all
-      - cargo fmt --manifest-path pkg/externals/Cargo.toml --all
+      - (cd pkg/addons/sdk && staticcheck ./...)
+      - (cd pkg/addons && staticcheck ./...)
 
   deadcode:
     desc: Analyze unreachable functions across the codebase
@@ -62,22 +72,26 @@ tasks:
     desc: Run the test suite
     cmds:
       - go test -v -timeout 120s ./...
-      - go -C pkg/wacore test -v -timeout 60s ./...
+      - go -C pkg/engine test -v -timeout 60s ./...
       - go -C cmd test -v -timeout 60s ./...
-      - cargo test --manifest-path pkg/sdk/Cargo.toml
-      - cargo test --manifest-path pkg/externals/Cargo.toml
+      - go -C pkg/addons/sdk test -v -timeout 60s ./...
+      - go -C pkg/addons test -v -timeout 60s ./...
 
   update:
     desc: Upgrade all Go dependencies
     cmds:
       - go get -u ./...
       - go mod tidy
-      - go -C pkg/wacore get -u ./...
-      - go -C pkg/wacore mod tidy
+      - go -C pkg/engine get -u ./...
+      - go -C pkg/engine mod tidy
       - go -C cmd get -u ./...
       - go -C cmd mod tidy
       - go -C scripts get -u ./...
       - go -C scripts mod tidy
+      - go -C pkg/addons/sdk get -u ./...
+      - go -C pkg/addons/sdk mod tidy
+      - go -C pkg/addons get -u ./...
+      - go -C pkg/addons mod tidy
 
   bump:
     desc: Bump monthly release version (YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO) and refresh binary resources
@@ -85,12 +99,12 @@ tasks:
       - go -C scripts run . bump {{.CLI_ARGS}}
 
   proto:
-    desc: Compile and update all wacore protobuf definitions
+    desc: Compile and update all engine protobuf definitions
     cmds:
       - go -C scripts run . proto {{.CLI_ARGS}}
 
   proto:sync:
-    desc: Pull latest WAProto schema, split into modular pkg/wacore/proto, and recompile
+    desc: Pull latest WAProto schema, split into modular pkg/engine/proto, and recompile
     cmds:
       - go -C scripts run . proto --sync {{.CLI_ARGS}}
 
@@ -122,10 +136,10 @@ tasks:
       - upx --best {{.BIN_PATH}}
       - upx -t {{.BIN_PATH}}
 
-  build:externals:
-    desc: Build all Rust external plugin binaries
+  build:addons:
+    desc: Build all Go addon plugin binaries
     cmds:
-      - cargo build --manifest-path pkg/externals/Cargo.toml --release
+      - go -C pkg/addons build ./...
 
   clean:
     desc: Remove build artifacts and temporary files
@@ -134,5 +148,8 @@ tasks:
         platforms: [linux, darwin]
       - cmd: powershell -Command "if (Test-Path bin) { Remove-Item -Recurse -Force bin }; if (Test-Path tmp) { Remove-Item -Recurse -Force tmp }; if (Test-Path coverage.txt) { Remove-Item -Force coverage.txt }"
         platforms: [windows]
-      - cargo clean --manifest-path pkg/sdk/Cargo.toml
-      - cargo clean --manifest-path pkg/externals/Cargo.toml
+      - go clean -cache -testcache
+      - go -C pkg/engine clean -cache -testcache
+      - go -C cmd clean -cache -testcache
+      - go -C pkg/addons/sdk clean -cache -testcache
+      - go -C pkg/addons clean -cache -testcache

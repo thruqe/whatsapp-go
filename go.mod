@@ -10,7 +10,7 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	go.mau.fi/util v0.10.1
-	go.mau.fi/whatsmeow v0.0.0-20260929112325-8b41cfe6d9c4
+	go.mau.fi/whatsmeow v0.0.0-20261007111105-c386243a72ba
 	go.uber.org/zap v1.28.0
 	go.uber.org/zap/exp v0.3.0
 	google.golang.org/protobuf v1.36.12
@@ -97,7 +97,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
-	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.27 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -141,7 +141,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
+	golang.org/x/exp v0.0.0-20261005173118-76772065c9b0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
@@ -161,6 +161,6 @@ require (
 	mvdan.cc/sh/v3 v3.13.2-0.20260817215856-d6550df7ed8d // indirect
 )
 
-replace go.mau.fi/whatsmeow => ./pkg/wacore
+replace go.mau.fi/whatsmeow => ./pkg/engine
 
 tool github.com/go-task/task/v3/cmd/task

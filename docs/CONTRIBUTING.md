@@ -9,7 +9,7 @@ All development workflows are managed through the [Taskfile](../Taskfile.yml):
 | Task      | Command        | Description                                                                                   |
 | :-------- | :------------- | :-------------------------------------------------------------------------------------------- |
 | `fmt`     | `task fmt`     | Format and vet all Go files (`go fmt`, `gofmt -s`, `go vet`).                                 |
-| `test`    | `task test`    | Run the complete test suite across root, `pkg/wacore`, `cmd`, `pkg/sdk`, and `pkg/externals`. |
+| `test`    | `task test`    | Run the complete test suite across root, `pkg/engine`, `cmd`, and `pkg/addons`. |
 | `build`   | `task build`   | Compile the CLI binary into `bin/whatsrook`.                                                  |
 | `fix`     | `task fix`     | Apply Go modernizers across all packages.                                                     |
 | `install` | `task install` | Download and tidy all Go module dependencies.                                                 |

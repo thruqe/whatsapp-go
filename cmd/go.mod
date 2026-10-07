@@ -4,7 +4,7 @@ go 1.27.1
 
 replace whatsrook => ../
 
-replace go.mau.fi/whatsmeow => ../pkg/wacore
+replace go.mau.fi/whatsmeow => ../pkg/engine
 
 require (
 	fortio.org/log v1.18.3
@@ -13,7 +13,8 @@ require (
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	github.com/thruqe/duosql v0.0.0-20261004120954-128081466b84
 	go.mau.fi/util v0.10.1
-	go.mau.fi/whatsmeow v0.0.0-20260929112325-8b41cfe6d9c4
+	go.mau.fi/whatsmeow v0.0.0-20261007111105-c386243a72ba
+	google.golang.org/protobuf v1.36.12
 	grol.io/grol v0.99.1
 	whatsrook v0.0.0-00010101000000-000000000000
 )
@@ -41,7 +42,7 @@ require (
 	github.com/jbuchbinder/gopnm v0.0.0-20220507095634-e31f54490ce0 // indirect
 	github.com/kortschak/goroutine v1.1.3 // indirect
 	github.com/lib/pq v1.12.3 // indirect
-	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/petermattis/goid v0.0.0-20260918085751-abfca077860b // indirect
@@ -63,14 +64,13 @@ require (
 	go.uber.org/zap/exp v0.3.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20250406160420-959f8f3db0fb // indirect
-	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
+	golang.org/x/exp v0.0.0-20261005173118-76772065c9b0 // indirect
 	golang.org/x/image v0.36.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
-	google.golang.org/protobuf v1.36.12 // indirect
 	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect

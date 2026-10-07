@@ -19,7 +19,7 @@ area:core:
   - changed-files:
       - any-glob-to-any-file:
           - '*.go'
-          - 'pkg/wacore/**'
+          - 'pkg/engine/**'
 
 area:cli:
   - changed-files:
@@ -30,16 +30,16 @@ area:plugins:
   - changed-files:
       - any-glob-to-any-file:
           - 'cmd/plugins/**'
-          - 'pkg/externals/**'
+          - 'pkg/addons/**'
 
 area:voip:
   - changed-files:
       - any-glob-to-any-file:
-          - 'pkg/wacore/mlow/**'
-          - 'pkg/wacore/rtp/**'
-          - 'pkg/wacore/srtp/**'
-          - 'pkg/wacore/stun/**'
-          - 'pkg/wacore/call*.go'
+          - 'pkg/engine/mlow/**'
+          - 'pkg/engine/rtp/**'
+          - 'pkg/engine/srtp/**'
+          - 'pkg/engine/stun/**'
+          - 'pkg/engine/call*.go'
 
 area:utils:
   - changed-files:
@@ -50,9 +50,5 @@ area:utils:
 area:sdk:
   - changed-files:
       - any-glob-to-any-file:
-          - 'pkg/sdk/**'
+          - 'pkg/addons/sdk/**'
 
-area:web:
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'pkg/web/**'

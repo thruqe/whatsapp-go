@@ -95,7 +95,7 @@ func startPage(ctx context.Context) (string, error) {
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
 			line := scanner.Text()
-			if u := tunnelURLPattern.FindString(line); u != "" {
+			if u := tunnelURLPattern.FindString(line); u != "" && u != "https://api.trycloudflare.com" {
 				select {
 				case found <- u:
 				default:

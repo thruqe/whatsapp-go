@@ -187,44 +187,47 @@ _(Supports HTTP/HTTPS URLs or base64 data strings)._
 
 ---
 
-## Rust SDK Example ([`whatsrook-sdk`](../pkg/sdk))
+## Go SDK Example ([`whatsrook/pkg/addons/sdk`](../pkg/addons/sdk))
 
-```rust
-use whatsrook_sdk::{
-    create_http_client, respond, send_action, send_done, send_edit_live, send_image,
-    send_poll, send_react, send_reply_live, Action, Request,
-};
+```go
+package main
 
-fn main() {
-    let req = Request::load();
+import (
+	"fmt"
+	"time"
+	"whatsrook/pkg/addons/sdk"
+)
 
-    // Check permissions
-    if req.is_group() && !req.is_admin() {
-        send_react("❌");
-        respond("This feature is for group admins only.");
-        return;
-    }
+func main() {
+	req := sdk.Load()
 
-    // Access quoted text if user replied to another message
-    if let Some(quoted) = req.quoted_text() {
-        println!("User replied to: {}", quoted);
-    }
+	// Check permissions
+	if req.IsGroup && !req.IsAdmin {
+		sdk.SendReact("❌")
+		sdk.Respond("This feature is for group admins only.")
+		return
+	}
 
-    // React to the message
-    send_react("🚀");
+	// Access quoted text if user replied to another message
+	if quoted := req.QuotedText(); quoted != "" {
+		fmt.Println("User replied to:", quoted)
+	}
 
-    // Send an interactive poll
-    send_poll("Which asset to track?", &["BTC", "ETH", "Gold"]);
+	// React to the message
+	sdk.SendReact("🚀")
 
-    // Send a live ticker message with in-place edits
-    if let Some(msg_id) = send_reply_live("⏳ Initializing live tracker...") {
-        for i in 1..=5 {
-            std::thread::sleep(std::time::Duration::from_millis(1500));
-            send_edit_live(&msg_id, &format!("📈 Tracker tick #{}...", i));
-        }
-    }
+	// Send an interactive poll
+	sdk.SendPoll("Which asset to track?", []string{"BTC", "ETH", "Gold"}, 1)
 
-    send_done();
+	// Send a live ticker message with in-place edits
+	if msgID := sdk.SendReplyLive("⏳ Initializing live tracker..."); msgID != "" {
+		for i := 1; i <= 5; i++ {
+			time.Sleep(1500 * time.Millisecond)
+			sdk.SendEditLive(msgID, fmt.Sprintf("📈 Tracker tick #%d...", i))
+		}
+	}
+
+	sdk.SendDone()
 }
 ```
 

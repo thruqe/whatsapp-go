@@ -1,5 +1,0 @@
-{
-  "rust-analyzer.linkedProjects": [
-    "./pkg/externals/Cargo.toml"
-  ]
-}

@@ -86,7 +86,7 @@ jobs:
             echo "::notice::All protobuf definitions and client version are up to date."
           else
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            VERSION=$(grep -oE 'WAVersionContainer\{[0-9, ]+\}' pkg/wacore/store/clientpayload.go | tr -d 'WAVersionContainer{} ' | tr ',' '.')
+            VERSION=$(grep -oE 'WAVersionContainer\{[0-9, ]+\}' pkg/engine/store/clientpayload.go | tr -d 'WAVersionContainer{} ' | tr ',' '.')
             echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
             echo "Protobuf update detected! Target version: ${VERSION}"
           fi
@@ -104,12 +104,12 @@ jobs:
           PR_BODY: |
             ### Automated WhatsApp Web Protobuf Sync
 
-            This automated PR updates `pkg/wacore/proto` definitions and the client revision in `pkg/wacore/store/clientpayload.go` to `v${{ steps.check-changes.outputs.version }}` generated from [thruqe/WAProto](https://github.com/thruqe/WAProto).
+            This automated PR updates `pkg/engine/proto` definitions and the client revision in `pkg/engine/store/clientpayload.go` to `v${{ steps.check-changes.outputs.version }}` generated from [thruqe/WAProto](https://github.com/thruqe/WAProto).
 
             #### Automated Steps Executed
             - Downloaded latest `WAProto.proto` schema
-            - Generated modular packages under `pkg/wacore/proto/`
-            - Updated `pkg/wacore/store/clientpayload.go`
+            - Generated modular packages under `pkg/engine/proto/`
+            - Updated `pkg/engine/store/clientpayload.go`
             - Recompiled Go protobuf bindings (`*.pb.go`) using `protoc`
             - Code formatted with `task fmt`
         run: |
@@ -119,14 +119,14 @@ jobs:
 
           # Create or reset branch
           git checkout -B "${BRANCH_NAME}"
-          git add pkg/wacore/proto pkg/wacore/store/clientpayload.go
-          git commit -m "feat(proto): update wacore protobuf definitions to v${VERSION}"
+          git add pkg/engine/proto pkg/engine/store/clientpayload.go
+          git commit -m "feat(proto): update engine protobuf definitions to v${VERSION}"
           git push origin "${BRANCH_NAME}" --force
 
           # Create PR if one does not already exist
           if ! gh pr view "${BRANCH_NAME}" >/dev/null 2>&1; then
             gh pr create \
-              --title "feat(proto): update wacore protobuf definitions to v${VERSION}" \
+              --title "feat(proto): update engine protobuf definitions to v${VERSION}" \
               --body "$PR_BODY" \
               --base master \
               --head "${BRANCH_NAME}" \
