@@ -43,4 +43,4 @@ This project is open source, see the [LICENSE](./LICENSE) file for full details.
 
 If you found this project to be useful in anyway, please consider sending a tip.
 
-<a href="https://etherscan.io/address/0xfA1617fC3aeA4B2BC6Fb3928aA2cAE2fB97ba0ED"><img src="https://cdn-icons-png.flaticon.com/128/15301/15301597.png" width="24" height="24" alt="Donate ETH" /></a> `0xfA1617fC3aeA4B2BC6Fb3928aA2cAE2fB97ba0ED`
+<a href="https://etherscan.io/address/0x76a5307e573401f2b7189fb721a33dc483e985a8"><img src="https://cdn-icons-png.flaticon.com/128/15301/15301597.png" width="24" height="24" alt="Donate ETH" /></a> `0x76a5307e573401f2b7189fb721a33dc483e985a8`
