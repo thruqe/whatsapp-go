@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,10 @@ import (
 func TestPublicPageURL(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping tunnel test in short mode")
+	}
+
+	if _, err := exec.LookPath("cloudflared"); err != nil {
+		t.Skip("skipping tunnel test: cloudflared not installed")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
