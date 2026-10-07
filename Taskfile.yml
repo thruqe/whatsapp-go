@@ -136,18 +136,3 @@ tasks:
         platforms: [windows]
       - cargo clean --manifest-path pkg/sdk/Cargo.toml
       - cargo clean --manifest-path pkg/externals/Cargo.toml
-
-  pg:start:
-    desc: Start local PostgreSQL database server on port 5433
-    cmds:
-      - pg_ctl -D ~/.whatsrook/pgdata -l ~/.whatsrook/postgres.log -o "-p 5433 -k ~/.whatsrook/pgdata" start
-
-  pg:stop:
-    desc: Stop local PostgreSQL database server
-    cmds:
-      - pg_ctl -D ~/.whatsrook/pgdata stop
-
-  pg:status:
-    desc: Check local PostgreSQL database server status
-    cmds:
-      - pg_ctl -D ~/.whatsrook/pgdata status
