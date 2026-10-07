@@ -130,8 +130,8 @@ golang.org/x/crypto/x509roots/fallback v0.0.0-20250406160420-959f8f3db0fb h1:Iu0
 golang.org/x/crypto/x509roots/fallback v0.0.0-20250406160420-959f8f3db0fb/go.mod h1:lxN5T34bK4Z/i6cMaU7frUU57VkDXFD4Kamfl/cp9oU=
 golang.org/x/exp v0.0.0-20261005173118-76772065c9b0 h1:qUp3i6M39kccSm3OMMIE3tvs7YQWO9rFeCKdk1sSaFk=
 golang.org/x/exp v0.0.0-20261005173118-76772065c9b0/go.mod h1:SRjTzy5WcYqRRqquLUvHeeovSwLO0CZ3xcltZNO4Fck=
-golang.org/x/image v0.36.0 h1:Iknbfm1afbgtwPTmHnS2gTM/6PPZfH+z2EFuOkSbqwc=
-golang.org/x/image v0.36.0/go.mod h1:YsWD2TyyGKiIX1kZlu9QfKIsQ4nAAK9bdgdrIsE7xy4=
+golang.org/x/image v0.41.0 h1:8wS72eGJMJaBxK6okTzd4WaXumUlTVlb753MlsSvTCo=
+golang.org/x/image v0.41.0/go.mod h1:uIc348UZMSvS5Z65CVZ7iDPaNobNFEPeJ4kbqTOszmA=
 golang.org/x/mod v0.41.0 h1:qJmnOUb4YB+FsEuM3HcWucdZASCPGhsX6uljO6pog0c=
 golang.org/x/mod v0.41.0/go.mod h1:Ek9pY8RKWXwsWvd3rQiHYtMqkjSUV+s1Rj7j4H5Ur6o=
 golang.org/x/net v0.59.0 h1:5zfYln+w5XCxwrnMMJPufRgNoXEaGxl0wo5GqPXyues=
