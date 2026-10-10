@@ -211,11 +211,6 @@ type Client struct {
 	recentMessagesPtr  int
 	recentMessagesLock sync.RWMutex
 
-	ghostMessagesMap  map[types.MessageID][]types.JID
-	ghostMessagesList []types.MessageID
-	ghostMessagesPtr  int
-	ghostMessagesLock sync.RWMutex
-
 	sessionRecreateHistory     map[types.JID]time.Time
 	sessionRecreateHistoryLock sync.Mutex
 	// GetMessageForRetry is used to find the source message for handling retry receipts
@@ -1044,7 +1039,7 @@ Loop:
 				duration := time.Since(start)
 				close(doneChan)
 				if duration > 10*time.Millisecond || node.Tag == "message" {
-					cli.Log.Debugf("[PERF] Node handling tag=%s took %s", node.Tag, duration)
+					cli.Log.Debugf("Node handling tag=%s took %s", node.Tag, duration)
 				}
 				if duration > 5*time.Second {
 					cli.Log.Warnf("Node handling took %s for %s", duration, node)

@@ -2,7 +2,7 @@
 
 If you are an AI reading this, take every single word in this file literally. This project is a monorepo comprising [`pkg/engine`](../pkg/engine), [`cmd`](../cmd), [`pkg/addons`](../pkg/addons), and the project root itself.
 
-All code here adheres to a deliberate structure. It is built using modern patterns and idioms of the Go programming language. You must conduct thorough research into current Go standards, idiomatic implementations, and active library ecosystems to avoid deprecated functions, superseded APIs, or obsolete syntax.
+All code here adheres to a deliberate structure. It is built using modern patterns and idioms of the Go programming language. You must conduct thorough research into current Go standards, idiomatic implementations, and active library ecosystems to avoid deprecated functions, superseded APIs, or obsolete syntax. In particular, prefer Go's built-in `new(expr)` (e.g. `new("str")`, `new(true)`, `new(val)`) over `proto.String`, `proto.Bool`, and related protobuf helper functions where supported. For fixed-width integer fields (e.g., `*int32`, `*uint32`) initialized from untyped numeric constants, retain explicit typed helpers like `proto.Int32` or typed expressions if `new()` defaults to `*int`.
 
 Before modifying any file, analyze related modules across the codebase. Observe how functions are implemented, match the prevailing architecture, and understand the rationale behind existing technical decisions. Pay particular attention to comments: for every complex or non-obvious code path, you are expected to understand the original author's intent. When submitting bug fixes or feature additions, document your rationale and implementation details to match the tone and conventions established by prior contributors.
 

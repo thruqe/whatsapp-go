@@ -1,0 +1,63 @@
+name: GitHub Pages Deploy
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "scripts/page.go"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Master Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go Toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Build Static Site with htmlbuilder
+        run: |
+          go -C scripts run . page _site
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Update gh-pages Branch
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "thruqe"
+          git config --global user.email "thruqe@gmail.com"
+          git fetch origin gh-pages:gh-pages 2>/dev/null || true
+          git checkout gh-pages
+          cp -r _site/* .
+          git add index.html robots.txt .nojekyll
+          if ! git diff --cached --quiet; then
+            git commit -m "deploy: update static site from htmlbuilder [skip ci]"
+            git push origin gh-pages
+          fi

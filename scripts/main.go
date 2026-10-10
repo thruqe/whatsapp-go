@@ -36,6 +36,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error running sign: %v\n", err)
 			os.Exit(1)
 		}
+	case "page":
+		if err := runPage(subArgs); err != nil {
+			fmt.Fprintf(os.Stderr, "Error running page: %v\n", err)
+			os.Exit(1)
+		}
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -56,6 +61,7 @@ Available Commands:
   proto  [--sync] [filter] Compile and update lib protobuf definitions (optional --sync pulls latest WAProto)
   res    [version]        Generate Windows binary resources & metadata with app icon from assets/logo.png
   sign   <binary>         Digitally sign Windows PE binary with SHA-256 Authenticode signature
+  page   [output_dir]     Generate static GitHub Pages site using htmlbuilder
   help                    Display this help message
 
 Examples:

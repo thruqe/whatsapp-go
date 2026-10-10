@@ -50,8 +50,8 @@ type UploadResponse struct {
 //	// handle error
 //
 //	imageMsg := &waE2E.ImageMessage{
-//		Caption:  proto.String("Hello, world!"),
-//		Mimetype: proto.String("image/png"), // replace this with the actual mime type
+//		Caption:  new("Hello, world!"),
+//		Mimetype: new("image/png"), // replace this with the actual mime type
 //		// you can also optionally add other fields like ContextInfo and JpegThumbnail here
 //
 //		URL:           &resp.URL,
@@ -198,8 +198,8 @@ func (pr *uploadProgressReader) Read(p []byte) (int, error) {
 //
 //	imageMsg := &waE2E.ImageMessage{
 //		// Caption, mime type and other such fields work like normal
-//		Caption:  proto.String("Hello, world!"),
-//		Mimetype: proto.String("image/png"),
+//		Caption:  new("Hello, world!"),
+//		Mimetype: new("image/png"),
 //
 //		// URL and direct path are also there like normal media
 //		URL:        &resp.URL,

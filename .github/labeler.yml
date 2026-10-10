@@ -24,12 +24,11 @@ area:core:
 area:cli:
   - changed-files:
       - any-glob-to-any-file:
-          - 'cmd/**'
+          - 'bot/**'
 
 area:plugins:
   - changed-files:
       - any-glob-to-any-file:
-          - 'cmd/plugins/**'
           - 'pkg/addons/**'
 
 area:voip:
@@ -44,8 +43,7 @@ area:voip:
 area:utils:
   - changed-files:
       - any-glob-to-any-file:
-          - 'util/**'
-          - 'cmd/utils/**'
+          - 'pkg/whatsrook/**'
 
 area:sdk:
   - changed-files:
