@@ -12,13 +12,18 @@ import (
 	"sync"
 	"time"
 
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
+	"google.golang.org/protobuf/proto"
 
 	"whatsrook/cmd/dispatch"
 	"whatsrook/util/logger"
 )
 
-// DefaultGameServerPort is the default port the whatsapp-games server runs on.
+// DefaultGameServerURL is the default public URL where the games server is hosted.
+const DefaultGameServerURL = "https://whatsrook-games.onrender.com"
+
+// DefaultGameServerPort is the default port the whatsapp-games server runs on locally.
 const DefaultGameServerPort = "8088"
 
 var (
@@ -77,13 +82,12 @@ func GenerateGameSession(userJID types.JID, pushName, gameType string) (string, 
 	return sessionID, nil
 }
 
-// GetGameServerURL returns the public or local URL where the games server is hosted.
+// GetGameServerURL returns the public or configured URL where the games server is hosted.
 func GetGameServerURL() string {
 	if u := os.Getenv("WHATSAPP_GAMES_URL"); u != "" {
 		return strings.TrimRight(u, "/")
 	}
-	// Fallback to local server port
-	return "http://localhost:" + DefaultGameServerPort
+	return DefaultGameServerURL
 }
 
 func parseGameType(s string) (gameType string, title string) {
@@ -176,7 +180,90 @@ func launchGame(ctx *dispatch.Context, gameType, gameTitle string) error {
 	gameURL := fmt.Sprintf("%s/?session=%s&user=%s&game=%s&name=%s",
 		baseURL, sessionID, userJID.String(), gameType, pushName)
 
-	msg := fmt.Sprintf("%s Webview Session Ready\n\n"+
+	return sendGameWebview(ctx, gameTitle, sessionID, gameURL, userJID)
+}
+
+// buildGameWebviewPayload constructs the button JSON payload with verified webview hints.
+func buildGameWebviewPayload(displayText, targetURL string) (string, error) {
+	params, err := json.Marshal(struct {
+		DisplayText         string `json:"display_text"`
+		URL                 string `json:"url"`
+		MerchantURL         string `json:"merchant_url"`
+		WebviewPresentation string `json:"webview_presentation"`
+		WebviewInteraction  bool   `json:"webview_interaction"`
+		PaymentLinkPreview  bool   `json:"payment_link_preview"`
+	}{
+		DisplayText:         displayText,
+		URL:                 targetURL,
+		MerchantURL:         targetURL,
+		WebviewPresentation: "full",
+		WebviewInteraction:  true,
+		PaymentLinkPreview:  false,
+	})
+	if err != nil {
+		return "", fmt.Errorf("marshal webview params: %w", err)
+	}
+	return string(params), nil
+}
+
+// sendGameWebview sends an in-app webview button matching the verified test command implementation.
+func sendGameWebview(ctx *dispatch.Context, gameTitle, sessionID, gameURL string, userJID types.JID) error {
+	buttonJSON, err := buildGameWebviewPayload("🎮 Play "+gameTitle, gameURL)
+	if err == nil && ctx.Client != nil {
+		interactiveMsg := &waE2E.InteractiveMessage{
+			Header: &waE2E.InteractiveMessage_Header{
+				Title:              proto.String(fmt.Sprintf("🎮 %s", gameTitle)),
+				HasMediaAttachment: proto.Bool(false),
+			},
+			Body: &waE2E.InteractiveMessage_Body{
+				Text: proto.String(fmt.Sprintf("Real-time multiplayer match session ready!\n\n"+
+					"• Game: %s\n"+
+					"• Player: @%s\n"+
+					"• Session: %s\n\n"+
+					"Tap the button below to launch in WhatsApp Webview.", gameTitle, userJID.User, sessionID)),
+			},
+			Footer: &waE2E.InteractiveMessage_Footer{
+				Text: proto.String("whatsrook • in-app webview"),
+			},
+			ContextInfo: &waE2E.ContextInfo{
+				MentionedJID: []string{userJID.String()},
+			},
+			InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
+				NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
+					Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{{
+						Name:             proto.String("cta_url"),
+						ButtonParamsJSON: proto.String(buttonJSON),
+					}},
+					MessageVersion: proto.Int32(1),
+				},
+			},
+		}
+
+		innerMsg := &waE2E.Message{
+			MessageContextInfo: &waE2E.MessageContextInfo{
+				WeblinkRenderConfig: waE2E.WebLinkRenderConfig_WEBVIEW.Enum(),
+			},
+			InteractiveMessage: interactiveMsg,
+		}
+
+		msg := &waE2E.Message{
+			MessageContextInfo: &waE2E.MessageContextInfo{
+				WeblinkRenderConfig: waE2E.WebLinkRenderConfig_WEBVIEW.Enum(),
+			},
+			ViewOnceMessage: &waE2E.FutureProofMessage{
+				Message: innerMsg,
+			},
+		}
+
+		if _, sendErr := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg); sendErr == nil {
+			return nil
+		} else {
+			logger.Warn("failed to send interactive webview button, falling back to text", "err", sendErr)
+		}
+	}
+
+	// Fallback to text link if sending interactive message fails or in test environments
+	fallback := fmt.Sprintf("%s Webview Session Ready\n\n"+
 		"Game: %s (Real-Time Multiplayer)\n"+
 		"Player: @%s\n"+
 		"Session ID: %s\n\n"+
@@ -184,7 +271,7 @@ func launchGame(ctx *dispatch.Context, gameType, gameTitle string) error {
 		"Note: Choose your unique username upon entering. Matchmaking pairs you with live players.",
 		gameTitle, gameTitle, userJID.User, sessionID, gameURL)
 
-	return ctx.ReplyWithMentions(msg, []types.JID{userJID})
+	return ctx.ReplyWithMentions(fallback, []types.JID{userJID})
 }
 
 // LeaderboardEntry matches the structure returned by the games server API.

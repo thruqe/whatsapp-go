@@ -33,8 +33,22 @@ func TestGenerateGameSession(t *testing.T) {
 
 func TestGetGameServerURL(t *testing.T) {
 	url := GetGameServerURL()
-	if url == "" {
-		t.Fatalf("expected non-empty game server URL")
+	if url != "https://whatsrook-games.onrender.com" {
+		t.Fatalf("expected DefaultGameServerURL to be https://whatsrook-games.onrender.com, got: %s", url)
+	}
+}
+
+func TestBuildGameWebviewPayload(t *testing.T) {
+	target := "https://whatsrook-games.onrender.com/?session=123"
+	payload, err := buildGameWebviewPayload("🎮 Play Connect 4", target)
+	if err != nil {
+		t.Fatalf("failed to build webview payload: %v", err)
+	}
+
+	if !strings.Contains(payload, `"webview_presentation":"full"`) ||
+		!strings.Contains(payload, `"webview_interaction":true`) ||
+		!strings.Contains(payload, target) {
+		t.Fatalf("unexpected payload content: %s", payload)
 	}
 }
 
