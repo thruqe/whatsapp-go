@@ -12,20 +12,57 @@ import (
 )
 
 const metaAiSystemPrompt = `[SYSTEM CONTEXT:
-You are {NAME}, a helpful, highly intelligent, and capable AI assistant on WhatsApp.
-The bot has registered commands available to perform actions. When the user asks to run a command, execute an action, or confirms with affirmative language (for example: "run the menu command", "open menu", "show commands", "check ping", "yes", "yes install it for me", "install it", "do it", "yes please", "sure go ahead"), you must trigger the command by responding with EXACTLY:
-RUN_COMMAND: {PREFIX}<command_name> [args]
-(with no other text, markdown, or commentary).
+You are {NAME}, an advanced, autonomous agentic AI assistant on WhatsApp.
+You operate with full agency, situational awareness, and tool mastery—just like an intelligent agent (Gemini).
+You are equipped with a live suite of powerful built-in tools and plugins (listed in "Available bot commands" below) that allow you to take real actions, retrieve live data, process media, manage WhatsApp chats, and execute system tasks.
 
-CRITICAL RULES FOR COMMAND EXECUTION & CONTEXTUAL REASONING:
-1. Multi-Turn Context & Pronoun Resolution: Always maintain full conversational context. When the user uses pronouns or references previous statements (e.g. "yes install it for me", "do it", "install that", "run it", "check the weather there"), identify the exact target, item, plugin, or query from the recent conversation history or quoted message and supply it as [args].
+CORE AGENTIC PRINCIPLES:
+1. Proactive Tool Readiness & Execution:
+   - You are NOT a passive text-only chatbot. Do not merely give conversational explanations or claim inability when a tool is available to fulfill the user's intent.
+   - When a user asks a question, makes a request, gives a task, or expresses an intent that matches the capability of an available command/tool, TAKE INITIATIVE and invoke the tool on their behalf!
+   - Trigger a tool by responding with EXACTLY:
+     RUN_COMMAND: {PREFIX}<command_name> [args]
+     (with no conversational filler, markdown fences, or preamble).
+
+2. Intent-to-Tool Mapping (Be Ready to Act!):
+   - Media Downloads & Links: If the user shares or quotes a media link (YouTube, Instagram, TikTok, Twitter/X, Pinterest, Facebook, or direct URL) or asks to download/save/fetch media -> invoke:
+     RUN_COMMAND: {PREFIX}dl <url>
+   - Stickers & Visuals: If the user asks to create a sticker or quotes an image/video/sticker to convert, crop, or extract metadata -> invoke:
+     RUN_COMMAND: {PREFIX}sticker
+     (or {PREFIX}crop, {PREFIX}circle, {PREFIX}take as appropriate).
+   - Real-Time & Live Lookups: If the user asks for current weather, Wikipedia information, translations, mathematical calculations, time, or dictionary lookups -> invoke:
+     RUN_COMMAND: {PREFIX}weather <city>
+     RUN_COMMAND: {PREFIX}wiki <query>
+     RUN_COMMAND: {PREFIX}calc <expression>
+     RUN_COMMAND: {PREFIX}tr <target_lang> <text>
+     RUN_COMMAND: {PREFIX}time <location>
+   - System Diagnostics & Performance: If the user asks about bot latency, ping, uptime, CPU, or memory status -> invoke:
+     RUN_COMMAND: {PREFIX}ping
+     (or {PREFIX}status, {PREFIX}cpu).
+   - WhatsApp & Group Management: In group chats or management inquiries, if the user asks to mute/unmute, tag members, get group links, delete messages, or manage members -> invoke the matching group tool (e.g., {PREFIX}mute, {PREFIX}tagall, {PREFIX}delete, {PREFIX}link).
+   - Plugin & Feature Management: When the user asks to install, uninstall, or list plugins -> invoke:
+     RUN_COMMAND: {PREFIX}install <plugin_name>
+     RUN_COMMAND: {PREFIX}uninstall <plugin_name>
+     RUN_COMMAND: {PREFIX}plugins
+   - Command Discovery & Help: When the user asks what features you have, what commands exist, or asks for help/menu -> invoke:
+     RUN_COMMAND: {PREFIX}menu
+   - System & Shell Administration: If the user is authorized (Status: Owner/Sudo) and asks to run shell commands or evaluate code -> invoke:
+     RUN_COMMAND: {PREFIX}sh <command>
+     RUN_COMMAND: {PREFIX}eval <code>
+
+3. Multi-Turn Context & Pronoun Resolution:
+   - Always maintain full conversational context. When the user uses pronouns or references previous statements (e.g. "yes install it for me", "do it", "install that", "run it", "check the weather there", "download that video"), identify the exact target, entity, URL, plugin, or query from recent conversation history or quoted messages and supply it as [args].
    - Example: If the previous message discusses the weather plugin and the user replies "yes install it for me", you MUST output:
      RUN_COMMAND: {PREFIX}install weather
    - NEVER output a bare command like "RUN_COMMAND: {PREFIX}install" without arguments when the user intended to install, view, or operate on a specific item!
-2. Parameter Accuracy: Always provide the necessary arguments expected by the command (e.g. plugin name for {PREFIX}install, city for {PREFIX}weather, expression for {PREFIX}calc).
-3. Plain Text Responses: When chatting, answering questions, or having a conversation, answer naturally, thoughtfully, and directly without emojis.
-4. Active Prefix: When referencing commands in conversation, always use the active prefix '{PREFIX}' (e.g., "{PREFIX}menu", "{PREFIX}install weather", "{PREFIX}help").
-5. Display Name: Address the user by their display name.
+
+4. Parameter Accuracy:
+   - Always supply the required arguments expected by the tool (e.g. plugin name for {PREFIX}install, city for {PREFIX}weather, mathematical expression for {PREFIX}calc, URL for {PREFIX}dl).
+
+5. Conversational Balance:
+   - When the user asks a purely conversational, philosophical, conceptual, or creative question that does not require any tool, answer naturally, thoughtfully, intelligently, and directly in plain text without emojis.
+   - When mentioning commands in conversation, always use the active prefix '{PREFIX}' (e.g., "{PREFIX}menu", "{PREFIX}install weather", "{PREFIX}help").
+   - Address the user by their display name.
 
 Available bot commands:
 {{COMMANDS_LIST}}
@@ -77,8 +114,8 @@ func BuildRunCommandInstructionWithNameAndPrefix(cmds []CommandInfo, botName, pr
 		case "uninstall":
 			desc = whatsrook.Sprintf("Uninstall an extra plugin (`%suninstall <name>` or `%suninstall all`)", prefix, prefix)
 		default:
-			if len(desc) > 80 {
-				desc = desc[:77] + "..."
+			if len(desc) > 120 {
+				desc = desc[:117] + "..."
 			}
 		}
 		cmdsTb.Linef("- %s%s%s%s: %s", prefix, c.Name, aliasStr, sudoStr, desc)
@@ -94,31 +131,77 @@ func BuildRunCommandInstructionWithNameAndPrefix(cmds []CommandInfo, botName, pr
 //	RUN_COMMAND: <prefix><command_name> [args...]
 //
 // It returns the command name (lowercased) and its raw argument string,
-// and ok=true if the reply matched this convention. This only recognizes
-// the fixed marker text — it does not interpret, generate, or execute
-// anything itself; the caller is responsible for looking the command name
-// up in its own registry and deciding whether to run it.
+// RUN_COMMAND: whether it appears alone, on its own line, or inside code blocks.
 func ParseRunCommand(reply string) (cmdName string, rawArgs string, ok bool) {
 	cleaned := strings.TrimSpace(reply)
 	cleaned = strings.Trim(cleaned, "` \n\r\t")
-	cmdContent, found := strings.CutPrefix(cleaned, "RUN_COMMAND:")
-	if !found {
+
+	idx := strings.Index(cleaned, "RUN_COMMAND:")
+	if idx == -1 {
 		return "", "", false
 	}
 
-	cmdLine := strings.TrimSpace(cmdContent)
+	cmdContent := cleaned[idx+len("RUN_COMMAND:"):]
+	firstLine := cmdContent
+	if endOfLine := strings.IndexAny(cmdContent, "\r\n"); endOfLine != -1 {
+		firstLine = cmdContent[:endOfLine]
+	}
+	firstLine = strings.TrimSpace(firstLine)
+
+	var cmdLine string
+	if firstLine == "" {
+		lines := strings.Split(cmdContent, "\n")
+		for _, l := range lines {
+			l = strings.Trim(strings.TrimSpace(l), "` \r\t")
+			if l != "" {
+				cmdLine = l
+				break
+			}
+		}
+	} else {
+		cmdLine = firstLine
+	}
+
 	cmdLine = strings.ReplaceAll(cmdLine, "(link unavailable)", "")
 	cmdLine = strings.ReplaceAll(cmdLine, "link unavailable", "")
-	cmdLine = strings.Trim(cmdLine, "` \n\r\t")
-	cmdLine = strings.TrimLeft(cmdLine, ".!/# ")
+	cmdLine = strings.Trim(cmdLine, "`* \n\r\t")
+
+	// Strip leading prefix punctuation and spaces (. ! / # $ , ; : ~ `)
+	cmdLine = strings.TrimLeft(cmdLine, ".!/#$,;:~` \t")
+
+	// Handle optional "cmd:" or "command:" labels (e.g. RUN_COMMAND: cmd: ping)
+	lower := strings.ToLower(cmdLine)
+	if strings.HasPrefix(lower, "cmd:") {
+		cmdLine = strings.TrimLeft(cmdLine[4:], ".!/#$,;:~` \t")
+	} else if strings.HasPrefix(lower, "command:") {
+		cmdLine = strings.TrimLeft(cmdLine[8:], ".!/#$,;:~` \t")
+	}
 
 	fields := strings.Fields(cmdLine)
 	if len(fields) == 0 {
 		return "", "", false
 	}
 
-	cmdName = strings.ToLower(fields[0])
-	rawArgs = strings.TrimSpace(cmdLine[len(fields[0]):])
+	// Clean fields[0] of any residual punctuation
+	firstFieldClean := strings.Trim(fields[0], ".!/#$,;:~` \t")
+	if firstFieldClean == "" {
+		if len(fields) > 1 {
+			cmdName = strings.ToLower(strings.Trim(fields[1], ".!/#$,;:~` \t"))
+			idxAfter := strings.Index(cmdLine, fields[1])
+			if idxAfter != -1 {
+				rawArgs = strings.TrimSpace(cmdLine[idxAfter+len(fields[1]):])
+			}
+		} else {
+			return "", "", false
+		}
+	} else {
+		cmdName = strings.ToLower(firstFieldClean)
+		rawArgs = strings.TrimSpace(cmdLine[len(fields[0]):])
+	}
+
+	if cmdName == "" {
+		return "", "", false
+	}
 	return cmdName, rawArgs, true
 }
 

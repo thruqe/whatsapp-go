@@ -5,7 +5,6 @@ package owner
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -14,11 +13,10 @@ import (
 	"github.com/dop251/goja"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
-	"grol.io/grol/eval"
-	"grol.io/grol/repl"
 
 	"whatsrook"
 	"whatsrook/cmd/dispatch"
+	"whatsrook/cmd/tools"
 	"whatsrook/util/logger"
 )
 
@@ -224,9 +222,16 @@ func executeJavaScriptEval(ctx *dispatch.Context, code string) (string, error) {
 	_ = vm.Set("message", msgMap)
 	_ = vm.Set("m", msgMap)
 
-	clientMap := buildEvalClientMap(ctx)
-	_ = vm.Set("client", clientMap)
-	_ = vm.Set("conn", clientMap)
+	clientObj, err := SetupEvalJavaScriptEnvironment(vm, ctx)
+	if err == nil && clientObj != nil {
+		_ = vm.Set("client", clientObj)
+		_ = vm.Set("conn", clientObj)
+	} else {
+		clientMap := buildEvalClientMap(ctx)
+		_ = vm.Set("client", clientMap)
+		_ = vm.Set("conn", clientMap)
+	}
+	SetupGlobalConstants(vm, ctx)
 	_ = vm.Set("ctx", ctx)
 
 	trimmedCode := strings.TrimSpace(code)
@@ -267,28 +272,7 @@ func executeJavaScriptEval(ctx *dispatch.Context, code string) (string, error) {
 
 // executeGrolEval executes code in the Grol runtime with message and client metadata.
 func executeGrolEval(ctx *dispatch.Context, code string) (string, error) {
-	evalCtx, cancel := context.WithTimeout(ctx.GetSendContext(), maxEvalTimeout)
-	defer cancel()
-
-	s := eval.NewState()
-	outBuf := &strings.Builder{}
-	s.Out = outBuf
-	s.LogOut = outBuf
-	s.NoLog = true
-
-	opts := repl.EvalStringOptions()
-	opts.MaxDepth = eval.DefaultMaxDepth - 1
-	opts.MaxDuration = maxEvalTimeout
-
-	_, panicked, errs, _ := repl.EvalOne(evalCtx, s, code, outBuf, opts)
-	if panicked && len(errs) == 0 {
-		return "", fmt.Errorf("execution panicked")
-	}
-	if len(errs) > 0 {
-		return "", fmt.Errorf("%s", strings.Join(errs, "\n"))
-	}
-
-	return strings.TrimSpace(outBuf.String()), nil
+	return tools.RunGrolScript(ctx, code)
 }
 
 func buildEvalMessageMap(c *dispatch.Context) map[string]any {

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -693,7 +694,12 @@ func handleAI(ctx *dispatch.Context) error {
 		if cmdName == "sh" || cmdName == "exec" || cmdName == "run" || cmdName == "shell" {
 			if !ctx.IsSudo() {
 				logger.Warn("handleAI: blocked unauthorized shell execution request", "sender", ctx.Sender.String())
-				_, _ = ctx.Edit(placeholderMsgID, "You are not authorized to run shell commands.")
+				errMsg := "You are not authorized to run shell commands."
+				if placeholderMsgID != "" {
+					_, _ = ctx.Edit(placeholderMsgID, errMsg)
+				} else {
+					_ = ctx.Reply(errMsg)
+				}
 				return nil
 			}
 
@@ -707,26 +713,75 @@ func handleAI(ctx *dispatch.Context) error {
 
 			resText := dispatch.Sprintf("Output:\n```\n%s\n```", output)
 			RecordBotMessage(ctx.Chat.String(), botName, resText)
-			_, err = ctx.Edit(placeholderMsgID, resText)
-			return err
+			if placeholderMsgID != "" {
+				_, err = ctx.Edit(placeholderMsgID, resText)
+				return err
+			}
+			return ctx.Reply(resText)
 		}
 
 		if cmdName == "ai" || cmdName == "autoai" || cmdName == "gpt" || cmdName == "ask" {
 			logger.Warn("handleAI: blocked recursive AI command execution", "command", cmdName)
-			_, err := ctx.Edit(placeholderMsgID, "Recursive AI command execution is not allowed.")
-			return err
+			errMsg := "Recursive AI command execution is not allowed."
+			if placeholderMsgID != "" {
+				_, err := ctx.Edit(placeholderMsgID, errMsg)
+				return err
+			}
+			return ctx.Reply(errMsg)
 		}
 
 		targetCmd, exists := dispatch.Get(cmdName)
 		if !exists {
+			sess := ""
+			if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
+				sess = ctx.Client.Store.ID.User
+			}
+			if sess == "" && ctx.Sender.User != "" {
+				sess = ctx.Sender.User
+			}
+			if external.DefaultDispatcher != nil && external.DefaultDispatcher.IsInstalled(cmdName, sess) {
+				if plugins, err := external.DefaultDispatcher.List(sess); err == nil {
+					for _, ep := range plugins {
+						if strings.EqualFold(ep.Name, cmdName) && !ep.IsPublic && !ctx.IsSudo() {
+							logger.Warn("handleAI: blocked unauthorized RUN_COMMAND for external plugin", "sender", ctx.Sender.String(), "command", cmdName)
+							errMsg := "You are not authorized to run this command."
+							if placeholderMsgID != "" {
+								_, _ = ctx.Edit(placeholderMsgID, errMsg)
+							} else {
+								_ = ctx.Reply(errMsg)
+							}
+							return nil
+						}
+					}
+				}
+				if placeholderMsgID != "" {
+					_, _ = ctx.Delete(placeholderMsgID)
+					placeholderMsgID = ""
+				}
+				args := strings.Fields(rawArgs)
+				RecordBotMessage(ctx.Chat.String(), botName, dispatch.Sprintf("Executed command: %s%s %s", p, cmdName, rawArgs))
+				_ = external.DefaultDispatcher.Dispatch(ctx.Ctx, ctx.Client, ctx.Evt, cmdName, args, rawArgs)
+				return nil
+			}
+
 			logger.Warn("handleAI: RUN_COMMAND referenced unknown command", "command", cmdName)
-			_, _ = ctx.Edit(placeholderMsgID, "Sorry, I don't have a command called \""+cmdName+"\".")
+			errMsg := "Sorry, I don't have a command called \"" + cmdName + "\"."
+			if placeholderMsgID != "" {
+				_, _ = ctx.Edit(placeholderMsgID, errMsg)
+			} else {
+				_ = ctx.Reply(errMsg)
+			}
 			return nil
 		}
 
 		if !targetCmd.IsPublic && !ctx.IsSudo() {
 			logger.Warn("handleAI: blocked unauthorized RUN_COMMAND", "sender", ctx.Sender.String(), "command", cmdName)
-			_, _ = ctx.Edit(placeholderMsgID, "You are not authorized to run this command.")
+			errMsg := "You are not authorized to run this command."
+			if placeholderMsgID != "" {
+				_, _ = ctx.Edit(placeholderMsgID, errMsg)
+			} else {
+				_ = ctx.Reply(errMsg)
+			}
 			return nil
 		}
 
@@ -1257,6 +1312,15 @@ func isAutoAIEnabled(c *dispatch.Context, s *dispatch.StoreWrapper) bool {
 	return isAutoAIDMsEnabled(ctx, s)
 }
 
+func containsWord(text, word string) bool {
+	if word == "" {
+		return false
+	}
+	pattern := `(?i)\b` + regexp.QuoteMeta(word) + `\b`
+	matched, _ := regexp.MatchString(pattern, text)
+	return matched
+}
+
 // HandleAutoAIIntercept checks if AutoAI is enabled and handles automatic responses.
 func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 	if c == nil || c.Evt == nil {
@@ -1264,6 +1328,22 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 	}
 	if c.Client == nil || c.Client.Store == nil || c.Client.Store.ID == nil {
 		return false
+	}
+
+	// 1. NEVER intercept messages starting with configured prefixes or standard command prefixes (. ! / # $ , ~)
+	trimmedText := strings.TrimSpace(text)
+	if trimmedText != "" {
+		for _, p := range c.GetPrefixes() {
+			if p != "" && strings.HasPrefix(trimmedText, p) {
+				logger.Debug("HandleAutoAIIntercept: ignoring configured command prefix message", "text", text, "prefix", p)
+				return false
+			}
+		}
+		firstRune := rune(trimmedText[0])
+		if firstRune == '.' || firstRune == '!' || firstRune == '/' || firstRune == '#' || firstRune == '$' || firstRune == ',' || firstRune == '~' {
+			logger.Debug("HandleAutoAIIntercept: ignoring command prefix message", "text", text)
+			return false
+		}
 	}
 
 	if isNewsletterOrBroadcast(c.Chat, c.Sender) || isNewsletterOrBroadcast(c.Evt.Info.Chat, c.Evt.Info.Sender) {
@@ -1329,6 +1409,60 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 		}
 	}
 
+	// 2. Direct command execution check:
+	// If the user's prompt (or tagged prompt) is an explicit command (e.g. "@bot ping", "menu", ".status", "sticker"),
+	// execute it directly instead of sending it to AI!
+	cleanCmd := strings.TrimLeft(strings.TrimSpace(prompt), ".!/#$,;:~` \t")
+	fields := strings.Fields(cleanCmd)
+	if len(fields) > 0 {
+		cmdName := strings.ToLower(fields[0])
+		sess := ""
+		if c.Client != nil && c.Client.Store != nil && c.Client.Store.ID != nil {
+			sess = c.Client.Store.ID.User
+		}
+		if sess == "" && c.Sender.User != "" {
+			sess = c.Sender.User
+		}
+
+		isRegisteredCmd := false
+		if _, ok := dispatch.Get(cmdName); ok {
+			isRegisteredCmd = true
+		} else if external.DefaultDispatcher != nil && external.DefaultDispatcher.IsInstalled(cmdName, sess) {
+			isRegisteredCmd = true
+		}
+
+		if !isRegisteredCmd && len(fields) > 1 && (cmdName == "run" || cmdName == "exec" || cmdName == "execute" || cmdName == "do") {
+			targetSub := strings.ToLower(strings.Trim(fields[1], ".!/#$,;:~` \t"))
+			matched := false
+			if _, ok := dispatch.Get(targetSub); ok {
+				matched = true
+			} else if external.DefaultDispatcher != nil && external.DefaultDispatcher.IsInstalled(targetSub, sess) {
+				matched = true
+			}
+			if matched {
+				isRegisteredCmd = true
+				cleanCmd = targetSub
+				if len(fields) > 2 {
+					var actualArgs []string
+					for _, f := range fields[2:] {
+						lowerF := strings.ToLower(strings.Trim(f, ",.!?"))
+						if lowerF != "command" && lowerF != "cmd" && lowerF != "please" && lowerF != "pls" {
+							actualArgs = append(actualArgs, f)
+						}
+					}
+					if len(actualArgs) > 0 {
+						cleanCmd = targetSub + " " + strings.Join(actualArgs, " ")
+					}
+				}
+			}
+		}
+
+		if isRegisteredCmd {
+			logger.Debug("HandleAutoAIIntercept: executing command directly instead of querying AI", "cmd", cleanCmd)
+			return dispatch.RunCommand(c, cleanCmd)
+		}
+	}
+
 	logger.Debug("HandleAutoAIIntercept: triggering AI response", "chat", c.Chat.String(), "prompt", prompt)
 
 	go func() {
@@ -1370,11 +1504,8 @@ func isBotTaggedOrReplied(c *dispatch.Context, text string) bool {
 		ourLID = client.Store.LID.ToNonAD()
 	}
 
-	lowerText := strings.ToLower(text)
 	botName := c.GetBotName()
-	lowerBotName := strings.ToLower(botName)
-
-	if (lowerBotName != "" && strings.Contains(lowerText, lowerBotName)) || strings.Contains(lowerText, "whatsrook") || strings.Contains(lowerText, "rook") {
+	if containsWord(text, botName) || containsWord(text, "whatsrook") || containsWord(text, "rook") {
 		return true
 	}
 
@@ -1390,7 +1521,7 @@ func isBotTaggedOrReplied(c *dispatch.Context, text string) bool {
 	for _, m := range ctxInfo.MentionedJID {
 		if parseJID, err := types.ParseJID(m); err == nil {
 			nonAD := parseJID.ToNonAD()
-			if c.IsTargetOwner(nonAD) || nonAD == ourJID || (!ourLID.IsEmpty() && nonAD == ourLID) {
+			if nonAD == ourJID || (!ourLID.IsEmpty() && nonAD == ourLID) {
 				return true
 			}
 		}
@@ -1402,24 +1533,28 @@ func isBotTaggedOrReplied(c *dispatch.Context, text string) bool {
 		if ctxInfo.Participant != nil && *ctxInfo.Participant != "" {
 			if parseJID, err := types.ParseJID(*ctxInfo.Participant); err == nil {
 				pNonAD := parseJID.ToNonAD()
-				if c.IsTargetOwner(pNonAD) || c.IsSameUser(c.Sender, pNonAD) || pNonAD == ourJID || (!ourLID.IsEmpty() && pNonAD == ourLID) {
+				if pNonAD == ourJID || (!ourLID.IsEmpty() && pNonAD == ourLID) {
+					return true
+				}
+				if (c.IsOwner() || evt.Info.IsFromMe) && (c.IsSameUser(c.Sender, pNonAD) || c.IsTargetOwner(pNonAD)) {
 					return true
 				}
 			}
 		}
 
 		if hasQuotedSender {
-			if c.IsTargetOwner(quotedSender) || c.IsSameUser(c.Sender, quotedSender) || quotedSender == ourJID || (!ourLID.IsEmpty() && quotedSender == ourLID) {
+			if quotedSender == ourJID || (!ourLID.IsEmpty() && quotedSender == ourLID) {
+				return true
+			}
+			if (c.IsOwner() || evt.Info.IsFromMe) && (c.IsSameUser(c.Sender, quotedSender) || c.IsTargetOwner(quotedSender)) {
 				return true
 			}
 		}
 
 		// When the owner sends a message in a group that quotes ANY message they themselves sent:
 		// (In WhatsApp, quoting your own message in a group often omits ContextInfo.Participant)
-		if c.IsOwner() || evt.Info.IsFromMe {
-			if !hasQuotedSender || (ctxInfo.Participant == nil || *ctxInfo.Participant == "") {
-				return true
-			}
+		if (c.IsOwner() || evt.Info.IsFromMe) && (!hasQuotedSender || (ctxInfo.Participant == nil || *ctxInfo.Participant == "")) {
+			return true
 		}
 	}
 

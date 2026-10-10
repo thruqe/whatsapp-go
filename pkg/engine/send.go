@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/polymorfa/libsignal-protocol-go/groups"
+	"github.com/polymorfa/libsignal-protocol-go/groups/state/record"
 	"github.com/polymorfa/libsignal-protocol-go/keys/prekey"
 	"github.com/polymorfa/libsignal-protocol-go/protocol"
 	"github.com/polymorfa/libsignal-protocol-go/session"
@@ -219,6 +220,16 @@ type SendRequestExtra struct {
 	AsyncAck bool
 	// OnAck: optional callback invoked when the server ACK or error is received in the background.
 	OnAck func(resp SendResponse, err error)
+
+	// TargetParticipants restricts message delivery/encryption in a group to only the specified participants.
+	// Other group members will not receive the encryption keys/payload, making the message visible only to the specified participants.
+	TargetParticipants []types.JID
+	// DirectGroupParticipant: when true in a group, sends direct pairwise encrypted message nodes to TargetParticipants instead of SenderKey skmsg.
+	DirectGroupParticipant bool
+	// ExcludeOwnDevices: when true in a group with DirectGroupParticipant, excludes the sender's own linked devices from recipients (pure ghost mode).
+	ExcludeOwnDevices bool
+	// NoRecentCache: when true, skips adding the message to the recent sent message cache for retries.
+	NoRecentCache bool
 }
 
 // SendMessageAsync sends the message asynchronously without blocking for the server ACK response.
@@ -404,20 +415,44 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 				return
 			}
 			groupParticipants = cachedData.Members
-			// TODO this is fairly hacky, is there a proper way to determine which identity the message is sent with?
 			if cachedData.AddressingMode == types.AddressingModeLID {
 				ownID = cli.getOwnLID()
 				extraParams.addressingMode = types.AddressingModeLID
 			} else if cachedData.CommunityAnnouncementGroup && req.Meta != nil {
 				ownID = cli.getOwnLID()
-				// Why is this set to PN?
 				extraParams.addressingMode = types.AddressingModePN
 			}
+
+			if len(req.TargetParticipants) > 0 {
+				var targetList []types.JID
+				for _, target := range req.TargetParticipants {
+					t := target.ToNonAD()
+					if cachedData.AddressingMode == types.AddressingModeLID && t.Server != types.HiddenUserServer {
+						if lid, lidErr := cli.Store.LIDs.GetLIDForPN(ctx, t); lidErr == nil && !lid.IsEmpty() {
+							cli.Log.Infof("[GHOST DEBUG] Mapped target PN %s to LID %s for group %s", t, lid, to)
+							t = lid.ToNonAD()
+						}
+					} else if cachedData.AddressingMode != types.AddressingModeLID && t.Server == types.HiddenUserServer {
+						if pn, pnErr := cli.Store.LIDs.GetPNForLID(ctx, t); pnErr == nil && !pn.IsEmpty() {
+							cli.Log.Infof("[GHOST DEBUG] Mapped target LID %s to PN %s for group %s", t, pn, to)
+							t = pn.ToNonAD()
+						}
+					}
+					targetList = append(targetList, t)
+				}
+				groupParticipants = targetList
+				cli.Log.Infof("[GHOST DEBUG] Overriding groupParticipants array for group %s (mode: %s) with %d target participant(s): %+v (msgID: %s)",
+					to, cachedData.AddressingMode, len(groupParticipants), groupParticipants, req.ID)
+			}
 		} else {
-			groupParticipants, err = cli.getBroadcastListParticipants(ctx, to)
-			if err != nil {
-				err = fmt.Errorf("failed to get broadcast list members: %w", err)
-				return
+			if len(req.TargetParticipants) > 0 {
+				groupParticipants = req.TargetParticipants
+			} else {
+				groupParticipants, err = cli.getBroadcastListParticipants(ctx, to)
+				if err != nil {
+					err = fmt.Errorf("failed to get broadcast list members: %w", err)
+					return
+				}
 			}
 		}
 		resp.DebugTimings.GetParticipants = time.Since(start)
@@ -458,6 +493,12 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 	if req.AdditionalNodes != nil {
 		extraParams.additionalNodes = req.AdditionalNodes
 	}
+	if len(req.TargetParticipants) > 0 {
+		extraParams.decryptFailHide = true
+	}
+	if req.ExcludeOwnDevices {
+		extraParams.excludeOwnDevices = true
+	}
 
 	resp.Sender = ownID
 	resp.Chat = to
@@ -470,8 +511,12 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 	resp.DebugTimings.Queue = time.Since(start)
 	defer cli.messageSendLock.Unlock()
 
-	// Peer message retries aren't implemented yet
-	if !req.Peer {
+	// Peer message retries aren't implemented yet, and targeted ghost messages must never be cached
+	// in recentMessages for group retry resends (as group retries distribute permanent sender keys,
+	// leaking the message and triggering massive retry storms from all other group members).
+	if len(req.TargetParticipants) > 0 {
+		cli.addGhostMessage(req.ID, req.TargetParticipants)
+	} else if !req.Peer && !req.NoRecentCache {
 		startRecent := time.Now()
 		err = cli.addRecentMessage(ctx, to, req.ID, message, nil)
 		resp.DebugTimings.AddRecentMessage = time.Since(startRecent)
@@ -496,7 +541,11 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 	var data []byte
 	switch to.Server {
 	case types.GroupServer, types.BroadcastServer:
-		phash, data, err = cli.sendGroup(ctx, ownID, to, groupParticipants, req.ID, message, &resp.DebugTimings, extraParams)
+		if len(req.TargetParticipants) > 0 && to.Server == types.GroupServer {
+			phash, data, err = cli.sendGroupGhost(ctx, ownID, to, groupParticipants, req.ID, message, &resp.DebugTimings, extraParams)
+		} else {
+			phash, data, err = cli.sendGroup(ctx, ownID, to, groupParticipants, req.ID, message, &resp.DebugTimings, extraParams)
+		}
 	case types.DefaultUserServer, types.BotServer, types.HiddenUserServer:
 		if req.Peer {
 			data, err = cli.sendPeerMessage(ctx, to, req.ID, message, &resp.DebugTimings)
@@ -558,7 +607,7 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 			cli.server401ErrorsLock.Unlock()
 		}
 		expectedPHash := ag.OptionalString("phash")
-		if setParticipantHashMismatch(&subResp, phash, expectedPHash) {
+		if len(req.TargetParticipants) == 0 && setParticipantHashMismatch(&subResp, phash, expectedPHash) {
 			cli.Log.Warnf("Server returned different participant list hash (%s != %s) when sending to %s. Some devices may not have received the message.", phash, expectedPHash, to)
 			switch to.Server {
 			case types.GroupServer:
@@ -927,6 +976,8 @@ type nodeExtraParams struct {
 	additionalNodes *[]waBinary.Node
 	addressingMode  types.AddressingMode
 	peerRecipientPN types.JID
+	decryptFailHide   bool
+	excludeOwnDevices bool
 }
 
 func (cli *Client) sendGroup(
@@ -981,6 +1032,8 @@ func (cli *Client) sendGroup(
 
 	phash := participantListHashV2(allDevices)
 	node.Attrs["phash"] = phash
+	cli.Log.Debugf("sendGroup: id=%s group=%s participantCount=%d resolvedDevicesCount=%d phash=%s",
+		id, to, len(participants), len(allDevices), phash)
 	skMsg := waBinary.Node{
 		Tag:     "enc",
 		Content: ciphertext,
@@ -988,6 +1041,9 @@ func (cli *Client) sendGroup(
 	}
 	if mediaType := getMediaTypeFromMessage(message); mediaType != "" {
 		skMsg.Attrs["mediatype"] = mediaType
+	}
+	if extraParams.decryptFailHide {
+		skMsg.Attrs["decrypt-fail"] = "hide"
 	}
 	node.Content = append(node.GetChildren(), skMsg)
 	if cli.shouldIncludeReportingToken(message) && message.GetMessageContextInfo().GetMessageSecret() != nil {
@@ -1000,6 +1056,108 @@ func (cli *Client) sendGroup(
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to send message node: %w", err)
 	}
+	return phash, data, nil
+}
+
+type ephemeralSenderKeyStore struct {
+	record *record.SenderKey
+}
+
+func (e *ephemeralSenderKeyStore) StoreSenderKey(ctx context.Context, senderKeyName *protocol.SenderKeyName, keyRecord *record.SenderKey) error {
+	e.record = keyRecord
+	return nil
+}
+
+func (e *ephemeralSenderKeyStore) LoadSenderKey(ctx context.Context, senderKeyName *protocol.SenderKeyName) (*record.SenderKey, error) {
+	return e.record, nil
+}
+
+func (cli *Client) sendGroupGhost(
+	ctx context.Context,
+	ownID,
+	to types.JID,
+	participants []types.JID,
+	id types.MessageID,
+	message *waE2E.Message,
+	timings *MessageDebugTimings,
+	extraParams nodeExtraParams,
+) (string, []byte, error) {
+	start := time.Now()
+	plaintext, _, err := marshalMessage(to, message)
+	timings.Marshal = time.Since(start)
+	if err != nil {
+		return "", nil, err
+	}
+
+	start = time.Now()
+	// Ephemeral SenderKey store generates a brand-new random SenderKey for this message,
+	// so no other group members already possess it in their ratchet cache.
+	ephemeralStore := &ephemeralSenderKeyStore{}
+	builder := groups.NewGroupSessionBuilder(ephemeralStore, pbSerializer)
+	senderKeyName := protocol.NewSenderKeyName(to.String(), ownID.SignalAddress())
+	signalSKDMessage, err := builder.Create(ctx, senderKeyName)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create ephemeral sender key for ghost message to %s: %w", to, err)
+	}
+
+	skdMessage := &waE2E.Message{
+		SenderKeyDistributionMessage: &waE2E.SenderKeyDistributionMessage{
+			GroupID:                             new(to.String()),
+			AxolotlSenderKeyDistributionMessage: signalSKDMessage.Serialize(),
+		},
+	}
+	skdPlaintext, err := proto.Marshal(skdMessage)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to marshal ephemeral sender key distribution message to send %s to %s: %w", id, to, err)
+	}
+
+	cipher := groups.NewGroupCipher(builder, senderKeyName, ephemeralStore)
+	encrypted, err := cipher.Encrypt(ctx, padMessage(plaintext))
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to encrypt ghost group message to send %s to %s: %w", id, to, err)
+	}
+	ciphertext := encrypted.SignedSerialize()
+	timings.GroupEncrypt = time.Since(start)
+
+	// Prepare message node delivering the ephemeral SKD exclusively to the targeted participant(s)' devices!
+	node, allDevices, err := cli.prepareMessageNode(
+		ctx, to, id, message, participants, skdPlaintext, nil, timings, extraParams,
+	)
+	if err != nil {
+		return "", nil, err
+	}
+
+	phash := participantListHashV2(allDevices)
+	node.Attrs["phash"] = phash
+
+	cli.Log.Infof("[GHOST DEBUG] sendGroupGhost: id=%s group=%s targetCount=%d targetParticipants=%+v resolvedDevicesCount=%d resolvedDevices=%+v phash=%s",
+		id, to, len(participants), participants, len(allDevices), allDevices, phash)
+
+	skMsg := waBinary.Node{
+		Tag:     "enc",
+		Content: ciphertext,
+		Attrs: waBinary.Attrs{
+			"v":            "2",
+			"type":         "skmsg",
+			"decrypt-fail": "hide",
+		},
+	}
+	if mediaType := getMediaTypeFromMessage(message); mediaType != "" {
+		skMsg.Attrs["mediatype"] = mediaType
+	}
+	node.Content = append(node.GetChildren(), skMsg)
+
+	if cli.shouldIncludeReportingToken(message) && message.GetMessageContextInfo().GetMessageSecret() != nil {
+		node.Content = append(node.GetChildren(), cli.getMessageReportingToken(plaintext, message, ownID, to, id))
+	}
+
+	start = time.Now()
+	data, err := cli.sendNodeAndGetData(ctx, *node)
+	timings.Send = time.Since(start)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to send ghost message node: %w", err)
+	}
+	cli.Log.Infof("[GHOST DEBUG] Successfully delivered ghost message %s to group %s targeted to %+v", id, to, participants)
 	return phash, data, nil
 }
 
@@ -1814,4 +1972,31 @@ func (cli *Client) encryptMessageForDevice(
 		Attrs:   encAttrs,
 		Content: ciphertext.Serialize(),
 	}, includeDeviceIdentity, nil
+}
+
+// SendGhostToGroup sends a message to a group visible only to the specified target participants,
+// mirroring Baileys' sendGhostToGroup. Other group participants do not receive the encryption keys
+// or message payload.
+func (cli *Client) SendGhostToGroup(ctx context.Context, group types.JID, targets []types.JID, message *waE2E.Message) (types.MessageID, error) {
+	if cli == nil || cli.Store == nil || cli.Store.ID == nil {
+		return "", fmt.Errorf("client is not logged in")
+	}
+	if group.Server != types.GroupServer {
+		return "", fmt.Errorf("invalid group JID: %s", group)
+	}
+	if len(targets) == 0 {
+		return "", fmt.Errorf("targets list is empty")
+	}
+
+	msgID := cli.GenerateMessageID()
+	resp, err := cli.SendMessage(ctx, group, message, SendRequestExtra{
+		ID:                     msgID,
+		TargetParticipants:     targets,
+		DirectGroupParticipant: true,
+		ExcludeOwnDevices:      true,
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.ID, nil
 }

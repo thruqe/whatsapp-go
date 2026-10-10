@@ -65,6 +65,42 @@ func TestExecuteJavaScriptEval(t *testing.T) {
 	if !strings.Contains(resLog, "logged text") || !strings.Contains(resLog, "done") {
 		t.Errorf("expected log and return value, got %q", resLog)
 	}
+
+	// 6. client.parseJID and jid helper
+	resJID, err := executeJavaScriptEval(ctx, "return client.parseJID('999888')")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resJID != "999888@s.whatsapp.net" {
+		t.Errorf("expected 999888@s.whatsapp.net, got %q", resJID)
+	}
+
+	// 7. toProto with Baileys-style text and mentions
+	resProto, err := executeJavaScriptEval(ctx, "let m = toProto({ text: 'Hello @user', mentions: ['123@s.whatsapp.net'] }); return proto.toJSON(m)")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(resProto, "Hello @user") || !strings.Contains(resProto, "123@s.whatsapp.net") {
+		t.Errorf("expected extendedTextMessage with mentions, got %q", resProto)
+	}
+
+	// 8. toProto with direct protobuf structure
+	resProtoDirect, err := executeJavaScriptEval(ctx, "let m = toProto({ conversation: 'Direct text' }); return proto.toJSON(m)")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(resProtoDirect, "Direct text") {
+		t.Errorf("expected direct conversation, got %q", resProtoDirect)
+	}
+
+	// 9. wa constants
+	resWA, err := executeJavaScriptEval(ctx, "return wa.Presence.Available")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resWA != "available" {
+		t.Errorf("expected available, got %q", resWA)
+	}
 }
 
 func TestExecuteGrolEval(t *testing.T) {
@@ -75,6 +111,14 @@ func TestExecuteGrolEval(t *testing.T) {
 	}
 	if res != "53" {
 		t.Errorf("expected 53, got %q", res)
+	}
+
+	resButterfly, err := executeGrolEval(ctx, "Butterfly()")
+	if err != nil {
+		t.Fatalf("unexpected error running Butterfly in Grol: %v", err)
+	}
+	if !strings.Contains(resButterfly, "Time elapsed:") {
+		t.Errorf("expected Time elapsed in Butterfly output, got %q", resButterfly)
 	}
 }
 

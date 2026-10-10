@@ -342,6 +342,76 @@ func TestParseRunCommand(t *testing.T) {
 			wantRawArgs: "",
 			wantOk:      false,
 		},
+		{
+			name:        "Preceding conversational text before RUN_COMMAND",
+			input:       "Sure, let me check that for you!\nRUN_COMMAND: !weather Paris\nLet me know if you need anything else.",
+			wantCmdName: "weather",
+			wantRawArgs: "Paris",
+			wantOk:      true,
+		},
+		{
+			name:        "RUN_COMMAND inside code block",
+			input:       "```\nRUN_COMMAND: !ping\n```",
+			wantCmdName: "ping",
+			wantRawArgs: "",
+			wantOk:      true,
+		},
+		{
+			name:        "Direct agentic media download command",
+			input:       "RUN_COMMAND: !dl https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+			wantCmdName: "dl",
+			wantRawArgs: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+			wantOk:      true,
+		},
+		{
+			name:        "Command with comma prefix and space",
+			input:       "RUN_COMMAND: , ping",
+			wantCmdName: "ping",
+			wantRawArgs: "",
+			wantOk:      true,
+		},
+		{
+			name:        "Command with comma prefix without space",
+			input:       "RUN_COMMAND: ,uptime",
+			wantCmdName: "uptime",
+			wantRawArgs: "",
+			wantOk:      true,
+		},
+		{
+			name:        "Command with comma and exclamation multi-prefix",
+			input:       "RUN_COMMAND: , !ping",
+			wantCmdName: "ping",
+			wantRawArgs: "",
+			wantOk:      true,
+		},
+		{
+			name:        "Bare comma after RUN_COMMAND is rejected",
+			input:       "RUN_COMMAND: ,",
+			wantCmdName: "",
+			wantRawArgs: "",
+			wantOk:      false,
+		},
+		{
+			name:        "Bare comma with spaces after RUN_COMMAND is rejected",
+			input:       "RUN_COMMAND: ,   ",
+			wantCmdName: "",
+			wantRawArgs: "",
+			wantOk:      false,
+		},
+		{
+			name:        "Command with comma in raw arguments preserved",
+			input:       "RUN_COMMAND: , eval console.log(\"hello, world\")",
+			wantCmdName: "eval",
+			wantRawArgs: "console.log(\"hello, world\")",
+			wantOk:      true,
+		},
+		{
+			name:        "Shell command with redirection and arguments",
+			input:       "RUN_COMMAND: , sh echo 'hello' > main.go",
+			wantCmdName: "sh",
+			wantRawArgs: "echo 'hello' > main.go",
+			wantOk:      true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -862,6 +932,14 @@ func TestIsBotTaggedOrReplied(t *testing.T) {
 		t.Errorf("expected isBotTaggedOrReplied to return false without mention/tag")
 	}
 
+	// 3b. In Group chat with words containing 'rook' as a substring (like 'rookie' or 'crook'), should return false
+	if isBotTaggedOrReplied(groupCtx, "he is just a rookie player") {
+		t.Errorf("expected isBotTaggedOrReplied to return false for substring 'rookie'")
+	}
+	if isBotTaggedOrReplied(groupCtx, "that politician is a crook") {
+		t.Errorf("expected isBotTaggedOrReplied to return false for substring 'crook'")
+	}
+
 	// 4. In Group chat when owner replies to their own message with participant set
 	botUserStr := botJID.String()
 	replySelfEvt := &events.Message{
@@ -1022,6 +1100,47 @@ func TestHandleAutoAIIntercept_Filtering(t *testing.T) {
 	}
 	if HandleAutoAIIntercept(ctxBroadcast, "status post") {
 		t.Errorf("expected broadcast message to be ignored by AutoAI")
+	}
+
+	// 5. Messages starting with standard command prefixes (. ! / # $) should NEVER be intercepted by AutoAI
+	dmChat := types.NewJID("111222", types.DefaultUserServer)
+	evtCmd := &events.Message{
+		Info: types.MessageInfo{
+			Chat:     dmChat,
+			IsFromMe: false,
+		},
+		Message: &waE2E.Message{
+			Conversation: new(".ping"),
+		},
+	}
+	ctxCmd := &dispatch.Context{
+		Client: client,
+		Evt:    evtCmd,
+		Chat:   dmChat,
+	}
+	if HandleAutoAIIntercept(ctxCmd, ".ping") {
+		t.Errorf("expected command message '.ping' to be ignored by AutoAI")
+	}
+	if HandleAutoAIIntercept(ctxCmd, "!menu") {
+		t.Errorf("expected command message '!menu' to be ignored by AutoAI")
+	}
+	if HandleAutoAIIntercept(ctxCmd, "/help") {
+		t.Errorf("expected command message '/help' to be ignored by AutoAI")
+	}
+	if HandleAutoAIIntercept(ctxCmd, "#status") {
+		t.Errorf("expected command message '#status' to be ignored by AutoAI")
+	}
+	if HandleAutoAIIntercept(ctxCmd, "$calc 2+2") {
+		t.Errorf("expected command message '$calc 2+2' to be ignored by AutoAI")
+	}
+	if HandleAutoAIIntercept(ctxCmd, ",ping") {
+		t.Errorf("expected command message ',ping' to be ignored by AutoAI")
+	}
+	if HandleAutoAIIntercept(ctxCmd, ",uptime") {
+		t.Errorf("expected command message ',uptime' to be ignored by AutoAI")
+	}
+	if HandleAutoAIIntercept(ctxCmd, "~help") {
+		t.Errorf("expected command message '~help' to be ignored by AutoAI")
 	}
 }
 
@@ -1362,6 +1481,36 @@ func TestInferContextualArgs(t *testing.T) {
 	if gotOther != "" {
 		t.Errorf("InferContextualArgs(ping) = %q, want ''", gotOther)
 	}
+
+	// 8. Media download URL inferred from question
+	gotDLQuestion := InferContextualArgs("dl", "", "download this: https://instagram.com/reel/abc123xyz/", "", nil)
+	if gotDLQuestion != "https://instagram.com/reel/abc123xyz/" {
+		t.Errorf("InferContextualArgs(dl from question) = %q, want url", gotDLQuestion)
+	}
+
+	// 9. Media download URL inferred from quoted text
+	gotDLQuoted := InferContextualArgs("ytdl", "", "can you fetch this video?", "Check out https://youtu.be/testvideo123", nil)
+	if gotDLQuoted != "https://youtu.be/testvideo123" {
+		t.Errorf("InferContextualArgs(dl from quoted) = %q, want url", gotDLQuoted)
+	}
+
+	// 10. Media download URL inferred from conversation history
+	historyWithURL := []ChatTurn{
+		{
+			Sender: "User",
+			IsBot:  false,
+			Text:   "Hey check this link https://tiktok.com/@user/video/123",
+		},
+		{
+			Sender: "WhatsRook",
+			IsBot:  true,
+			Text:   "Nice video!",
+		},
+	}
+	gotDLHistory := InferContextualArgs("dl", "", "please download it", "", historyWithURL)
+	if gotDLHistory != "https://tiktok.com/@user/video/123" {
+		t.Errorf("InferContextualArgs(dl from history) = %q, want url", gotDLHistory)
+	}
 }
 
 func TestBuildAiQuery_WithConversationHistory(t *testing.T) {
@@ -1430,5 +1579,46 @@ func TestBuildRunCommandInstructionWithNameAndPrefix_InstallDetails(t *testing.T
 	}
 	if !strings.Contains(instruction, "Multi-Turn Context & Pronoun Resolution") {
 		t.Errorf("missing multi-turn rules in prompt: %s", instruction)
+	}
+}
+
+func TestBuildRunCommandInstruction_AgenticCapabilities(t *testing.T) {
+	cmds := []CommandInfo{
+		{
+			Name:        "dl",
+			Alias:       "ytdl",
+			Description: "Download video or audio from social platforms and URLs",
+			IsPublic:    true,
+		},
+		{
+			Name:        "sticker",
+			Description: "Create a sticker from an image or video",
+			IsPublic:    true,
+		},
+		{
+			Name:        "ping",
+			Description: "Check bot latency and status",
+			IsPublic:    true,
+		},
+	}
+
+	instruction := BuildRunCommandInstructionWithNameAndPrefix(cmds, "RookAgent", ".")
+	if !strings.Contains(instruction, "CORE AGENTIC PRINCIPLES") {
+		t.Errorf("instruction missing CORE AGENTIC PRINCIPLES: %s", instruction)
+	}
+	if !strings.Contains(instruction, "Proactive Tool Readiness & Execution") {
+		t.Errorf("instruction missing Proactive Tool Readiness: %s", instruction)
+	}
+	if !strings.Contains(instruction, "Intent-to-Tool Mapping") {
+		t.Errorf("instruction missing Intent-to-Tool Mapping: %s", instruction)
+	}
+	if !strings.Contains(instruction, "RUN_COMMAND: .dl <url>") {
+		t.Errorf("instruction missing dl tool mapping: %s", instruction)
+	}
+	if !strings.Contains(instruction, "RUN_COMMAND: .sticker") {
+		t.Errorf("instruction missing sticker tool mapping: %s", instruction)
+	}
+	if !strings.Contains(instruction, "RUN_COMMAND: .ping") {
+		t.Errorf("instruction missing ping tool mapping: %s", instruction)
 	}
 }

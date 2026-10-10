@@ -1,179 +1,107 @@
-// Package test hosts owner-only experimental commands used to probe how
-// WhatsApp clients render interactive message types and in-app webviews.
+// Package test hosts owner-only experimental commands.
 package test
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/url"
-	"strings"
+
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
+	"google.golang.org/protobuf/proto"
 
 	"whatsrook/cmd/dispatch"
-
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"google.golang.org/protobuf/proto"
+	"whatsrook/util/logger"
+	"whatsrook/util/send"
 )
 
 func init() {
 	dispatch.Register(&dispatch.Command{
 		Name:         "test",
-		Description:  "Send working Test D in-app webview button pointing to local hello-world or custom URL",
+		Description:  "Send a ghost message (defaults to 'hello') visible only to a specific participant (mirroring Baileys sendGhostToGroup)",
 		Category:     "owner",
 		HideFromMenu: true,
 		Handler:      handleTest,
 	})
 }
 
-// handleTest sends WhatsApp Native Flow interactive buttons using the verified
-// Test D implementation with WebView hints.
-//
-// When invoked without arguments, it serves an embedded hello.html via a local
-// HTTP server exposed over a secure cloudflared quick tunnel.
-//
-// Implementation Details (Test D):
-//   - Action: "cta_url"
-//   - WebView hints:
-//     webview_presentation: "full"
-//     webview_interaction: true
-//     payment_link_preview: false
-//   - Wrapped in viewOnceMessage container
-//   - Stanza wrapped with biz/native_flow transport data
+// handleTest sends a ghost message to the group visible only to the target participant,
+// mirroring Baileys' sendGhostToGroup. Defaults to sending "hello".
 func handleTest(ctx *dispatch.Context) error {
-	target := strings.TrimSpace(ctx.RawArgs)
-	if target == "" {
-		_ = ctx.Reply("🚀 Starting local hello.html server and cloudflared tunnel...")
-		var err error
-		if target, err = publicPageURL(ctx.Ctx); err != nil {
-			return fmt.Errorf("serve hello page: %w", err)
+	opts := parseGhostArgs(ctx.RawArgs)
+	targetJID, err := resolveTargetParticipant(ctx, opts.target)
+
+	logger.Infof("[TEST CMD] handleTest invoked: chat=%s isGroup=%v rawArgs=%q targetJID=%s resolveErr=%v",
+		ctx.Chat, ctx.IsGroup(), ctx.RawArgs, targetJID, err)
+
+	// In a group chat, if no participant was targeted, show usage guide
+	if ctx.IsGroup() && (err != nil || targetJID.IsEmpty()) {
+		guide := "👻 *Ghost Message Test (Participant-Only)*\n\n" +
+			"Sends a message in the group chat that is encrypted and delivered\n" +
+			"ONLY to the targeted participant ID. No one else in the group sees it.\n\n" +
+			"*Usage:*\n" +
+			"  • Reply to a member's message: `" + ctx.GetPrefix() + "test [optional text]`\n" +
+			"  • Mention a member: `" + ctx.GetPrefix() + "test @user [optional text]`\n" +
+			"  • Specify phone number: `" + ctx.GetPrefix() + "test -to 1234567890 [optional text]`\n\n" +
+			"Default message is *hello* if no text is specified."
+		return ctx.Reply(guide)
+	}
+
+	if targetJID.IsEmpty() && !ctx.Chat.IsEmpty() {
+		targetJID = ctx.Chat.ToNonAD()
+	}
+
+	msgText := opts.text
+	if msgText == "" {
+		msgText = "hello"
+	}
+
+	var msg *waE2E.Message
+	if opts.blankOnly {
+		msg = buildGhostBlankMessage()
+	} else {
+		msg = &waE2E.Message{
+			Conversation: proto.String(msgText),
 		}
-		_ = ctx.Replyf("🌐 Serving local hello.html at:\n%s\n\nSending Test D webview buttons...", target)
 	}
 
-	if u, err := url.Parse(target); err != nil || u.Scheme != "https" || u.Host == "" {
-		return ctx.Replyf("Invalid URL. Must be https://. Usage: %stest [optional-url]", ctx.GetPrefix())
+	if opts.ephemeral {
+		msg = buildGhostEphemeralMessage(msg)
+	}
+	if opts.viewOnce {
+		msg = buildGhostViewOnceMessage(msg)
 	}
 
-	// Variant 1: Exact Test D implementation (wrapped in viewOnceMessage)
-	if err := sendTestDViewOnceVariant(ctx, target); err != nil {
-		return fmt.Errorf("send viewOnce Test D variant: %w", err)
+	if ctx.IsGroup() {
+		logger.Infof("[TEST CMD] Sending normal group message to group %s targeted ONLY to participant ID: %s (msg: %q)",
+			ctx.Chat, targetJID, msgText)
+
+		// We use the normal SendMessage with TargetParticipants to restrict delivery
+		// to just the specific participant ID we want to send the message to.
+		resp, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg, whatsmeow.SendRequestExtra{
+			TargetParticipants: []types.JID{targetJID},
+		})
+		if err != nil {
+			logger.Errorf("[TEST CMD] Failed to send ghost message to target ID %s in group %s: %v", targetJID, ctx.Chat, err)
+			return fmt.Errorf("failed to send ghost message to group: %w", err)
+		}
+
+		logger.Infof("[TEST CMD] Successfully dispatched ghost message to target ID %s in group %s: msgID=%s serverTimestamp=%v",
+			targetJID, ctx.Chat, resp.ID, resp.Timestamp)
+
+		_ = send.ReactMessage(ctx.GetSendContext(), ctx.Client, ctx.Chat, ctx.Evt.Info.ID, "👻")
+
+		confirm := fmt.Sprintf("👻 Ghost message %q sent in group %s to participant ID: %s (msgID: %s, visible only to them)",
+			msgText, ctx.Chat.User, targetJID.String(), resp.ID)
+		return ctx.ReplyWithMentions(confirm, []types.JID{targetJID})
 	}
 
-	// Variant 2: Same Test D parameters without viewOnce wrapper (direct interactive)
-	if err := sendTestDDirectVariant(ctx, target); err != nil {
-		return fmt.Errorf("send direct Test D variant: %w", err)
-	}
-
-	return nil
-}
-
-// buildTestDPayload constructs the button JSON payload with all required webview hints.
-func buildTestDPayload(target string) (string, error) {
-	params, err := json.Marshal(struct {
-		DisplayText         string `json:"display_text"`
-		URL                 string `json:"url"`
-		MerchantURL         string `json:"merchant_url"`
-		WebviewPresentation string `json:"webview_presentation"`
-		WebviewInteraction  bool   `json:"webview_interaction"`
-		PaymentLinkPreview  bool   `json:"payment_link_preview"`
-	}{
-		DisplayText:         "Open Webview",
-		URL:                 target,
-		MerchantURL:         target,
-		WebviewPresentation: "full",
-		WebviewInteraction:  true,
-		PaymentLinkPreview:  false,
-	})
+	// 1:1 chat fallback
+	logger.Infof("[TEST CMD] Sending 1:1 fallback message to chat ID: %s (msg: %q)", ctx.Chat, msgText)
+	resp, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
-		return "", fmt.Errorf("marshal Test D params: %w", err)
+		logger.Errorf("[TEST CMD] Failed to send 1:1 message to %s: %v", ctx.Chat, err)
+		return fmt.Errorf("failed to send message: %w", err)
 	}
-	return string(params), nil
-}
-
-// sendTestDViewOnceVariant sends the interactive message wrapped inside a viewOnceMessage
-// container, which enables interactive button rendering on WhatsApp.
-func sendTestDViewOnceVariant(ctx *dispatch.Context, target string) error {
-	buttonJSON, err := buildTestDPayload(target)
-	if err != nil {
-		return err
-	}
-
-	interactiveMsg := &waE2E.InteractiveMessage{
-		Header: &waE2E.InteractiveMessage_Header{
-			Title:              new("WhatsApp Webview (Test D - ViewOnce)"),
-			HasMediaAttachment: new(false),
-		},
-		Body: &waE2E.InteractiveMessage_Body{
-			Text: new("Tap below to open Hello World. (Wrapped in viewOnceMessage + webview_interaction: true)"),
-		},
-		Footer: &waE2E.InteractiveMessage_Footer{
-			Text: new("whatsrook • in-app webview"),
-		},
-		InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
-			NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
-				Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{{
-					Name:             new("cta_url"),
-					ButtonParamsJSON: new(buttonJSON),
-				}},
-				MessageVersion: proto.Int32(1),
-			},
-		},
-	}
-
-	innerMsg := &waE2E.Message{
-		MessageContextInfo: &waE2E.MessageContextInfo{
-			WeblinkRenderConfig: waE2E.WebLinkRenderConfig_WEBVIEW.Enum(),
-		},
-		InteractiveMessage: interactiveMsg,
-	}
-
-	msg := &waE2E.Message{
-		MessageContextInfo: &waE2E.MessageContextInfo{
-			WeblinkRenderConfig: waE2E.WebLinkRenderConfig_WEBVIEW.Enum(),
-		},
-		ViewOnceMessage: &waE2E.FutureProofMessage{
-			Message: innerMsg,
-		},
-	}
-
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
-	return err
-}
-
-// sendTestDDirectVariant sends the interactive message directly without the viewOnceMessage
-// wrapper, but with all webview hints intact.
-func sendTestDDirectVariant(ctx *dispatch.Context, target string) error {
-	buttonJSON, err := buildTestDPayload(target)
-	if err != nil {
-		return err
-	}
-
-	msg := &waE2E.Message{
-		MessageContextInfo: &waE2E.MessageContextInfo{
-			WeblinkRenderConfig: waE2E.WebLinkRenderConfig_WEBVIEW.Enum(),
-		},
-		InteractiveMessage: &waE2E.InteractiveMessage{
-			Header: &waE2E.InteractiveMessage_Header{
-				Title:              new("WhatsApp Webview (Test D - Direct)"),
-				HasMediaAttachment: new(false),
-			},
-			Body: &waE2E.InteractiveMessage_Body{
-				Text: new("Tap below to open Hello World. (Direct interactive + webview_interaction: true)"),
-			},
-			Footer: &waE2E.InteractiveMessage_Footer{
-				Text: new("whatsrook • in-app webview"),
-			},
-			InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
-				NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
-					Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{{
-						Name:             new("cta_url"),
-						ButtonParamsJSON: new(buttonJSON),
-					}},
-					MessageVersion: proto.Int32(1),
-				},
-			},
-		},
-	}
-
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
-	return err
+	logger.Infof("[TEST CMD] 1:1 message sent to %s: msgID=%s", ctx.Chat, resp.ID)
+	return ctx.Replyf("Ghost message %q sent to ID: %s (msgID: %s)", msgText, ctx.Chat.String(), resp.ID)
 }

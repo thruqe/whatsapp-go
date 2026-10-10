@@ -185,12 +185,34 @@ func (c *PluginContext) replyContextInfo() *waE2E.ContextInfo {
 	return ci
 }
 
-// GetPrefix returns the configured command prefix, default ".".
-func (c *PluginContext) GetPrefix() string {
+// GetPrefixes returns all configured command prefixes, default ["."].
+func (c *PluginContext) GetPrefixes() []string {
 	if c != nil && c.Client != nil {
-		if val, err := GetClientSetting(c.GetSendContext(), c.Client, "prefix"); err == nil && val != "" {
-			return val
+		if val, err := GetClientSetting(c.GetSendContext(), c.Client, "prefix"); err == nil && strings.TrimSpace(val) != "" {
+			parts := strings.Fields(val)
+			if len(parts) > 0 {
+				var res []string
+				for _, p := range parts {
+					if strings.EqualFold(p, "none") || strings.EqualFold(p, "empty") {
+						res = append(res, "")
+					} else {
+						res = append(res, p)
+					}
+				}
+				if len(res) > 0 {
+					return res
+				}
+			}
 		}
+	}
+	return []string{"."}
+}
+
+// GetPrefix returns the primary configured command prefix, default ".".
+func (c *PluginContext) GetPrefix() string {
+	prefixes := c.GetPrefixes()
+	if len(prefixes) > 0 {
+		return prefixes[0]
 	}
 	return "."
 }

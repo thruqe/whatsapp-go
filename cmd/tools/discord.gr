@@ -1,0 +1,1251 @@
+/*
+   Library in grol for discord bot.
+*/
+
+// --- General library functions ---
+
+// Note: some of these could be moved from recursive to iterative now that we have `for` loops.
+
+// f argument takes the element and the index
+func walk(f, a) {
+	(f,a,i) => {
+		if (len(a)==0) {
+			[]
+		} else {
+			[f(first(a),i)]+self(f,rest(a),i+1)
+		}
+	}(f,a,0)
+}
+
+// Apply a function to each element of an array.
+func apply(f, a) {
+    if (len(a)==0) {
+        []
+    } else {
+        [f(first(a))]+apply(f,rest(a))
+    }
+}
+
+// Reverse an array or map or string
+func reverse(a) {
+    if len(a) == 0 {
+        return []
+    }
+    self(rest(a)) + first(a)
+}
+
+// Filter an array
+func filter(predicate, arr) {
+	if len(arr) == 0 {
+	  []
+	} else if predicate(first(arr)) {
+      [first(arr)] + filter(predicate, rest(arr))
+	} else {
+	  filter(predicate, rest(arr))
+	}
+}
+
+
+// ---- discord specific ----
+
+discord = {
+  "actionRow": elems => {
+		{
+		"type": 1,
+		"components": elems
+		}
+	},
+  "button": (label, style, custom_id) => {
+		{
+			"type": 2,
+			"label": label,
+			"style": style,
+			"custom_id": custom_id
+		}
+	},
+  "buttonStyle" : {
+		"primary": 1,
+		"secondary": 2,
+		"success": 3,
+		"danger": 4,
+		"link": 5
+	},
+  "interaction" : {
+		"update_message" : 7,
+		"message_with_source" : 4
+	},
+  "doInteraction" : (msgId, userId, map) => { // tic-tac-toe example
+	clicked = map.custom_id
+	// Handle blackjack interactions
+	if clicked[0:3] == "bj_" {
+		return blackjack.doInteraction(msgId, userId, map)
+	}
+	// Handle tictactoe interactions
+	state := discord_state[msgId]
+	if state == nil {
+		state = {
+			"board": tictactoe.empty_board,
+			"next": "X",
+			"end": nil,
+			"turn": 0
+		}
+	}
+	if clicked == "reset" {
+		InteractionRespond({
+			"type": discord.interaction.update_message,
+			"data": {"content": "<@" + userId + "> has reset the board", "components": tictactoe.boardToComponents(tictactoe.empty_board,-1,-1)}})
+		discord_state[msgId] = nil
+		return
+	}
+	if state.end != nil || state.turn >= 9 {
+		InteractionRespond({"type": discord.interaction.update_message, "data": {"content": "Game is over <@" + userId + ">", "components": tictactoe.boardToComponents(state.board,state.lastI,state.lastJ)}})
+		return
+	}
+	state.turn = state.turn + 1 // no ++ on map/indexes yet.
+	tag = "<@" + userId + ">"
+	if clicked == "play" {
+		move = tictactoe.play(state.board, state.next)
+		log("Move", move)
+		i = move[0]
+		j = move[1]
+		clicked = str(i+1) + "," + str(j+1)
+		tag = "Grol"
+	} else {
+		pair = split(clicked, ",")
+		i=int(pair[0])-1
+		j=int(pair[1])-1
+	}
+	if state.board[i][j] != "" {
+		InteractionRespond({"type": discord.interaction.update_message, "data": {"content": clicked + " is already occupied", "components": tictactoe.boardToComponents(state.board,state.lastI,state.lastJ)}})
+		return
+	}
+	board = state.board
+	row = board[i]
+	row[j] = state.next
+	board[i] = row
+	state.board = board
+	state.next = tictactoe.next(state.next)
+	state.end = tictactoe.endGame(board)
+	state.lastI = i
+	state.lastJ = j
+	if state.end != nil{
+		clicked = clicked + ": " + state.end + " wins!"
+	} else if state.turn >= 9 {
+		clicked = clicked + ": draw."
+	}
+	InteractionRespond({
+		"type": discord.interaction.update_message,
+		"data": {"content": tag + " played " + clicked, "components": tictactoe.boardToComponents(state.board,i,j)}
+	})
+	// println("msgId", msgId, "New state", state)
+	discord_state[msgId] =  state
+  }
+}
+
+if !info.globals.discord_state {
+	discord_state = {}
+}
+
+// ---- tic tac toe ----
+
+tictactoe = {
+  "empty_board": [["","",""],["","",""],["","",""]],
+  "boardToComponents": (board, hi, hj) => {
+	walk((row,i) => {discord.actionRow(
+		walk((cell,j) => {
+		   if cell == "" {
+			   cell = "\u200B" // zero width space
+		   }
+		   style = discord.buttonStyle.secondary
+		   if i == hi && j == hj {
+			   style = discord.buttonStyle.primary
+		   }
+		   discord.button(cell, style, sprintf("%d,%d", i+1, j+1))
+		}, row))}, board) +
+		[discord.actionRow([discord.button("Grol Play",discord.buttonStyle.success,"play"), discord.button("Reset", discord.buttonStyle.danger, "reset")])]
+  },
+  "sendBoard": board => {
+	msg = {
+		"content":    "Tic-Tac-Toe",
+		"components": tictactoe.boardToComponents(board, -1, -1)
+	}
+	ChannelMessageSendComplex(msg)
+    },
+  "endGame": board => {
+	// check for win
+	for i=0:3 {
+		if board[i][0] != "" && board[i][0] == board[i][1] && board[i][1] == board[i][2] {
+			return board[i][0]
+		} else if board[0][i] != "" && board[0][i] == board[1][i] && board[1][i] == board[2][i] {
+			return board[0][i]
+		}
+	}
+	if board[0][0] != "" && board[0][0] == board[1][1] && board[1][1] == board[2][2] {
+		board[0][0]
+	} else if board[0][2] != "" && board[0][2] == board[1][1] && board[1][1] == board[2][0] {
+		board[0][2]
+	} else {
+		nil
+	}
+  },
+  "next": cur => {
+	if cur == "X" {
+		"O"
+	} else {
+		"X"
+	}
+  },
+  "try": (board, i, j, next) => {
+	if board[i][j] != "" {
+		return nil
+	}
+	row = board[i]
+	row[j] = next
+	board[i] = row
+	return board
+},
+  "play": (board, next) => {
+	freeList = []
+	for i = 0:3 {
+		for j = 0:3 {
+			check = tictactoe.try(board, i, j, next)
+			if check == nil {
+				continue
+			}
+			freeList = freeList + [[i,j]]
+			if tictactoe.endGame(check) != nil {
+				log("Win by", next, "at", i, j)
+				return [i,j]
+			}
+		}
+	}
+	log("no win yet", freeList)
+	n = tictactoe.next(next)
+	// No win, try to block
+	for c = freeList {
+		log("Checking", c)
+		i = c[0]
+		j = c[1]
+		check = tictactoe.try(board, i, j, n)
+		if tictactoe.endGame(check) != nil {
+			log("Loss by", next, "at", i, j)
+			return [i,j]
+		}
+	}
+	if len(freeList) == 1 { // only one move left
+		return freeList[0]
+	}
+	// try middle move
+	if board[1][1] == "" {
+		return [1,1]
+	}
+	// random move
+	freeList[rand(len(freeList))]
+  },
+}
+
+func TicTacToe() {
+	tictactoe.sendBoard(tictactoe.empty_board)
+}
+
+// --- Black jack ---
+
+// Cards map of string to int value
+cards := {
+	"A": 11, // Ace can be 11 or 1
+	"2": 2,
+	"3": 3,
+	"4": 4,
+	"5": 5,
+	"6": 6,
+	"7": 7,
+	"8": 8,
+	"9": 9,
+	"10": 10, // 0 has slash but O is too wide - maybe we need another TTF font
+	"J": 10,
+	"Q": 10,
+	"K": 10,
+}
+
+// Suits
+suits = ["♥", "♦", "♣", "♠"]
+hearts := suits[0]
+diamonds := suits[1]
+clubs := suits[2]
+spades := suits[3]
+
+// Generate a deck of cards
+func fullDeck() {
+	deck := []
+	for suit := suits {
+		for card := cards {
+			deck = deck + [[card.key, suit]]
+		}
+	}
+	return deck
+}
+
+bjs = {
+	"initialState": () => {
+		{
+			"num_decks": 1,
+			"new_decks_at": 0, // so folks can count cards easier
+			"decks": [],
+			"player_hand": [],
+			"dealer_hand": [],
+			"player_hand_value": 0,
+			"dealer_hand_value": 0,
+			"player_balance": 100,
+			"bet": 10,
+			"end_game": true,
+			"summary": "",
+			"lastchange": 0,
+			"rounds_played": 1,
+			"highest_balance": 100,
+			"timestamp": 0, // placeholder for timestamp when game is created
+			"first_user_id": nil, // ID of first user to interact with the game
+			"last_user_id": nil, // ID of last user to interact with the game
+			"sequence": 0 // Sequence number for button IDs only
+		}
+	},
+	"dealCard": (state) => {
+		card := state.decks[0]
+		state.decks = state.decks[1:]
+		t := state.new_decks_at*52.*state.num_decks/100.
+		if len(state.decks) <= t {
+			state.decks = shuffle(fullDeck()*state.num_decks)
+		}
+		return [card]
+	},
+	"newTurn": (state) => {
+		state.dealer_hand = bjs.dealCard(state)
+		state.dealer_hand = state.dealer_hand + bjs.dealCard(state)
+		state.dealer_hand_value = 0
+		state.player_hand = bjs.dealCard(state)
+		state.player_hand = state.player_hand + bjs.dealCard(state)
+		state.lastchange = -9
+		state.end_game = false
+		state.player_hand_value = bjs.handValue(state.player_hand)
+		state.summary = "Turn #" + str(state.rounds_played) + ". Player hand " + str(state.player_hand_value) + " pts"
+		bjs.earlyPlayerStop(state)
+	},
+	"earlyPlayerStop": (state) => {
+		if state.player_hand_value > 21 {
+			bjs.completeDealerTurn(state)
+		} else if state.player_hand_value == 21 {
+			bjs.completeDealerTurn(state)
+		}
+	},
+	"hit": (state) => {
+		state.player_hand = state.player_hand + bjs.dealCard(state)
+		state.player_hand_value = bjs.handValue(state.player_hand)
+		state.summary = "Player hit, hand is now " + str(state.player_hand_value) + " pts"
+		bjs.earlyPlayerStop(state)
+	},
+	"dealerHit": (state) => {
+		state.dealer_hand = state.dealer_hand + bjs.dealCard(state)
+		state.dealer_hand_value = bjs.handValue(state.dealer_hand)
+	},
+	"dealerStrategy": (state) => {
+		if state.dealer_hand_value == 0 {
+			state.dealer_hand_value = bjs.handValue(state.dealer_hand)
+		}
+		// hit until 17 or higher
+		return state.dealer_hand_value <= 16
+	},
+	"completeDealerTurn": (state) => {
+		state.dealer_hand_value = bjs.handValue(state.dealer_hand)
+		for bjs.dealerStrategy(state) {
+			bjs.dealerHit(state)
+		}
+		bjs.evaluateGame(state)
+	},
+	"evaluateGame": (state) => {
+		state.lastchange = bjs.evaluateGameDetails(state)
+		state.player_balance = round(state.player_balance + state.lastchange*state.bet)
+		if state.player_balance > state.highest_balance {
+			state.highest_balance = state.player_balance
+		}
+		state.rounds_played = state.rounds_played + 1
+		state.end_game = true
+	},
+	"evaluateGameDetails": (state) => {
+		pbj := bjs.isBlackjack(state.player_hand)
+		dbj := bjs.isBlackjack(state.dealer_hand)
+		if pbj {
+			if dbj {
+				state.summary = "Both blackjack, Push"
+				return 0
+			} else {
+				state.summary = "Player wins Blackjack to " + str(state.dealer_hand_value)
+				return 1.5
+			}
+		}
+		if state.player_hand_value > 21 {
+			state.summary = "Player busts (" + str(state.player_hand_value) + ") !"
+			return -1
+		}
+		if state.dealer_hand_value > 21 {
+			state.summary = "Dealer busts " + str(state.dealer_hand_value) + " (Player " + str(state.player_hand_value) + ")"
+			return 1
+		}
+		if state.player_hand_value > state.dealer_hand_value {
+			state.summary = "Player wins " + str(state.player_hand_value) + " to " + str(state.dealer_hand_value)
+			return 1
+		}
+		if state.player_hand_value < state.dealer_hand_value {
+			dlr := "Blackjack"
+			if !dbj {
+				dlr = str(state.dealer_hand_value)
+			}
+			state.summary = "Dealer wins " + dlr + " to " + str(state.player_hand_value)
+			return -1
+		}
+		state.summary = "Push " + str(state.player_hand_value) + " - " + str(state.dealer_hand_value)
+		return 0
+	},
+	"isBlackjack": (hand) => {
+		return len(hand) == 2 && bjs.handValue(hand) == 21
+	},
+	"handValue": (hand) => {
+		value := 0
+		count_aces := 0
+		for card := hand {
+			card_value := cards[card[0]]
+			if card_value == 11 {
+				count_aces++
+			}
+			value = value + card_value
+		}
+		for count_aces > 0 {
+			if value <= 21 {
+				break
+			}
+			value = value - 10
+			count_aces--
+		}
+		return value
+	}
+}
+
+// Draws the blackjack table: player cards in one row, dealer cards in another
+func drawBlackjackTable(player, dealer, hide) {
+	cardW := 90.0
+	cardH := 120.0
+	margin := 20.0
+	rows := 2
+	maxCards := max(len(player), len(dealer))
+	topBottomMargin := margin / 2.0
+	betweenRows := margin
+	w := maxCards * (cardW + margin) - margin
+	h := cardH * 2 + betweenRows + 2 * topBottomMargin
+	img := image.new("bjtable", round(w), round(h))
+	// Draw player cards (bottom row)
+	for i = 0:len(player) {
+		cardX := i * (cardW + margin)
+		cardY := topBottomMargin + cardH + betweenRows // bottom row
+		c := player[i]
+		card(img, cardX, cardY, cardW, cardH, c[1], c[0])
+	}
+	// Draw dealer cards (top row)
+	for i = 0:len(dealer) {
+		cardX := i * (cardW + margin)
+		cardY := topBottomMargin // top row
+		c := dealer[i]
+		if hide && i == 0 {
+			cardBack(img, cardX, cardY, cardW, cardH)
+		} else {
+			card(img, cardX, cardY, cardW, cardH, c[1], c[0])
+		}
+	}
+	return img
+}
+
+blackjack = {
+	"stateToComponents": (state) => {
+		buttons = []
+		if state.player_balance < state.bet {
+			buttons = buttons + [discord.button("Out of money! (need $" + str(state.bet) + " min)", discord.buttonStyle.danger, sprintf("bj_new_%d", state.sequence))]
+			del(state.decks)
+			del(state.player_hand)
+			del(state.dealer_hand)
+		} else if state.end_game {
+			buttons = buttons + [discord.button("New Game", discord.buttonStyle.success, sprintf("bj_new_%d", state.sequence))]
+		} else {
+			buttons = buttons + [
+				discord.button("➕ Hit ➕", discord.buttonStyle.primary, sprintf("bj_hit_%d", state.sequence)),
+				discord.button("✋ Stand", discord.buttonStyle.success, sprintf("bj_stand_%d", state.sequence))
+			]
+		}
+		[discord.actionRow(buttons)]
+	},
+	"doInteraction": (msgId, userId, map) => {
+		state := discord_state[msgId]
+		if state == nil || state.help {
+			state = bjs.initialState()
+			state.decks = shuffle(fullDeck()*state.num_decks)
+			state.first_user_id = userId // Set first user on game creation
+		}
+		clicked = map.custom_id
+		tag := "<@" + userId + ">"
+		if state.player_balance < state.bet {
+			tag = "<@" + state.last_user_id + ">"
+			InteractionRespond({
+				"type": discord.interaction.update_message,
+				"data": {
+					"content": sprintf("%s %d rounds played, had a maximum of $%d, now lost, use `!grol Blackjack()` to start a new game", tag, state.rounds_played, state.highest_balance),
+					"components": []
+				}
+			})
+			del(discord_state[msgId])
+			return
+		}
+		// Extract sequence number from custom_id if present
+		bseq := 0
+		if len(clicked) > 7 { // bj_hit_ or bj_stand_ or bj_new_ + number
+			parts := split(clicked, "_")
+			if len(parts) == 3 {
+				bseq = int(parts[2])
+			}
+		}
+		if state.sequence == nil {
+			log("Setting sequence to 1 for game from before we started tracking sequences", msgId)
+			state.sequence = 1
+		}
+		if bseq > 0 && bseq != state.sequence {
+			log("Got sequence", bseq, "from", clicked, "but expected", state.sequence)
+			// If we have a valid state, refresh the view
+			if state.sequence > 0 {
+				img := drawBlackjackTable(state.player_hand, state.dealer_hand, !state.end_game)
+				InteractionRespond({
+					"type": discord.interaction.update_message,
+					"data": {
+						"content": tag + " " + blackjack.summary(state),
+						"components": blackjack.stateToComponents(state)
+					}
+				}, img)
+			} else {
+				// No valid state, show error message
+				InteractionRespond({
+					"type":  discord.interaction.message_with_source,
+					"data": {
+						"content": tag + " This action is no longer valid - the game has expired. " +
+						"use `!grol Blackjack()` to start a new game.",
+						"flags": 64 // Ephemeral flag
+					}
+				})
+			}
+			return
+		}
+		// Increment sequence number for this interaction
+		state.sequence = state.sequence + 1
+		if clicked[0:7] == "bj_hit_" {
+			bjs.hit(state)
+		} else if clicked[0:9] == "bj_stand_" {
+			bjs.completeDealerTurn(state)
+		} else {
+			bjs.newTurn(state)
+		}
+		// Update timestamp and last user on each interaction
+		state.timestamp = time.now()
+		state.last_user_id = userId
+		img := drawBlackjackTable(state.player_hand, state.dealer_hand, !state.end_game)
+		InteractionRespond({
+			"type": discord.interaction.update_message,
+			"data": {
+				"content": tag + " " + blackjack.summary(state),
+				"components": blackjack.stateToComponents(state)
+			}
+		}, img)
+		discord_state[msgId] = state
+	},
+	"summary": (state) => {
+		extra := ""
+		if state.lastchange == 1.5 {
+			extra = "💵💰 "
+		} else if state.lastchange == -1 {
+			extra = "💀 "
+		} else if state.lastchange == 0 {
+			extra = "🤝 "
+		} else if state.lastchange == 1 {
+			extra = "💵 "
+		}
+		return sprintf("%s%s\t\tBalance: $%d (High: $%d)", extra, state.summary, state.player_balance, state.highest_balance)
+	}
+}
+
+func cleanupDiscordState() {
+	now := time.now()
+	// 25 hours in seconds
+	maxAge := 25 * 60 * 60
+	for kv := discord_state {
+		msgId := kv.key
+		state := discord_state[msgId]
+		// Only cleanup blackjack games
+		if state != nil && state.timestamp != nil {
+			age := now - state.timestamp
+			if age > maxAge {
+				log("Cleaning up blackjack game", msgId, "age", age, "maxAge", maxAge, "created by", state.first_user_id, "last user", state.last_user_id)
+				del(discord_state[msgId])
+			} else {
+				log("Not cleaning up blackjack game", msgId, "age", age, "maxAge", maxAge, "created by", state.first_user_id, "last user", state.last_user_id)
+			}
+		} else {
+			log("Not cleaning up non blackjack state", msgId, "state", state)
+		}
+	}
+}
+
+func Blackjack() {
+	help := "## 🎲 Blackjack Rules:\n" +
+		"- 🎯 Get closer to 21 than the dealer without going over\n" +
+		"- 🃏 Cards 2-10 are worth their face value, J/Q/K are 10, A is 1 or 11\n" +
+		"- 👨‍💼 Dealer must hit on 16 or lower, stand on 17 or higher\n" +
+		"- 💰 Blackjack (A + 10/J/Q/K) pays 3:2\n" +
+		"- ⬆️ Top row shows dealer's cards, bottom row is your hand\n" +
+		"- 💵 Start with $100, bet $10 per hand"
+	msg := {
+		"content": help,
+		"components": [discord.actionRow([discord.button("🎮 Let'sPlay! 🎮", discord.buttonStyle.success, "bj_start")])]
+	}
+	cleanupDiscordState()
+	msgId := ChannelMessageSendComplex(msg)
+	discord_state[msgId] = {"help": true}
+}
+
+// --- Card demo ---
+// Fancier heart shape based on SVG quadratic commands translated to grol.
+// All Y coordinates will be flipped if upsideDown is true
+func drawHeartPath(img, x, y, w, h, upsideDown) {
+    x = round(x) + 0.5
+    y = round(y) + 0.5
+    // Scale factors, original svg was 20x20
+    sx := w / 20.0
+    sy := h / 20.0
+    // Helper lambda to flip Y coordinates if upsideDown
+    flipY := func(svgY) {
+        if upsideDown {
+            return (20.0 - svgY) * sy + y
+        }
+        return svgY * sy + y
+    }
+    // M10,6
+    image.move_to(img, x + 10 * sx, flipY(6))
+    // Q10,0 15,0
+    image.quad_to(img, x + 10 * sx, flipY(0), x + 15 * sx, flipY(0))
+    // Q20,0 20,6
+    image.quad_to(img, x + 20 * sx, flipY(0), x + 20 * sx, flipY(6))
+    // Q20,10 15,14
+    image.quad_to(img, x + 20 * sx, flipY(10), x + 15 * sx, flipY(14))
+    // Q10,18 10,20
+    image.quad_to(img, x + 10 * sx, flipY(18), x + 10 * sx, flipY(20))
+    // Q10,18 5,14
+    image.quad_to(img, x + 10 * sx, flipY(18), x + 5 * sx, flipY(14))
+    // Q0,10 0,6
+    image.quad_to(img, x + 0, flipY(10), x + 0, flipY(6))
+    // Q0,0 5,0
+    image.quad_to(img, x + 0, flipY(0), x + 5 * sx, flipY(0))
+    // Q10,0 10,6
+    image.quad_to(img, x + 10 * sx, flipY(0), x + 10 * sx, flipY(6))
+    image.close_path(img)
+}
+
+// Function to draw a filled heart
+func drawHeart(img, x, y, w, h, color, upsideDown) {
+    drawHeartPath(img, x, y, w, h, upsideDown)
+    image.draw(img, color)
+}
+
+// Function to define the path for a diamond shape
+func drawDiamondPath(img, x, y, w, h) {
+    // Calculate center point
+    centerX := x + w/2.0
+    centerY := y + h/2.0
+    // Points at top, right, bottom, left
+    topX := centerX
+    topY := y
+    rightX := x + w
+    rightY := centerY
+    bottomX := centerX
+    bottomY := y + h
+    leftX := x
+    leftY := centerY
+    // Control points offset - same percentage for both directions
+    offset := w * 0.2  // 20% of width for both horizontal and vertical offset
+    // Draw the diamond shape with curves
+    image.move_to(img, topX, topY)
+    // Top right curve
+    image.quad_to(img,
+        topX + offset, rightY - offset,  // Control point moved inside
+        rightX, rightY
+    )
+    // Bottom right curve
+    image.quad_to(img,
+        bottomX + offset, rightY + offset,  // Control point moved inside
+        bottomX, bottomY
+    )
+    // Bottom left curve
+    image.quad_to(img,
+        bottomX - offset, leftY + offset,  // Control point moved inside
+        leftX, leftY
+    )
+    // Top left curve
+    image.quad_to(img,
+        topX - offset, leftY - offset,  // Control point moved inside
+        topX, topY
+    )
+    image.close_path(img)
+}
+
+// Function to draw a filled diamond
+func drawDiamond(img, x, y, w, h, color) {
+    // Adjust dimensions for better diamond proportions
+    adjustedW := w * 0.85
+    adjustedH := h * 1.1
+    // Adjust x position to keep diamond centered with original width
+    adjustedX := x + (w - adjustedW)/2
+    adjustedY := y + (h - adjustedH)/2
+    drawDiamondPath(img, adjustedX, adjustedY, adjustedW, adjustedH)
+    image.draw(img, color)
+}
+
+// Function to draw a filled club
+func drawClub(img, x, y, w, h, color, upsideDown) {
+    if upsideDown {
+        // If upside down, flip the y coordinate and drawing order
+        y = y + h
+        h = -h
+    }
+    // Scale factors
+    sx := w / 20.0
+    sy := h / 20.0
+    // Circle radius (relative to width)
+    radius := w * 0.23
+    // Draw the three circles with adjusted spacing
+    // Top circle
+    centerX := x + w/2.0
+    topY := y + h * 0.22
+    drawDisc(img, centerX, topY, radius, color)
+    // Bottom left circle - tighter spacing
+    leftX := centerX - radius * 1.1
+    bottomY := y + h * 0.56
+    drawDisc(img, leftX, bottomY, radius, color)
+    // Bottom right circle
+    rightX := centerX + radius * 1.1
+    drawDisc(img, rightX, bottomY, radius, color)
+    // Draw stem below circles - even more pointed
+    stemH := h * 0.675
+    stemY := y + h * 0.335
+    stemW := w * 0.3
+    drawTriangle(img, centerX, stemY, stemW, stemH, color)
+    // Draw a small rectangle to fill the gap
+    rectW := w * 0.2
+    rectH := h * 0.2
+    rectX := x + (w-rectW)/2
+    rectY := y + h * 0.31
+    drawRect(img, rectX, rectY, rectW, rectH, color)
+}
+
+// Function to draw a filled spade
+func drawSpadePath(img, x, y, w, h, upsideDown) {
+    if upsideDown {
+        // If upside down, flip the y coordinate and drawing order
+        y = y + h
+        h = -h
+    }
+    // Draw inverted heart for top part
+    heartW := w
+    heartH := h * 0.85
+    drawHeartPath(img, x - (heartW - w)/2, y, heartW, heartH, true)  // Always true for spade (removed !upsideDown)
+    // Draw stem below heart
+    stemH := h * 0.5
+    stemY := y + heartH * 0.65
+    drawTrianglePath(img,  x + w/2.0, stemY, w/3.0, stemH)
+}
+
+func cardBack(img, x, y, w, h) {
+    roundedRect(img, x, y, w, h, 10)
+    image.draw(img, [255, 255, 255])
+    // Inner:
+    offset := 8
+    x = x+offset
+    y = y+offset
+    w = w-2*offset
+    h = h-2*offset
+    roundedRect(img, x-1, y-1, w+2, h+2, 7)
+    image.draw(img, [0, 40, 160])
+    // Diagonal lines:
+    step := 7
+    for i = 1:round(w/step)+round(h/step) {
+        x1 := x + i*step
+        y2 := y + i*step
+        if x1 < x+w {
+            linePath(img, x1, y, x, y2, 2)
+        }
+    }
+    image.draw(img, [40,160,0])
+    y1 := y + h + 1
+    for i = 1:round(w/step)+round(h/step) {
+        x1 := x + i*step
+        y2 := y + h - i*step
+        if x1 < x+w {
+            linePath(img, x1, y1, x, y2, 2)
+        }
+    }
+    image.draw(img, [170,160,0])
+    x1 := x + w + 1
+    for i = 1:round(w/step)+round(h/step) {
+        y1 := y + i*step
+        x2 := x + w - i*step
+        if y1 <= y+h && x2 >= x {
+            linePath(img, x1, y1, x2, y, 2)
+        }
+    }
+    image.draw(img, [100,60,200])
+    y2 := y + h + 1
+    for i = 1:round(w/step)+round(h/step) {
+        y1 := y + h - i*step
+        x2 := x + w - i*step
+        if y1 >= y && x2 >= x {
+            linePath(img, x1, y1, x2, y2, 2)
+        }
+    }
+    image.draw(img, [200,40,40])
+}
+
+func card(img, x, y, w, h, suit, face) {
+    // Draw card background
+    roundedRect(img, x, y, w, h, 10)
+    image.draw(img, [255, 255, 255])
+    // Calculate suit positions
+    suitSize := h * 0.15
+    suitMargin := h * 0.05
+    topLeftX := x + suitMargin
+    topLeftY := y + suitMargin
+    bottomRightX := x + w - suitMargin - suitSize
+    bottomRightY := y + h - suitMargin - suitSize
+    color := [0, 0, 0] // black
+    // Draw suits based on card index
+    if suit == "♥" {
+        // Hearts
+        color = [255, 0, 0] // red
+        drawHeartPath(img, topLeftX, topLeftY, suitSize, suitSize, false)
+        drawHeartPath(img, bottomRightX, bottomRightY, suitSize, suitSize, true)
+        image.draw(img, color)
+    } else if suit == "♦" {
+        // Diamonds
+        color = [255, 0, 0] // red
+        drawDiamond(img, topLeftX, topLeftY, suitSize, suitSize, color)
+        drawDiamond(img, bottomRightX, bottomRightY, suitSize, suitSize, color)
+    } else if suit == "♣" {
+        // Clubs
+        drawClub(img, topLeftX, topLeftY, suitSize, suitSize, color, false)
+        drawClub(img, bottomRightX, bottomRightY, suitSize, suitSize, color, true)
+    } else if suit == "♠" {
+        // Spades
+        drawSpadePath(img, topLeftX, topLeftY, suitSize, suitSize, false)
+        drawSpadePath(img, bottomRightX, bottomRightY, suitSize, suitSize, true)
+        image.draw(img, color)
+    }
+    // Draw face value
+    faceSize := h * 0.333
+    faceX := x + w / 2
+    faceY := y + h / 2
+    center_text(img, faceX, faceY, face, {
+        "size": faceSize,
+        "color": color,
+        "variant": "bold"
+    })
+}
+
+func CardDemo() {
+	FourCards([["A","♥"], ["K","♣"], ["Q","♠"], ["J","♦"]])
+}
+
+func FourCards(cards) {
+	// Create a new image
+	cardW := 300.0  // Larger card width
+	cardH := 400.0  // Larger card height
+	margin := 20.0  // Margin between cards and edges
+	suitSize := 60.0  // Base suit size
+	suitMargin := 25.0  // Reduced margin for suits within cards
+
+	// Calculate total width and height needed
+	w := 2.0 * cardW + 3.0 * margin  // Two cards wide plus margins
+	h := 2.0 * cardH + 3.0 * margin  // Two cards tall plus margins
+	img = image.new("cards", round(w), round(h))
+
+	// Draw each suit 2x2 grid
+	i := 0
+	for c := cards {
+		suit := c[1]
+		face := c[0]
+		// Calculate card position (2x2 grid)
+		row := i / 2  // 0 for top row, 1 for bottom row
+		col := i % 2  // 0 for left column, 1 for right column
+		cardX := margin + col * (cardW + margin)
+		cardY := margin + row * (cardH + margin)
+
+		card(img, cardX, cardY, cardW, cardH, suit, face)
+		i++
+	}
+	msgId = SendImage(img)
+}
+
+// --- End Blackjack ---
+
+// --- Image demo ---
+
+// Also from grol's example/image.gr
+// with inspiration @shokhie + our colorful version etc...
+
+msgId=""
+
+// With angle as an int modulo 360 input, this gets memoized.
+func ycbcr(angle) {
+	a = PI * angle / 180.
+	// Y   Cb  Cr
+	[190, 128 + 120*sin(a), 128 + 120*cos(a)]
+}
+
+func Butterfly() {
+	butterfly(550, 350) // dimensions that don't cause scaling (on desktop/web clients at least)
+}
+
+func butterfly(xsize, ysize) {
+	imgName := "canvas"
+	canvas := image.new(imgName, xsize, ysize)
+	div := 6
+	now := time.now()
+	t := 0
+	for t < 12*PI {
+		x := sin(t) * (pow(E, cos(t)) - 2*cos(4*t) - pow(sin(t/12), 5))
+		y := cos(t) * (pow(E, cos(t)) - 2*cos(4*t) - pow(sin(t/12), 5))
+		angle := int(t*180./PI) % 360 // so ycbr() get memoized with 360 values
+		color = ycbcr(angle)
+		image.set_ycbcr(canvas, int(xsize/2+(xsize/div)*x+0.5), int(ysize/2.5+(ysize/div)*y+0.5), color)
+		// could use image.set_hsl() too.
+		t = t + 0.0005
+	}
+	elapsed := time.now() - now
+	println("Time elapsed: ", elapsed, " seconds")
+	msgId = msgId // bind to top level/global
+	msgId = SendImage(imgName)
+}
+
+// -- drawing utilities: shapes, bezier and circles --
+
+// Rounded corner rectangle
+func roundedRect(img, x, y, w, h, r) {
+	image.move_to(img, x + r, y)
+	image.line_to(img, x + w - r, y)
+	image.quad_to(img, x + w, y, x + w, y + r)
+	image.line_to(img, x + w, y + h - r)
+	image.quad_to(img, x + w, y + h, x + w - r, y + h)
+	image.line_to(img, x + r, y + h)
+	image.quad_to(img, x, y + h, x, y + h - r)
+	image.line_to(img, x, y + r)
+	image.quad_to(img, x, y, x + r, y)
+	image.close_path(img)
+}
+
+
+func discQuadrant(img, x, y, rx, ry, color) {
+    x = round(x) + 0.5
+    y = round(y) + 0.5
+	a := 1.00005519
+	b := 0.55342686
+	c := 0.99873585
+	p0x := x + rx*a
+	p0y := y
+	image.move_to(img, x, y)
+	image.line_to(img, p0x, p0y)
+	p2x := x + rx*b
+	p2y := y + ry*c
+	p1x := x + rx*c
+	p1y := y + ry*b
+	p3x := x
+	p3y := y + ry*a
+	image.cube_to(img, p1x, p1y, p2x, p2y, p3x, p3y)
+	// image.line_to(img, x, y) // covered by close_path in draw
+	image.draw(img, color)
+}
+
+// Function to draw a complete circle using discQuadrant
+func drawDisc(img, x, y, radius, color) {
+	// Draw all four quadrants to make a complete circle
+	discQuadrant(img, x, y, radius, radius, color)  // Top-right quadrant
+	discQuadrant(img, x, y, -radius, radius, color)  // Top-left quadrant
+	discQuadrant(img, x, y, -radius, -radius, color)  // Bottom-left quadrant
+	discQuadrant(img, x, y, radius, -radius, color)  // Bottom-right quadrant
+}
+
+// Function to draw a simple filled rectangle
+func drawRectPath(img, x, y, w, h) {
+    image.move_to(img, x, y)
+    image.line_to(img, x + w, y)
+    image.line_to(img, x + w, y + h)
+    image.line_to(img, x, y + h)
+    image.close_path(img)
+}
+
+func drawRect(img, x, y, w, h, color) {
+    drawRectPath(img, x, y, w, h)
+    image.draw(img, color)
+}
+
+// triangle with base centered on x,y
+func drawTrianglePath(img, x, y, w, h) {
+    image.move_to(img, x-w/2.0, y+h)
+    image.line_to(img, x + w/2.0, y+h)
+    image.line_to(img, x, y)
+    image.close_path(img)
+}
+
+func drawTriangle(img, x, y, w, h, color) {
+    drawTrianglePath(img, x, y, w, h)
+    image.draw(img, color)
+}
+
+func sign(x) {
+	if x < 0 {-1} else {1}
+}
+
+func circleQuadrant(img, x, y, rx, ry, color, thickness) {
+	quadrant(img, x, y, rx, ry, thickness)
+	image.draw(img, color)
+}
+
+func quadrant(img, x, y, rx, ry, thickness) {
+	sign = sign
+	xx := round(x)+.5 // semi magic adjustment that makes the bezier circle and trueCircle match
+	yy := round(y)+.5
+	a := 1.00005519
+	b := 0.55342686
+	c := 0.99873585
+	thickness2 = thickness / 2.
+	ythickness := thickness2
+	if sign(rx) != sign(ry) {
+		ythickness = -thickness2
+	}
+	p0x := xx + rx*a - thickness2
+	p0y := yy
+	image.move_to(img, p0x, p0y)
+	image.line_to(img, p0x+thickness, p0y)
+	rxx := rx + thickness2
+	ryy := ry + ythickness
+	p2x := xx + rxx*b
+	p2y := yy + ryy*c
+	p1x := xx + rxx*c
+	p1y := yy + ryy*b
+	p3x := xx
+	p3y := yy + ryy*a
+	image.cube_to(img, p1x, p1y, p2x, p2y, p3x, p3y)
+	rxx = rxx - thickness
+	ryy = ryy - 2*ythickness
+	p3y := yy + ryy*a
+	image.line_to(img, xx, p3y)
+	p2x := xx + rxx*b
+	p2y := yy + ryy*c
+	p1x := xx + rxx*c
+	p1y := yy + ryy*b
+	image.cube_to(img, p2x, p2y, p1x, p1y, p0x, p0y)
+	// image.line_to(img, x, y) // covered by close_path in draw
+}
+
+func elipse(img, x,y,rx,ry,color,thickness) {
+	quadrant(img, x,y,rx,ry,thickness)
+	quadrant(img, x,y,rx,-ry,thickness)
+	quadrant(img, x,y,-rx,ry,thickness)
+	quadrant(img, x,y,-rx,-ry,thickness)
+	image.draw(img, color)
+}
+
+func circle(img, x,y,r,color,thickness) {
+	elipse(img, x,y,r,r,color,thickness)
+}
+
+func CircleDemo() {
+	xsize:=256
+	ysize:=256
+
+	img := "canvas"
+	image.new(img, xsize, ysize)
+
+	cx := xsize/2.-0.5
+	cy := ysize/2.-0.5
+
+	thickness := ysize/5
+	r := ysize/2-thickness
+
+	circleQuadrant(img, cx, cy, r, r, [200,70,70,200], thickness)
+	circleQuadrant(img, cx, cy, -r, -r, [70,200,70,200], thickness)
+	circleQuadrant(img, cx, cy, -r, r, [70,70,200,200], thickness)
+	circleQuadrant(img, cx, cy, r, -r, [200,200,70,200], thickness)
+	r := ysize/2-0.5
+	circle(img, cx, cy, r, [200,200,200,180], 1)
+	msgId = SendImage(img)
+}
+
+// - plot random points
+
+func linePath(img, x1, y1, x2, y2, thickness) {
+	angle := atan2(y2-y1, x2-x1) + PI/2
+	dx := thickness*cos(angle)/2.
+	dy := thickness*sin(angle)/2.
+	image.move_to(img, x1-dx, y1-dy)
+	image.line_to(img, x2-dx, y2-dy)
+	image.line_to(img, x2+dx, y2+dy)
+	image.line_to(img, x1+dx, y1+dy)
+	image.close_path(img)
+}
+
+func line(img, x1, y1, x2, y2, color, thickness) {
+	linePath(img, x1, y1, x2, y2, thickness)
+	image.draw(img, color)
+}
+
+func PlotBezierDemo() {
+	i := "img"
+	x:=550
+	y:=350
+	image.new(i, x, y)
+
+	// generate a list of N point heights.
+	n:=8
+
+	points := []
+	for n {
+		points = points + (20 + rand(310))
+	}
+
+	func coordX(idx) {
+		8+idx*75
+	}
+	func coordY(height) {
+		y-8-height
+	}
+
+
+	// flat start of bezier curve - imaginary point at -1 same height as first point
+	ix := -1
+	prevX := coordX(-1)
+	curX := coordX(0)
+	curY := coordY(points[0])
+	ctrlX1 = 2*curX - (prevX + curX) / 2.
+	ctrlY1 = curY
+
+	ix := 0
+	image.move_to(i, curX, coordY(0))
+	image.line_to(i, curX, curY)
+	ix ++
+	prevX = curX
+	prevY = curY
+	for ix < n {
+		curX := coordX(ix)
+		curY := coordY(points[ix])
+		ctrlX2 := (prevX + 3* curX) / 4.
+		ctrlY2 := (prevY + 3* curY) / 4.
+		if ix == n-1 { // flatter end.
+			ctrlX2 = (prevX + curX) / 2
+			ctrlY2 = curY
+		}
+		image.cube_to(i, ctrlX1, ctrlY1, ctrlX2, ctrlY2, curX, curY)
+		prevX = curX
+		prevY = curY
+		ctrlX1 = 2* curX - ctrlX2
+		ctrlY1 = 2* curY - ctrlY2
+		ix++
+	}
+	image.line_to(i, coordX(n-1), coordY(0))
+	image.draw(i, [30,120,200,200])
+
+	color := [200,200,200,80]
+	for ix = n-1 {
+		yi := points[ix]
+		yp1 := points[ix+1]
+		log(ix, yi, yp1)
+		line(i, coordX(ix), coordY(yi), coordX(ix+1), coordY(yp1), color, 4)
+	}
+	msgId = SendImage(i)
+}
+
+// --- Text in images --- from grol's examples/cards.gr
+
+// Helper function to return default if value is nil
+func or(val, default_val) {
+    if val == nil {
+        return default_val
+    }
+    return val
+}
+
+// Function to center multi-line text at specified coordinates
+func center_text(img, cx, cy, text, ..) {
+    opts := ..[0] // var args to get last optional argument, which is a map if provided
+    // Set defaults for optional parameters and override with any provided options
+    size := or(opts.size, 18.)  // Default size
+    color := or(opts.color, [0, 0, 0, 255])  // Default black
+    variant := or(opts.variant, "regular")  // Default font
+    spacing := or(opts.spacing, 1.)  // Default spacing
+    boundingBox := or(opts.boundingBox, false)  // Default bounding box
+
+    // Split text into lines using Grol's split function
+    lines := split(text, "\n")
+
+    // Calculate total height with spacing using "Xg" for better height measurement for multi-line text
+    // use the actual text to calculate height for single line text
+    hText := text
+    n := len(lines)
+    if n > 1 {
+        hText = "Xg"
+    }
+    lineInfo := image.text_size(hText, size, variant)
+    lineHeight := lineInfo.height
+    descent := lineInfo.descent
+    spacedLineHeight := lineHeight * spacing
+    totalHeight := spacedLineHeight * (n-1)
+
+    // Start position for first line
+    y := cy - totalHeight/2.0 + lineHeight/2.0 - descent
+
+    // Draw each line centered
+    for line := lines {
+        textSize := image.text_size(line, size, variant)
+        x := cx - textSize.width/2.0 - textSize.offset
+        image.text(img, x, y, size, line, color, variant)
+        y = y + spacedLineHeight
+    }
+    // Debug line height:
+    if boundingBox {
+		drawRect(img, round(cx-textSize.width/2.)-0.5, round(cy-spacedLineHeight/2.)-0.5, round(textSize.width)+0.5, round(spacedLineHeight)+0.5, [0,0,255,128])
+	}
+}
+
+func TextImageDemo() {
+	xsize:=256
+	ysize:=128
+
+	img := "canvas"
+	image.new(img, xsize, ysize)
+	center_text(img, xsize/2, ysize/2, "I'm grol!", {
+		"size": 48,
+		"color": [255, 210, 97, 255],
+		"variant": "italic",
+		"boundingBox": true,
+	})
+	msgId = SendImage(img)
+}
+
+// ---- text centering ---
+
+
+// ------- Misc stuff ----
+
+func layout(){
+	println("Simple project layout at [laurentsv.com's blog](https://laurentsv.com/blog/2024/10/19/no-nonsense-go-package-layout.html) - simple is good!")
+}
+
+
+// Result of eval of this file is logged by bot.go Run(). confirm we reached the end without error.
+print("Imported discord grol library ok")

@@ -146,8 +146,14 @@ func ClearChatHistory(chatID string) {
 	delete(globalChatHistory.history, chatID)
 }
 
-// InferContextualArgs attempts to resolve missing arguments for commands like "install" or "uninstall"
-// by inspecting the user's prompt, quoted message, and recent conversation history for official plugin names.
+var urlRegex = regexp.MustCompile(`(?i)\bhttps?://[^\s<>"]+`)
+
+func findURL(text string) string {
+	return urlRegex.FindString(text)
+}
+
+// InferContextualArgs attempts to resolve missing arguments for commands like "install", "uninstall", or "dl"
+// by inspecting the user's prompt, quoted message, and recent conversation history.
 func InferContextualArgs(cmdName, rawArgs, question, quotedText string, history []ChatTurn) string {
 	trimmedArgs := strings.TrimSpace(rawArgs)
 	if trimmedArgs != "" {
@@ -155,45 +161,59 @@ func InferContextualArgs(cmdName, rawArgs, question, quotedText string, history 
 	}
 
 	cmdLower := strings.ToLower(cmdName)
-	if cmdLower != "install" && cmdLower != "uninstall" {
-		return trimmedArgs
-	}
+	switch cmdLower {
+	case "install", "uninstall":
+		qLower := strings.ToLower(question)
+		if strings.Contains(qLower, " all") || strings.HasPrefix(qLower, "all") {
+			return "all"
+		}
 
-	qLower := strings.ToLower(question)
-	if strings.Contains(qLower, " all") || strings.HasPrefix(qLower, "all") {
-		return "all"
-	}
+		official := external.OfficialPlugins
 
-	official := external.OfficialPlugins
+		findPlugin := func(text string) string {
+			tLower := strings.ToLower(text)
+			for _, p := range official {
+				pattern := `\b` + regexp.QuoteMeta(p) + `\b`
+				if matched, _ := regexp.MatchString(pattern, tLower); matched {
+					return p
+				}
+			}
+			return ""
+		}
 
-	findPlugin := func(text string) string {
-		tLower := strings.ToLower(text)
-		for _, p := range official {
-			pattern := `\b` + regexp.QuoteMeta(p) + `\b`
-			if matched, _ := regexp.MatchString(pattern, tLower); matched {
+		if quotedText != "" {
+			if p := findPlugin(quotedText); p != "" {
 				return p
+			}
+		}
+
+		if p := findPlugin(question); p != "" {
+			return p
+		}
+
+		// Scan recent conversation history in reverse order (newest to oldest)
+		for _, turn := range slices.Backward(history) {
+			if p := findPlugin(turn.Text); p != "" {
+				return p
+			}
+		}
+
+		return ""
+
+	case "dl", "ytdl", "download":
+		if u := findURL(question); u != "" {
+			return u
+		}
+		if u := findURL(quotedText); u != "" {
+			return u
+		}
+		for _, turn := range slices.Backward(history) {
+			if u := findURL(turn.Text); u != "" {
+				return u
 			}
 		}
 		return ""
 	}
 
-	if quotedText != "" {
-		if p := findPlugin(quotedText); p != "" {
-			return p
-		}
-	}
-
-	if p := findPlugin(question); p != "" {
-		return p
-	}
-
-	// Scan recent conversation history in reverse order (newest to oldest)
-	for _, turn := range slices.Backward(history) {
-
-		if p := findPlugin(turn.Text); p != "" {
-			return p
-		}
-	}
-
-	return ""
+	return trimmedArgs
 }

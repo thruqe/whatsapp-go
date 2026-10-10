@@ -211,6 +211,11 @@ type Client struct {
 	recentMessagesPtr  int
 	recentMessagesLock sync.RWMutex
 
+	ghostMessagesMap  map[types.MessageID][]types.JID
+	ghostMessagesList []types.MessageID
+	ghostMessagesPtr  int
+	ghostMessagesLock sync.RWMutex
+
 	sessionRecreateHistory     map[types.JID]time.Time
 	sessionRecreateHistoryLock sync.Mutex
 	// GetMessageForRetry is used to find the source message for handling retry receipts

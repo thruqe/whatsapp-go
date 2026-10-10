@@ -116,6 +116,56 @@ func (cli *Client) getRecentMessage(to types.JID, id types.MessageID) RecentMess
 	return *message
 }
 
+const ghostMessagesCapacity = 512
+
+func (cli *Client) addGhostMessage(id types.MessageID, targets []types.JID) {
+	if cli == nil || id == "" {
+		return
+	}
+	cli.ghostMessagesLock.Lock()
+	defer cli.ghostMessagesLock.Unlock()
+	if cli.ghostMessagesMap == nil {
+		cli.ghostMessagesMap = make(map[types.MessageID][]types.JID)
+	}
+	if _, exists := cli.ghostMessagesMap[id]; exists {
+		cli.ghostMessagesMap[id] = targets
+		return
+	}
+	if len(cli.ghostMessagesList) < ghostMessagesCapacity {
+		cli.ghostMessagesList = append(cli.ghostMessagesList, id)
+	} else {
+		delete(cli.ghostMessagesMap, cli.ghostMessagesList[cli.ghostMessagesPtr])
+		cli.ghostMessagesList[cli.ghostMessagesPtr] = id
+		cli.ghostMessagesPtr = (cli.ghostMessagesPtr + 1) % ghostMessagesCapacity
+	}
+	cli.ghostMessagesMap[id] = targets
+}
+
+func (cli *Client) isGhostMessage(id types.MessageID) bool {
+	if cli == nil || id == "" {
+		return false
+	}
+	cli.ghostMessagesLock.RLock()
+	defer cli.ghostMessagesLock.RUnlock()
+	if cli.ghostMessagesMap == nil {
+		return false
+	}
+	_, exists := cli.ghostMessagesMap[id]
+	return exists
+}
+
+func (cli *Client) getGhostMessageTargets(id types.MessageID) []types.JID {
+	if cli == nil || id == "" {
+		return nil
+	}
+	cli.ghostMessagesLock.RLock()
+	defer cli.ghostMessagesLock.RUnlock()
+	if cli.ghostMessagesMap == nil {
+		return nil
+	}
+	return cli.ghostMessagesMap[id]
+}
+
 func (cli *Client) getMessageForRetry(ctx context.Context, receipt *events.Receipt, messageID types.MessageID) (*RecentMessage, error) {
 	msg := cli.getRecentMessage(receipt.Chat, messageID)
 	if !msg.IsEmpty() {
@@ -239,6 +289,10 @@ func (cli *Client) handleRetryReceipt(ctx context.Context, receipt *events.Recei
 	retryCount := ag.Int("count")
 	if !ag.OK() {
 		return ag.Error()
+	}
+	if cli.isGhostMessage(types.MessageID(messageID)) {
+		cli.Log.Debugf("Silently dropping retry receipt for ghost message %s from %s in %s", messageID, receipt.Sender, receipt.Chat)
+		return nil
 	}
 	msg, err := cli.getMessageForRetry(ctx, receipt, messageID)
 	if err != nil {

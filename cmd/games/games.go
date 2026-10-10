@@ -86,17 +86,50 @@ func GetGameServerURL() string {
 	return "http://localhost:" + DefaultGameServerPort
 }
 
+func parseGameType(s string) (gameType string, title string) {
+	norm := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(s, "-", ""), " ", ""))
+	switch {
+	case strings.Contains(norm, "ttt") || strings.Contains(norm, "tictactoe"):
+		return "ttt", "Tic-Tac-Toe"
+	case strings.Contains(norm, "c4") || strings.Contains(norm, "connect4"):
+		return "c4", "Connect 4"
+	case strings.Contains(norm, "wcg") || strings.Contains(norm, "wordchain"):
+		return "wcg", "Word Chain Game"
+	default:
+		return "global", "Global"
+	}
+}
+
 func handleGames(ctx *dispatch.Context) error {
 	fullArg := strings.ToLower(strings.TrimSpace(strings.Join(ctx.Args, " ")))
 	normalized := strings.ReplaceAll(strings.ReplaceAll(fullArg, "-", ""), " ", "")
 
+	if normalized == "" {
+		return showGamesMenu(ctx)
+	}
+
+	// Check for leaderboard query
+	if strings.HasPrefix(normalized, "lb") ||
+		strings.HasPrefix(normalized, "leaderboard") ||
+		strings.HasPrefix(normalized, "rank") ||
+		strings.HasPrefix(normalized, "top") ||
+		strings.Contains(normalized, "leaderboard") ||
+		strings.Contains(normalized, "ranking") {
+
+		gameType, gameTitle := parseGameType(normalized)
+		if len(ctx.Args) > 1 {
+			gameType, gameTitle = parseGameType(ctx.Args[1])
+		}
+		return handleGamesLeaderboard(ctx, gameType, gameTitle)
+	}
+
 	switch {
-	case normalized == "lb" || normalized == "leaderboard" || normalized == "rank" || normalized == "ranking" || normalized == "top":
-		return handleGamesLeaderboard(ctx)
 	case normalized == "ttt" || normalized == "tictactoe" || normalized == "1":
 		return launchGame(ctx, "ttt", "Tic-Tac-Toe")
 	case normalized == "c4" || normalized == "connect4" || normalized == "2":
 		return launchGame(ctx, "c4", "Connect 4")
+	case normalized == "wcg" || normalized == "wordchain" || normalized == "wordchaingame" || normalized == "3":
+		return launchGame(ctx, "wcg", "Word Chain Game")
 	default:
 		return showGamesMenu(ctx)
 	}
@@ -109,13 +142,18 @@ func showGamesMenu(ctx *dispatch.Context) error {
 		"Available:\n" +
 		"1. Tic-Tac-Toe (" + p + "games ttt)\n" +
 		"2. Connect 4 (" + p + "games c4)\n" +
-		"3. Leaderboard (" + p + "games lb)\n\n" +
-		"Select a game or view rankings:"
+		"3. Word Chain Game (" + p + "games wcg)\n" +
+		"4. Leaderboard (" + p + "games lb [ttt|c4|wcg])\n\n" +
+		"Select a game or leaderboard:"
 
 	options := []string{
 		"Tic-Tac-Toe",
 		"Connect 4",
-		"Leaderboard",
+		"Word Chain Game",
+		"Global Leaderboard",
+		"Tic-Tac-Toe Leaderboard",
+		"Connect 4 Leaderboard",
+		"Word Chain Leaderboard",
 	}
 
 	return dispatch.SendPollReply(ctx, question, options)
@@ -151,15 +189,22 @@ func launchGame(ctx *dispatch.Context, gameType, gameTitle string) error {
 
 // LeaderboardEntry matches the structure returned by the games server API.
 type LeaderboardEntry struct {
-	Username string `json:"username"`
-	Rating   int    `json:"rating"`
-	Wins     int    `json:"wins"`
-	Losses   int    `json:"losses"`
-	Draws    int    `json:"draws"`
+	Username   string `json:"username"`
+	GameType   string `json:"game_type"`
+	Points     int    `json:"points"`
+	Wins       int    `json:"wins"`
+	Losses     int    `json:"losses"`
+	Draws      int    `json:"draws"`
+	PointsDiff int    `json:"points_diff"`
 }
 
-func handleGamesLeaderboard(ctx *dispatch.Context) error {
-	apiURL := fmt.Sprintf("%s/api/leaderboard", GetGameServerURL())
+func handleGamesLeaderboard(ctx *dispatch.Context, gameType, gameTitle string) error {
+	baseURL := GetGameServerURL()
+	apiURL := fmt.Sprintf("%s/api/leaderboard", baseURL)
+	if gameType != "" && gameType != "global" {
+		apiURL = fmt.Sprintf("%s/api/leaderboard?game=%s", baseURL, gameType)
+	}
+
 	reqCtx, cancel := context.WithTimeout(ctx.Ctx, 4*time.Second)
 	defer cancel()
 
@@ -180,14 +225,18 @@ func handleGamesLeaderboard(ctx *dispatch.Context) error {
 	}
 
 	if len(entries) == 0 {
-		return ctx.Reply("Webview Games Leaderboard\n\nNo players ranked yet. Play " + ctx.GetPrefix() + "games to claim the top spot.")
+		return ctx.Reply(fmt.Sprintf("Webview Games Leaderboard (%s)\n\nNo players ranked yet. Play %sgames to claim the top spot.", gameTitle, ctx.GetPrefix()))
 	}
 
 	var sb strings.Builder
-	sb.WriteString("Webview Games Global Leaderboard\n\n")
+	sb.WriteString(fmt.Sprintf("Webview Games Leaderboard (%s)\n\n", gameTitle))
 	for i, entry := range entries {
-		sb.WriteString(fmt.Sprintf("#%d %s\nRating: %d | %dW / %dL / %dD\n\n",
-			i+1, entry.Username, entry.Rating, entry.Wins, entry.Losses, entry.Draws))
+		diffSign := ""
+		if entry.PointsDiff > 0 {
+			diffSign = "+"
+		}
+		sb.WriteString(fmt.Sprintf("#%d %s\nPoints: %d | %dW / %dL / %dD | Diff: %s%d\n\n",
+			i+1, entry.Username, entry.Points, entry.Wins, entry.Losses, entry.Draws, diffSign, entry.PointsDiff))
 	}
 
 	return ctx.Reply(strings.TrimSpace(sb.String()))

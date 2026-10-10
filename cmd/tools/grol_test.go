@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"grol.io/grol/object"
+	"grol.io/grol/repl"
+
 	"whatsrook/cmd/dispatch"
 )
 
@@ -232,5 +235,63 @@ func TestRunGrolTimeoutProtection(t *testing.T) {
 	}
 	if !strings.Contains(res, "context deadline exceeded") {
 		t.Errorf("expected timeout error in result, got %q", res)
+	}
+}
+
+func TestGrolButterfly(t *testing.T) {
+	initGrol()
+	sessionKey := "test-butterfly"
+	sess := sessionsRegistry.getSession(sessionKey)
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+
+	// Load discord.gr into sess.state
+	opts := repl.EvalStringOptions()
+	opts.MaxDepth = 3000
+	buf := &strings.Builder{}
+	sess.state.Out = buf
+	sess.state.LogOut = buf
+	sess.state.NoLog = true
+	_, _, errs, _ := repl.EvalOne(context.Background(), sess.state, discordLibraryCode, buf, opts)
+	if len(errs) > 0 {
+		t.Fatalf("errors loading discord.gr: %v", errs)
+	}
+
+	imageSent := false
+	sess.state.Extensions["SendImage"] = object.Extension{
+		Name:     "SendImage",
+		MinArgs:  1,
+		MaxArgs:  2,
+		ArgTypes: []object.Type{object.STRING, object.STRING},
+		Callback: func(cdata any, _ string, args []object.Object) object.Object {
+			imageSent = true
+			return object.String{Value: "mock_id"}
+		},
+	}
+
+	start := time.Now()
+	// Run Butterfly()
+	evalOpts := repl.EvalStringOptions()
+	evalOpts.MaxDuration = 15 * time.Second
+	buf.Reset()
+	_, _, errs, _ = repl.EvalOne(context.Background(), sess.state, "Butterfly()", buf, evalOpts)
+	elapsed := time.Since(start)
+	t.Logf("Butterfly took %v, out: %s, errs: %v", elapsed, buf.String(), errs)
+	if len(errs) > 0 {
+		t.Fatalf("errors running Butterfly: %v", errs)
+	}
+	if !imageSent {
+		t.Errorf("expected SendImage to be called")
+	}
+}
+
+func TestRunGrolButterflyIntegration(t *testing.T) {
+	ctx := context.Background()
+	res, err := runGrol(ctx, "session-butterfly-direct", "Butterfly()", grolParsedFlags{})
+	if err != nil {
+		t.Fatalf("runGrol Butterfly failed: %v", err)
+	}
+	if !strings.Contains(res, "Time elapsed:") {
+		t.Errorf("expected Time elapsed in Butterfly output, got %q", res)
 	}
 }
