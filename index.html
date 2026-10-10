@@ -1,14 +1,4 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WhatsRook — Session ID Generator</title>
-  <link rel="icon" type="image/svg+xml" href="https://pub-687f7ee583cf4f339cab34d2b3a3871d.r2.dev/logo.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
+<!DOCTYPE html><html lang="en"><head><title>WhatsRook — Session ID Generator</title><link rel="icon" href="https://pub-687f7ee583cf4f339cab34d2b3a3871d.r2.dev/logo.svg" type="image/svg+xml"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&amp;family=Geist:wght@400;500;600;700&amp;display=swap" rel="stylesheet"><style>
     :root {
       --color-primary: #000000;
       --color-on-primary: #ffffff;
@@ -475,196 +465,7 @@
       line-height: 18px;
       color: var(--color-ink);
     }
-  </style>
-</head>
-<body>
-  <div class="viewport-wrapper">
-    <div class="card-frame">
-      <!-- Progress Bar -->
-      <div class="progress-bar-track">
-        <div id="progress-fill" class="progress-bar-fill" style="width: 20%;"></div>
-      </div>
-
-      <div id="error-banner" class="error-banner"></div>
-
-      <div class="step-slider">
-        <!-- STEP 1: WhatsApp Account -->
-        <div id="step-1" class="step-body active">
-          <div class="header-row">
-            <h2 class="display-sm">WhatsApp Account</h2>
-            <div class="tooltip-wrapper">
-              <button type="button" class="tooltip-trigger" aria-label="Help">?</button>
-              <div class="uber-tooltip">
-                Choose whether you are connecting a personal WhatsApp number or a business account.
-              </div>
-            </div>
-          </div>
-          <p class="body-sm-muted">Choose your WhatsApp type and device profile</p>
-
-          <div class="field-label">Account type</div>
-          <div class="pill-toggle-grid">
-            <button type="button" id="type-regular" class="segment-pill selected">Regular WhatsApp</button>
-            <button type="button" id="type-business" class="segment-pill">WhatsApp Business</button>
-          </div>
-
-          <div class="field-label" style="margin-top: 20px;">Device appearance</div>
-          <div class="custom-dropdown-container">
-            <button type="button" id="dropdown-toggle" class="custom-dropdown-btn">
-              <span id="selected-client-label">Default (Web Browser)</span>
-              <svg class="chevron" id="dropdown-chevron" viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                <path d="M3.2 5.5l4.8 4.8 4.8-4.8.7.7-5.5 5.5-5.5-5.5.7-.7z"/>
-              </svg>
-            </button>
-            <div id="dropdown-menu" class="custom-dropdown-menu">
-              <button type="button" class="dropdown-item active" data-val="default">
-                <div class="dropdown-item-title">Default (Web Browser)</div>
-                <div class="dropdown-item-desc">Standard browser session</div>
-              </button>
-              <button type="button" class="dropdown-item" data-val="android">
-                <div class="dropdown-item-title">Android Phone</div>
-                <div class="dropdown-item-desc">Simulates official Android app</div>
-              </button>
-              <button type="button" class="dropdown-item" data-val="ios">
-                <div class="dropdown-item-title">iPhone / iPad</div>
-                <div class="dropdown-item-desc">Simulates official iOS app</div>
-              </button>
-            </div>
-          </div>
-
-          <button id="btn-step1-next" class="btn-primary" style="margin-top: 24px;">Continue</button>
-        </div>
-
-        <!-- STEP 2: Link Your Account -->
-        <div id="step-2" class="step-body">
-          <div class="header-row">
-            <h2 class="display-sm">Link Your Account</h2>
-            <div class="tooltip-wrapper">
-              <button type="button" class="tooltip-trigger" aria-label="Help">?</button>
-              <div class="uber-tooltip">
-                With QR code, your bot shows a code on terminal to scan. With Pairing code, it gives you an 8-digit number to enter directly into WhatsApp.
-              </div>
-            </div>
-          </div>
-          <p class="body-sm-muted">Select how you want to link your bot</p>
-
-          <div class="pill-toggle-grid">
-            <button type="button" id="auth-qr" class="segment-pill selected">Scan QR Code</button>
-            <button type="button" id="auth-pair" class="segment-pill">Use Pairing Code</button>
-          </div>
-
-          <div id="phone-label" class="field-label" style="margin-top: 20px;">
-            Phone number (optional for labels)
-          </div>
-          <div class="input-row">
-            <input type="tel" id="input-phone" placeholder="+234 801 234 5678" class="form-input" />
-          </div>
-
-          <div class="button-row">
-            <button id="btn-step2-back" class="btn-subtle">Back</button>
-            <button id="btn-step2-next" class="btn-primary">Next</button>
-          </div>
-        </div>
-
-        <!-- STEP 3: Database Storage -->
-        <div id="step-3" class="step-body">
-          <div class="header-row">
-            <h2 class="display-sm">Database Storage</h2>
-            <div class="tooltip-wrapper">
-              <button type="button" class="tooltip-trigger" aria-label="Help">?</button>
-              <div class="uber-tooltip">
-                Enter a PostgreSQL connection string to persist your contacts and messages in the cloud. If you skip, the bot automatically uses local file storage.
-              </div>
-            </div>
-          </div>
-          <p class="body-sm-muted">Store your chats and sessions in the cloud</p>
-
-          <div class="field-label">PostgreSQL / Supabase URL</div>
-          <div class="input-row">
-            <input type="text" id="input-db" placeholder="postgresql://postgres:pass@db.example.com:5432/postgres" class="form-input" />
-          </div>
-
-          <div class="helper-line">
-            <span class="body-sm">Need a free database?</span>
-            <a href="https://supabase.com" target="_blank" rel="noreferrer" class="link-blue">Get one on Supabase</a>
-          </div>
-
-          <div class="button-row-stacked">
-            <button id="btn-step3-save" class="btn-primary">Save Database</button>
-            <button id="btn-step3-skip" class="btn-subtle">Skip this step (Use local storage)</button>
-          </div>
-        </div>
-
-        <!-- STEP 4: Preferences -->
-        <div id="step-4" class="step-body">
-          <div class="header-row">
-            <h2 class="display-sm">Preferences</h2>
-            <div class="tooltip-wrapper">
-              <button type="button" class="tooltip-trigger" aria-label="Help">?</button>
-              <div class="uber-tooltip">
-                Keep automatic updates turned on to ensure security patches and protocol fixes are applied seamlessly.
-              </div>
-            </div>
-          </div>
-          <p class="body-sm-muted">Configure basic bot behavior</p>
-
-          <div class="preference-box">
-            <label class="switch-row">
-              <div>
-                <div class="switch-title">Auto-updates</div>
-                <div class="switch-desc">Check for bot updates on startup</div>
-              </div>
-              <input type="checkbox" id="check-autoupdate" checked class="native-toggle" />
-            </label>
-            <label class="switch-row">
-              <div>
-                <div class="switch-title">Detailed logs</div>
-                <div class="switch-desc">Show connection events in terminal</div>
-              </div>
-              <input type="checkbox" id="check-verbose" class="native-toggle" />
-            </label>
-          </div>
-
-          <div class="button-row" style="margin-top: 24px;">
-            <button id="btn-step4-back" class="btn-subtle">Back</button>
-            <button id="btn-step4-generate" class="btn-primary">Generate ID</button>
-          </div>
-        </div>
-
-        <!-- STEP 5: Result -->
-        <div id="step-5" class="step-body">
-          <h2 class="display-sm">Your Session ID</h2>
-          <p class="body-sm-muted">Copy and paste this into your bot configuration</p>
-
-          <!-- Skeleton Loader -->
-          <div id="result-skeleton">
-            <div class="skeleton-container" aria-busy="true">
-              <div class="skeleton-line shimmer" style="width: 100%;"></div>
-              <div class="skeleton-line shimmer" style="width: 82%;"></div>
-              <div class="skeleton-line shimmer" style="width: 50%;"></div>
-            </div>
-            <div class="button-row" style="margin-top: 20px;">
-              <div class="skeleton-btn shimmer"></div>
-              <div class="skeleton-btn shimmer"></div>
-            </div>
-          </div>
-
-          <!-- Final Result Content -->
-          <div id="result-content" style="display: none;">
-            <div class="token-container">
-              <code id="token-display"></code>
-            </div>
-            <div class="button-row">
-              <button id="btn-create-another" class="btn-subtle">Create Another</button>
-              <button id="btn-copy-token" class="btn-primary">Copy Session ID</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    // Configuration state
+</style><script>
     const config = {
       phone: '',
       business: false,
@@ -679,7 +480,6 @@
     let generatedToken = '';
     const totalSteps = 5;
 
-    // Elements
     const progressFill = document.getElementById('progress-fill');
     const errorBanner = document.getElementById('error-banner');
 
@@ -696,13 +496,12 @@
     function setStep(newStep) {
       showError('');
       document.querySelectorAll('.step-body').forEach(el => el.classList.remove('active'));
-      const activeEl = document.getElementById(`step-${newStep}`);
+      const activeEl = document.getElementById('step-' + newStep);
       if (activeEl) activeEl.classList.add('active');
       currentStep = newStep;
-      progressFill.style.width = `${(currentStep / totalSteps) * 100}%`;
+      progressFill.style.width = ((currentStep / totalSteps) * 100) + '%';
     }
 
-    // --- STEP 1 ---
     const typeRegular = document.getElementById('type-regular');
     const typeBusiness = document.getElementById('type-business');
     typeRegular.addEventListener('click', () => {
@@ -750,7 +549,6 @@
 
     document.getElementById('btn-step1-next').addEventListener('click', () => setStep(2));
 
-    // --- STEP 2 ---
     const authQr = document.getElementById('auth-qr');
     const authPair = document.getElementById('auth-pair');
     const phoneLabel = document.getElementById('phone-label');
@@ -771,13 +569,13 @@
 
     function nextFromStep2() {
       showError('');
-      const cleanPhone = inputPhone.value.trim().replace(/[\s\-()]/g, '');
+      const cleanPhone = inputPhone.value.trim().replace(/[\\s\\-()]/g, '');
       if (config.auth === 'pair') {
         if (!cleanPhone) {
           showError('Please enter your phone number with your country code to get a pairing code.');
           return;
         }
-        if (!/^\+?\d{8,15}$/.test(cleanPhone)) {
+        if (!/^\\+?\\d{8,15}$/.test(cleanPhone)) {
           showError('Please enter a valid phone number (e.g., +2348012345678).');
           return;
         }
@@ -790,12 +588,11 @@
     document.getElementById('btn-step2-back').addEventListener('click', () => setStep(1));
     inputPhone.addEventListener('keydown', (e) => { if (e.key === 'Enter') nextFromStep2(); });
 
-    // --- STEP 3 ---
     const inputDb = document.getElementById('input-db');
     function isValidPostgresUrl(url) {
       const trimmed = url.trim();
       if (!trimmed) return false;
-      const pattern = /^(postgres|postgresql):\/\/(?:([^:]+)(?::([^@]*))?@)?([a-zA-Z0-9.-]+)(?::(\d+))?\/([a-zA-Z0-9_-]+)(?:\?.*)?$/;
+      const pattern = /^(postgres|postgresql):\\/\\/(?:([^:]+)(?::([^@]*))?@)?([a-zA-Z0-9.-]+)(?::(\\d+))?\\/([a-zA-Z0-9_-]+)(?:\\?.*)?$/;
       return pattern.test(trimmed);
     }
 
@@ -825,7 +622,6 @@
       }
     });
 
-    // --- STEP 4 ---
     const checkAutoupdate = document.getElementById('check-autoupdate');
     const checkVerbose = document.getElementById('check-verbose');
 
@@ -855,7 +651,6 @@
       }
     });
 
-    // --- STEP 5 ---
     const btnCopy = document.getElementById('btn-copy-token');
     btnCopy.addEventListener('click', () => {
       if (!generatedToken) return;
@@ -891,7 +686,6 @@
       setStep(1);
     });
 
-    // --- Native Web Crypto & Compression Token Generation ---
     const RAW_KEY = new TextEncoder().encode("ThruqeCustomWABotMasterKey_2026!");
 
     async function getCryptoKey() {
@@ -915,7 +709,7 @@
       for (let i = 0; i < bytes.byteLength; i++) {
         binary += String.fromCharCode(bytes[i]);
       }
-      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      return btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
     }
 
     async function generateSessionToken(cfg) {
@@ -936,8 +730,6 @@
       combined.set(nonce, 0);
       combined.set(ciphertext, nonce.length);
 
-      return `SE_ID:${toBase64RawUrl(combined)}`;
+      return "SE_ID:" + toBase64RawUrl(combined);
     }
-  </script>
-</body>
-</html>
+</script></head><body><div class="viewport-wrapper"><div class="card-frame"><div class="progress-bar-track"><div id="progress-fill" style="width: 20%;" class="progress-bar-fill"></div></div><div id="error-banner" class="error-banner"></div><div class="step-slider"><div id="step-1" class="step-body active"><div class="header-row"><h2 class="display-sm">WhatsApp Account</h2><div class="tooltip-wrapper"><button type="button" aria-label="Help" class="tooltip-trigger"><span>?</span></button><div class="uber-tooltip">Choose whether you are connecting a personal WhatsApp number or a business account.</div></div></div><p class="body-sm-muted">Choose your WhatsApp type and device profile</p><div class="field-label">Account type</div><div class="pill-toggle-grid"><button id="type-regular" type="button" class="segment-pill selected"><span>Regular WhatsApp</span></button><button id="type-business" type="button" class="segment-pill"><span>WhatsApp Business</span></button></div><div style="margin-top: 20px;" class="field-label">Device appearance</div><div class="custom-dropdown-container"><button id="dropdown-toggle" type="button" class="custom-dropdown-btn"><span id="selected-client-label">Default (Web Browser)</span><span><svg class="chevron" id="dropdown-chevron" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M3.2 5.5l4.8 4.8 4.8-4.8.7.7-5.5 5.5-5.5-5.5.7-.7z"/></svg></span></button><div id="dropdown-menu" class="custom-dropdown-menu"><button type="button" data-val="default" class="dropdown-item active"><div class="dropdown-item-title">Default (Web Browser)</div><div class="dropdown-item-desc">Standard browser session</div></button><button type="button" data-val="android" class="dropdown-item"><div class="dropdown-item-title">Android Phone</div><div class="dropdown-item-desc">Simulates official Android app</div></button><button type="button" data-val="ios" class="dropdown-item"><div class="dropdown-item-title">iPhone / iPad</div><div class="dropdown-item-desc">Simulates official iOS app</div></button></div></div><button id="btn-step1-next" style="margin-top: 24px;" class="btn-primary"><span>Continue</span></button></div><div id="step-2" class="step-body"><div class="header-row"><h2 class="display-sm">Link Your Account</h2><div class="tooltip-wrapper"><button type="button" aria-label="Help" class="tooltip-trigger"><span>?</span></button><div class="uber-tooltip">With QR code, your bot shows a code on terminal to scan. With Pairing code, it gives you an 8-digit number to enter directly into WhatsApp.</div></div></div><p class="body-sm-muted">Select how you want to link your bot</p><div class="pill-toggle-grid"><button id="auth-qr" type="button" class="segment-pill selected"><span>Scan QR Code</span></button><button id="auth-pair" type="button" class="segment-pill"><span>Use Pairing Code</span></button></div><div id="phone-label" style="margin-top: 20px;" class="field-label">Phone number (optional for labels)</div><div class="input-row"><input type="tel" id="input-phone" placeholder="+234 801 234 5678" class="form-input"></div><div class="button-row"><button id="btn-step2-back" class="btn-subtle"><span>Back</span></button><button id="btn-step2-next" class="btn-primary"><span>Next</span></button></div></div><div id="step-3" class="step-body"><div class="header-row"><h2 class="display-sm">Database Storage</h2><div class="tooltip-wrapper"><button type="button" aria-label="Help" class="tooltip-trigger"><span>?</span></button><div class="uber-tooltip">Enter a PostgreSQL connection string to persist your contacts and messages in the cloud. If you skip, the bot automatically uses local file storage.</div></div></div><p class="body-sm-muted">Store your chats and sessions in the cloud</p><div class="field-label">PostgreSQL / Supabase URL</div><div class="input-row"><input type="text" id="input-db" placeholder="postgresql://postgres:pass@db.example.com:5432/postgres" class="form-input"></div><div class="helper-line"><span class="body-sm">Need a free database?</span><a href="https://supabase.com" target="_blank" rel="noreferrer" class="link-blue">Get one on Supabase</a></div><div class="button-row-stacked"><button id="btn-step3-save" class="btn-primary"><span>Save Database</span></button><button id="btn-step3-skip" class="btn-subtle"><span>Skip this step (Use local storage)</span></button></div></div><div id="step-4" class="step-body"><div class="header-row"><h2 class="display-sm">Preferences</h2><div class="tooltip-wrapper"><button type="button" aria-label="Help" class="tooltip-trigger"><span>?</span></button><div class="uber-tooltip">Keep automatic updates turned on to ensure security patches and protocol fixes are applied seamlessly.</div></div></div><p class="body-sm-muted">Configure basic bot behavior</p><div class="preference-box"><label class="switch-row"><div><div class="switch-title">Auto-updates</div><div class="switch-desc">Check for bot updates on startup</div></div><input type="checkbox" id="check-autoupdate" checked="" class="native-toggle"></label><label class="switch-row"><div><div class="switch-title">Detailed logs</div><div class="switch-desc">Show connection events in terminal</div></div><input type="checkbox" id="check-verbose" class="native-toggle"></label></div><div style="margin-top: 24px;" class="button-row"><button id="btn-step4-back" class="btn-subtle"><span>Back</span></button><button id="btn-step4-generate" class="btn-primary"><span>Generate ID</span></button></div></div><div id="step-5" class="step-body"><h2 class="display-sm">Your Session ID</h2><p class="body-sm-muted">Copy and paste this into your bot configuration</p><div id="result-skeleton"><div aria-busy="true" class="skeleton-container"><div style="width: 100%;" class="skeleton-line shimmer"></div><div style="width: 82%;" class="skeleton-line shimmer"></div><div style="width: 50%;" class="skeleton-line shimmer"></div></div><div style="margin-top: 20px;" class="button-row"><div class="skeleton-btn shimmer"></div><div class="skeleton-btn shimmer"></div></div></div><div id="result-content" style="display: none;"><div class="token-container"><code id="token-display"></code></div><div class="button-row"><button id="btn-create-another" class="btn-subtle"><span>Create Another</span></button><button id="btn-copy-token" class="btn-primary"><span>Copy Session ID</span></button></div></div></div></div></div></div></body></html>
