@@ -71,7 +71,9 @@ jobs:
 
       - name: Install Tools
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
+          for i in 1 2 3; do
+            go install honnef.co/go/tools/cmd/staticcheck@latest && break || sleep 3
+          done
 
       - name: Run Protobuf Sync
         run: |

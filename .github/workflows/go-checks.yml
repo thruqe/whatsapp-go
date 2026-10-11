@@ -23,8 +23,17 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.27.x"
+          go-version-file: go.mod
           cache: true
+          cache-dependency-path: "**/go.sum"
+
+      - name: Download Dependencies
+        run: |
+          for i in 1 2 3; do
+            (cd pkg/engine && go mod download) && \
+            (cd pkg/whatsrook && go mod download) && \
+            (cd bot && go mod download) && break || sleep 3
+          done
 
       - name: Check Formatting (gofmt)
         run: |
@@ -42,9 +51,18 @@ jobs:
           (cd pkg/whatsrook && go vet ./...)
           (cd bot && go vet ./...)
 
+      - name: Deadcode Analysis (deadcode)
+        run: |
+          for i in 1 2 3; do
+            go install golang.org/x/tools/cmd/deadcode@latest && break || sleep 3
+          done
+          (cd bot && deadcode .)
+
       - name: Static Analysis (staticcheck)
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@v0.7.0-0.dev.0.20261009230814-452d5bb86b45
+          for i in 1 2 3; do
+            go install honnef.co/go/tools/cmd/staticcheck@v0.7.0-0.dev.0.20261009230814-452d5bb86b45 && break || sleep 3
+          done
           (cd pkg/engine && staticcheck ./...)
           (cd pkg/whatsrook && staticcheck ./...)
           (cd bot && staticcheck ./...)

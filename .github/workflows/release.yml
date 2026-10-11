@@ -108,12 +108,20 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          # Disable the shared actions/setup-go cache. With matrix legs
-          # building concurrently from the same repo, a cache key collision
-          # (or a race populating GOCACHE) can let one target's linked
-          # binary get replaced by another target's cached-but-unlinked
-          # object/archive output. Building clean removes that failure mode.
-          cache: false
+          cache: true
+          cache-dependency-path: "**/go.sum"
+
+      - name: Pre-fetch Go Modules
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            (cd bot && go mod download) && break || (echo "Retrying go mod download in 3s (attempt $i)..." && sleep 3)
+          done
+          if [ "${{ matrix.target.os }}" = "windows" ]; then
+            for i in 1 2 3; do
+              (cd scripts && go mod download) && break || (echo "Retrying scripts mod download..." && sleep 3)
+            done
+          fi
 
       - name: Build Binary
         env:
@@ -138,7 +146,7 @@ jobs:
           if [ "${{ matrix.target.os }}" = "windows" ]; then
             GOOS="" GOARCH="" go -C scripts run . res "$APP_VERSION"
           fi
-          (cd bot && go build -trimpath -ldflags="-s -w -buildid= -X main.Version=${APP_VERSION} -X whatsrook/bot/updater.BinaryVersion=${APP_VERSION} -X whatsrook/bot/updater.CommitSHA=${COMMIT_SHA}" -v -o "../$BIN_NAME" .)
+          (cd bot && go build -trimpath -ldflags="-s -w -buildid= -X main.Version=${APP_VERSION} -X main.BinaryVersion=${APP_VERSION} -X main.CommitSHA=${COMMIT_SHA}" -v -o "../$BIN_NAME" .)
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
 
       - name: Setup UPX

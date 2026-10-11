@@ -372,10 +372,10 @@ func (v AppVersion) Compare(other AppVersion) int {
 	return 0
 }
 
-// BinaryVersion is set at compile time via -ldflags "-X whatsrook/bot/BinaryVersion=...".
+// BinaryVersion is set at compile time via -ldflags "-X main.BinaryVersion=...".
 var BinaryVersion = ""
 
-// CommitSHA is set at compile time via -ldflags "-X whatsrook/bot/CommitSHA=...".
+// CommitSHA is set at compile time via -ldflags "-X main.CommitSHA=...".
 var CommitSHA = ""
 
 // GetBinaryVersion returns the running binary's internal version without inspecting any external files.

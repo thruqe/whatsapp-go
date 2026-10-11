@@ -27,12 +27,15 @@ jobs:
     steps:
       - name: Checkout Master Repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN || secrets.GIT_TOKEN || secrets.RELEASE_PAT || secrets.PAT || secrets.GITHUB_TOKEN }}
 
       - name: Setup Go Toolchain
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: false
+          cache: true
+          cache-dependency-path: "**/go.sum"
 
       - name: Build Static Site with htmlbuilder
         run: |

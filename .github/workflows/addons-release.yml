@@ -58,8 +58,16 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.27.x"
+          go-version-file: go.mod
           cache: true
+          cache-dependency-path: "**/go.sum"
+
+      - name: Pre-fetch Go Modules
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            go mod download && go -C sdk mod download && break || sleep 3
+          done
 
       - name: Build release binaries
         shell: bash
