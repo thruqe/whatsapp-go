@@ -797,11 +797,11 @@ func handlePing(ctx *Context) error {
 	elapsed := replyDuration
 	var respText string
 	if ms := elapsed.Milliseconds(); ms > 0 {
-		respText = Sprintf("Pong! %d ms", ms)
+		respText = ctx.T("ping.pong_ms", ms)
 	} else if us := elapsed.Microseconds(); us > 0 {
-		respText = Sprintf("Pong! %d μs", us)
+		respText = ctx.T("ping.pong_us", us)
 	} else {
-		respText = Sprintf("Pong! %d ns", elapsed.Nanoseconds())
+		respText = ctx.T("ping.pong_ns", elapsed.Nanoseconds())
 	}
 
 	startEdit := time.Now()
@@ -837,5 +837,5 @@ func handleRepo(ctx *Context) error {
 
 func handleUptime(ctx *Context) error {
 	out := FormatDuration(time.Since(StartTime))
-	return ctx.Replyf("Bot has been active for: %s", out)
+	return ctx.Reply(ctx.T("uptime.active", out))
 }
