@@ -6,17 +6,17 @@ Welcome to whatsrook. These guidelines should be reviewed before submitting issu
 
 All development workflows are managed through the [Taskfile](../Taskfile.yml):
 
-| Task      | Command        | Description                                                                                   |
-| :-------- | :------------- | :-------------------------------------------------------------------------------------------- |
-| `fmt`     | `task fmt`     | Format and vet all Go files (`go fmt`, `gofmt -s`, `go vet`).                                 |
-| `test`    | `task test`    | Run the complete test suite across root, `pkg/engine`, `cmd`, and `pkg/addons`. |
-| `build`   | `task build`   | Compile the CLI binary into `bin/whatsrook`.                                                  |
-| `fix`     | `task fix`     | Apply Go modernizers across all packages.                                                     |
-| `install` | `task install` | Download and tidy all Go module dependencies.                                                 |
-| `update`  | `task update`  | Upgrade all Go dependencies across modules.                                                   |
-| `proto`   | `task proto`   | Compile and update protobuf definitions in `pkg/wacore/proto`.                                |
-| `bump`    | `task bump`    | Bump monthly release version (`YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO`) and refresh resources.   |
-| `clean`   | `task clean`   | Remove temporary build artifacts and binaries.                                                |
+| Task      | Command        | Description                                                                                 |
+| :-------- | :------------- | :------------------------------------------------------------------------------------------ |
+| `fmt`     | `task fmt`     | Format and vet all Go files (`go fmt`, `gofmt -s`, `go vet`).                               |
+| `test`    | `task test`    | Run the complete test suite across root, `pkg/engine`, `cmd`, and `pkg/addons`.             |
+| `build`   | `task build`   | Compile the CLI binary into `bin/whatsrook`.                                                |
+| `fix`     | `task fix`     | Apply Go modernizers across all packages.                                                   |
+| `install` | `task install` | Download and tidy all Go module dependencies.                                               |
+| `update`  | `task update`  | Upgrade all Go dependencies across modules.                                                 |
+| `proto`   | `task proto`   | Compile and update protobuf definitions in `pkg/wacore/proto`.                              |
+| `bump`    | `task bump`    | Bump monthly release version (`YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO`) and refresh resources. |
+| `clean`   | `task clean`   | Remove temporary build artifacts and binaries.                                              |
 
 ## 2. Architecture & Guidelines
 
