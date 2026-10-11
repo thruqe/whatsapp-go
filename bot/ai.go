@@ -525,6 +525,7 @@ func handleAI(ctx *Context) error {
 		User:                ctx.Sender,
 		PushName:            pushName,
 		IsSudo:              ctx.IsSudo(),
+		Language:            ctx.Lang(),
 		ConversationHistory: FormatRecentHistory(ctx.Chat.String(), ctx.RawArgs),
 	}
 	RecordUserMessage(ctx.Chat.String(), pushName, ctx.RawArgs)

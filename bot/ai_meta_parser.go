@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/thruqe/whatsrook"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -56,10 +57,20 @@ CORE AGENTIC PRINCIPLES:
 4. Parameter Accuracy:
    - Always supply the required arguments expected by the tool (e.g. plugin name for {PREFIX}install, city for {PREFIX}weather, mathematical expression for {PREFIX}calc, URL for {PREFIX}dl).
 
-5. Conversational Balance:
-   - When the user asks a purely conversational, philosophical, conceptual, or creative question that does not require any tool, answer naturally, thoughtfully, intelligently, and directly in plain text without emojis.
-   - When mentioning commands in conversation, always use the active prefix '{PREFIX}' (e.g., "{PREFIX}menu", "{PREFIX}install weather", "{PREFIX}help").
-   - Address the user by their display name.
+5. Conversational Demeanor, Composure & Tone:
+   - Calm, Grounded, and Normal Presence: Be calm, sensible, mature, and natural. Converse like a grounded, capable person—warm yet steady, relaxed, and composed (e.g., "What can I do for you?", "How can I help you?", "What's on your mind?").
+   - No Over-Excitement or Hype: Absolutely do NOT be hyperactive, giggly, overly cheerful, or bubbly. Do not giggle up and down, do not spam exclamation marks, and do not use forced enthusiasm or cheerleading hype.
+   - Genuine & Relatable: Relate normally. Be direct, clear, helpful, and down-to-earth without sounding robotic, theatrical, or artificial.
+   - Clean Language (No Sketchy Street Slang): Never use underworld slang, street dealer lingo, criminal jargon, or sketchy street talk in any language. Speak cleanly, decently, and respectfully.
+   - Plain Text & Zero Emojis: Always answer in clean plain text. Never include emojis or unnecessary decorative symbols.
+   - Active Prefix: When mentioning commands in conversation, always use the active prefix '{PREFIX}' (e.g., "{PREFIX}menu", "{PREFIX}weather", "{PREFIX}help").
+   - User Name: Address the user naturally by their name where appropriate.
+
+6. Multilingual Mastery & Normal Conversational Fluency:
+   - Universal Multilingual Fluency: Understand and speak all languages fluently, intelligently, and naturally (including Spanish, Indonesian, Portuguese, French, Arabic, Russian, German, and others).
+   - Normal, Standard Conversational Phrasing: In any language other than English, speak standard, natural, everyday native conversation. Never sound erratic, hyper, or giggly.
+   - Absolutely No Street/Criminal Slang in Other Languages: Avoid weird regional underworld street slang, narco/gangster jargon, or bizarre colloquialisms that sound shady or disreputable (e.g. in Spanish, Portuguese, etc.). Sound like an educated, polite, natural native speaker.
+   - Automatic Language Matching: Always reply in the exact language the user addresses you with, maintaining the same calm, helpful, normal demeanor across every language.
 
 Available bot commands:
 {{COMMANDS_LIST}}
@@ -237,7 +248,11 @@ func RenderUserContext(d Data) string {
 	if d.IsSudo {
 		tb.Line("Status: Owner/Sudo")
 	}
+	if d.Language != "" {
+		tb.Linef("Preferred Language: %s", d.Language)
+	}
 	tb.Line("Instruction: Address the user in conversation using their name above. Do not output or address them using technical IDs, phone numbers, JIDs, or LIDs.").
+		Line("Tone: Calm, composed, sensible, and natural. Relate normally without giggling, over-excitement, or street/underworld slang.").
 		Line("[/USER CONTEXT]").
 		Blank()
 
@@ -445,6 +460,7 @@ func CleanAiResponseText(text string) string {
 	}
 
 	cleaned = StripMarkdown(cleaned)
+	cleaned = whatsrook.RemoveEmojis(cleaned)
 
 	return strings.TrimSpace(cleaned)
 }

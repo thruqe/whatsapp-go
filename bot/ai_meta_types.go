@@ -11,6 +11,7 @@ type Data struct {
 	MessageID                    string          `json:"message_id"`
 	User                         types.JID       `json:"user"`
 	PushName                     string          `json:"push_name"`
+	Language                     string          `json:"language,omitempty"`
 	QuotedMessageID              string          `json:"quoted_message_id"`
 	QuotedMessageOfQuestion      string          `json:"quoted_message_of_question"`
 	QuotedMessageType            string          `json:"quoted_message_type"`
