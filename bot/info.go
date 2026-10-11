@@ -588,7 +588,7 @@ func buildMenuText(ctx *Context, args []string) string {
 			seenCat[cat] = true
 			categoryOrder = append(categoryOrder, cat)
 		}
-		categories[cat] = append(categories[cat], entry{name: cmd.Name, desc: cmd.Description})
+		categories[cat] = append(categories[cat], entry{name: cmd.Name, desc: cmd.LocalizedDescription(ctx.Lang())})
 		displayedCount++
 	}
 

@@ -143,6 +143,14 @@ func (c *PluginContext) T(key string, args ...any) string {
 	return Translate(c.Lang(), key, args...)
 }
 
+// CmdDesc returns the localized description for a given command.
+func (c *PluginContext) CmdDesc(cmd *Command) string {
+	if cmd == nil {
+		return ""
+	}
+	return cmd.LocalizedDescription(c.Lang())
+}
+
 func init() {
 	Register(&Command{
 		Name:        "language",

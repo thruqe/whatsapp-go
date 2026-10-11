@@ -39,6 +39,20 @@ type Command struct {
 	Handler Handler
 }
 
+// LocalizedDescription returns the command description translated into the specified language,
+// falling back to the default English Description if no translation exists.
+func (c *Command) LocalizedDescription(lang string) string {
+	if c == nil {
+		return ""
+	}
+	key := "cmd." + strings.ToLower(c.Name) + ".desc"
+	val := Translate(lang, key)
+	if val != key && val != "" {
+		return val
+	}
+	return c.Description
+}
+
 // CommandInfo provides a lightweight JSON-serializable snapshot of command metadata.
 type CommandInfo struct {
 	Name        string `json:"name"`
