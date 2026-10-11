@@ -1,4 +1,4 @@
-package group
+package main
 
 import (
 	"context"
@@ -12,13 +12,6 @@ import (
 	"time"
 	"unicode"
 
-	"whatsrook/bot/botctx"
-	"whatsrook/bot/builder"
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/media"
-	"whatsrook/bot/store"
-
 	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow"
@@ -28,8 +21,8 @@ import (
 )
 
 func init() {
-	dispatch.RegisterPreInterceptor("group_moderation", HandleGroupModeration)
-	dispatch.Register(&dispatch.Command{
+	RegisterPreInterceptor("group_moderation", HandleGroupModeration)
+	Register(&Command{
 		Name:        "tag",
 		Alias:       "tag, everyone, all, tagmembers",
 		Description: "Mention everyone in the group with an optional message",
@@ -38,7 +31,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleTagAll,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "kick",
 		Description: "Remove a participant from the group",
 		Category:    "group",
@@ -46,7 +39,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleKick,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "add",
 		Description: "Add a member to the group using their phone number",
 		Category:    "group",
@@ -54,7 +47,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleAdd,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "promote",
 		Description: "Promote a member to group admin",
 		Category:    "group",
@@ -62,7 +55,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handlePromote,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "demote",
 		Description: "Demote an admin back to regular member",
 		Category:    "group",
@@ -70,7 +63,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleDemote,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "group",
 		Description: "Manage group settings (open/close chat, lock/unlock editing)",
 		Category:    "group",
@@ -78,7 +71,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleGroup,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "antilink",
 		Description: "Protect the group by automatically moderating unwanted links",
 		Category:    "group",
@@ -86,7 +79,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleAntiLink,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "antiword",
 		Description: "Filter and delete messages containing banned words",
 		Category:    "group",
@@ -94,7 +87,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleAntiWord,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "gstats",
 		Description: "View group activity statistics and top active members",
 		Category:    "group",
@@ -102,7 +95,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleGStats,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "poll",
 		Alias:       "lockpoll",
 		Description: "Create a single or multiple-choice poll for the group",
@@ -111,7 +104,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handlePoll,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "invite",
 		Description: "Get the invite link for this group",
 		Category:    "group",
@@ -119,7 +112,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleInvite,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "listonline",
 		Alias:       "online",
 		Description: "Check which members are currently online or active",
@@ -128,7 +121,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleListOnline,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "kickall",
 		Description: "Remove all members from the group (Admin only)",
 		Category:    "group",
@@ -136,7 +129,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleKickAll,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "leave",
 		Alias:       "left",
 		Description: "Make the bot leave this group",
@@ -145,7 +138,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleLeave,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "join",
 		Alias:       "joingroup",
 		Description: "Join a group using an invite link or message",
@@ -153,7 +146,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleJoin,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "antimsg",
 		Alias:       "antimessage",
 		Description: "Automatically delete messages from specific members",
@@ -162,7 +155,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleAntiMsg,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "antispam",
 		Alias:       "aspam",
 		Description: "Protect the group from rapid message flooding and spam",
@@ -171,7 +164,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleAntiSpam,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "automute",
 		Alias:       "autoclose",
 		Description: "Set a daily time to automatically close the group chat",
@@ -180,7 +173,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleAutoMute,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "autounmute",
 		Alias:       "autoopen",
 		Description: "Set a daily time to automatically reopen the group chat",
@@ -189,7 +182,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleAutoUnmute,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "listmute",
 		Alias:       "mutestatus",
 		Description: "View active daily open and close schedules for this group",
@@ -198,7 +191,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleListMute,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "events",
 		Alias:       "groupevents",
 		Description: "Get notified when group info or members change",
@@ -207,7 +200,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleEventsCmd,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "gpp",
 		Alias:       "setgpp",
 		Description: "Change the group's profile picture (reply to an image)",
@@ -216,7 +209,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleSetGroupPP,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "warn",
 		Alias:       "warning",
 		Description: "Issue a warning to a member for breaking group rules",
@@ -224,7 +217,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleWarn,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "unwarn",
 		Alias:       "delwarn",
 		Description: "Remove a warning previously given to a member",
@@ -232,7 +225,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleUnwarn,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "warns",
 		Alias:       "getwarn",
 		Description: "Check current warning count for a member or the group limit",
@@ -240,7 +233,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleWarns,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "setwarn",
 		Alias:       "warnlimit",
 		Description: "Set how many warnings a member gets before being removed",
@@ -248,7 +241,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleSetWarn,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "welcome",
 		Alias:       "welc",
 		Description: "Set up automatic welcome messages for new group members",
@@ -257,7 +250,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleWelcome,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "goodbye",
 		Alias:       "bye",
 		Description: "Set up automatic goodbye messages when members leave",
@@ -266,7 +259,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleGoodbye,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "captcha",
 		Alias:       "verify",
 		Description: "Protect the group from bots by verifying new members with a quick code",
@@ -277,7 +270,7 @@ func init() {
 	})
 }
 
-func handleTagAll(ctx *dispatch.Context) error {
+func handleTagAll(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -294,7 +287,7 @@ func handleTagAll(ctx *dispatch.Context) error {
 	return ctx.ReplyWithGroupMention(msg)
 }
 
-func handleKick(ctx *dispatch.Context) error {
+func handleKick(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -316,13 +309,13 @@ func handleKick(ctx *dispatch.Context) error {
 	var kickedJIDs []types.JID
 	for _, target := range targets {
 		resolvedJID, username := ctx.ResolveMention(target)
-		if botctx.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
-			_ = ctx.ReplyWithMentions(dispatch.Sprintf("I can't remove @%s because they are a bot owner/admin.", username), []types.JID{resolvedJID})
+		if IsSudoRaw(ctx.Ctx, ctx.Client, target) {
+			_ = ctx.ReplyWithMentions(Sprintf("I can't remove @%s because they are a bot owner/admin.", username), []types.JID{resolvedJID})
 			continue
 		}
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeRemove)
 		if err != nil {
-			_ = ctx.ReplyWithMentions(dispatch.Sprintf("Couldn't remove @%s: %v", username, err), []types.JID{resolvedJID})
+			_ = ctx.ReplyWithMentions(Sprintf("Couldn't remove @%s: %v", username, err), []types.JID{resolvedJID})
 		} else {
 			kicked = append(kicked, "@"+username)
 			kickedJIDs = append(kickedJIDs, resolvedJID)
@@ -330,12 +323,12 @@ func handleKick(ctx *dispatch.Context) error {
 	}
 
 	if len(kicked) > 0 {
-		return ctx.ReplyWithMentions(dispatch.Sprintf("Removed %s from the group.", strings.Join(kicked, ",")), kickedJIDs)
+		return ctx.ReplyWithMentions(Sprintf("Removed %s from the group.", strings.Join(kicked, ",")), kickedJIDs)
 	}
 	return nil
 }
 
-func handleAdd(ctx *dispatch.Context) error {
+func handleAdd(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -359,7 +352,7 @@ func handleAdd(ctx *dispatch.Context) error {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeAdd)
 		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.ReplyWithMentions(dispatch.Sprintf("Couldn't add @%s (they might have group invite restrictions turned on): %v", username, err), []types.JID{resolvedJID})
+			_ = ctx.ReplyWithMentions(Sprintf("Couldn't add @%s (they might have group invite restrictions turned on): %v", username, err), []types.JID{resolvedJID})
 		} else {
 			added = append(added, "@"+username)
 			addedJIDs = append(addedJIDs, resolvedJID)
@@ -367,12 +360,12 @@ func handleAdd(ctx *dispatch.Context) error {
 	}
 
 	if len(added) > 0 {
-		return ctx.ReplyWithMentions(dispatch.Sprintf("Welcome %s to the group!", strings.Join(added, ",")), addedJIDs)
+		return ctx.ReplyWithMentions(Sprintf("Welcome %s to the group!", strings.Join(added, ",")), addedJIDs)
 	}
 	return nil
 }
 
-func handlePromote(ctx *dispatch.Context) error {
+func handlePromote(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -396,7 +389,7 @@ func handlePromote(ctx *dispatch.Context) error {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangePromote)
 		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.ReplyWithMentions(dispatch.Sprintf("Couldn't promote @%s: %v", username, err), []types.JID{resolvedJID})
+			_ = ctx.ReplyWithMentions(Sprintf("Couldn't promote @%s: %v", username, err), []types.JID{resolvedJID})
 		} else {
 			promoted = append(promoted, "@"+username)
 			promotedJIDs = append(promotedJIDs, resolvedJID)
@@ -404,12 +397,12 @@ func handlePromote(ctx *dispatch.Context) error {
 	}
 
 	if len(promoted) > 0 {
-		return ctx.ReplyWithMentions(dispatch.Sprintf("Successfully promoted %s to group admin!", strings.Join(promoted, ",")), promotedJIDs)
+		return ctx.ReplyWithMentions(Sprintf("Successfully promoted %s to group admin!", strings.Join(promoted, ",")), promotedJIDs)
 	}
 	return nil
 }
 
-func handleDemote(ctx *dispatch.Context) error {
+func handleDemote(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -431,13 +424,13 @@ func handleDemote(ctx *dispatch.Context) error {
 	var demotedJIDs []types.JID
 	for _, target := range targets {
 		resolvedJID, username := ctx.ResolveMention(target)
-		if botctx.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
-			_ = ctx.ReplyWithMentions(dispatch.Sprintf("I can't demote @%s because they are a bot owner/admin.", username), []types.JID{resolvedJID})
+		if IsSudoRaw(ctx.Ctx, ctx.Client, target) {
+			_ = ctx.ReplyWithMentions(Sprintf("I can't demote @%s because they are a bot owner/admin.", username), []types.JID{resolvedJID})
 			continue
 		}
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeDemote)
 		if err != nil {
-			_ = ctx.ReplyWithMentions(dispatch.Sprintf("Couldn't demote @%s: %v", username, err), []types.JID{resolvedJID})
+			_ = ctx.ReplyWithMentions(Sprintf("Couldn't demote @%s: %v", username, err), []types.JID{resolvedJID})
 		} else {
 			demoted = append(demoted, "@"+username)
 			demotedJIDs = append(demotedJIDs, resolvedJID)
@@ -445,12 +438,12 @@ func handleDemote(ctx *dispatch.Context) error {
 	}
 
 	if len(demoted) > 0 {
-		return ctx.ReplyWithMentions(dispatch.Sprintf("%s is no longer a group admin.", strings.Join(demoted, ",")), demotedJIDs)
+		return ctx.ReplyWithMentions(Sprintf("%s is no longer a group admin.", strings.Join(demoted, ",")), demotedJIDs)
 	}
 	return nil
 }
 
-func handleGroup(ctx *dispatch.Context) error {
+func handleGroup(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -575,7 +568,7 @@ func handleGroup(ctx *dispatch.Context) error {
 	}
 }
 
-func handleAntiLink(ctx *dispatch.Context) error {
+func handleAntiLink(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -584,7 +577,7 @@ func handleAntiLink(ctx *dispatch.Context) error {
 		return ctx.Reply("Only group admins can change anti-link settings.")
 	}
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store is currently unavailable.")
 	}
@@ -626,7 +619,7 @@ func handleAntiLink(ctx *dispatch.Context) error {
 		return sendAntiLinkMenu(ctx, s, "Anti-link protection is now active for this group.")
 
 	case "mode", "customize":
-		bodyText := dispatch.NewText().
+		bodyText := NewText().
 			Header("ANTILINK PROTECTION MODE").
 			Field("Group", groupName).
 			Blank().
@@ -643,7 +636,7 @@ func handleAntiLink(ctx *dispatch.Context) error {
 	case "default":
 		_ = s.PutSetting(ctx.Ctx, modeKey, "default")
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
-		bodyText := dispatch.NewText().
+		bodyText := NewText().
 			Header("ANTILINK MODE UPDATED").
 			Field("Group", groupName).
 			Field("Mode", "ALL WEB LINKS").
@@ -674,7 +667,7 @@ func handleAntiLink(ctx *dispatch.Context) error {
 				currCustom = "chat.whatsapp.com"
 				_ = s.PutSetting(ctx.Ctx, customKey, currCustom)
 			}
-			bodyText := dispatch.NewText().
+			bodyText := NewText().
 				Header("ANTILINK CUSTOM DOMAINS").
 				Field("Group", groupName).
 				Field("Mode", "CUSTOM DOMAINS").
@@ -711,7 +704,7 @@ func handleAntiLink(ctx *dispatch.Context) error {
 		_ = s.PutSetting(ctx.Ctx, modeKey, "custom")
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
 
-		bodyText := dispatch.NewText().
+		bodyText := NewText().
 			Header("ANTILINK CUSTOMIZED").
 			Field("Group", groupName).
 			Field("Mode", "CUSTOM DOMAINS").
@@ -733,9 +726,9 @@ func handleAntiLink(ctx *dispatch.Context) error {
 				return ctx.Reply("Please choose an action: `delete`, `kick`, or `warn`.")
 			}
 			_ = s.PutSetting(ctx.Ctx, "antilink_action:"+chatKey, act)
-			return sendAntiLinkMenu(ctx, s, dispatch.Sprintf("Anti-link consequence set to *%s*.", strings.ToUpper(act)))
+			return sendAntiLinkMenu(ctx, s, Sprintf("Anti-link consequence set to *%s*.", strings.ToUpper(act)))
 		}
-		bodyText := dispatch.NewText().
+		bodyText := NewText().
 			Header("ANTILINK ACTION MODE").
 			Field("Group", groupName).
 			Blank().
@@ -761,14 +754,14 @@ func handleAntiLink(ctx *dispatch.Context) error {
 		}
 		_ = s.PutSetting(ctx.Ctx, "antilink_maxwarn:"+chatKey, strconv.Itoa(cnt))
 		_ = s.PutSetting(ctx.Ctx, "antilink_action:"+chatKey, "warn")
-		return sendAntiLinkMenu(ctx, s, dispatch.Sprintf("Anti-link warning limit set to *%d*. Consequence switched to WARN.", cnt))
+		return sendAntiLinkMenu(ctx, s, Sprintf("Anti-link warning limit set to *%d*. Consequence switched to WARN.", cnt))
 
 	default:
 		return sendAntiLinkMenu(ctx, s, "")
 	}
 }
 
-func sendAntiLinkMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, note string) error {
+func sendAntiLinkMenu(ctx *Context, s *StoreWrapper, note string) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
@@ -793,7 +786,7 @@ func sendAntiLinkMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, note stri
 		if maxWarn == "" {
 			maxWarn = "3"
 		}
-		actionDisplay = dispatch.Sprintf("WARN (Max: %s)", maxWarn)
+		actionDisplay = Sprintf("WARN (Max: %s)", maxWarn)
 	}
 
 	custom, _ := s.GetSetting(ctx.Ctx, "antilink_custom:"+chatKey)
@@ -835,7 +828,7 @@ func sendAntiLinkMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, note stri
 	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
-func handleAntiWord(ctx *dispatch.Context) error {
+func handleAntiWord(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -844,7 +837,7 @@ func handleAntiWord(ctx *dispatch.Context) error {
 		return ctx.Reply("Only group admins can change anti-word settings.")
 	}
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store is currently unavailable.")
 	}
@@ -881,9 +874,9 @@ func handleAntiWord(ctx *dispatch.Context) error {
 				return ctx.Reply("Please choose an action: `delete`, `kick`, or `warn`.")
 			}
 			_ = s.PutSetting(ctx.Ctx, "antiword_action:"+chatKey, act)
-			return sendAntiWordMenu(ctx, s, dispatch.Sprintf("Anti-word consequence set to *%s*.", strings.ToUpper(act)))
+			return sendAntiWordMenu(ctx, s, Sprintf("Anti-word consequence set to *%s*.", strings.ToUpper(act)))
 		}
-		bodyText := dispatch.NewText().
+		bodyText := NewText().
 			Header("ANTIWORD ACTION MODE").
 			Field("Group", groupName).
 			Blank().
@@ -909,7 +902,7 @@ func handleAntiWord(ctx *dispatch.Context) error {
 		}
 		_ = s.PutSetting(ctx.Ctx, "antiword_maxwarn:"+chatKey, strconv.Itoa(cnt))
 		_ = s.PutSetting(ctx.Ctx, "antiword_action:"+chatKey, "warn")
-		return sendAntiWordMenu(ctx, s, dispatch.Sprintf("Anti-word warning limit set to *%d*. Consequence switched to WARN.", cnt))
+		return sendAntiWordMenu(ctx, s, Sprintf("Anti-word warning limit set to *%d*. Consequence switched to WARN.", cnt))
 
 	case "add":
 		if len(args) < 2 {
@@ -922,7 +915,7 @@ func handleAntiWord(ctx *dispatch.Context) error {
 		words = append(words, wordToAdd)
 		_ = s.PutSetting(ctx.Ctx, settingKey, strings.Join(words, ""))
 		_ = s.PutSetting(ctx.Ctx, "antiword_status:"+chatKey, "on")
-		return sendAntiWordMenu(ctx, s, dispatch.Sprintf("Added %q to the banned words list.", wordToAdd))
+		return sendAntiWordMenu(ctx, s, Sprintf("Added %q to the banned words list.", wordToAdd))
 
 	case "del", "remove":
 		if len(args) < 2 {
@@ -942,7 +935,7 @@ func handleAntiWord(ctx *dispatch.Context) error {
 			return ctx.Replyf("The word %q was not found on the banned words list.", wordToDel)
 		}
 		_ = s.PutSetting(ctx.Ctx, settingKey, strings.Join(newWords, ""))
-		return sendAntiWordMenu(ctx, s, dispatch.Sprintf("Removed %q from the banned words list.", wordToDel))
+		return sendAntiWordMenu(ctx, s, Sprintf("Removed %q from the banned words list.", wordToDel))
 
 	case "list":
 		if len(words) == 0 {
@@ -955,7 +948,7 @@ func handleAntiWord(ctx *dispatch.Context) error {
 	}
 }
 
-func sendAntiWordMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, note string) error {
+func sendAntiWordMenu(ctx *Context, s *StoreWrapper, note string) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
@@ -984,7 +977,7 @@ func sendAntiWordMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, note stri
 		if maxWarn == "" {
 			maxWarn = "3"
 		}
-		actionDisplay = dispatch.Sprintf("WARN (Max: %s)", maxWarn)
+		actionDisplay = Sprintf("WARN (Max: %s)", maxWarn)
 	}
 
 	p := ctx.GetPrefix()
@@ -1025,8 +1018,8 @@ func sendAntiWordMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, note stri
 	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
-func handleGStats(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleGStats(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store is currently unavailable.")
 	}
@@ -1081,7 +1074,7 @@ func handleGStats(ctx *dispatch.Context) error {
 			if uj, err := types.ParseJID(userStr); err == nil {
 				uj = uj.ToNonAD()
 				resolvedJID, username := ctx.ResolveMention(uj)
-				tb.Numbered(rank, dispatch.Sprintf("@%s (%d msgs)", username, count)).
+				tb.Numbered(rank, Sprintf("@%s (%d msgs)", username, count)).
 					Mentions(resolvedJID)
 				rank++
 			}
@@ -1091,7 +1084,7 @@ func handleGStats(ctx *dispatch.Context) error {
 	return tb.Reply()
 }
 
-func handlePoll(ctx *dispatch.Context) error {
+func handlePoll(ctx *Context) error {
 	raw := strings.TrimSpace(ctx.RawArgs)
 	if raw == "" {
 		p := ctx.GetPrefix()
@@ -1135,9 +1128,9 @@ func handlePoll(ctx *dispatch.Context) error {
 		for _, opt := range options {
 			poll.AddOption(opt)
 		}
-		return poll.Reply(func(req dispatch.PollRequest, res *builder.Response) {
+		return poll.Reply(func(req PollRequest, res *Response) {
 			if len(req.SelectedOptions) > 0 {
-				_ = res.Reply(dispatch.Sprintf("Vote recorded for: *%s*", strings.Join(req.SelectedOptions, ",")))
+				_ = res.Reply(Sprintf("Vote recorded for: *%s*", strings.Join(req.SelectedOptions, ",")))
 			}
 		})
 	}
@@ -1161,7 +1154,7 @@ func handlePoll(ctx *dispatch.Context) error {
 	poll.AddOption("Single Choice (one answer)").
 		AddOption("Multiple Choice (many answers)")
 
-	return poll.Reply(func(req dispatch.PollRequest, res *builder.Response) {
+	return poll.Reply(func(req PollRequest, res *Response) {
 		if len(req.SelectedOptions) > 0 {
 			single := strings.HasPrefix(req.SelectedOptions[0], "Single")
 			subPoll := res.Rook().NewPoll(question)
@@ -1178,7 +1171,7 @@ func handlePoll(ctx *dispatch.Context) error {
 	})
 }
 
-func handleInvite(ctx *dispatch.Context) error {
+func handleInvite(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -1208,7 +1201,7 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 	PresenceMu.RUnlock()
 
 	if exists && (info.IsOnline || time.Since(info.LastSeen) < 15*time.Minute) {
-		logger.Debug("IsUserOnline check: direct match online", "jid", targetKey, "lastSeen", info.LastSeen)
+		Debug("IsUserOnline check: direct match online", "jid", targetKey, "lastSeen", info.LastSeen)
 		return true
 	}
 
@@ -1222,7 +1215,7 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 				pnInfo, pnExists := PresenceMap[pnKey]
 				PresenceMu.RUnlock()
 				if pnExists && (pnInfo.IsOnline || time.Since(pnInfo.LastSeen) < 15*time.Minute) {
-					logger.Debug("IsUserOnline check: PN match online for LID", "lid", targetKey, "pn", pnKey)
+					Debug("IsUserOnline check: PN match online for LID", "lid", targetKey, "pn", pnKey)
 					return true
 				}
 			}
@@ -1234,27 +1227,27 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 				lidInfo, lidExists := PresenceMap[lidKey]
 				PresenceMu.RUnlock()
 				if lidExists && (lidInfo.IsOnline || time.Since(lidInfo.LastSeen) < 15*time.Minute) {
-					logger.Debug("IsUserOnline check: LID match online for PN", "pn", targetKey, "lid", lidKey)
+					Debug("IsUserOnline check: LID match online for PN", "pn", targetKey, "lid", lidKey)
 					return true
 				}
 			}
 		}
 	}
 
-	logger.Debug("IsUserOnline check: offline or unknown", "jid", targetKey)
+	Debug("IsUserOnline check: offline or unknown", "jid", targetKey)
 	return false
 }
 
-func handleListOnline(ctx *dispatch.Context) error {
-	logger.Debug("handleListOnline executing", "group", ctx.Chat.String())
+func handleListOnline(ctx *Context) error {
+	Debug("handleListOnline executing", "group", ctx.Chat.String())
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
-		logger.Error("handleListOnline: failed to get group info", "group", ctx.Chat.String(), "err", err)
+		Error("handleListOnline: failed to get group info", "group", ctx.Chat.String(), "err", err)
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
 	}
 
 	total := len(info.Participants)
-	logger.Debug("handleListOnline retrieved group info", "group", ctx.Chat.String(), "participant_count", total)
+	Debug("handleListOnline retrieved group info", "group", ctx.Chat.String(), "participant_count", total)
 
 	if total == 0 {
 		return ctx.Reply("No members found in this group.")
@@ -1305,7 +1298,7 @@ func handleListOnline(ctx *dispatch.Context) error {
 			fromKey := pEvt.From.ToNonAD().String()
 			mu.Lock()
 			if targetJID, isExpected := expectedJIDs[fromKey]; isExpected {
-				logger.Debug("handleListOnline: received presence stanza from WhatsApp", "from", fromKey, "unavailable", pEvt.Unavailable)
+				Debug("handleListOnline: received presence stanza from WhatsApp", "from", fromKey, "unavailable", pEvt.Unavailable)
 				TrackPresence(targetJID, !pEvt.Unavailable)
 				delete(expectedJIDs, fromKey)
 				receivedCount++
@@ -1324,7 +1317,7 @@ func handleListOnline(ctx *dispatch.Context) error {
 			if !pEvt.Sender.IsEmpty() {
 				mu.Lock()
 				if targetJID, isExpected := expectedJIDs[senderKey]; isExpected {
-					logger.Debug("handleListOnline: received delivery receipt from WhatsApp", "sender", senderKey)
+					Debug("handleListOnline: received delivery receipt from WhatsApp", "sender", senderKey)
 					TrackPresence(targetJID, true)
 					delete(expectedJIDs, senderKey)
 					receivedCount++
@@ -1358,9 +1351,9 @@ func handleListOnline(ctx *dispatch.Context) error {
 	if cachedOnlineCount < 2 {
 		select {
 		case <-doneChan:
-			logger.Debug("handleListOnline: presence/receipt stanzas collected", "count", receivedCount)
+			Debug("handleListOnline: presence/receipt stanzas collected", "count", receivedCount)
 		case <-time.After(2000 * time.Millisecond):
-			logger.Debug("handleListOnline: presence wait window ended", "received", receivedCount, "total", total)
+			Debug("handleListOnline: presence wait window ended", "received", receivedCount, "total", total)
 		}
 	}
 
@@ -1372,13 +1365,13 @@ func handleListOnline(ctx *dispatch.Context) error {
 			resolvedJID, username := ctx.ResolveMention(p.JID)
 			onlineJIDs = append(onlineJIDs, resolvedJID)
 			displayNames = append(displayNames, "@"+username)
-			logger.Debug("handleListOnline: participant online", "participant", p.JID.String(), "username", username)
+			Debug("handleListOnline: participant online", "participant", p.JID.String(), "username", username)
 		} else {
-			logger.Debug("handleListOnline: participant offline", "participant", p.JID.String())
+			Debug("handleListOnline: participant offline", "participant", p.JID.String())
 		}
 	}
 
-	logger.Debug("handleListOnline complete", "group", ctx.Chat.String(), "total_participants", total, "online_count", len(onlineJIDs))
+	Debug("handleListOnline complete", "group", ctx.Chat.String(), "total_participants", total, "online_count", len(onlineJIDs))
 
 	if len(onlineJIDs) == 0 {
 		return ctx.Reply("No active members detected right now. Members may have their online status or read receipts hidden.")
@@ -1395,7 +1388,7 @@ func handleListOnline(ctx *dispatch.Context) error {
 	return tb.Reply()
 }
 
-func handleKickAll(ctx *dispatch.Context) error {
+func handleKickAll(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", err)
@@ -1412,14 +1405,14 @@ func handleKickAll(ctx *dispatch.Context) error {
 	var toKick []types.JID
 	for _, p := range info.Participants {
 		if ctx.Client != nil && ctx.Client.Store != nil {
-			if ctx.Client.Store.ID != nil && botctx.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, *ctx.Client.Store.ID) {
+			if ctx.Client.Store.ID != nil && ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, *ctx.Client.Store.ID) {
 				continue
 			}
-			if !ctx.Client.Store.LID.IsEmpty() && botctx.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Client.Store.LID) {
+			if !ctx.Client.Store.LID.IsEmpty() && ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Client.Store.LID) {
 				continue
 			}
 		}
-		if botctx.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Sender) {
+		if ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Sender) {
 			continue
 		}
 		if ctx.IsTargetSudo(p.JID) || (!p.PhoneNumber.IsEmpty() && ctx.IsTargetSudo(p.PhoneNumber)) || (!p.LID.IsEmpty() && ctx.IsTargetSudo(p.LID)) {
@@ -1435,14 +1428,14 @@ func handleKickAll(ctx *dispatch.Context) error {
 	_ = ctx.Replyf("Removing %d members from the group...", len(toKick))
 	_, err = ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, toKick, whatsmeow.ParticipantChangeRemove)
 	if err != nil {
-		logger.Error("Kickall failed", "err", err)
+		Error("Kickall failed", "err", err)
 		return ctx.Replyf("Failed to remove some members: %v", err)
 	}
 
 	return ctx.Replyf("Cleanup complete! Successfully removed %d members.", len(toKick))
 }
 
-func handleLeave(ctx *dispatch.Context) error {
+func handleLeave(ctx *Context) error {
 	senderUser := ctx.Sender.ToNonAD().User
 
 	arg0 := ""
@@ -1456,14 +1449,14 @@ func handleLeave(ctx *dispatch.Context) error {
 			callerUser := parts[1]
 			if senderUser != callerUser && !ctx.IsSudo() {
 				callerMention, _ := ctx.ResolveMention(types.NewJID(callerUser, "s.whatsapp.net"))
-				return ctx.ReplyWithMentions(dispatch.Sprintf("Only the person who asked me to leave (%s) can confirm this action.", "@"+callerMention.User), []types.JID{callerMention})
+				return ctx.ReplyWithMentions(Sprintf("Only the person who asked me to leave (%s) can confirm this action.", "@"+callerMention.User), []types.JID{callerMention})
 			}
 		}
 
 		_ = ctx.Reply("Goodbye everyone! Leaving the group now.")
 		err := ctx.Client.LeaveGroup(ctx.Ctx, ctx.Chat)
 		if err != nil {
-			logger.Error("Failed to leave group", "err", err)
+			Error("Failed to leave group", "err", err)
 			return ctx.Replyf("Failed to leave the group: %v", err)
 		}
 		return nil
@@ -1475,7 +1468,7 @@ func handleLeave(ctx *dispatch.Context) error {
 			callerUser := parts[1]
 			if senderUser != callerUser && !ctx.IsSudo() {
 				callerMention, _ := ctx.ResolveMention(types.NewJID(callerUser, "s.whatsapp.net"))
-				return ctx.ReplyWithMentions(dispatch.Sprintf("Only the person who asked me to leave (%s) can cancel this action.", "@"+callerMention.User), []types.JID{callerMention})
+				return ctx.ReplyWithMentions(Sprintf("Only the person who asked me to leave (%s) can cancel this action.", "@"+callerMention.User), []types.JID{callerMention})
 			}
 		}
 		return ctx.Reply("Leave request cancelled. I'm staying in the group!")
@@ -1490,7 +1483,7 @@ func handleLeave(ctx *dispatch.Context) error {
 	return sendPollReply(ctx, bodyText, options)
 }
 
-func handleJoin(ctx *dispatch.Context) error {
+func handleJoin(ctx *Context) error {
 	var inviteMsg *waE2E.GroupInviteMessage
 	var isQuoted bool
 
@@ -1527,7 +1520,7 @@ func handleJoin(ctx *dispatch.Context) error {
 	return ctx.Reply("Successfully joined the group!")
 }
 
-func handleJoinV4(ctx *dispatch.Context, inviteMsg *waE2E.GroupInviteMessage, isQuoted bool) error {
+func handleJoinV4(ctx *Context, inviteMsg *waE2E.GroupInviteMessage, isQuoted bool) error {
 	groupJIDStr := inviteMsg.GetGroupJID()
 	groupJID, err := types.ParseJID(groupJIDStr)
 	if err != nil || groupJID.IsEmpty() {
@@ -1576,7 +1569,7 @@ func handleJoinV4(ctx *dispatch.Context, inviteMsg *waE2E.GroupInviteMessage, is
 	return ctx.Reply("Successfully joined the group!")
 }
 
-func extractGroupInviteCode(ctx *dispatch.Context) string {
+func extractGroupInviteCode(ctx *Context) string {
 	if ctx == nil {
 		return ""
 	}
@@ -1636,8 +1629,8 @@ func extractMessageText(msg *waE2E.Message) string {
 	return ""
 }
 
-func handleAntiMsg(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleAntiMsg(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store is currently unavailable.")
 	}
@@ -1685,7 +1678,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 
 		p := ctx.GetPrefix()
 		if len(users) == 0 {
-			bodyText := dispatch.NewText().
+			bodyText := NewText().
 				Header("ANTIMSG TARGETS").
 				Field("Status", strings.ToUpper(status)).
 				Field("Targets", "None").
@@ -1706,7 +1699,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 				continue
 			}
 			if !slices.ContainsFunc(displayUsers, func(existing types.JID) bool {
-				return botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj)
+				return IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj)
 			}) {
 				displayUsers = append(displayUsers, uj)
 			}
@@ -1752,7 +1745,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 			newUsers := make([]string, 0, len(users))
 			for _, uStr := range users {
 				uJID, err := types.ParseJID(uStr)
-				if err == nil && botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
+				if err == nil && IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
 					continue
 				}
 				newUsers = append(newUsers, uStr)
@@ -1766,7 +1759,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 		_ = s.PutSetting(ctx.Ctx, usersKey, strings.Join(users, ","))
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
 
-		bodyText := dispatch.NewText().
+		bodyText := NewText().
 			Header("ANTIMSG UPDATED").
 			Field("Removed", strings.Join(removedUsernames, ",")).
 			Fieldf("Remaining Targets", "%d member(s)", len(users)).
@@ -1809,7 +1802,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 			isAlreadyTargeted := false
 			for _, uStr := range users {
 				uJID, err := types.ParseJID(uStr)
-				if err == nil && botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, resolvedTarget) {
+				if err == nil && IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, resolvedTarget) {
 					isAlreadyTargeted = true
 					break
 				}
@@ -1833,7 +1826,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 		_ = s.PutSetting(ctx.Ctx, usersKey, strings.Join(users, ","))
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
 
-		tb := dispatch.NewText().
+		tb := NewText().
 			Header("ANTIMSG ACTIVATED").
 			Field("Status", "ACTIVE").
 			Field("Added", strings.Join(addedUsernames, ",")).
@@ -1863,7 +1856,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 	return sendAntiMsgMenu(ctx, s, "")
 }
 
-func sendAntiMsgMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, note string) error {
+func sendAntiMsgMenu(ctx *Context, s *StoreWrapper, note string) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
@@ -1919,7 +1912,7 @@ func isSubcommand(s string) bool {
 		s == "activate" || s == "deactivate"
 }
 
-func extractTargetParticipants(ctx *dispatch.Context, args []string) []types.JID {
+func extractTargetParticipants(ctx *Context, args []string) []types.JID {
 	var targets []types.JID
 
 	addJID := func(j types.JID) {
@@ -1928,7 +1921,7 @@ func extractTargetParticipants(ctx *dispatch.Context, args []string) []types.JID
 		}
 		resolved := ctx.ResolvePN(j)
 		if !slices.ContainsFunc(targets, func(existing types.JID) bool {
-			return botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, resolved)
+			return IsSameUserRaw(ctx.Ctx, ctx.Client, existing, resolved)
 		}) {
 			targets = append(targets, resolved)
 		}
@@ -1937,7 +1930,7 @@ func extractTargetParticipants(ctx *dispatch.Context, args []string) []types.JID
 	if quotedSender, ok := ctx.GetQuotedSender(); ok && !quotedSender.IsEmpty() {
 		if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
 			botJID := ctx.Client.Store.ID.ToNonAD()
-			if !botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, botJID) {
+			if !IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, botJID) {
 				addJID(quotedSender)
 			}
 		} else {
@@ -1966,8 +1959,8 @@ func extractTargetParticipants(ctx *dispatch.Context, args []string) []types.JID
 	return targets
 }
 
-func handleAntiSpam(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleAntiSpam(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store is currently unavailable.")
 	}
@@ -2052,7 +2045,7 @@ func handleAntiSpam(ctx *dispatch.Context) error {
 	}
 }
 
-func sendAntiSpamMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
+func sendAntiSpamMenu(ctx *Context, s *StoreWrapper) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey
 	if info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat); err == nil && info != nil && info.GroupName.Name != "" {
@@ -2064,7 +2057,7 @@ func sendAntiSpamMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 		status = "off"
 	}
 
-	bodyText := dispatch.NewText().
+	bodyText := NewText().
 		Header("ANTISPAM CONFIGURATION").
 		Field("Group", groupName).
 		Field("Status", strings.ToUpper(status)).
@@ -2087,7 +2080,7 @@ func sendAntiSpamMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 	return sendPollReply(ctx, bodyText, options)
 }
 
-func sendAntiSpamCustomizeGuide(ctx *dispatch.Context) error {
+func sendAntiSpamCustomizeGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	return ctx.Text().
 		Header("ANTISPAM CUSTOMIZATION GUIDE").
@@ -2132,7 +2125,7 @@ func StartAutoMuteScheduler(ctx context.Context, client *whatsmeow.Client) {
 				func() {
 					defer func() {
 						if r := recover(); r != nil {
-							logger.Error("automute: PANIC in scheduler tick", "recover", r)
+							Error("automute: PANIC in scheduler tick", "recover", r)
 						}
 					}()
 					checkAndExecuteMuteSchedules(schedCtx, client)
@@ -2151,7 +2144,7 @@ func StopAutoMuteScheduler() {
 	}
 }
 
-func handleAutoMute(ctx *dispatch.Context) error {
+func handleAutoMute(ctx *Context) error {
 	if ctx.Chat.Server != types.GroupServer {
 		return ctx.Reply("This command can only be used inside a group chat.")
 	}
@@ -2169,7 +2162,7 @@ func handleAutoMute(ctx *dispatch.Context) error {
 	}
 
 	arg := strings.ToLower(ctx.Args[0])
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store is currently unavailable.")
 	}
@@ -2196,7 +2189,7 @@ func handleAutoMute(ctx *dispatch.Context) error {
 	return ctx.Replyf("Daily group close scheduled for *%s* (%s timezone).\n\nThe chat will automatically close at this time each day so only admins can send messages.", arg, tz)
 }
 
-func handleAutoUnmute(ctx *dispatch.Context) error {
+func handleAutoUnmute(ctx *Context) error {
 	if ctx.Chat.Server != types.GroupServer {
 		return ctx.Reply("This command can only be used inside a group chat.")
 	}
@@ -2214,7 +2207,7 @@ func handleAutoUnmute(ctx *dispatch.Context) error {
 	}
 
 	arg := strings.ToLower(ctx.Args[0])
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store is currently unavailable.")
 	}
@@ -2241,12 +2234,12 @@ func handleAutoUnmute(ctx *dispatch.Context) error {
 	return ctx.Replyf("Daily group reopen scheduled for *%s* (%s timezone).\n\nThe chat will automatically reopen at this time each day so everyone can chat.", arg, tz)
 }
 
-func handleListMute(ctx *dispatch.Context) error {
+func handleListMute(ctx *Context) error {
 	if ctx.Chat.Server != types.GroupServer {
 		return ctx.Reply("This command can only be used inside a group chat.")
 	}
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store is currently unavailable.")
 	}
@@ -2309,7 +2302,7 @@ func normalizeTimeInput(s string) (string, bool) {
 		if !isPM && hour == 12 {
 			hour = 0
 		}
-		return dispatch.Sprintf("%02d:%02d", hour, minute), true
+		return Sprintf("%02d:%02d", hour, minute), true
 	}
 
 	if len(s) != 5 || s[2] != ':' {
@@ -2333,28 +2326,28 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 	if client == nil || client.Store == nil || client.Store.ID == nil || !client.IsConnected() || !client.IsLoggedIn() {
 		return
 	}
-	s, ok := dispatch.GetSQLStore(client)
+	s, ok := GetSQLStore(client)
 	if !ok || s == nil {
-		logger.Error("automute is not okay in the database, it will not run!, status: v%", ok)
+		Error("automute is not okay in the database, it will not run!, status: v%", ok)
 		return
 	}
 
 	tzName := getUserTimezone(ctx, s)
 	loc, err := time.LoadLocation(tzName)
 	if err != nil {
-		logger.Error("automute: failed to load timezone, falling back to UTC", "tz", tzName, "err", err)
+		Error("automute: failed to load timezone, falling back to UTC", "tz", tzName, "err", err)
 		loc = time.UTC
 	}
 
 	now := time.Now().In(loc)
-	currentTimeStr := dispatch.Sprintf("%02d:%02d", now.Hour(), now.Minute())
+	currentTimeStr := Sprintf("%02d:%02d", now.Hour(), now.Minute())
 
-	settings, err := store.ListSettingsWithPrefixes(ctx, s.SQLStore, "automute:", "autounmute:")
+	settings, err := ListSettingsWithPrefixes(ctx, s.SQLStore, "automute:", "autounmute:")
 	if err != nil {
 		if errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || ctx.Err() != nil {
 			return
 		}
-		logger.Error("automute: query failed", "err", err)
+		Error("automute: query failed", "err", err)
 		return
 	}
 
@@ -2377,106 +2370,106 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 			lastExec, sErr := s.GetSetting(sCtx, execKey)
 			sCancel()
 			if sErr != nil {
-				logger.Error("automute: GetSetting execKey failed or timed out", "group", groupJIDStr, "err", sErr)
+				Error("automute: GetSetting execKey failed or timed out", "group", groupJIDStr, "err", sErr)
 				continue
 			}
-			dateMinuteKey := dispatch.Sprintf("%s_%s", now.Format("2006-01-02"), currentTimeStr)
+			dateMinuteKey := Sprintf("%s_%s", now.Format("2006-01-02"), currentTimeStr)
 			if lastExec == dateMinuteKey {
 				continue
 			}
 
 			info, gErr := client.GetGroupInfo(ctx, groupJID)
 			if gErr != nil {
-				logger.Error("automute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
+				Error("automute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
 				continue
 			}
 			if info == nil {
-				logger.Warn("automute: GetGroupInfo returned nil info", "group", groupJIDStr)
+				Warn("automute: GetGroupInfo returned nil info", "group", groupJIDStr)
 				continue
 			}
 
-			isAdmin := botctx.IsBotAdminRaw(ctx, client, info)
-			logger.Debug("automute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
+			isAdmin := IsBotAdminRaw(ctx, client, info)
+			Debug("automute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
 
 			if !isAdmin {
-				logger.Warn("automute: bot is not admin in group, cannot mute", "group", groupJIDStr)
+				Warn("automute: bot is not admin in group, cannot mute", "group", groupJIDStr)
 				continue
 			}
 
 			if err := client.SetGroupAnnounce(ctx, groupJID, true); err != nil {
-				logger.Error("automute: SetGroupAnnounce(true) failed", "group", groupJIDStr, "err", err)
+				Error("automute: SetGroupAnnounce(true) failed", "group", groupJIDStr, "err", err)
 				continue
 			}
 			if err := s.PutSetting(ctx, execKey, dateMinuteKey); err != nil {
-				logger.Error("automute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
+				Error("automute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
 			}
-			logger.Debug("automute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
+			Debug("automute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
 
 			unmuteTime, _ := s.GetSetting(ctx, "autounmute:"+groupJIDStr)
 			groupName := info.GroupName.Name
 			var noticeText string
 			if unmuteTime != "" {
-				noticeText = dispatch.Sprintf("*%s* is now closed for the night! Only admins can send messages. It will reopen at %s (%s).", groupName, unmuteTime, tzName)
+				noticeText = Sprintf("*%s* is now closed for the night! Only admins can send messages. It will reopen at %s (%s).", groupName, unmuteTime, tzName)
 			} else {
-				noticeText = dispatch.Sprintf("*%s* is now closed. Only admins can send messages.", groupName)
+				noticeText = Sprintf("*%s* is now closed. Only admins can send messages.", groupName)
 			}
 			if _, sendErr := client.SendMessage(ctx, groupJID, &waE2E.Message{Conversation: &noticeText}); sendErr != nil {
-				logger.Error("automute: failed to send close notice", "group", groupJIDStr, "err", sendErr)
+				Error("automute: failed to send close notice", "group", groupJIDStr, "err", sendErr)
 			}
 
 		} else if after, ok0 := strings.CutPrefix(key, "autounmute:"); ok0 {
 			groupJIDStr := after
 			groupJID, err := types.ParseJID(groupJIDStr)
 			if err != nil || groupJID.Server != types.GroupServer {
-				logger.Warn("autounmute: bad group JID, skipping", "raw", groupJIDStr, "err", err)
+				Warn("autounmute: bad group JID, skipping", "raw", groupJIDStr, "err", err)
 				continue
 			}
 
 			execKey := "last_exec_autounmute:" + groupJIDStr
 			lastExec, _ := s.GetSetting(ctx, execKey)
-			dateMinuteKey := dispatch.Sprintf("%s_%s", now.Format("2006-01-02"), currentTimeStr)
+			dateMinuteKey := Sprintf("%s_%s", now.Format("2006-01-02"), currentTimeStr)
 			if lastExec == dateMinuteKey {
 				continue
 			}
 
 			info, gErr := client.GetGroupInfo(ctx, groupJID)
 			if gErr != nil {
-				logger.Error("autounmute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
+				Error("autounmute: GetGroupInfo failed", "group", groupJIDStr, "err", gErr)
 				continue
 			}
 			if info == nil {
-				logger.Warn("autounmute: GetGroupInfo returned nil info", "group", groupJIDStr)
+				Warn("autounmute: GetGroupInfo returned nil info", "group", groupJIDStr)
 				continue
 			}
 
-			isAdmin := botctx.IsBotAdminRaw(ctx, client, info)
-			logger.Debug("autounmute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
+			isAdmin := IsBotAdminRaw(ctx, client, info)
+			Debug("autounmute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
 
 			if !isAdmin {
-				logger.Warn("autounmute: bot is not admin in group, cannot unmute", "group", groupJIDStr)
+				Warn("autounmute: bot is not admin in group, cannot unmute", "group", groupJIDStr)
 				continue
 			}
 
 			if err := client.SetGroupAnnounce(ctx, groupJID, false); err != nil {
-				logger.Error("autounmute: SetGroupAnnounce(false) failed", "group", groupJIDStr, "err", err)
+				Error("autounmute: SetGroupAnnounce(false) failed", "group", groupJIDStr, "err", err)
 				continue
 			}
 			if err := s.PutSetting(ctx, execKey, dateMinuteKey); err != nil {
-				logger.Error("autounmute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
+				Error("autounmute: failed to save last_exec marker", "group", groupJIDStr, "err", err)
 			}
 
-			logger.Debug("autounmute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
+			Debug("autounmute: executed successfully", "group", groupJIDStr, "time", currentTimeStr)
 			groupName := info.GroupName.Name
-			noticeText := dispatch.Sprintf("Good morning! *%s* is now open. Everyone can send messages!", groupName)
+			noticeText := Sprintf("Good morning! *%s* is now open. Everyone can send messages!", groupName)
 			if _, sendErr := client.SendMessage(ctx, groupJID, &waE2E.Message{Conversation: &noticeText}); sendErr != nil {
-				logger.Error("autounmute: failed to send open notice", "group", groupJIDStr, "err", sendErr)
+				Error("autounmute: failed to send open notice", "group", groupJIDStr, "err", sendErr)
 			}
 		}
 	}
 }
 
-func handleEventsCmd(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleEventsCmd(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store is currently unavailable.")
 	}
@@ -2516,14 +2509,14 @@ func handleEventsCmd(ctx *dispatch.Context) error {
 	}
 }
 
-func sendEventsMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
+func sendEventsMenu(ctx *Context, s *StoreWrapper) error {
 	chatKey := ctx.Chat.String()
 	status, _ := s.GetSetting(ctx.Ctx, "events_status:"+chatKey)
 	if status == "" {
 		status = "off"
 	}
 
-	bodyText := dispatch.NewText().
+	bodyText := NewText().
 		Header("GROUP EVENTS NOTIFICATIONS").
 		Field("Status", strings.ToUpper(status)).
 		Blank().
@@ -2545,7 +2538,7 @@ func sendEventsMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 	return sendPollReply(ctx, bodyText, options)
 }
 
-func sendEventsCustomizeGuide(ctx *dispatch.Context) error {
+func sendEventsCustomizeGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	return ctx.Text().
 		Header("GROUP EVENTS NOTIFICATIONS GUIDE").
@@ -2565,7 +2558,7 @@ func sendEventsCustomizeGuide(ctx *dispatch.Context) error {
 		Reply()
 }
 
-func handleSetGroupPP(ctx *dispatch.Context) error {
+func handleSetGroupPP(ctx *Context) error {
 	groupInfo, errGroup := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if errGroup != nil || groupInfo == nil {
 		return ctx.Replyf("Couldn't retrieve group details right now: %v", errGroup)
@@ -2597,23 +2590,23 @@ func handleSetGroupPP(ctx *dispatch.Context) error {
 		return ctx.Replyf("Couldn't download the photo: %v", err)
 	}
 
-	jpegData, errConv := media.EnsureJPEG(ctx.Ctx, rawBytes)
+	jpegData, errConv := EnsureJPEG(ctx.Ctx, rawBytes)
 	if errConv != nil || len(jpegData) == 0 {
 		return ctx.Replyf("Couldn't process the photo format: %v", errConv)
 	}
 
-	logger.Debug("handleSetGroupPP: Setting group profile picture", "group", ctx.Chat.String(), "mime", mime, "rawBytes", len(rawBytes), "jpegBytes", len(jpegData))
+	Debug("handleSetGroupPP: Setting group profile picture", "group", ctx.Chat.String(), "mime", mime, "rawBytes", len(rawBytes), "jpegBytes", len(jpegData))
 	picID, errSet := ctx.Client.SetGroupPhoto(ctx.Ctx, ctx.Chat, jpegData)
 	if errSet != nil {
-		logger.Error("handleSetGroupPP failed", "err", errSet)
+		Error("handleSetGroupPP failed", "err", errSet)
 		return ctx.Replyf("Failed to update group photo: %v", errSet)
 	}
 
 	return ctx.Replyf("Group profile picture updated successfully! (ID: %s)", picID)
 }
 
-func handleWarn(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleWarn(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store is currently unavailable.")
 	}
@@ -2647,7 +2640,7 @@ func handleWarn(ctx *dispatch.Context) error {
 		return ctx.Replyf("Who would you like to warn?\n\n• Reply to their message with `%swarn`\n• Or type: `%swarn @user [reason]`\n• Or type: `%swarn <phone-number> [reason]`", p, p, p)
 	}
 
-	if botctx.IsSudoRaw(ctx.Ctx, ctx.Client, targetJID) {
+	if IsSudoRaw(ctx.Ctx, ctx.Client, targetJID) {
 		return ctx.Reply("You cannot issue warnings to bot owners or sudo users.")
 	}
 
@@ -2667,8 +2660,8 @@ func handleWarn(ctx *dispatch.Context) error {
 
 	chatKey := ctx.Chat.String()
 	userKey := targetJID.ToNonAD().User
-	warnKey := dispatch.Sprintf("warn_count:%s:%s", chatKey, userKey)
-	limitKey := dispatch.Sprintf("warn_limit:%s", chatKey)
+	warnKey := Sprintf("warn_count:%s:%s", chatKey, userKey)
+	limitKey := Sprintf("warn_limit:%s", chatKey)
 
 	rawCount, _ := s.GetSetting(ctx.Ctx, warnKey)
 	currentWarns, _ := strconv.Atoi(rawCount)
@@ -2690,7 +2683,7 @@ func handleWarn(ctx *dispatch.Context) error {
 	}
 
 	if currentWarns < maxLimit {
-		msg := dispatch.Sprintf("Warning (%d/%d) issued to @%s.", currentWarns, maxLimit, username)
+		msg := Sprintf("Warning (%d/%d) issued to @%s.", currentWarns, maxLimit, username)
 		if reason != "" {
 			msg += "\nReason:" + reason
 		}
@@ -2702,11 +2695,11 @@ func handleWarn(ctx *dispatch.Context) error {
 		botIsOwner := isBotGroupOwner(ctx, groupInfo)
 
 		if targetIsAdmin && !botIsOwner {
-			return ctx.ReplyWithMentions(dispatch.Sprintf("@%s has reached the maximum warning limit (%d/%d), but cannot be removed because they are a group admin.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
+			return ctx.ReplyWithMentions(Sprintf("@%s has reached the maximum warning limit (%d/%d), but cannot be removed because they are a group admin.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
 		}
 
 		if !ctx.AmIAdmin(groupInfo) {
-			return ctx.ReplyWithMentions(dispatch.Sprintf("@%s has reached the maximum warning limit (%d/%d), but I need admin permissions to remove them from the group.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
+			return ctx.ReplyWithMentions(Sprintf("@%s has reached the maximum warning limit (%d/%d), but I need admin permissions to remove them from the group.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
 		}
 
 		_, _ = ctx.Client.UpdateBlocklist(ctx.Ctx, targetJID, events.BlocklistChangeActionBlock, "")
@@ -2716,19 +2709,19 @@ func handleWarn(ctx *dispatch.Context) error {
 		}
 
 		_ = s.PutSetting(ctx.Ctx, warnKey, "0")
-		return ctx.ReplyWithMentions(dispatch.Sprintf("@%s reached the maximum warning limit (%d/%d) and has been removed from the group.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
+		return ctx.ReplyWithMentions(Sprintf("@%s reached the maximum warning limit (%d/%d) and has been removed from the group.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
 	}
 
-	_ = ctx.ReplyWithMentions(dispatch.Sprintf("@%s reached the maximum warning limit (%d/%d) and has been blocked.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
+	_ = ctx.ReplyWithMentions(Sprintf("@%s reached the maximum warning limit (%d/%d) and has been blocked.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
 	_ = s.PutSetting(ctx.Ctx, warnKey, "0")
 	if _, err := ctx.Client.UpdateBlocklist(ctx.Ctx, targetJID, events.BlocklistChangeActionBlock, ""); err != nil {
-		logger.Error("handleWarn: failed to block user in DM", "target", targetJID.String(), "err", err)
+		Error("handleWarn: failed to block user in DM", "target", targetJID.String(), "err", err)
 	}
 	return nil
 }
 
-func handleUnwarn(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleUnwarn(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store is currently unavailable.")
 	}
@@ -2742,23 +2735,23 @@ func handleUnwarn(ctx *dispatch.Context) error {
 
 	chatKey := ctx.Chat.String()
 	userKey := targetJID.ToNonAD().User
-	warnKey := dispatch.Sprintf("warn_count:%s:%s", chatKey, userKey)
+	warnKey := Sprintf("warn_count:%s:%s", chatKey, userKey)
 
 	rawCount, _ := s.GetSetting(ctx.Ctx, warnKey)
 	currentWarns, _ := strconv.Atoi(rawCount)
 	if currentWarns <= 0 {
 		resolvedJID, username := ctx.ResolveMention(targetJID)
-		return ctx.ReplyWithMentions(dispatch.Sprintf("@%s has a clean record with 0 active warnings.", username), []types.JID{resolvedJID})
+		return ctx.ReplyWithMentions(Sprintf("@%s has a clean record with 0 active warnings.", username), []types.JID{resolvedJID})
 	}
 
 	currentWarns--
 	_ = s.PutSetting(ctx.Ctx, warnKey, strconv.Itoa(currentWarns))
 	resolvedJID, username := ctx.ResolveMention(targetJID)
-	return ctx.ReplyWithMentions(dispatch.Sprintf("Removed 1 warning from @%s. Remaining warnings: %d.", username, currentWarns), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(Sprintf("Removed 1 warning from @%s. Remaining warnings: %d.", username, currentWarns), []types.JID{resolvedJID})
 }
 
-func handleWarns(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleWarns(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store is currently unavailable.")
 	}
@@ -2766,7 +2759,7 @@ func handleWarns(ctx *dispatch.Context) error {
 	args := strings.Fields(ctx.RawArgs)
 	targetJID := extractWarnTarget(ctx, args)
 	chatKey := ctx.Chat.String()
-	limitKey := dispatch.Sprintf("warn_limit:%s", chatKey)
+	limitKey := Sprintf("warn_limit:%s", chatKey)
 	rawLimit, _ := s.GetSetting(ctx.Ctx, limitKey)
 	maxLimit, _ := strconv.Atoi(rawLimit)
 	if maxLimit <= 0 {
@@ -2775,20 +2768,20 @@ func handleWarns(ctx *dispatch.Context) error {
 
 	if !targetJID.IsEmpty() {
 		userKey := targetJID.ToNonAD().User
-		warnKey := dispatch.Sprintf("warn_count:%s:%s", chatKey, userKey)
+		warnKey := Sprintf("warn_count:%s:%s", chatKey, userKey)
 		rawCount, _ := s.GetSetting(ctx.Ctx, warnKey)
 		currentWarns, _ := strconv.Atoi(rawCount)
 
 		resolvedJID, username := ctx.ResolveMention(targetJID)
-		return ctx.ReplyWithMentions(dispatch.Sprintf("@%s currently has %d out of %d allowed warnings.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
+		return ctx.ReplyWithMentions(Sprintf("@%s currently has %d out of %d allowed warnings.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
 	}
 
 	p := ctx.GetPrefix()
 	return ctx.Replyf("The warning limit for this chat is *%d warnings* before automatic removal.\n\nTo check a specific member's warnings, type: `%swarns @user`", maxLimit, p)
 }
 
-func handleSetWarn(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleSetWarn(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store is currently unavailable.")
 	}
@@ -2805,7 +2798,7 @@ func handleSetWarn(ctx *dispatch.Context) error {
 	}
 
 	chatKey := ctx.Chat.String()
-	limitKey := dispatch.Sprintf("warn_limit:%s", chatKey)
+	limitKey := Sprintf("warn_limit:%s", chatKey)
 	if err := s.PutSetting(ctx.Ctx, limitKey, strconv.Itoa(num)); err != nil {
 		return ctx.Reply("Failed to update warning threshold.")
 	}
@@ -2813,16 +2806,16 @@ func handleSetWarn(ctx *dispatch.Context) error {
 	return ctx.Replyf("Warning limit for this chat set to *%d warnings*. Members who exceed this will be removed.", num)
 }
 
-func sendWarnMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
+func sendWarnMenu(ctx *Context, s *StoreWrapper) error {
 	chatKey := ctx.Chat.String()
-	limitKey := dispatch.Sprintf("warn_limit:%s", chatKey)
+	limitKey := Sprintf("warn_limit:%s", chatKey)
 	rawLimit, _ := s.GetSetting(ctx.Ctx, limitKey)
 	maxLimit, _ := strconv.Atoi(rawLimit)
 	if maxLimit <= 0 {
 		maxLimit = 3
 	}
 
-	bodyText := dispatch.NewText().
+	bodyText := NewText().
 		Header("WARN CONFIGURATION").
 		Fieldf("Max Warnings Allowed", "%d Warnings", maxLimit).
 		Blank().
@@ -2837,7 +2830,7 @@ func sendWarnMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 	return sendPollReply(ctx, bodyText, options)
 }
 
-func sendWarnCustomizeGuide(ctx *dispatch.Context) error {
+func sendWarnCustomizeGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	return ctx.Text().
 		Header("WARN SYSTEM GUIDE").
@@ -2861,7 +2854,7 @@ func sendWarnCustomizeGuide(ctx *dispatch.Context) error {
 		Reply()
 }
 
-func extractWarnTarget(ctx *dispatch.Context, args []string) types.JID {
+func extractWarnTarget(ctx *Context, args []string) types.JID {
 	if quotedSender, ok := ctx.GetQuotedSender(); ok && !quotedSender.IsEmpty() {
 		return quotedSender.ToNonAD()
 	}
@@ -2887,7 +2880,7 @@ func extractWarnTarget(ctx *dispatch.Context, args []string) types.JID {
 	return types.EmptyJID
 }
 
-func isBotGroupOwner(ctx *dispatch.Context, info *types.GroupInfo) bool {
+func isBotGroupOwner(ctx *Context, info *types.GroupInfo) bool {
 	if ctx == nil || info == nil || ctx.Client == nil || ctx.Client.Store == nil {
 		return false
 	}
@@ -2913,16 +2906,16 @@ func isBotGroupOwner(ctx *dispatch.Context, info *types.GroupInfo) bool {
 	return false
 }
 
-func handleWelcome(ctx *dispatch.Context) error {
+func handleWelcome(ctx *Context) error {
 	return handleGroupGreetingConfig(ctx, "welcome")
 }
 
-func handleGoodbye(ctx *dispatch.Context) error {
+func handleGoodbye(ctx *Context) error {
 	return handleGroupGreetingConfig(ctx, "goodbye")
 }
 
-func handleGroupGreetingConfig(ctx *dispatch.Context, kind string) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleGroupGreetingConfig(ctx *Context, kind string) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database service is currently unavailable. Please try again later.")
 	}
@@ -3027,7 +3020,7 @@ func handleGroupGreetingConfig(ctx *dispatch.Context, kind string) error {
 	}
 }
 
-func applyToggle(ctx *dispatch.Context, s *dispatch.StoreWrapper, key, mode, label string) error {
+func applyToggle(ctx *Context, s *StoreWrapper, key, mode, label string) error {
 	next := "on"
 	switch mode {
 	case "on", "true", "enable", "activate":
@@ -3062,7 +3055,7 @@ func titleCase(s string) string {
 	return string(r)
 }
 
-func sendGreetingMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, kind string) error {
+func sendGreetingMenu(ctx *Context, s *StoreWrapper, kind string) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey
 	if info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat); err == nil && info != nil && info.GroupName.Name != "" {
@@ -3074,8 +3067,8 @@ func sendGreetingMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, kind stri
 		status = "off"
 	}
 
-	bodyText := dispatch.NewText().
-		Header(dispatch.Sprintf("%s GREETING SETTINGS", strings.ToUpper(kind))).
+	bodyText := NewText().
+		Header(Sprintf("%s GREETING SETTINGS", strings.ToUpper(kind))).
 		Field("Group", groupName).
 		Field("Status", strings.ToUpper(status)).
 		Blank().
@@ -3095,12 +3088,12 @@ func sendGreetingMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, kind stri
 	return sendPollReply(ctx, bodyText, options)
 }
 
-func sendGreetingCustomizeGuide(ctx *dispatch.Context, kind string) error {
+func sendGreetingCustomizeGuide(ctx *Context, kind string) error {
 	p := ctx.GetPrefix()
 	kUpper := strings.ToUpper(kind)
 
 	tb := ctx.Text().
-		Header(dispatch.Sprintf("%s CUSTOMIZATION GUIDE", kUpper)).
+		Header(Sprintf("%s CUSTOMIZATION GUIDE", kUpper)).
 		Blank().
 		Section("How to Configure:").
 		Bulletf("Custom Message : `%s%s msg <your message text>`", p, kind).
@@ -3173,7 +3166,7 @@ func ClearPendingCaptchasForGroup(groupJID types.JID) int {
 		}
 	}
 	if cleared > 0 {
-		logger.Debug("ClearPendingCaptchasForGroup: cleared pending captchas", "group", chatStr, "count", cleared)
+		Debug("ClearPendingCaptchasForGroup: cleared pending captchas", "group", chatStr, "count", cleared)
 	}
 	return cleared
 }
@@ -3197,7 +3190,7 @@ func RegisterPendingCaptcha(groupJID, userJID, resolvedJID types.JID, username, 
 		pendingCaptchaMu.Unlock()
 
 		if ok && onTimeout != nil {
-			logger.Debug("RegisterPendingCaptcha: timeout triggered", "group", groupJID.String(), "user", userJID.String(), "code", code)
+			Debug("RegisterPendingCaptcha: timeout triggered", "group", groupJID.String(), "user", userJID.String(), "code", code)
 			onTimeout()
 		}
 	})
@@ -3213,7 +3206,7 @@ func RegisterPendingCaptcha(groupJID, userJID, resolvedJID types.JID, username, 
 		ExpiresAt:   now.Add(duration),
 		Timer:       timer,
 	}
-	logger.Debug("RegisterPendingCaptcha: registered new pending captcha", "group", groupJID.String(), "user", userJID.String(), "username", username, "code", code, "duration", duration)
+	Debug("RegisterPendingCaptcha: registered new pending captcha", "group", groupJID.String(), "user", userJID.String(), "username", username, "code", code, "duration", duration)
 }
 
 // SetPendingCaptchaMsgID stores the verification message ID for revocation if cancelled.
@@ -3224,7 +3217,7 @@ func SetPendingCaptchaMsgID(groupJID, userJID types.JID, msgID types.MessageID) 
 	key := captchaKey(groupJID, userJID)
 	if p, ok := pendingCaptchas[key]; ok {
 		p.MsgID = msgID
-		logger.Debug("SetPendingCaptchaMsgID: updated msgID for pending captcha", "group", groupJID.String(), "user", userJID.String(), "msgID", msgID)
+		Debug("SetPendingCaptchaMsgID: updated msgID for pending captcha", "group", groupJID.String(), "user", userJID.String(), "msgID", msgID)
 		return
 	}
 
@@ -3234,7 +3227,7 @@ func SetPendingCaptchaMsgID(groupJID, userJID types.JID, msgID types.MessageID) 
 		if p.GroupJID.ToNonAD().String() == chatStr {
 			if p.UserJID.ToNonAD() == userNonAD || p.ResolvedJID.ToNonAD() == userNonAD || p.UserJID.User == userNonAD.User || p.ResolvedJID.User == userNonAD.User {
 				p.MsgID = msgID
-				logger.Debug("SetPendingCaptchaMsgID: updated msgID via fallback matching", "group", groupJID.String(), "user", userJID.String(), "msgID", msgID)
+				Debug("SetPendingCaptchaMsgID: updated msgID via fallback matching", "group", groupJID.String(), "user", userJID.String(), "msgID", msgID)
 				return
 			}
 		}
@@ -3253,7 +3246,7 @@ func RemovePendingCaptcha(groupJID, userJID types.JID) (*PendingCaptcha, bool) {
 			p.Timer.Stop()
 		}
 		delete(pendingCaptchas, key)
-		logger.Debug("RemovePendingCaptcha: removed pending captcha", "group", groupJID.String(), "user", userJID.String())
+		Debug("RemovePendingCaptcha: removed pending captcha", "group", groupJID.String(), "user", userJID.String())
 		return p, true
 	}
 
@@ -3266,7 +3259,7 @@ func RemovePendingCaptcha(groupJID, userJID types.JID) (*PendingCaptcha, bool) {
 					entry.Timer.Stop()
 				}
 				delete(pendingCaptchas, k)
-				logger.Debug("RemovePendingCaptcha: removed pending captcha via fallback matching", "group", groupJID.String(), "user", userJID.String(), "key", k)
+				Debug("RemovePendingCaptcha: removed pending captcha via fallback matching", "group", groupJID.String(), "user", userJID.String(), "key", k)
 				return entry, true
 			}
 		}
@@ -3330,9 +3323,9 @@ func formatCaptchaTimeout(sec int) string {
 		if mins == 1 {
 			return "1 min"
 		}
-		return dispatch.Sprintf("%d mins", mins)
+		return Sprintf("%d mins", mins)
 	}
-	return dispatch.Sprintf("%d seconds", sec)
+	return Sprintf("%d seconds", sec)
 }
 
 func findPendingCaptcha(client *whatsmeow.Client, chat, sender types.JID) (*PendingCaptcha, bool) {
@@ -3349,7 +3342,7 @@ func findPendingCaptcha(client *whatsmeow.Client, chat, sender types.JID) (*Pend
 		if p.UserJID.ToNonAD() == senderNonAD || p.ResolvedJID.ToNonAD() == senderNonAD || p.UserJID.User == senderNonAD.User || p.ResolvedJID.User == senderNonAD.User {
 			return p, true
 		}
-		if client != nil && botctx.IsSameUserRaw(context.Background(), client, p.UserJID, sender) {
+		if client != nil && IsSameUserRaw(context.Background(), client, p.UserJID, sender) {
 			return p, true
 		}
 	}
@@ -3375,7 +3368,7 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		return false
 	}
 
-	logger.Debug("HandlePendingCaptchaReply: found pending captcha for participant",
+	Debug("HandlePendingCaptchaReply: found pending captcha for participant",
 		"group", chat.String(),
 		"sender", sender.String(),
 		"code", pending.Code,
@@ -3385,7 +3378,7 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 
 	// Ignore messages sent before the pending captcha was created
 	if !evt.Info.Timestamp.IsZero() && evt.Info.Timestamp.Before(pending.CreatedAt.Add(-2*time.Second)) {
-		logger.Debug("HandlePendingCaptchaReply: ignoring message sent before captcha creation",
+		Debug("HandlePendingCaptchaReply: ignoring message sent before captcha creation",
 			"group", chat.String(),
 			"sender", sender.String(),
 			"msgTimestamp", evt.Info.Timestamp,
@@ -3401,7 +3394,7 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 
 	cleanText := strings.TrimSpace(strings.Trim(text, "*_`~#"))
 
-	logger.Debug("HandlePendingCaptchaReply: verifying message text against captcha code",
+	Debug("HandlePendingCaptchaReply: verifying message text against captcha code",
 		"group", chat.String(),
 		"sender", sender.String(),
 		"input", cleanText,
@@ -3410,7 +3403,7 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 
 	// Check if user submitted the correct 4-digit code
 	if cleanText == pending.Code {
-		logger.Debug("HandlePendingCaptchaReply: correct code submitted, verification successful", "group", chat.String(), "sender", sender.String())
+		Debug("HandlePendingCaptchaReply: correct code submitted, verification successful", "group", chat.String(), "sender", sender.String())
 		if pending.MsgID != "" && client != nil {
 			_, _ = client.SendMessage(ctx, chat, client.BuildRevoke(chat, types.EmptyJID, pending.MsgID))
 		}
@@ -3421,10 +3414,10 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		username := pending.Username
 		resolvedJID := pending.ResolvedJID
 		if username == "" {
-			resolvedJID, username = botctx.ResolveMentionRaw(ctx, client, pending.UserJID)
+			resolvedJID, username = ResolveMentionRaw(ctx, client, pending.UserJID)
 		}
 
-		pctx := &botctx.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
+		pctx := &PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
 		tb := pctx.Text()
 		tb.Header("Verification Confirmed")
 		tb.Linef("Welcome to the group, @%s! You have successfully completed the verification check.", username)
@@ -3442,10 +3435,10 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		}
 	}
 	if allDigits && (len(cleanText) == 4 || len(cleanText) == len(pending.Code)) {
-		logger.Debug("HandlePendingCaptchaReply: incorrect numeric attempt", "group", chat.String(), "sender", sender.String(), "attempt", cleanText, "expected", pending.Code)
-		resolvedJID, username := botctx.ResolveMentionRaw(ctx, client, sender)
+		Debug("HandlePendingCaptchaReply: incorrect numeric attempt", "group", chat.String(), "sender", sender.String(), "attempt", cleanText, "expected", pending.Code)
+		resolvedJID, username := ResolveMentionRaw(ctx, client, sender)
 
-		pctx := &botctx.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
+		pctx := &PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
 		tb := pctx.Text()
 		tb.Header("Incorrect Code")
 		tb.Linef("That code is incorrect, @%s. Please check the 4-digit code in the video clip and try again.", username)
@@ -3488,7 +3481,7 @@ func findPendingCaptchaByQuotedMsgID(chat types.JID, evt *events.Message) (*Pend
 	return nil, false
 }
 
-func handleCaptcha(ctx *dispatch.Context) error {
+func handleCaptcha(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Replyf("Could not retrieve group information: %v", err)
@@ -3503,7 +3496,7 @@ func handleCaptcha(ctx *dispatch.Context) error {
 		return ctx.Reply("*Admin Rights Required*\n\nThe bot must be promoted to an admin so it can remove members who fail the captcha challenge.")
 	}
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database service is currently unavailable. Please try again later.")
 	}
@@ -3647,7 +3640,7 @@ func handleCaptcha(ctx *dispatch.Context) error {
 	}
 }
 
-func sendCaptchaMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, groupName string) error {
+func sendCaptchaMenu(ctx *Context, s *StoreWrapper, groupName string) error {
 	chatKey := ctx.Chat.ToNonAD().String()
 	status, _ := s.GetSetting(ctx.Ctx, "captcha_status:"+chatKey)
 	if status == "" {
@@ -3690,7 +3683,7 @@ func sendCaptchaMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper, groupName 
 	return sendPollReplyWithMentions(ctx, tb.Trimmed(), options, []types.JID{ctx.Sender})
 }
 
-func sendCaptchaGuide(ctx *dispatch.Context) error {
+func sendCaptchaGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	tb := ctx.Text()
 	tb.Header("CAPTCHA VERIFICATION GUIDE")

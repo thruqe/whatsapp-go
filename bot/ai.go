@@ -1,4 +1,4 @@
-package ai
+package main
 
 import (
 	"context"
@@ -11,17 +11,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"whatsrook/bot/botctx"
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/external"
-	"whatsrook/bot/logger"
-
 	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow/types"
 )
 
-func resolveUserPushName(ctx *dispatch.Context, pnjid, rawJID types.JID) string {
+func resolveUserPushName(ctx *Context, pnjid, rawJID types.JID) string {
 	if !rawJID.IsEmpty() && ctx.Evt != nil && ctx.Evt.Info.Sender.ToNonAD().User == rawJID.ToNonAD().User && ctx.Evt.Info.PushName != "" {
 		return ctx.Evt.Info.PushName
 	}
@@ -45,8 +40,8 @@ func resolveUserPushName(ctx *dispatch.Context, pnjid, rawJID types.JID) string 
 }
 
 func init() {
-	dispatch.RegisterFallbackInterceptor("ai_autoai", HandleAutoAIIntercept)
-	dispatch.Register(&dispatch.Command{
+	RegisterFallbackInterceptor("ai_autoai", HandleAutoAIIntercept)
+	Register(&Command{
 		Name:        "ai",
 		Alias:       "ask",
 		Description: "Ask AI any question",
@@ -54,7 +49,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleAI,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "autoai",
 		Alias:       "aai",
 		Description: "Turn automatic AI chat responses on or off",
@@ -62,7 +57,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleAutoAI,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "csai",
 		Alias:       "customai",
 		Description: "Customize AI personality and tone (Owner only)",
@@ -71,7 +66,7 @@ func init() {
 		Handler:     handleCSAI,
 	})
 
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:         "send",
 		Alias:        "say",
 		Description:  "Send raw text message to the current chat",
@@ -80,7 +75,7 @@ func init() {
 		IsPublic:     true,
 		Handler:      handleSend,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:         "edit",
 		Alias:        "editmsg",
 		Description:  "Edit a message by message ID or replied message",
@@ -89,7 +84,7 @@ func init() {
 		IsPublic:     true,
 		Handler:      handleEditMsg,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:         "ffmpeg",
 		Alias:        "ff",
 		Description:  "Run raw ffmpeg media command",
@@ -98,7 +93,7 @@ func init() {
 		IsPublic:     false,
 		Handler:      handleFFmpeg,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:         "dlmsg",
 		Alias:        "downloadMessage",
 		Description:  "Download media from a message by ID or quoted message",
@@ -109,8 +104,8 @@ func init() {
 	})
 }
 
-func handleAutoAI(ctx *dispatch.Context) error {
-	logger.Debug("handleAutoAI started", "args", ctx.Args)
+func handleAutoAI(ctx *Context) error {
+	Debug("handleAutoAI started", "args", ctx.Args)
 
 	if isNewsletterOrBroadcast(ctx.Chat, ctx.Sender) {
 		return ctx.Reply("AutoAI is not supported in newsletter or broadcast channels.")
@@ -130,7 +125,7 @@ func handleAutoAI(ctx *dispatch.Context) error {
 		return ctx.Reply("Only sudoers or group admins can change the AutoAI setting.")
 	}
 
-	s, okStore := dispatch.GetStore(ctx)
+	s, okStore := GetStore(ctx)
 	if !okStore {
 		return ctx.Reply("Database store is not available.")
 	}
@@ -187,7 +182,7 @@ func handleAutoAI(ctx *dispatch.Context) error {
 			options = append(options, "Activate for this chat")
 		}
 
-		return dispatch.SendPollReply(ctx, tb.Trimmed(), options)
+		return SendPollReply(ctx, tb.Trimmed(), options)
 	}
 
 	sub := strings.ToLower(ctx.Args[0])
@@ -320,8 +315,8 @@ func handleAutoAI(ctx *dispatch.Context) error {
 	}
 }
 
-func handleCSAI(ctx *dispatch.Context) error {
-	s, okStore := dispatch.GetStore(ctx)
+func handleCSAI(ctx *Context) error {
+	s, okStore := GetStore(ctx)
 	if !okStore {
 		return ctx.Reply("Database store is not available.")
 	}
@@ -385,7 +380,7 @@ func handleCSAI(ctx *dispatch.Context) error {
 	return renderCSAIPage(ctx, s, 1)
 }
 
-func renderCSAIPage(ctx *dispatch.Context, s *dispatch.StoreWrapper, page int) error {
+func renderCSAIPage(ctx *Context, s *StoreWrapper, page int) error {
 	currentPrompt, _ := s.GetSetting(ctx.Ctx, "csai_prompt")
 	if currentPrompt == "" {
 		currentPrompt = "Standard (Default Meta AI behavior)"
@@ -415,14 +410,14 @@ func renderCSAIPage(ctx *dispatch.Context, s *dispatch.StoreWrapper, page int) e
 
 	for idx, trait := range pageItems {
 		globalIdx := startIdx + idx + 1
-		tb.Numberedf(globalIdx, "%s: %s", dispatch.Bold(trait.Name), trait.Instruction)
+		tb.Numberedf(globalIdx, "%s: %s", Bold(trait.Name), trait.Instruction)
 	}
 	tb.Numbered(11, "Custom Trait / How You Refer To Me: Enter your own custom prompt.")
 
 	var options []string
 	for idx, trait := range pageItems {
 		globalIdx := startIdx + idx + 1
-		optText := dispatch.Sprintf("%d. %s", globalIdx, trait.Name)
+		optText := Sprintf("%d. %s", globalIdx, trait.Name)
 		if len(optText) > 40 {
 			optText = optText[:37] + "..."
 		}
@@ -431,7 +426,7 @@ func renderCSAIPage(ctx *dispatch.Context, s *dispatch.StoreWrapper, page int) e
 
 	if page < totalPages {
 		nextPage := page + 1
-		options = append(options, dispatch.Sprintf("Next (Page %d)", nextPage))
+		options = append(options, Sprintf("Next (Page %d)", nextPage))
 	} else {
 		options = append(options, "11. Custom Trait")
 	}
@@ -442,7 +437,7 @@ func renderCSAIPage(ctx *dispatch.Context, s *dispatch.StoreWrapper, page int) e
 		Bulletf("%scsai custom <prompt> (e.g. %scsai custom Refer to me as Sir)", p, p).
 		Bulletf("%scsai reset (to restore default AI behavior)", p)
 
-	return dispatch.SendPollReply(ctx, tb.Trimmed(), options)
+	return SendPollReply(ctx, tb.Trimmed(), options)
 }
 
 func isMediaGenerationPrompt(prompt string) bool {
@@ -465,7 +460,7 @@ func isMediaGenerationPrompt(prompt string) bool {
 		strings.Contains(p, "create an image") || strings.Contains(p, "create a video")
 }
 
-func handleAI(ctx *dispatch.Context) error {
+func handleAI(ctx *Context) error {
 	hasQuoted := ctx.GetQuotedMessage() != nil
 	if len(ctx.Args) == 0 && !hasQuoted {
 		p := ctx.GetPrefix()
@@ -475,7 +470,7 @@ func handleAI(ctx *dispatch.Context) error {
 	botName := ctx.GetBotName()
 	p := ctx.GetPrefix()
 	instruction := GetOrBuildInstructionWithNameAndPrefix(botName, p, func() string {
-		cmdInfos := dispatch.All()
+		cmdInfos := All()
 		metaCmds := make([]CommandInfo, 0, len(cmdInfos))
 		for _, info := range cmdInfos {
 			metaCmds = append(metaCmds, CommandInfo{
@@ -485,7 +480,7 @@ func handleAI(ctx *dispatch.Context) error {
 				IsPublic:    info.IsPublic,
 			})
 		}
-		if external.DefaultDispatcher != nil {
+		if ExternalDefaultDispatcher != nil {
 			sess := ""
 			if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
 				sess = ctx.Client.Store.ID.User
@@ -493,7 +488,7 @@ func handleAI(ctx *dispatch.Context) error {
 			if sess == "" && ctx.Sender.User != "" {
 				sess = ctx.Sender.User
 			}
-			if plugins, err := external.DefaultDispatcher.List(sess); err == nil {
+			if plugins, err := ExternalDefaultDispatcher.List(sess); err == nil {
 				for _, ep := range plugins {
 					desc := ep.Description
 					if desc == "" {
@@ -557,14 +552,14 @@ func handleAI(ctx *dispatch.Context) error {
 	extractContextFromQuotedMessage(ctx, &data)
 
 	customPrompt := ""
-	if s, okStore := dispatch.GetStore(ctx); okStore {
+	if s, okStore := GetStore(ctx); okStore {
 		customPrompt, _ = s.GetSetting(ctx.Ctx, "csai_prompt")
 	}
 
 	query := BuildAiQuery(instruction, customPrompt, data)
 	isMediaReq := isMediaGenerationPrompt(data.Question)
 
-	logger.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String(), "is_media_req", isMediaReq)
+	Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String(), "is_media_req", isMediaReq)
 
 	var placeholderMsgID types.MessageID
 	var lastEditedText string
@@ -598,7 +593,7 @@ func handleAI(ctx *dispatch.Context) error {
 			if err == nil {
 				lastEditedText = trimmed
 			} else {
-				logger.Error("handleAI: failed to send edit", "chat", ctx.Chat.String(), "err", err)
+				Error("handleAI: failed to send edit", "chat", ctx.Chat.String(), "err", err)
 			}
 			return err
 		}
@@ -607,7 +602,7 @@ func handleAI(ctx *dispatch.Context) error {
 
 	res, err := QueryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
 	if err != nil {
-		logger.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
+		Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
 		if strings.Contains(err.Error(), "488") {
 			errMsg := "This WA Account cannot use MetaAI"
 			if placeholderMsgID != "" {
@@ -659,14 +654,14 @@ func handleAI(ctx *dispatch.Context) error {
 		}
 
 		if strings.HasPrefix(mType, "video/") {
-			logger.Debug("handleAI: sending generated video message to chat", "chat", ctx.Chat.String(), "video_len", len(mediaBytes), "mime", mType)
+			Debug("handleAI: sending generated video message to chat", "chat", ctx.Chat.String(), "video_len", len(mediaBytes), "mime", mType)
 			if isGroup {
 				_ = ctx.ReplyWithVideo(mediaBytes, mType, caption)
 			} else {
 				_ = ctx.SendVideo(mediaBytes, mType, caption)
 			}
 		} else {
-			logger.Debug("handleAI: sending generated image message to chat", "chat", ctx.Chat.String(), "img_len", len(mediaBytes), "mime", mType)
+			Debug("handleAI: sending generated image message to chat", "chat", ctx.Chat.String(), "img_len", len(mediaBytes), "mime", mType)
 			if isGroup {
 				_ = ctx.ReplyWithImage(mediaBytes, mType, caption)
 			} else {
@@ -695,7 +690,7 @@ func handleAI(ctx *dispatch.Context) error {
 		rawArgs = InferContextualArgs(cmdName, rawArgs, data.Question, data.QuotedMessageOfQuestion, GetRecentTurns(ctx.Chat.String()))
 		if cmdName == "sh" || cmdName == "exec" || cmdName == "run" || cmdName == "shell" {
 			if !ctx.IsSudo() {
-				logger.Warn("handleAI: blocked unauthorized shell execution request", "sender", ctx.Sender.String())
+				Warn("handleAI: blocked unauthorized shell execution request", "sender", ctx.Sender.String())
 				errMsg := "You are not authorized to run shell commands."
 				if placeholderMsgID != "" {
 					_, _ = ctx.Edit(placeholderMsgID, errMsg)
@@ -713,7 +708,7 @@ func handleAI(ctx *dispatch.Context) error {
 				output = "(no output)"
 			}
 
-			resText := dispatch.Sprintf("Output:\n```\n%s\n```", output)
+			resText := Sprintf("Output:\n```\n%s\n```", output)
 			RecordBotMessage(ctx.Chat.String(), botName, resText)
 			if placeholderMsgID != "" {
 				_, err = ctx.Edit(placeholderMsgID, resText)
@@ -723,7 +718,7 @@ func handleAI(ctx *dispatch.Context) error {
 		}
 
 		if cmdName == "ai" || cmdName == "autoai" || cmdName == "gpt" || cmdName == "ask" {
-			logger.Warn("handleAI: blocked recursive AI command execution", "command", cmdName)
+			Warn("handleAI: blocked recursive AI command execution", "command", cmdName)
 			errMsg := "Recursive AI command execution is not allowed."
 			if placeholderMsgID != "" {
 				_, err := ctx.Edit(placeholderMsgID, errMsg)
@@ -732,7 +727,7 @@ func handleAI(ctx *dispatch.Context) error {
 			return ctx.Reply(errMsg)
 		}
 
-		targetCmd, exists := dispatch.Get(cmdName)
+		targetCmd, exists := Get(cmdName)
 		if !exists {
 			sess := ""
 			if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
@@ -741,11 +736,11 @@ func handleAI(ctx *dispatch.Context) error {
 			if sess == "" && ctx.Sender.User != "" {
 				sess = ctx.Sender.User
 			}
-			if external.DefaultDispatcher != nil && external.DefaultDispatcher.IsInstalled(cmdName, sess) {
-				if plugins, err := external.DefaultDispatcher.List(sess); err == nil {
+			if ExternalDefaultDispatcher != nil && ExternalDefaultDispatcher.IsInstalled(cmdName, sess) {
+				if plugins, err := ExternalDefaultDispatcher.List(sess); err == nil {
 					for _, ep := range plugins {
 						if strings.EqualFold(ep.Name, cmdName) && !ep.IsPublic && !ctx.IsSudo() {
-							logger.Warn("handleAI: blocked unauthorized RUN_COMMAND for external plugin", "sender", ctx.Sender.String(), "command", cmdName)
+							Warn("handleAI: blocked unauthorized RUN_COMMAND for external plugin", "sender", ctx.Sender.String(), "command", cmdName)
 							errMsg := "You are not authorized to run this command."
 							if placeholderMsgID != "" {
 								_, _ = ctx.Edit(placeholderMsgID, errMsg)
@@ -761,12 +756,12 @@ func handleAI(ctx *dispatch.Context) error {
 					placeholderMsgID = ""
 				}
 				args := strings.Fields(rawArgs)
-				RecordBotMessage(ctx.Chat.String(), botName, dispatch.Sprintf("Executed command: %s%s %s", p, cmdName, rawArgs))
-				_ = external.DefaultDispatcher.Dispatch(ctx.Ctx, ctx.Client, ctx.Evt, cmdName, args, rawArgs)
+				RecordBotMessage(ctx.Chat.String(), botName, Sprintf("Executed command: %s%s %s", p, cmdName, rawArgs))
+				_ = ExternalDefaultDispatcher.Dispatch(ctx.Ctx, ctx.Client, ctx.Evt, cmdName, args, rawArgs)
 				return nil
 			}
 
-			logger.Warn("handleAI: RUN_COMMAND referenced unknown command", "command", cmdName)
+			Warn("handleAI: RUN_COMMAND referenced unknown command", "command", cmdName)
 			errMsg := "Sorry, I don't have a command called \"" + cmdName + "\"."
 			if placeholderMsgID != "" {
 				_, _ = ctx.Edit(placeholderMsgID, errMsg)
@@ -777,7 +772,7 @@ func handleAI(ctx *dispatch.Context) error {
 		}
 
 		if !targetCmd.IsPublic && !ctx.IsSudo() {
-			logger.Warn("handleAI: blocked unauthorized RUN_COMMAND", "sender", ctx.Sender.String(), "command", cmdName)
+			Warn("handleAI: blocked unauthorized RUN_COMMAND", "sender", ctx.Sender.String(), "command", cmdName)
 			errMsg := "You are not authorized to run this command."
 			if placeholderMsgID != "" {
 				_, _ = ctx.Edit(placeholderMsgID, errMsg)
@@ -792,7 +787,7 @@ func handleAI(ctx *dispatch.Context) error {
 			placeholderMsgID = ""
 		}
 
-		cctx := &dispatch.Context{
+		cctx := &Context{
 			Ctx:     ctx.Ctx,
 			Client:  ctx.Client,
 			Evt:     ctx.Evt,
@@ -802,16 +797,16 @@ func handleAI(ctx *dispatch.Context) error {
 			Chat:    ctx.Chat,
 			Sender:  ctx.Sender,
 		}
-		logger.Debug("handleAI: executing command on behalf of AI", "command", cmdName, "args", cctx.Args)
-		RecordBotMessage(ctx.Chat.String(), botName, dispatch.Sprintf("Executed command: %s%s %s", p, cmdName, rawArgs))
+		Debug("handleAI: executing command on behalf of AI", "command", cmdName, "args", cctx.Args)
+		RecordBotMessage(ctx.Chat.String(), botName, Sprintf("Executed command: %s%s %s", p, cmdName, rawArgs))
 		return targetCmd.Handler(cctx)
 	}
 
-	logger.Debug("handleAI: completed successfully", "chat", ctx.Chat.String())
+	Debug("handleAI: completed successfully", "chat", ctx.Chat.String())
 	return nil
 }
 
-func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
+func extractContextFromQuotedMessage(ctx *Context, data *Data) {
 	if ctx.Evt == nil {
 		return
 	}
@@ -842,8 +837,8 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 			data.UserOfQuotedMessage = quotedPushName
 			if data.ChatType == "group" {
 				for _, p := range data.GroupMetaData.Participants {
-					matches := (!quotedJID.IsEmpty() && botctx.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, quotedJID)) ||
-						(!quotedPNJID.IsEmpty() && botctx.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, quotedPNJID))
+					matches := (!quotedJID.IsEmpty() && ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, quotedJID)) ||
+						(!quotedPNJID.IsEmpty() && ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, quotedPNJID))
 					if matches {
 						switch {
 						case p.IsSuperAdmin:
@@ -874,7 +869,7 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 		data.QuotedMessageType = "Image"
 		caption := imgMsg.GetCaption()
 		if caption != "" {
-			data.QuotedMessageOfQuestion = dispatch.Sprintf("[Image message. Caption: %s]", caption)
+			data.QuotedMessageOfQuestion = Sprintf("[Image message. Caption: %s]", caption)
 		} else {
 			data.QuotedMessageOfQuestion = "[Image message]"
 		}
@@ -887,9 +882,9 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 		imgData, err := ctx.Client.Download(ctx.Ctx, imgMsg)
 		if err == nil && len(imgData) > 0 {
 			data.QuotedImageBase64 = base64.StdEncoding.EncodeToString(imgData)
-			logger.Debug("extractContextFromQuotedMessage: extracted image base64", "len", len(data.QuotedImageBase64))
+			Debug("extractContextFromQuotedMessage: extracted image base64", "len", len(data.QuotedImageBase64))
 		} else {
-			logger.Warn("extractContextFromQuotedMessage: failed to download quoted image", "err", err)
+			Warn("extractContextFromQuotedMessage: failed to download quoted image", "err", err)
 		}
 
 	case quotedMsg.GetVideoMessage() != nil:
@@ -897,7 +892,7 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 		data.QuotedMessageType = "Video"
 		caption := vidMsg.GetCaption()
 		if caption != "" {
-			data.QuotedMessageOfQuestion = dispatch.Sprintf("[Video message. Note: Video file reading is not supported yet. Caption: %s]", caption)
+			data.QuotedMessageOfQuestion = Sprintf("[Video message. Note: Video file reading is not supported yet. Caption: %s]", caption)
 		} else {
 			data.QuotedMessageOfQuestion = "[Video message. Note: Video file reading is not supported yet.]"
 		}
@@ -919,16 +914,16 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 						content = content[:1997] + "..."
 					}
 					if filename != "" {
-						data.QuotedMessageOfQuestion = dispatch.Sprintf("File: %s\nContent:\n```\n%s\n```\nCaption: %s", filename, content, caption)
+						data.QuotedMessageOfQuestion = Sprintf("File: %s\nContent:\n```\n%s\n```\nCaption: %s", filename, content, caption)
 					} else {
-						data.QuotedMessageOfQuestion = dispatch.Sprintf("Document Content:\n```\n%s\n```\nCaption: %s", content, caption)
+						data.QuotedMessageOfQuestion = Sprintf("Document Content:\n```\n%s\n```\nCaption: %s", content, caption)
 					}
 				}
 			}
 		}
 		if data.QuotedMessageOfQuestion == "" {
 			if filename != "" {
-				data.QuotedMessageOfQuestion = dispatch.Sprintf("File: %s. Caption: %s", filename, caption)
+				data.QuotedMessageOfQuestion = Sprintf("File: %s. Caption: %s", filename, caption)
 			} else {
 				data.QuotedMessageOfQuestion = caption
 			}
@@ -951,9 +946,9 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 			stkData, err := ctx.Client.Download(ctx.Ctx, stkMsg)
 			if err == nil && len(stkData) > 0 {
 				data.QuotedImageBase64 = base64.StdEncoding.EncodeToString(stkData)
-				logger.Debug("extractContextFromQuotedMessage: extracted sticker image base64", "len", len(data.QuotedImageBase64))
+				Debug("extractContextFromQuotedMessage: extracted sticker image base64", "len", len(data.QuotedImageBase64))
 			} else {
-				logger.Warn("extractContextFromQuotedMessage: failed to download quoted sticker image", "err", err)
+				Warn("extractContextFromQuotedMessage: failed to download quoted sticker image", "err", err)
 			}
 		}
 
@@ -977,17 +972,17 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 				options = append(options, opt.GetOptionName())
 			}
 		}
-		data.QuotedMessageOfQuestion = dispatch.Sprintf("Poll Question: %s. Options: %s", pollName, strings.Join(options, ", "))
+		data.QuotedMessageOfQuestion = Sprintf("Poll Question: %s. Options: %s", pollName, strings.Join(options, ", "))
 
 	case quotedMsg.GetLocationMessage() != nil:
 		locMsg := quotedMsg.GetLocationMessage()
 		data.QuotedMessageType = "Location"
-		data.QuotedMessageOfQuestion = dispatch.Sprintf("Location: %f, %f (%s)", locMsg.GetDegreesLatitude(), locMsg.GetDegreesLongitude(), locMsg.GetName())
+		data.QuotedMessageOfQuestion = Sprintf("Location: %f, %f (%s)", locMsg.GetDegreesLatitude(), locMsg.GetDegreesLongitude(), locMsg.GetName())
 
 	case quotedMsg.GetContactMessage() != nil:
 		contMsg := quotedMsg.GetContactMessage()
 		data.QuotedMessageType = "Contact"
-		data.QuotedMessageOfQuestion = dispatch.Sprintf("Contact: %s", contMsg.GetDisplayName())
+		data.QuotedMessageOfQuestion = Sprintf("Contact: %s", contMsg.GetDisplayName())
 
 	default:
 		if txt := whatsrook.ExtractTextFromProto(quotedMsg); txt != "" {
@@ -997,14 +992,14 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 	}
 }
 
-func handleSend(ctx *dispatch.Context) error {
+func handleSend(ctx *Context) error {
 	if ctx.RawArgs == "" {
 		return ctx.Reply("Usage: send <text>")
 	}
 	return ctx.SendText(ctx.RawArgs)
 }
 
-func handleEditMsg(ctx *dispatch.Context) error {
+func handleEditMsg(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		return ctx.Reply("Usage: edit <msg_id> <new_text> or reply to a message with edit <new_text>")
 	}
@@ -1043,7 +1038,7 @@ func handleEditMsg(ctx *dispatch.Context) error {
 	return nil
 }
 
-func handleFFmpeg(ctx *dispatch.Context) error {
+func handleFFmpeg(ctx *Context) error {
 	if ctx.RawArgs == "" {
 		return ctx.Reply("Usage: ffmpeg <args...>")
 	}
@@ -1136,7 +1131,7 @@ func handleFFmpeg(ctx *dispatch.Context) error {
 	return ctx.Reply(resStr)
 }
 
-func handleDownloadMessage(ctx *dispatch.Context) error {
+func handleDownloadMessage(ctx *Context) error {
 	mediaData, mimetype, err := ctx.GetMedia()
 	if err != nil || len(mediaData) == 0 {
 		return ctx.Reply("No downloadable media found in the target or quoted message.")
@@ -1157,7 +1152,7 @@ func handleDownloadMessage(ctx *dispatch.Context) error {
 }
 
 // isSelfChat reports whether the context chat targets the bot owner's personal self-chat ("Message Yourself").
-func isSelfChat(c *dispatch.Context) bool {
+func isSelfChat(c *Context) bool {
 	if c == nil || c.Client == nil || c.Client.Store == nil {
 		return false
 	}
@@ -1190,7 +1185,7 @@ func isSelfChat(c *dispatch.Context) bool {
 }
 
 // resolveAltJID finds the paired phone JID or LID for the given context chat.
-func resolveAltJID(c *dispatch.Context) types.JID {
+func resolveAltJID(c *Context) types.JID {
 	if c == nil {
 		return types.EmptyJID
 	}
@@ -1234,7 +1229,7 @@ func isNewsletterOrBroadcast(chat, sender types.JID) bool {
 }
 
 // isAutoAIGroupsEnabled checks if AutoAI is enabled globally for all groups.
-func isAutoAIGroupsEnabled(ctx context.Context, s *dispatch.StoreWrapper) bool {
+func isAutoAIGroupsEnabled(ctx context.Context, s *StoreWrapper) bool {
 	if s == nil {
 		return false
 	}
@@ -1248,7 +1243,7 @@ func isAutoAIGroupsEnabled(ctx context.Context, s *dispatch.StoreWrapper) bool {
 }
 
 // isAutoAIDMsEnabled checks if AutoAI is enabled globally for all DMs.
-func isAutoAIDMsEnabled(ctx context.Context, s *dispatch.StoreWrapper) bool {
+func isAutoAIDMsEnabled(ctx context.Context, s *StoreWrapper) bool {
 	if s == nil {
 		return false
 	}
@@ -1263,7 +1258,7 @@ func isAutoAIDMsEnabled(ctx context.Context, s *dispatch.StoreWrapper) bool {
 
 // isAutoAIEnabled checks if AutoAI is enabled for this chat.
 // In 1-on-1 DMs, if it is not explicitly activated for DM, it does not respond to DM messages.
-func isAutoAIEnabled(c *dispatch.Context, s *dispatch.StoreWrapper) bool {
+func isAutoAIEnabled(c *Context, s *StoreWrapper) bool {
 	if c == nil || s == nil {
 		return false
 	}
@@ -1324,7 +1319,7 @@ func containsWord(text, word string) bool {
 }
 
 // HandleAutoAIIntercept checks if AutoAI is enabled and handles automatic responses.
-func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
+func HandleAutoAIIntercept(c *Context, text string) bool {
 	if c == nil || c.Evt == nil {
 		return false
 	}
@@ -1337,26 +1332,26 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 	if trimmedText != "" {
 		for _, p := range c.GetPrefixes() {
 			if p != "" && strings.HasPrefix(trimmedText, p) {
-				logger.Debug("HandleAutoAIIntercept: ignoring configured command prefix message", "text", text, "prefix", p)
+				Debug("HandleAutoAIIntercept: ignoring configured command prefix message", "text", text, "prefix", p)
 				return false
 			}
 		}
 		firstRune := rune(trimmedText[0])
 		if firstRune == '.' || firstRune == '!' || firstRune == '/' || firstRune == '#' || firstRune == '$' || firstRune == ',' || firstRune == '~' {
-			logger.Debug("HandleAutoAIIntercept: ignoring command prefix message", "text", text)
+			Debug("HandleAutoAIIntercept: ignoring command prefix message", "text", text)
 			return false
 		}
 	}
 
 	if isNewsletterOrBroadcast(c.Chat, c.Sender) || isNewsletterOrBroadcast(c.Evt.Info.Chat, c.Evt.Info.Sender) {
-		logger.Debug("HandleAutoAIIntercept: ignoring message from newsletter or broadcast", "chat", c.Chat.String())
+		Debug("HandleAutoAIIntercept: ignoring message from newsletter or broadcast", "chat", c.Chat.String())
 		return false
 	}
 
 	isGroup := c.Chat.Server == "g.us"
 	selfChat := isSelfChat(c)
 
-	logger.Debug("HandleAutoAIIntercept: evaluating incoming message",
+	Debug("HandleAutoAIIntercept: evaluating incoming message",
 		"chat", c.Chat.String(),
 		"is_from_me", c.Evt.Info.IsFromMe,
 		"is_self_chat", selfChat,
@@ -1367,23 +1362,23 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 	// In 1-on-1 chats, only intercept if incoming from the remote contact,
 	// or if the owner is messaging themselves ("Message Yourself").
 	if !isGroup && c.Evt.Info.IsFromMe && !selfChat {
-		logger.Debug("HandleAutoAIIntercept: ignoring outgoing message in non-self chat", "chat", c.Chat.String())
+		Debug("HandleAutoAIIntercept: ignoring outgoing message in non-self chat", "chat", c.Chat.String())
 		return false
 	}
 
-	s, ok := dispatch.GetStore(c)
+	s, ok := GetStore(c)
 	if !ok {
-		logger.Debug("HandleAutoAIIntercept: store not available")
+		Debug("HandleAutoAIIntercept: store not available")
 		return false
 	}
 
 	if !isAutoAIEnabled(c, s) {
-		logger.Debug("HandleAutoAIIntercept: AutoAI not enabled for chat", "chat", c.Chat.String())
+		Debug("HandleAutoAIIntercept: AutoAI not enabled for chat", "chat", c.Chat.String())
 		return false
 	}
 
 	if isGroup && !isBotTaggedOrReplied(c, text) {
-		logger.Debug("HandleAutoAIIntercept: group message did not tag bot", "chat", c.Chat.String())
+		Debug("HandleAutoAIIntercept: group message did not tag bot", "chat", c.Chat.String())
 		return false
 	}
 
@@ -1427,18 +1422,18 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 		}
 
 		isRegisteredCmd := false
-		if _, ok := dispatch.Get(cmdName); ok {
+		if _, ok := Get(cmdName); ok {
 			isRegisteredCmd = true
-		} else if external.DefaultDispatcher != nil && external.DefaultDispatcher.IsInstalled(cmdName, sess) {
+		} else if ExternalDefaultDispatcher != nil && ExternalDefaultDispatcher.IsInstalled(cmdName, sess) {
 			isRegisteredCmd = true
 		}
 
 		if !isRegisteredCmd && len(fields) > 1 && (cmdName == "run" || cmdName == "exec" || cmdName == "execute" || cmdName == "do") {
 			targetSub := strings.ToLower(strings.Trim(fields[1], ".!/#$,;:~` \t"))
 			matched := false
-			if _, ok := dispatch.Get(targetSub); ok {
+			if _, ok := Get(targetSub); ok {
 				matched = true
-			} else if external.DefaultDispatcher != nil && external.DefaultDispatcher.IsInstalled(targetSub, sess) {
+			} else if ExternalDefaultDispatcher != nil && ExternalDefaultDispatcher.IsInstalled(targetSub, sess) {
 				matched = true
 			}
 			if matched {
@@ -1460,18 +1455,18 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 		}
 
 		if isRegisteredCmd {
-			logger.Debug("HandleAutoAIIntercept: executing command directly instead of querying AI", "cmd", cleanCmd)
-			return dispatch.RunCommand(c, cleanCmd)
+			Debug("HandleAutoAIIntercept: executing command directly instead of querying AI", "cmd", cleanCmd)
+			return RunCommand(c, cleanCmd)
 		}
 	}
 
-	logger.Debug("HandleAutoAIIntercept: triggering AI response", "chat", c.Chat.String(), "prompt", prompt)
+	Debug("HandleAutoAIIntercept: triggering AI response", "chat", c.Chat.String(), "prompt", prompt)
 
 	go func() {
 		reqCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
-		aiCtx := &dispatch.Context{
+		aiCtx := &Context{
 			Ctx:        reqCtx,
 			CancelFunc: cancel,
 			Client:     c.Client,
@@ -1483,7 +1478,7 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 			Sender:     c.Sender,
 		}
 
-		if cmd, ok := dispatch.Get("ai"); ok {
+		if cmd, ok := Get("ai"); ok {
 			_ = cmd.Handler(aiCtx)
 		}
 	}()
@@ -1491,7 +1486,7 @@ func HandleAutoAIIntercept(c *dispatch.Context, text string) bool {
 	return true
 }
 
-func isBotTaggedOrReplied(c *dispatch.Context, text string) bool {
+func isBotTaggedOrReplied(c *Context, text string) bool {
 	client := c.Client
 	evt := c.Evt
 	if client == nil || client.Store == nil || client.Store.ID == nil {

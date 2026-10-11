@@ -1,7 +1,7 @@
 // eval_tracker.go tracks function invocations and metadata in the JavaScript runtime.
 // It records function signatures, return types, and argument details to enrich
 // eval inspection and debugging in the "$" command.
-package owner
+package main
 
 import (
 	"fmt"
@@ -118,14 +118,14 @@ func TagFunction(vm *goja.Runtime, fnVal goja.Value, meta FunctionMetadata) *goj
 func BuildFunctionMetadataFromType(name string, mType reflect.Type) FunctionMetadata {
 	numIn := mType.NumIn()
 	var inTypes []string
-	for i := 0; i < numIn; i++ {
+	for i := range numIn {
 		t := mType.In(i)
 		inTypes = append(inTypes, t.String())
 	}
 
 	numOut := mType.NumOut()
 	var outTypes []string
-	for i := 0; i < numOut; i++ {
+	for i := range numOut {
 		t := mType.Out(i)
 		outTypes = append(outTypes, t.String())
 	}

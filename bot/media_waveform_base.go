@@ -1,4 +1,4 @@
-package media
+package main
 
 // SumAbsPCM16Generic computes the sum of absolute values of 16-bit signed PCM samples in pure Go.
 func SumAbsPCM16Generic(pcm []byte) uint64 {

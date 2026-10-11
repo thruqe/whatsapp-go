@@ -1,16 +1,12 @@
-package extensions
+package main
 
 import (
 	"runtime"
 	"strings"
-
-	"whatsrook/bot/cache"
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/external"
 )
 
 func init() {
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "install",
 		Description: "Install an extra plugin (Owner only)",
 		Category:    "extensions",
@@ -18,7 +14,7 @@ func init() {
 		Handler:     handlePluginInstall,
 	})
 
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "uninstall",
 		Description: "Remove an installed plugin (Owner only)",
 		Category:    "extensions",
@@ -26,7 +22,7 @@ func init() {
 		Handler:     handlePluginUninstall,
 	})
 
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "plist",
 		Alias:       "pluginlist",
 		Description: "Show list of installed plugins",
@@ -36,7 +32,7 @@ func init() {
 	})
 }
 
-func getSession(ctx *dispatch.Context) string {
+func getSession(ctx *Context) string {
 	if ctx != nil && ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
 		return ctx.Client.Store.ID.User
 	}
@@ -46,7 +42,7 @@ func getSession(ctx *dispatch.Context) string {
 	return ""
 }
 
-func handlePluginInstall(ctx *dispatch.Context) error {
+func handlePluginInstall(ctx *Context) error {
 	p := ctx.GetPrefix()
 	sess := getSession(ctx)
 	if len(ctx.Args) == 0 {
@@ -54,21 +50,21 @@ func handlePluginInstall(ctx *dispatch.Context) error {
 			Header("WhatsRook External Plugin Installer").
 			Section("Usage:").
 			Bulletf("%sinstall <name> (automatically downloads for host OS/arch from official registry)", p).
-			Bulletf("%sinstall all (installs all %d official external plugins in parallel)", p, len(external.OfficialPlugins)).
+			Bulletf("%sinstall all (installs all %d official external plugins in parallel)", p, len(OfficialPlugins)).
 			Bulletf("%sinstall <name> <local-path-or-url>", p).
 			Blank().
 			Section("Registry:").
-			Bullet(external.DefaultDispatcher.RegistryURL()).
+			Bullet(ExternalDefaultDispatcher.RegistryURL()).
 			Blank().
 			Section("Official Plugins:").
-			Bullets(external.OfficialPlugins...).
+			Bullets(OfficialPlugins...).
 			Reply()
 	}
 
 	if len(ctx.Args) == 1 {
 		first := strings.ToLower(strings.TrimSpace(ctx.Args[0]))
 		if first == "all" {
-			installed, failed := external.DefaultDispatcher.InstallAll(ctx.GetSendContext(), sess)
+			installed, failed := ExternalDefaultDispatcher.InstallAll(ctx.GetSendContext(), sess)
 
 			tb := ctx.Text()
 			if len(installed) > 0 {
@@ -86,77 +82,77 @@ func handlePluginInstall(ctx *dispatch.Context) error {
 		}
 
 		name := first
-		url, err := external.DefaultDispatcher.ResolveDefaultPluginURL(name)
+		url, err := ExternalDefaultDispatcher.ResolveDefaultPluginURL(name)
 		if err != nil {
 			return ctx.Replyf("Platform detection failed: %v", err)
 		}
 
-		if err := external.DefaultDispatcher.Install(ctx.GetSendContext(), name, url, sess); err != nil {
+		if err := ExternalDefaultDispatcher.Install(ctx.GetSendContext(), name, url, sess); err != nil {
 			return ctx.Replyf("Plugin installation failed for %q:\n%v", name, err)
 		}
-		_ = cache.DeletePrefix(ctx.Ctx, "instruction:")
+		_ = DeletePrefix(ctx.Ctx, "instruction:")
 		return ctx.Replyf("External plugin %q installed successfully for %s/%s.", name, runtime.GOOS, runtime.GOARCH)
 	}
 
 	name, rawSource := ctx.Args[0], ctx.Args[1]
-	source, err := external.DefaultDispatcher.NormalizePluginSource(rawSource)
+	source, err := ExternalDefaultDispatcher.NormalizePluginSource(rawSource)
 	if err != nil {
 		return ctx.Replyf("Platform resolution error: %v", err)
 	}
 
-	if err := external.DefaultDispatcher.Install(ctx.GetSendContext(), name, source, sess); err != nil {
+	if err := ExternalDefaultDispatcher.Install(ctx.GetSendContext(), name, source, sess); err != nil {
 		return ctx.Replyf("Plugin installation failed: %v", err)
 	}
-	_ = cache.DeletePrefix(ctx.Ctx, "instruction:")
+	_ = DeletePrefix(ctx.Ctx, "instruction:")
 	return ctx.Replyf("External plugin %q installed.", strings.ToLower(strings.TrimSpace(name)))
 }
 
-func handlePluginUninstall(ctx *dispatch.Context) error {
+func handlePluginUninstall(ctx *Context) error {
 	p := ctx.GetPrefix()
 	sess := getSession(ctx)
 	if len(ctx.Args) != 1 {
-		return dispatch.ErrUsage(p + "uninstall <name> (or " + p + "uninstall all)")
+		return ErrUsage(p + "uninstall <name> (or " + p + "uninstall all)")
 	}
 
 	targetName := strings.ToLower(strings.TrimSpace(ctx.Args[0]))
 	if targetName == "all" {
-		removed, err := external.DefaultDispatcher.UninstallAll(sess)
+		removed, err := ExternalDefaultDispatcher.UninstallAll(sess)
 		if err != nil {
 			return ctx.Replyf("Failed to uninstall plugins: %v", err)
 		}
 		if len(removed) == 0 {
 			return ctx.Reply("No external plugins currently installed.")
 		}
-		_ = cache.DeletePrefix(ctx.Ctx, "instruction:")
+		_ = DeletePrefix(ctx.Ctx, "instruction:")
 		return ctx.Replyf("Uninstalled %d external plugin(s): %s", len(removed), strings.Join(removed, ", "))
 	}
 
-	if err := external.DefaultDispatcher.Uninstall(targetName, sess); err != nil {
+	if err := ExternalDefaultDispatcher.Uninstall(targetName, sess); err != nil {
 		return ctx.Replyf("Plugin uninstall failed: %v", err)
 	}
-	_ = cache.DeletePrefix(ctx.Ctx, "instruction:")
+	_ = DeletePrefix(ctx.Ctx, "instruction:")
 	return ctx.Replyf("External plugin %q uninstalled.", targetName)
 }
 
-func handlePluginList(ctx *dispatch.Context) error {
+func handlePluginList(ctx *Context) error {
 	sess := getSession(ctx)
-	plugins, err := external.DefaultDispatcher.List(sess)
+	plugins, err := ExternalDefaultDispatcher.List(sess)
 	if err != nil {
 		return ctx.Replyf("Failed to list plugins: %v", err)
 	}
 
-	suffix, _ := external.DefaultDispatcher.ResolvePlatformSuffix()
+	suffix, _ := ExternalDefaultDispatcher.ResolvePlatformSuffix()
 	if len(plugins) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Replyf("No external plugins installed.\n\nType `%sinstall <name>` or `%sinstall all` to install plugins (detected platform: %s/%s).\n\nRegistry: %s", p, p, runtime.GOOS, runtime.GOARCH, external.DefaultDispatcher.RegistryURL())
+		return ctx.Replyf("No external plugins installed.\n\nType `%sinstall <name>` or `%sinstall all` to install plugins (detected platform: %s/%s).\n\nRegistry: %s", p, p, runtime.GOOS, runtime.GOARCH, ExternalDefaultDispatcher.RegistryURL())
 	}
 
 	tb := ctx.Text().Headerf("Installed External Plugins (%s):", suffix)
 	for _, plugin := range plugins {
 		if plugin.Description != "" {
-			tb.Bulletf("%s - %s", dispatch.Bold(plugin.Name), plugin.Description)
+			tb.Bulletf("%s - %s", Bold(plugin.Name), plugin.Description)
 		} else {
-			tb.Bullet(dispatch.Bold(plugin.Name))
+			tb.Bullet(Bold(plugin.Name))
 		}
 	}
 	return tb.Reply()

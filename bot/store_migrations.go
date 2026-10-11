@@ -1,12 +1,10 @@
-package store
+package main
 
 import (
 	"context"
 	"fmt"
 	"strings"
 	"time"
-
-	"whatsrook/bot/logger"
 
 	"github.com/thruqe/duosql"
 	"go.mau.fi/util/dbutil"
@@ -63,7 +61,7 @@ func RunMigrations(ctx context.Context, db *dbutil.Database) error {
 		return fmt.Errorf("failed to initialize duosql wrapper: %w", err)
 	}
 
-	appliedVersions, err := duosql.Pluck[int, schemaVersionRecord](
+	appliedVersions, err := duosql.Pluck[int](
 		duosql.Select[schemaVersionRecord](duo, "version").
 			From("cli_schema_version").
 			OrderBy(duosql.Asc("version")),
@@ -84,7 +82,7 @@ func RunMigrations(ctx context.Context, db *dbutil.Database) error {
 			continue
 		}
 
-		logger.Debug("Applying database migration...", "version", m.Version, "description", m.Description, "dialect", db.Dialect.String())
+		Debug("Applying database migration...", "version", m.Version, "description", m.Description, "dialect", db.Dialect.String())
 		if err := m.Up(ctx, db); err != nil {
 			return fmt.Errorf("migration v%d (%s) failed: %w", m.Version, m.Description, err)
 		}
@@ -99,7 +97,7 @@ func RunMigrations(ctx context.Context, db *dbutil.Database) error {
 		if err != nil {
 			return fmt.Errorf("failed to record migration v%d: %w", m.Version, err)
 		}
-		logger.Debug("Successfully applied database migration", "version", m.Version)
+		Debug("Successfully applied database migration", "version", m.Version)
 	}
 
 	return nil

@@ -4,7 +4,7 @@
 // APIs WhatsRook's dependencies expect: stdlib log/slog, whatsmeow's
 // waLog.Logger, and zerolog.Logger. Callers can also register hooks to
 // receive live structured LogEntry events (e.g. to stream logs to a UI).
-package logger
+package main
 
 import (
 	"bytes"

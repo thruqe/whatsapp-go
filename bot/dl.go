@@ -1,7 +1,7 @@
 // Package dl implements an omni-media downloader plugin utilizing the yt-dlp
 // execution environment, ffmpeg media transcoding pipelines, and interactive
 // WhatsApp poll routing.
-package dl
+package main
 
 import (
 	"bufio"
@@ -24,15 +24,10 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-
-	"whatsrook/bot/builder"
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/media"
 )
 
 func init() {
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "dl",
 		Alias:       "download,ytdl,ytdlp,twitter,x,twt",
 		Description: "Download video, audio, or pictures from any link",
@@ -184,7 +179,7 @@ func (m *MediaMeta) GetTitle() string {
 var urlRegex = regexp.MustCompile(`(?i)\bhttps?://[^\s<>"]+`)
 
 // extractTargetURL extracts the media URL from command arguments or quoted message text.
-func extractTargetURL(ctx *dispatch.Context) (string, []string) {
+func extractTargetURL(ctx *Context) (string, []string) {
 	// 1. Check in command arguments
 	var explicitArgs []string
 	var targetURL string
@@ -243,7 +238,7 @@ func cleanURL(raw string) string {
 	return raw
 }
 
-func handleDL(ctx *dispatch.Context) error {
+func handleDL(ctx *Context) error {
 	// Handle cookie subcommands: .dl cookie ...
 	if len(ctx.Args) > 0 {
 		first := strings.ToLower(ctx.Args[0])
@@ -267,23 +262,23 @@ func handleDL(ctx *dispatch.Context) error {
 
 	// 1. If direct image URL, download and send directly without yt-dlp overhead
 	if isImageURL(targetURL) {
-		logger.Debug("handleDL: direct image URL detected", "url", targetURL)
+		Debug("handleDL: direct image URL detected", "url", targetURL)
 		if err := downloadAndSendDirectImage(ctx, targetURL); err == nil {
 			return nil
 		}
-		logger.Warn("handleDL: direct image fetch failed, falling back to yt-dlp", "url", targetURL)
+		Warn("handleDL: direct image fetch failed, falling back to yt-dlp", "url", targetURL)
 	}
 
 	// 2. Fetch metadata using yt-dlp -J
 	meta, errMeta := fetchMetadata(ctx, targetURL)
 	if errMeta != nil {
-		logger.Error("handleDL: metadata fetch failed", "url", targetURL, "err", errMeta)
+		Error("handleDL: metadata fetch failed", "url", targetURL, "err", errMeta)
 		return sendFailureWithCookiePrompt(ctx, errMeta)
 	}
 
 	// 3. Automatically detect if the downloadable is an image (single or multi-image)
 	if meta.IsImage() {
-		logger.Debug("handleDL: target identified as image", "url", targetURL, "ext", meta.Ext, "entries", len(meta.Entries))
+		Debug("handleDL: target identified as image", "url", targetURL, "ext", meta.Ext, "entries", len(meta.Entries))
 		if err := downloadAndSendImages(ctx, targetURL, meta); err != nil {
 			return sendFailureWithCookiePrompt(ctx, err)
 		}
@@ -322,7 +317,7 @@ func handleDL(ctx *dispatch.Context) error {
 
 	// 4. If media has no audio track or is an animated GIF, download directly as video/gif without poll
 	if meta != nil && (!meta.HasAudio() || meta.IsGif()) {
-		logger.Debug("handleDL: silent media/gif detected, skipping poll and downloading directly", "url", targetURL)
+		Debug("handleDL: silent media/gif detected, skipping poll and downloading directly", "url", targetURL)
 		if err := downloadAndSendVideo(ctx, targetURL, meta); err != nil {
 			return sendFailureWithCookiePrompt(ctx, err)
 		}
@@ -352,7 +347,7 @@ func handleDL(ctx *dispatch.Context) error {
 	poll.AllowedSenders(ctx.Sender)
 	poll.AutoDelete(true)
 
-	err := poll.OnceReply(func(req builder.PollRequest, res *builder.Response) {
+	err := poll.OnceReply(func(req PollRequest, res *Response) {
 		selected := ""
 		if len(req.SelectedOptions) > 0 {
 			selected = req.SelectedOptions[0]
@@ -375,7 +370,7 @@ func handleDL(ctx *dispatch.Context) error {
 	})
 
 	if err != nil {
-		logger.Error("handleDL: failed to send interactive poll, falling back to direct video", "err", err)
+		Error("handleDL: failed to send interactive poll, falling back to direct video", "err", err)
 		return downloadAndSendVideo(ctx, targetURL, meta)
 	}
 
@@ -383,7 +378,7 @@ func handleDL(ctx *dispatch.Context) error {
 }
 
 // fetchMetadata runs yt-dlp -J to retrieve JSON metadata for the media item.
-func fetchMetadata(ctx *dispatch.Context, rawURL string) (*MediaMeta, error) {
+func fetchMetadata(ctx *Context, rawURL string) (*MediaMeta, error) {
 	cookiesPath, cleanup := getCookiesFilePath(ctx, rawURL)
 	defer cleanup()
 
@@ -569,7 +564,7 @@ func probeMediaDuration(ctx context.Context, filePath string) float64 {
 }
 
 func makeTranscodeProgressCallback(
-	ctx *dispatch.Context,
+	ctx *Context,
 	progressMsgID string,
 	mediaType string,
 	title string,
@@ -600,7 +595,7 @@ func makeTranscodeProgressCallback(
 }
 
 func makeUploadProgressCallback(
-	ctx *dispatch.Context,
+	ctx *Context,
 	progressMsgID string,
 	mediaType string,
 	title string,
@@ -660,7 +655,7 @@ func makeUploadProgressCallback(
 
 // runYtdlpWithLiveProgress executes yt-dlp while periodically editing a WhatsApp progress message.
 func runYtdlpWithLiveProgress(
-	ctx *dispatch.Context,
+	ctx *Context,
 	dlCtx context.Context,
 	mediaType string,
 	title string,
@@ -669,7 +664,7 @@ func runYtdlpWithLiveProgress(
 	initialMsg := fmt.Sprintf("*Downloading %s...*\n_Title: `%s`_\n\n```\n(starting yt-dlp...)\n```", mediaType, title)
 	progressMsgID, err := ctx.ReplyWithID(initialMsg)
 	if err != nil {
-		logger.Warn("runYtdlpWithLiveProgress: failed to send initial progress message", "err", err)
+		Warn("runYtdlpWithLiveProgress: failed to send initial progress message", "err", err)
 	}
 
 	var cmd *exec.Cmd
@@ -802,7 +797,7 @@ func runYtdlpWithLiveProgress(
 }
 
 // downloadAndSendAudio downloads the best audio track, transcodes it to Opus OGG, and sends it.
-func downloadAndSendAudio(ctx *dispatch.Context, rawURL string, meta *MediaMeta) error {
+func downloadAndSendAudio(ctx *Context, rawURL string, meta *MediaMeta) error {
 	if meta != nil && !meta.HasAudio() {
 		return fmt.Errorf("this media does not contain an audio track")
 	}
@@ -864,7 +859,7 @@ func downloadAndSendAudio(ctx *dispatch.Context, rawURL string, meta *MediaMeta)
 	// Transcode audio to WhatsApp-compatible Opus OGG (48kHz, mono, VoIP tuned)
 	transcodeCallback := makeTranscodeProgressCallback(ctx, progressMsgID, "Audio", title)
 	if err := EnsureWhatsAppOpusWithProgress(ctx.GetSendContext(), rawAudioFile, opusOut, duration, transcodeCallback); err != nil {
-		logger.Warn("EnsureWhatsAppOpus transcode failed, attempting OpusPTTConvert on raw bytes", "err", err)
+		Warn("EnsureWhatsAppOpus transcode failed, attempting OpusPTTConvert on raw bytes", "err", err)
 		rawBytes, errRead := os.ReadFile(rawAudioFile)
 		if errRead != nil {
 			if progressMsgID != "" {
@@ -901,7 +896,7 @@ func downloadAndSendAudio(ctx *dispatch.Context, rawURL string, meta *MediaMeta)
 }
 
 // downloadAndSendVideo downloads video, converts it to guarantee WhatsApp compatibility, and sends with caption.
-func downloadAndSendVideo(ctx *dispatch.Context, rawURL string, meta *MediaMeta) error {
+func downloadAndSendVideo(ctx *Context, rawURL string, meta *MediaMeta) error {
 	cookiesPath, cleanup := getCookiesFilePath(ctx, rawURL)
 	defer cleanup()
 
@@ -970,7 +965,7 @@ func downloadAndSendVideo(ctx *dispatch.Context, rawURL string, meta *MediaMeta)
 	transcodeErr := EnsureWhatsAppVideoWithProgress(transcodeCtx, rawVideoFile, waVideoOut, duration, transcodeCallback)
 	targetVideoPath := waVideoOut
 	if transcodeErr != nil {
-		logger.Warn("EnsureWhatsAppVideo failed, falling back to original video file", "err", transcodeErr)
+		Warn("EnsureWhatsAppVideo failed, falling back to original video file", "err", transcodeErr)
 		targetVideoPath = rawVideoFile
 	}
 
@@ -1150,10 +1145,10 @@ func EnsureWhatsAppOpusWithProgress(
 }
 
 // sendOpusAudioPayload uploads and dispatches Opus audio with waveform & PTT metadata.
-func sendOpusAudioPayload(ctx *dispatch.Context, audioBytes []byte, onProgress ...func(uploaded, total uint64)) error {
-	meta, err := media.OpusPTTConvert(ctx.GetSendContext(), audioBytes)
+func sendOpusAudioPayload(ctx *Context, audioBytes []byte, onProgress ...func(uploaded, total uint64)) error {
+	meta, err := OpusPTTConvert(ctx.GetSendContext(), audioBytes)
 	if err != nil || meta == nil || len(meta.Data) == 0 {
-		meta = &media.AudioPTTMeta{
+		meta = &AudioPTTMeta{
 			Data: audioBytes,
 		}
 	}
@@ -1230,9 +1225,9 @@ func isDirectImage(ext string) bool {
 	return clean == "jpg" || clean == "jpeg" || clean == "png" || clean == "webp"
 }
 
-func sendUsage(ctx *dispatch.Context) error {
+func sendUsage(ctx *Context) error {
 	p := ctx.GetPrefix()
-	tb := dispatch.NewText()
+	tb := NewText()
 	tb.Line("*Omni-Media Downloader (yt-dlp)*").Blank()
 	tb.Line("*Usage:*")
 	tb.Linef("- %sdl <url>  (Fetches media and sends interactive Video/Audio poll)", p)

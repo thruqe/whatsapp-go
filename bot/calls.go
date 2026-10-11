@@ -1,4 +1,4 @@
-package calls
+package main
 
 import (
 	"context"
@@ -17,22 +17,17 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-
-	"whatsrook/bot/builder"
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/store"
 )
 
 func logHandlerErr(name string, err error) {
 	if err == nil {
 		return
 	}
-	logger.Error("call handler error", "name", name, "err", err)
+	Error("call handler error", "name", name, "err", err)
 }
 
 func init() {
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "call",
 		Alias:       "phone",
 		Description: "Make a WhatsApp call or open call menu",
@@ -40,7 +35,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleCall,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "callaudio",
 		Alias:       "setcallaudio",
 		Description: "Make an audio call or set call sound",
@@ -48,7 +43,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleCallAudio,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "callvideo",
 		Alias:       "videocall",
 		Description: "Make a video call or set call video",
@@ -56,14 +51,14 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleCallVideo,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "anticall",
 		Description: "Automatically decline incoming calls to protect the bot",
 		Category:    "calls",
 		IsPublic:    true,
 		Handler:     handleAntiCall,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "voicemail",
 		Description: "Turn automated voicemail answering on or off",
 		Category:    "calls",
@@ -92,9 +87,9 @@ func popPending(sender types.JID) (*PendingCall, bool) {
 	return PopPendingCall(sender)
 }
 
-// mediaStore extracts the concrete dispatch.StoreWrapper from a Context's client
-func mediaStore(ctx *dispatch.Context) (*dispatch.StoreWrapper, error) {
-	s, ok := dispatch.GetStore(ctx)
+// mediaStore extracts the concrete StoreWrapper from a Context's client
+func mediaStore(ctx *Context) (*StoreWrapper, error) {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return nil, fmt.Errorf("unexpected store implementation")
 	}
@@ -139,7 +134,7 @@ func resolveSavedCallAudio(client *whatsmeow.Client, sender types.JID) string {
 	if client == nil || client.Store == nil {
 		return ""
 	}
-	s, ok := dispatch.GetSQLStore(client)
+	s, ok := GetSQLStore(client)
 	if !ok {
 		return ""
 	}
@@ -148,13 +143,13 @@ func resolveSavedCallAudio(client *whatsmeow.Client, sender types.JID) string {
 		if jid.IsEmpty() {
 			continue
 		}
-		if path, err := s.GetCallMediaConfig(ctx, jid, store.CallMediaAudio); err == nil && path != "" {
+		if path, err := s.GetCallMediaConfig(ctx, jid, CallMediaAudio); err == nil && path != "" {
 			if _, statErr := os.Stat(path); statErr == nil {
 				return path
 			}
 		}
 	}
-	audioDir := dispatch.GetSessionMediaDir(client, "call-audio")
+	audioDir := GetSessionMediaDir(client, "call-audio")
 	return findExistingMediaFile(audioDir, ".mp3", ".ogg", ".wav")
 }
 
@@ -162,7 +157,7 @@ func resolveSavedCallVideo(client *whatsmeow.Client, sender types.JID) string {
 	if client == nil || client.Store == nil {
 		return ""
 	}
-	s, ok := dispatch.GetSQLStore(client)
+	s, ok := GetSQLStore(client)
 	if !ok {
 		return ""
 	}
@@ -171,61 +166,61 @@ func resolveSavedCallVideo(client *whatsmeow.Client, sender types.JID) string {
 		if jid.IsEmpty() {
 			continue
 		}
-		if path, err := s.GetCallMediaConfig(ctx, jid, store.CallMediaVideo); err == nil && path != "" {
+		if path, err := s.GetCallMediaConfig(ctx, jid, CallMediaVideo); err == nil && path != "" {
 			if _, statErr := os.Stat(path); statErr == nil {
 				return path
 			}
 		}
 	}
-	videoDir := dispatch.GetSessionMediaDir(client, "call-video")
+	videoDir := GetSessionMediaDir(client, "call-video")
 	return findExistingMediaFile(videoDir, ".mp4", ".bin", ".3gp")
 }
 
-func getSavedAudio(ctx *dispatch.Context, sender types.JID) (string, bool) {
+func getSavedAudio(ctx *Context, sender types.JID) (string, bool) {
 	path := resolveSavedCallAudio(ctx.Client, sender)
 	return path, path != ""
 }
 
-func saveAudio(ctx *dispatch.Context, sender types.JID, path string) error {
+func saveAudio(ctx *Context, sender types.JID, path string) error {
 	s, err := mediaStore(ctx)
 	if err != nil {
 		return err
 	}
-	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), store.CallMediaAudio, path)
+	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), CallMediaAudio, path)
 	for _, jid := range candidateJIDs(ctx.Client, sender) {
 		if jid.IsEmpty() || jid == sender.ToNonAD() {
 			continue
 		}
-		_ = s.PutCallMediaConfig(ctx.Ctx, jid, store.CallMediaAudio, path)
+		_ = s.PutCallMediaConfig(ctx.Ctx, jid, CallMediaAudio, path)
 	}
 	return nil
 }
 
-func getSavedVideo(ctx *dispatch.Context, sender types.JID) (string, bool) {
+func getSavedVideo(ctx *Context, sender types.JID) (string, bool) {
 	path := resolveSavedCallVideo(ctx.Client, sender)
 	return path, path != ""
 }
 
-func saveVideo(ctx *dispatch.Context, sender types.JID, path string) error {
+func saveVideo(ctx *Context, sender types.JID, path string) error {
 	s, err := mediaStore(ctx)
 	if err != nil {
 		return err
 	}
-	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), store.CallMediaVideo, path)
+	_ = s.PutCallMediaConfig(ctx.Ctx, sender.ToNonAD(), CallMediaVideo, path)
 	for _, jid := range candidateJIDs(ctx.Client, sender) {
 		if jid.IsEmpty() || jid == sender.ToNonAD() {
 			continue
 		}
-		_ = s.PutCallMediaConfig(ctx.Ctx, jid, store.CallMediaVideo, path)
+		_ = s.PutCallMediaConfig(ctx.Ctx, jid, CallMediaVideo, path)
 	}
 	return nil
 }
 
-func handleCall(ctx *dispatch.Context) error {
+func handleCall(ctx *Context) error {
 	p := ctx.GetPrefix()
 	targets := ctx.GetTargets()
 	if len(targets) < 1 {
-		body := dispatch.NewText().
+		body := NewText().
 			Header("Calls").
 			Section("What would you like to do?").
 			Bulletf("%scallaudio [number] — voice call, or set your call audio", p).
@@ -233,7 +228,7 @@ func handleCall(ctx *dispatch.Context) error {
 			Bulletf("%svoicemail [on/off] — auto-answer incoming calls", p).
 			Trimmed()
 		options := []string{"Call Audio", "Call Video", "Voicemail"}
-		return dispatch.SendPollReply(ctx, body, options)
+		return SendPollReply(ctx, body, options)
 	}
 
 	targetJID := targets[0]
@@ -249,12 +244,12 @@ func handleCall(ctx *dispatch.Context) error {
 		}
 	}
 
-	body := builder.Sprintf("Ready to call %s — how should I place it?", targetMention)
+	body := Sprintf("Ready to call %s — how should I place it?", targetMention)
 	options := []string{"Audio Call", "Video Call"}
-	return dispatch.SendPollReplyWithMentions(ctx, body, options, []types.JID{targetJID})
+	return SendPollReplyWithMentions(ctx, body, options, []types.JID{targetJID})
 }
 
-func handleCallAudio(ctx *dispatch.Context) error {
+func handleCallAudio(ctx *Context) error {
 	var audioMsg *waE2E.AudioMessage
 	if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil {
 		if ci := ext.GetContextInfo(); ci != nil && ci.QuotedMessage != nil {
@@ -282,12 +277,12 @@ func handleCallAudio(ctx *dispatch.Context) error {
 		return placeCallWithAudio(ctx, target, path)
 	}
 
-	setPending(ctx.Sender, &PendingCall{Target: target, Kind: store.CallMediaAudio})
+	setPending(ctx.Sender, &PendingCall{Target: target, Kind: CallMediaAudio})
 	return ctx.Reply("Send an audio file to use for this call.\n" +
 		"Reply \"save\" on that audio to make it your default for next time.")
 }
 
-func handleSetCallAudio(ctx *dispatch.Context) error {
+func handleSetCallAudio(ctx *Context) error {
 	var audioMsg *waE2E.AudioMessage
 	if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil {
 		if ci := ext.GetContextInfo(); ci != nil && ci.QuotedMessage != nil {
@@ -304,7 +299,7 @@ func handleSetCallAudio(ctx *dispatch.Context) error {
 		return ctx.Replyf("Couldn't download that audio: %v", err)
 	}
 
-	targetAudioDir := dispatch.GetSessionMediaDir(ctx.Client, "call-audio")
+	targetAudioDir := GetSessionMediaDir(ctx.Client, "call-audio")
 	if err := os.MkdirAll(targetAudioDir, 0o755); err != nil {
 		return ctx.Replyf("Couldn't set up storage for that: %v", err)
 	}
@@ -330,7 +325,7 @@ func handleSetCallAudio(ctx *dispatch.Context) error {
 	return ctx.Reply("Done — that's your default call audio now.")
 }
 
-func handleCallVideo(ctx *dispatch.Context) error {
+func handleCallVideo(ctx *Context) error {
 	var videoMsg *waE2E.VideoMessage
 	if msg := ctx.Evt.Message.GetVideoMessage(); msg != nil {
 		videoMsg = msg
@@ -359,7 +354,7 @@ func handleCallVideo(ctx *dispatch.Context) error {
 	if videoMsg != nil {
 		data, err := ctx.Client.Download(ctx.Ctx, videoMsg)
 		if err == nil && len(data) > 0 {
-			targetVideoDir := dispatch.GetSessionMediaDir(ctx.Client, "call-video")
+			targetVideoDir := GetSessionMediaDir(ctx.Client, "call-video")
 			_ = os.MkdirAll(targetVideoDir, 0o755)
 			ext := ExtensionFor(videoMsg.GetMimetype())
 			if ext == "" || ext == ".bin" {
@@ -377,12 +372,12 @@ func handleCallVideo(ctx *dispatch.Context) error {
 		return placeVideoCallWithMedia(ctx, target, path)
 	}
 
-	setPending(ctx.Sender, &PendingCall{Target: target, Kind: store.CallMediaVideo})
+	setPending(ctx.Sender, &PendingCall{Target: target, Kind: CallMediaVideo})
 	return ctx.Reply("Send a video to use for this call.\n" +
 		"Reply \"save\" on that video to make it your default for next time.")
 }
 
-func handleSetVideoCall(ctx *dispatch.Context) error {
+func handleSetVideoCall(ctx *Context) error {
 	var videoMsg *waE2E.VideoMessage
 	if msg := ctx.Evt.Message.GetVideoMessage(); msg != nil {
 		videoMsg = msg
@@ -405,7 +400,7 @@ func handleSetVideoCall(ctx *dispatch.Context) error {
 		return ctx.Replyf("Couldn't download that video: %v", err)
 	}
 
-	targetVideoDir := dispatch.GetSessionMediaDir(ctx.Client, "call-video")
+	targetVideoDir := GetSessionMediaDir(ctx.Client, "call-video")
 	if err := os.MkdirAll(targetVideoDir, 0o755); err != nil {
 		return ctx.Replyf("Couldn't set up storage for that: %v", err)
 	}
@@ -428,8 +423,8 @@ func handleSetVideoCall(ctx *dispatch.Context) error {
 	return ctx.Reply("Done — that's your default call video now.")
 }
 
-func handleAntiCall(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleAntiCall(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -557,13 +552,13 @@ func handleAntiCall(ctx *dispatch.Context) error {
 	}
 }
 
-func sendAntiCallMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
+func sendAntiCallMenu(ctx *Context, s *StoreWrapper) error {
 	status, _ := s.GetSetting(ctx.Ctx, "anticall_status")
 	if status == "" {
 		status = "off"
 	}
 
-	bodyText := dispatch.NewText().
+	bodyText := NewText().
 		Header("AntiCall").
 		Field("Status", strings.ToUpper(status)).
 		Blank().
@@ -579,10 +574,10 @@ func sendAntiCallMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 		actionText,
 		"Customize",
 	}
-	return dispatch.SendPollReply(ctx, bodyText, options)
+	return SendPollReply(ctx, bodyText, options)
 }
 
-func sendAntiCallCustomizeGuide(ctx *dispatch.Context) error {
+func sendAntiCallCustomizeGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	return ctx.Text().
 		Header("AntiCall Customization").
@@ -613,8 +608,8 @@ func splitCSV(s string) []string {
 	return out
 }
 
-func handleVoicemail(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleVoicemail(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store is not available.")
 	}
@@ -664,13 +659,13 @@ func handleVoicemail(ctx *dispatch.Context) error {
 		videoStatus = "Not set"
 	}
 
-	bodyText := dispatch.NewText().
+	bodyText := NewText().
 		Header("Voicemail").
 		Field("Status", strings.ToUpper(status)).
 		Field("Audio", audioStatus).
 		Field("Video", videoStatus).
 		Blank().
-		Line("Automatically answers incoming calls with your saved media.").
+		Line("Automatically answers incoming calls with your saved ").
 		Blank().
 		Section("Usage").
 		Bulletf("%svoicemail on", p).
@@ -688,13 +683,13 @@ func handleVoicemail(ctx *dispatch.Context) error {
 		"Call Video",
 	}
 
-	return dispatch.SendPollReply(ctx, bodyText, options)
+	return SendPollReply(ctx, bodyText, options)
 }
 
 // SetupVoicemail wires the OnIncomingCall handler.
 func SetupVoicemail(wa *whatsmeow.Client) {
 	if wa == nil {
-		logger.Error("SetupVoicemail: nil client")
+		Error("SetupVoicemail: nil client")
 		return
 	}
 
@@ -710,7 +705,7 @@ func handleIncomingCall(call *whatsmeow.Call, waClient *whatsmeow.Client) {
 
 	ctx := context.Background()
 
-	s, ok := dispatch.GetSQLStore(waClient)
+	s, ok := GetSQLStore(waClient)
 	if !ok {
 		return
 	}
@@ -720,7 +715,7 @@ func handleIncomingCall(call *whatsmeow.Call, waClient *whatsmeow.Client) {
 		status, _ = s.GetSetting(ctx, "autoacceptcall_status")
 	}
 	if status != "on" {
-		logger.Debug("voicemail: incoming call offer ignored because voicemail is not enabled (enable using .voicemail on)", "call_id", call.ID(), "from", call.Peer().String(), "status", status)
+		Debug("voicemail: incoming call offer ignored because voicemail is not enabled (enable using .voicemail on)", "call_id", call.ID(), "from", call.Peer().String(), "status", status)
 		return
 	}
 
@@ -728,7 +723,7 @@ func handleIncomingCall(call *whatsmeow.Call, waClient *whatsmeow.Client) {
 	videoPath := resolveSavedCallVideo(waClient, types.EmptyJID)
 
 	isVideo := call.IsVideo()
-	logger.Debug("voicemail: answering incoming call", "from", call.Peer().String(), "call_id", call.ID(), "is_video", isVideo, "audio", audioPath, "video", videoPath)
+	Debug("voicemail: answering incoming call", "from", call.Peer().String(), "call_id", call.ID(), "is_video", isVideo, "audio", audioPath, "video", videoPath)
 
 	// Set up null receivers BEFORE answering
 	call.Receive(whatsmeow.SinkFunc(func(pcm []float32) {}))
@@ -745,30 +740,30 @@ func handleIncomingCall(call *whatsmeow.Call, waClient *whatsmeow.Client) {
 			case isVideo && audioPath != "":
 				startAudioMedia(call, audioPath)
 			case isVideo:
-				logger.Warn("voicemail: no video or audio media found for incoming video call")
+				Warn("voicemail: no video or audio media found for incoming video call")
 			case audioPath != "":
 				startAudioMedia(call, audioPath)
 			default:
-				logger.Warn("voicemail: no audio media found for incoming voice call")
+				Warn("voicemail: no audio media found for incoming voice call")
 			}
 		})
 	}
 
 	// OnReady fires when first inbound RTP packet arrives
 	call.OnReady(func() {
-		logger.Debug("voicemail: OnReady fired, starting media", "call_id", call.ID())
+		Debug("voicemail: OnReady fired, starting media", "call_id", call.ID())
 		startMedia()
 	})
 
 	// OnMediaStart fires when outbound RTP starts flowing
 	call.OnMediaStart(func() {
-		logger.Debug("voicemail: OnMediaStart fired, starting media", "call_id", call.ID())
+		Debug("voicemail: OnMediaStart fired, starting media", "call_id", call.ID())
 		startMedia()
 	})
 
 	// Let wacaller handle the full signaling — Answer waits for mute_v2 then sends accept
 	if err := call.Answer(); err != nil {
-		logger.Error("voicemail: call.Answer() failed", "call_id", call.ID(), "err", err)
+		Error("voicemail: call.Answer() failed", "call_id", call.ID(), "err", err)
 		return
 	}
 
@@ -777,18 +772,18 @@ func handleIncomingCall(call *whatsmeow.Call, waClient *whatsmeow.Client) {
 	go func() {
 		time.Sleep(10 * time.Second)
 		if call.State() != whatsmeow.CallPhaseEnded {
-			logger.Debug("voicemail: media readiness timeout, starting media anyway", "call_id", call.ID())
+			Debug("voicemail: media readiness timeout, starting media anyway", "call_id", call.ID())
 			startMedia()
 		}
 	}()
 }
 
 func startAudioMedia(call *whatsmeow.Call, audioPath string) {
-	logger.Debug("voicemail: starting audio media", "call_id", call.ID(), "path", audioPath)
+	Debug("voicemail: starting audio media", "call_id", call.ID(), "path", audioPath)
 
 	src, err := openAudioSource(audioPath)
 	if err != nil {
-		logger.Error("voicemail: failed to load audio", "path", audioPath, "err", err)
+		Error("voicemail: failed to load audio", "path", audioPath, "err", err)
 		_ = call.Hangup()
 		return
 	}
@@ -814,7 +809,7 @@ func startAudioMedia(call *whatsmeow.Call, audioPath string) {
 
 	startDurationTimer := func() {
 		timerOnce.Do(func() {
-			logger.Debug("voicemail: audio media started playing, starting dynamic duration countdown", "call_id", call.ID(), "duration", duration)
+			Debug("voicemail: audio media started playing, starting dynamic duration countdown", "call_id", call.ID(), "duration", duration)
 			timerMu.Lock()
 			timer = time.AfterFunc(duration+1*time.Second, func() {
 				hangupIfActive(call, "audio duration completed")
@@ -827,7 +822,7 @@ func startAudioMedia(call *whatsmeow.Call, audioPath string) {
 	call.OnMediaStart(startDurationTimer)
 
 	player.OnFinish(func() {
-		logger.Debug("voicemail: audio playback finished, hanging up", "call_id", call.ID())
+		Debug("voicemail: audio playback finished, hanging up", "call_id", call.ID())
 		time.AfterFunc(500*time.Millisecond, func() {
 			stopTimer()
 			hangupIfActive(call, "audio playback finished")
@@ -840,17 +835,17 @@ func startAudioMedia(call *whatsmeow.Call, audioPath string) {
 }
 
 func startVideoMedia(call *whatsmeow.Call, videoPath string) {
-	logger.Debug("voicemail: starting video media", "call_id", call.ID(), "path", videoPath)
+	Debug("voicemail: starting video media", "call_id", call.ID(), "path", videoPath)
 
 	mp3Path, h264Path, err := PrepareCallVideo(videoPath)
 	if err != nil {
-		logger.Error("voicemail: failed to prepare video", "err", err)
+		Error("voicemail: failed to prepare video", "err", err)
 		_ = call.Hangup()
 		return
 	}
 
 	if err := call.SetVideoEnabled(true); err != nil {
-		logger.Error("voicemail: SetVideoEnabled failed", "err", err)
+		Error("voicemail: SetVideoEnabled failed", "err", err)
 	}
 
 	audioFile := mp3Path
@@ -859,14 +854,14 @@ func startVideoMedia(call *whatsmeow.Call, videoPath string) {
 	}
 
 	if h264Path == "" {
-		logger.Warn("voicemail: no h264 track, audio-only for video call", "call_id", call.ID())
+		Warn("voicemail: no h264 track, audio-only for video call", "call_id", call.ID())
 		startAudioMedia(call, audioFile)
 		return
 	}
 
 	src, err := openAudioSource(audioFile)
 	if err != nil {
-		logger.Error("voicemail: failed to load audio", "path", audioFile, "err", err)
+		Error("voicemail: failed to load audio", "path", audioFile, "err", err)
 		_ = call.Hangup()
 		return
 	}
@@ -874,13 +869,13 @@ func startVideoMedia(call *whatsmeow.Call, videoPath string) {
 
 	h264Data, err := os.ReadFile(h264Path)
 	if err != nil || len(h264Data) == 0 {
-		logger.Error("voicemail: failed to read h264", "path", h264Path, "err", err)
+		Error("voicemail: failed to read h264", "path", h264Path, "err", err)
 		return
 	}
 
 	frames := SplitAnnexBAccessUnits(h264Data)
 	if len(frames) == 0 {
-		logger.Error("voicemail: no video frames", "path", h264Path)
+		Error("voicemail: no video frames", "path", h264Path)
 		return
 	}
 
@@ -921,7 +916,7 @@ func runVideoFrameLoop(call *whatsmeow.Call, frames [][]byte, duration time.Dura
 			}
 			if requestKeyframe != nil && requestKeyframe.Swap(false) {
 				frameIdx = nextIDRIndex(idrIndices, frameIdx)
-				logger.Debug("videocall: keyframe triggered", "frame_idx", frameIdx)
+				Debug("videocall: keyframe triggered", "frame_idx", frameIdx)
 			}
 			if frameIdx >= len(frames) {
 				hangupIfActive(call, "all video frames sent")
@@ -937,7 +932,7 @@ func runVideoFrameLoop(call *whatsmeow.Call, frames [][]byte, duration time.Dura
 			}
 			sent++
 			if sent == 1 {
-				logger.Debug("videocall: first video frame sent, starting dynamic media duration countdown", "duration", duration)
+				Debug("videocall: first video frame sent, starting dynamic media duration countdown", "duration", duration)
 				if !timer.Stop() {
 					select {
 					case <-timer.C:
@@ -946,7 +941,7 @@ func runVideoFrameLoop(call *whatsmeow.Call, frames [][]byte, duration time.Dura
 				}
 				timer.Reset(duration)
 			} else if sent%30 == 0 {
-				logger.Debug("videocall: sent frame", "sent", sent, "access_unit", frameIdx, "bytes", len(frame))
+				Debug("videocall: sent frame", "sent", sent, "access_unit", frameIdx, "bytes", len(frame))
 			}
 			frameIdx++
 			if frameIdx >= len(frames) {
@@ -967,7 +962,7 @@ func idrFrameIndices(frames [][]byte, requestKeyframe *atomic.Bool) []int {
 			idx = append(idx, i)
 		}
 	}
-	logger.Debug("videocall: found IDR keyframe positions", "idr_frames", len(idx), "total_frames", len(frames))
+	Debug("videocall: found IDR keyframe positions", "idr_frames", len(idx), "total_frames", len(frames))
 	return idx
 }
 
@@ -982,7 +977,7 @@ func nextIDRIndex(idrIndices []int, from int) int {
 
 func hangupIfActive(call *whatsmeow.Call, reason string) {
 	if call.State() != whatsmeow.CallPhaseEnded {
-		logger.Debug("voicemail/videocall: hanging up", "call_id", call.ID(), "reason", reason)
+		Debug("voicemail/videocall: hanging up", "call_id", call.ID(), "reason", reason)
 		_ = call.Hangup()
 	}
 }
@@ -1006,7 +1001,7 @@ func getDirectMessageText(msg *waE2E.Message) string {
 }
 
 func sendTextRaw(ctx context.Context, client *whatsmeow.Client, chat types.JID, text string) error {
-	pctx := &dispatch.Context{Ctx: ctx, Client: client, Chat: chat}
+	pctx := &Context{Ctx: ctx, Client: client, Chat: chat}
 	return pctx.Rook().NewMessage(text).To(chat).Send()
 }
 
@@ -1018,12 +1013,12 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 		return false
 	}
 
-	if p.Kind == store.CallMediaVideo {
+	if p.Kind == CallMediaVideo {
 		var videoMsg *waE2E.VideoMessage
 		saveRequested := false
 
 		if msg := evt.Message.GetVideoMessage(); msg != nil {
-			logger.Debug("Detected direct video message", "sender", sender.String())
+			Debug("Detected direct video message", "sender", sender.String())
 			videoMsg = msg
 			saveRequested = isSaveText(getDirectMessageText(evt.Message))
 		} else if extText := evt.Message.GetExtendedTextMessage(); extText != nil && isSaveText(extText.GetText()) {
@@ -1042,7 +1037,7 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 		popPending(sender)
 
 		go func() {
-			cctx := &dispatch.Context{
+			cctx := &Context{
 				Ctx:    ctx,
 				Client: client,
 				Evt:    evt,
@@ -1059,14 +1054,14 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 	saveRequested := false
 
 	if msg := evt.Message.GetAudioMessage(); msg != nil {
-		logger.Debug("Detected direct audio message", "sender", sender.String())
+		Debug("Detected direct audio message", "sender", sender.String())
 		audioMsg = msg
 		saveRequested = isSaveText(getDirectMessageText(evt.Message))
 	} else if extText := evt.Message.GetExtendedTextMessage(); extText != nil && isSaveText(extText.GetText()) {
-		logger.Debug("Detected text message containing 'save', checking quoted audio...", "sender", sender.String())
+		Debug("Detected text message containing 'save', checking quoted audio...", "sender", sender.String())
 		if ctxInfo := extText.GetContextInfo(); ctxInfo != nil && ctxInfo.QuotedMessage != nil {
 			if quotedAudio := ctxInfo.QuotedMessage.GetAudioMessage(); quotedAudio != nil {
-				logger.Debug("Found quoted audio message in reply", "sender", sender.String())
+				Debug("Found quoted audio message in reply", "sender", sender.String())
 				audioMsg = quotedAudio
 				saveRequested = true
 			}
@@ -1074,14 +1069,14 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 	}
 
 	if audioMsg == nil {
-		logger.Debug("Message did not provide or quote an audio message, skipping pending intercept", "sender", sender.String())
+		Debug("Message did not provide or quote an audio message, skipping pending intercept", "sender", sender.String())
 		return false
 	}
 
 	popPending(sender)
 
 	go func() {
-		cctx := &dispatch.Context{
+		cctx := &Context{
 			Ctx:    ctx,
 			Client: client,
 			Evt:    evt,
@@ -1094,22 +1089,22 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 	return true
 }
 
-func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *dispatch.Context, sender types.JID, evt *events.Message, audioMsg *waE2E.AudioMessage, p *PendingCall, saveRequested bool) {
-	logger.Debug("Downloading audio payload", "sender", sender.String())
+func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Context, sender types.JID, evt *events.Message, audioMsg *waE2E.AudioMessage, p *PendingCall, saveRequested bool) {
+	Debug("Downloading audio payload", "sender", sender.String())
 	data, err := client.Download(ctx, audioMsg)
 	if err != nil {
-		logger.Error("Download audio failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't download that audio: %v", err)); sendErr != nil {
-			logger.Error("failed to notify user", "sendErr", sendErr)
+		Error("Download audio failed", "err", err)
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("Couldn't download that audio: %v", err)); sendErr != nil {
+			Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
 
-	targetAudioDir := dispatch.GetSessionMediaDir(client, "call-audio")
+	targetAudioDir := GetSessionMediaDir(client, "call-audio")
 	if err := os.MkdirAll(targetAudioDir, 0o755); err != nil {
-		logger.Error("Failed creating audio directory", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't set up storage for that: %v", err)); sendErr != nil {
-			logger.Error("failed to notify user", "sendErr", sendErr)
+		Error("Failed creating audio directory", "err", err)
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("Couldn't set up storage for that: %v", err)); sendErr != nil {
+			Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
@@ -1120,52 +1115,52 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *di
 	}
 	path := filepath.Join(targetAudioDir, SanitizeJID(sender.String())+ext)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
-		logger.Error("File save failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't save that audio: %v", err)); sendErr != nil {
-			logger.Error("failed to notify user", "sendErr", sendErr)
+		Error("File save failed", "err", err)
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("Couldn't save that audio: %v", err)); sendErr != nil {
+			Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
 
 	path, err = TranscodeToMP3(path)
 	if err != nil {
-		logger.Error("Transcode failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't process that audio: %v", err)); sendErr != nil {
-			logger.Error("failed to notify user", "sendErr", sendErr)
+		Error("Transcode failed", "err", err)
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("Couldn't process that audio: %v", err)); sendErr != nil {
+			Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
 
 	if saveRequested {
 		if err := saveAudio(cctx, sender, path); err != nil {
-			logger.Error("saveAudio failed", "err", err)
+			Error("saveAudio failed", "err", err)
 			logHandlerErr("call-audio-save", err)
 		}
 	}
 
-	logger.Debug("Triggering outgoing call to target", "target", p.Target, "media", path)
+	Debug("Triggering outgoing call to target", "target", p.Target, "media", path)
 	if err := placeCallWithAudio(cctx, p.Target, path); err != nil {
-		logger.Error("placeCallWithAudio failed", "err", err)
+		Error("placeCallWithAudio failed", "err", err)
 		logHandlerErr("call", err)
 	}
 }
 
-func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *dispatch.Context, sender types.JID, evt *events.Message, videoMsg *waE2E.VideoMessage, p *PendingCall, saveRequested bool) {
-	logger.Debug("Downloading video payload", "sender", sender.String())
+func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *Context, sender types.JID, evt *events.Message, videoMsg *waE2E.VideoMessage, p *PendingCall, saveRequested bool) {
+	Debug("Downloading video payload", "sender", sender.String())
 	data, err := client.Download(ctx, videoMsg)
 	if err != nil {
-		logger.Error("Download video failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't download that video: %v", err)); sendErr != nil {
-			logger.Error("failed to notify user", "sendErr", sendErr)
+		Error("Download video failed", "err", err)
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("Couldn't download that video: %v", err)); sendErr != nil {
+			Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
 
-	targetVideoDir := dispatch.GetSessionMediaDir(client, "call-video")
+	targetVideoDir := GetSessionMediaDir(client, "call-video")
 	if err := os.MkdirAll(targetVideoDir, 0o755); err != nil {
-		logger.Error("Failed creating video directory", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't set up storage for that: %v", err)); sendErr != nil {
-			logger.Error("failed to notify user", "sendErr", sendErr)
+		Error("Failed creating video directory", "err", err)
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("Couldn't set up storage for that: %v", err)); sendErr != nil {
+			Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
@@ -1176,9 +1171,9 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *di
 	}
 	path := filepath.Join(targetVideoDir, SanitizeJID(sender.String())+ext)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
-		logger.Error("File save failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't save that video: %v", err)); sendErr != nil {
-			logger.Error("failed to notify user", "sendErr", sendErr)
+		Error("File save failed", "err", err)
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, Sprintf("Couldn't save that video: %v", err)); sendErr != nil {
+			Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
@@ -1187,20 +1182,20 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *di
 
 	if saveRequested {
 		if err := saveVideo(cctx, sender, path); err != nil {
-			logger.Error("saveVideo failed", "err", err)
+			Error("saveVideo failed", "err", err)
 			logHandlerErr("call-video-save", err)
 		}
 	}
 
-	logger.Debug("Triggering outgoing video call to target", "target", p.Target, "media", path)
+	Debug("Triggering outgoing video call to target", "target", p.Target, "media", path)
 	if err := placeVideoCallWithMedia(cctx, p.Target, path); err != nil {
-		logger.Error("placeVideoCallWithMedia failed", "err", err)
+		Error("placeVideoCallWithMedia failed", "err", err)
 		logHandlerErr("videocall", err)
 	}
 }
 
 func meowLogger() zerolog.Logger {
-	return logger.ZerologStyle("wacaller")
+	return ZerologStyle("wacaller")
 }
 
 func RegisterWACaller(wa *whatsmeow.Client) *whatsmeow.Client {
@@ -1220,14 +1215,14 @@ func resolveTargetJID(target string) types.JID {
 	return types.NewJID(target, types.DefaultUserServer)
 }
 
-func placeCallWithAudio(ctx *dispatch.Context, target, audioPath string) error {
+func placeCallWithAudio(ctx *Context, target, audioPath string) error {
 	client := ctx.Client
 	targetJID := resolveTargetJID(target)
 	userTag, mentionJID := ctx.FormatMention(targetJID)
 
 	call, err := client.Call(context.Background(), target)
 	if err != nil {
-		return ctx.ReplyWithMentions(builder.Sprintf("Couldn't call %s: %v", userTag, err), []types.JID{mentionJID})
+		return ctx.ReplyWithMentions(Sprintf("Couldn't call %s: %v", userTag, err), []types.JID{mentionJID})
 	}
 
 	// Drain incoming audio frames
@@ -1266,7 +1261,7 @@ func placeCallWithAudio(ctx *dispatch.Context, target, audioPath string) error {
 
 			startTimer := func() {
 				timerOnce.Do(func() {
-					logger.Debug("callaudio: media playback started, starting dynamic duration countdown", "duration", duration)
+					Debug("callaudio: media playback started, starting dynamic duration countdown", "duration", duration)
 					timerMu.Lock()
 					timer = time.AfterFunc(duration+1*time.Second, func() {
 						hangupIfActive(call, "audio duration completed")
@@ -1279,7 +1274,7 @@ func placeCallWithAudio(ctx *dispatch.Context, target, audioPath string) error {
 			call.OnMediaStart(startTimer)
 
 			player.OnFinish(func() {
-				logger.Debug("callaudio: audio player reached EOF, hanging up")
+				Debug("callaudio: audio player reached EOF, hanging up")
 				time.AfterFunc(500*time.Millisecond, func() {
 					stopTimer()
 					hangupIfActive(call, "audio playback finished")
@@ -1298,12 +1293,12 @@ func placeCallWithAudio(ctx *dispatch.Context, target, audioPath string) error {
 	call.OnMediaStart(startMedia)
 
 	call.OnEnd(func(reason string) {
-		if err := ctx.ReplyWithMentions(builder.Sprintf("Call with %s ended — %s.", userTag, friendlyCallEndReason(reason)), []types.JID{mentionJID}); err != nil {
+		if err := ctx.ReplyWithMentions(Sprintf("Call with %s ended — %s.", userTag, friendlyCallEndReason(reason)), []types.JID{mentionJID}); err != nil {
 			logHandlerErr("call", err)
 		}
 	})
 
-	return ctx.ReplyWithMentions(builder.Sprintf("Calling %s…", userTag), []types.JID{mentionJID})
+	return ctx.ReplyWithMentions(Sprintf("Calling %s…", userTag), []types.JID{mentionJID})
 }
 
 // friendlyCallEndReason translates whatsmeow's raw call-end reason code
@@ -1331,14 +1326,14 @@ func friendlyCallEndReason(reason string) string {
 	}
 }
 
-func placeVideoCallWithMedia(ctx *dispatch.Context, target, videoPath string) error {
+func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 	client := ctx.Client
 	targetJID := resolveTargetJID(target)
 	userTag, mentionJID := ctx.FormatMention(targetJID)
 
 	call, err := client.CallWithOptions(context.Background(), target, whatsmeow.CallOptions{Video: true})
 	if err != nil {
-		return ctx.ReplyWithMentions(builder.Sprintf("Couldn't start a video call with %s: %v", userTag, err), []types.JID{mentionJID})
+		return ctx.ReplyWithMentions(Sprintf("Couldn't start a video call with %s: %v", userTag, err), []types.JID{mentionJID})
 	}
 
 	call.Receive(whatsmeow.SinkFunc(func(pcm []float32) {}))
@@ -1350,7 +1345,7 @@ func placeVideoCallWithMedia(ctx *dispatch.Context, target, videoPath string) er
 	var startOnce sync.Once
 	startMedia := func() {
 		startOnce.Do(func() {
-			logger.Debug("videocall: starting media playback", "state", call.State(), "video_path", videoPath)
+			Debug("videocall: starting media playback", "state", call.State(), "video_path", videoPath)
 			_ = call.SetVideoEnabled(true)
 
 			if videoPath == "" {
@@ -1361,7 +1356,7 @@ func placeVideoCallWithMedia(ctx *dispatch.Context, target, videoPath string) er
 			if prepErr != nil {
 				logHandlerErr("videocall", fmt.Errorf("failed to prepare call video: %w", prepErr))
 			}
-			logger.Debug("videocall: prep done", "mp3", mp3Path, "h264", h264Path, "err", prepErr)
+			Debug("videocall: prep done", "mp3", mp3Path, "h264", h264Path, "err", prepErr)
 
 			audioFile := mp3Path
 			if audioFile == "" {
@@ -1375,10 +1370,10 @@ func placeVideoCallWithMedia(ctx *dispatch.Context, target, videoPath string) er
 			if durErr != nil || duration == 0 {
 				duration = 30 * time.Second
 			}
-			logger.Debug("videocall: media duration", "duration", duration)
+			Debug("videocall: media duration", "duration", duration)
 
 			if src, err := openAudioSource(audioFile); err == nil {
-				logger.Debug("videocall: audio source opened, starting playback", "audio_file", audioFile)
+				Debug("videocall: audio source opened, starting playback", "audio_file", audioFile)
 				player := call.Play(src)
 				if h264Path == "" {
 					var timerOnce sync.Once
@@ -1411,7 +1406,7 @@ func placeVideoCallWithMedia(ctx *dispatch.Context, target, videoPath string) er
 					return
 				}
 			} else {
-				logger.Debug("videocall: could not open audio source", "audio_file", audioFile, "err", err)
+				Debug("videocall: could not open audio source", "audio_file", audioFile, "err", err)
 				if h264Path == "" {
 					_ = call.Hangup()
 					return
@@ -1423,7 +1418,7 @@ func placeVideoCallWithMedia(ctx *dispatch.Context, target, videoPath string) er
 			}
 			h264Data, readErr := os.ReadFile(h264Path)
 			if readErr != nil {
-				logger.Debug("videocall: failed to read h264 file", "h264_path", h264Path, "err", readErr)
+				Debug("videocall: failed to read h264 file", "h264_path", h264Path, "err", readErr)
 				return
 			}
 			if len(h264Data) == 0 {
@@ -1431,7 +1426,7 @@ func placeVideoCallWithMedia(ctx *dispatch.Context, target, videoPath string) er
 			}
 
 			frames := SplitAnnexBAccessUnits(h264Data)
-			logger.Debug("videocall: split h264 into access units", "access_units", len(frames), "bytes", len(h264Data))
+			Debug("videocall: split h264 into access units", "access_units", len(frames), "bytes", len(h264Data))
 			if len(frames) == 0 {
 				return
 			}
@@ -1441,33 +1436,33 @@ func placeVideoCallWithMedia(ctx *dispatch.Context, target, videoPath string) er
 	}
 
 	call.OnPeerAccept(func() {
-		logger.Debug("videocall: peer accepted, queuing immediate IDR keyframe")
+		Debug("videocall: peer accepted, queuing immediate IDR keyframe")
 		requestKeyframe.Store(true)
 		startMedia()
 	})
 
 	call.OnVideoKeyframeRequest(func() {
-		logger.Debug("videocall: keyframe requested by peer PLI/FIR, queuing IDR keyframe")
+		Debug("videocall: keyframe requested by peer PLI/FIR, queuing IDR keyframe")
 		requestKeyframe.Store(true)
 	})
 
 	call.OnReady(func() {
-		logger.Debug("videocall: media ready (inbound RTP flowing)")
+		Debug("videocall: media ready (inbound RTP flowing)")
 		startMedia()
 	})
 
 	call.OnMediaStart(func() {
-		logger.Debug("videocall: outbound media flowing")
+		Debug("videocall: outbound media flowing")
 		startMedia()
 	})
 
 	call.OnEnd(func(reason string) {
-		if err := ctx.ReplyWithMentions(builder.Sprintf("Video call with %s ended — %s.", userTag, friendlyCallEndReason(reason)), []types.JID{mentionJID}); err != nil {
+		if err := ctx.ReplyWithMentions(Sprintf("Video call with %s ended — %s.", userTag, friendlyCallEndReason(reason)), []types.JID{mentionJID}); err != nil {
 			logHandlerErr("videocall", err)
 		}
 	})
 
-	return ctx.ReplyWithMentions(builder.Sprintf("Video calling %s…", userTag), []types.JID{mentionJID})
+	return ctx.ReplyWithMentions(Sprintf("Video calling %s…", userTag), []types.JID{mentionJID})
 }
 
 func openAudioSource(path string) (whatsmeow.AudioSource, error) {

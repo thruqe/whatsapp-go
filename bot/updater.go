@@ -1,5 +1,5 @@
 // Package updater provides self-update capabilities for WhatsRook matching system package manager designs (brew/apt/dnf style).
-package updater
+package main
 
 import (
 	"archive/tar"
@@ -35,8 +35,8 @@ const (
 	RepoName  = DefaultRepoName
 )
 
-// Version holds a parsed release version following the YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO format.
-type Version struct {
+// AppVersion holds a parsed release version following the YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO format.
+type AppVersion struct {
 	Year           int
 	Major          int // alias for Year for backward compatibility
 	Month          int
@@ -304,20 +304,20 @@ func SetStoredAutoUpdate(enabled bool) error {
 	return os.WriteFile(autoUpdateFilePath(), []byte(val), 0644)
 }
 
-// ParseVersion converts a version string (e.g. "26.09.7a3b4c1", "26.09.7a3b4c1_prod", "4.9.26") into a Version struct.
-func ParseVersion(raw string) (Version, error) {
+// ParseVersion converts a version string (e.g. "26.09.7a3b4c1", "26.09.7a3b4c1_prod", "4.9.26") into an AppVersion struct.
+func ParseVersion(raw string) (AppVersion, error) {
 	clean := strings.TrimSpace(raw)
 	clean = strings.TrimPrefix(clean, "v")
 
 	parts := strings.Split(clean, ".")
 	if len(parts) < 2 {
-		return Version{Raw: raw}, fmt.Errorf("invalid version format: %s", raw)
+		return AppVersion{Raw: raw}, fmt.Errorf("invalid version format: %s", raw)
 	}
 
 	year, err1 := strconv.Atoi(parts[0])
 	month, err2 := strconv.Atoi(parts[1])
 	if err1 != nil || err2 != nil {
-		return Version{Raw: raw}, fmt.Errorf("non-numeric year/month segment in %s", raw)
+		return AppVersion{Raw: raw}, fmt.Errorf("non-numeric year/month segment in %s", raw)
 	}
 
 	var patchStr, extra string
@@ -335,7 +335,7 @@ func ParseVersion(raw string) (Version, error) {
 		}
 	}
 
-	return Version{
+	return AppVersion{
 		Year:           year,
 		Major:          year,
 		Month:          month,
@@ -348,7 +348,7 @@ func ParseVersion(raw string) (Version, error) {
 }
 
 // Compare compares two versions, returning -1/0/+1 like cmp.Compare.
-func (v Version) Compare(other Version) int {
+func (v AppVersion) Compare(other AppVersion) int {
 	if v.Year != other.Year {
 		if v.Year > other.Year {
 			return 1
@@ -372,10 +372,10 @@ func (v Version) Compare(other Version) int {
 	return 0
 }
 
-// BinaryVersion is set at compile time via -ldflags "-X whatsrook/bot/updater.BinaryVersion=...".
+// BinaryVersion is set at compile time via -ldflags "-X whatsrook/bot/BinaryVersion=...".
 var BinaryVersion = ""
 
-// CommitSHA is set at compile time via -ldflags "-X whatsrook/bot/updater.CommitSHA=...".
+// CommitSHA is set at compile time via -ldflags "-X whatsrook/bot/CommitSHA=...".
 var CommitSHA = ""
 
 // GetBinaryVersion returns the running binary's internal version without inspecting any external files.
@@ -511,13 +511,13 @@ func (pr *progressReader) render(final bool) {
 		}
 		bar := strings.Repeat("=", hashes)
 		spaces := strings.Repeat(" ", width-hashes)
-		fmt.Fprintf(pr.out, "\r[%s%s] %5.1f%% (%s / %s)", bar, spaces, pct, formatBytes(pr.current), formatBytes(pr.total))
+		fmt.Fprintf(pr.out, "\r[%s%s] %5.1f%% (%s / %s)", bar, spaces, pct, formatBytes(uint64(pr.current)), formatBytes(uint64(pr.total)))
 	} else {
-		fmt.Fprintf(pr.out, "\rDownloading... %s", formatBytes(pr.current))
+		fmt.Fprintf(pr.out, "\rDownloading... %s", formatProgressBytes(pr.current))
 	}
 }
 
-func formatBytes(b int64) string {
+func formatProgressBytes(b int64) string {
 	const unit = 1024
 	if b < unit {
 		return fmt.Sprintf("%d B", b)

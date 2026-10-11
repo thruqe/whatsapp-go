@@ -1,14 +1,10 @@
-package calls
+package main
 
 import (
 	"context"
 	"strconv"
 	"strings"
 	"time"
-
-	"whatsrook/bot/builder"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/store"
 
 	"github.com/thruqe/whatsrook"
 
@@ -24,7 +20,7 @@ func HandleAntiCallEvent(ctx context.Context, cli *whatsmeow.Client, v *events.C
 		return
 	}
 
-	logger.Debug("anticall: received call offer event",
+	Debug("anticall: received call offer event",
 		"call_id", v.CallID,
 		"caller", v.CallCreator.String(),
 		"timestamp", v.Timestamp,
@@ -32,7 +28,7 @@ func HandleAntiCallEvent(ctx context.Context, cli *whatsmeow.Client, v *events.C
 
 	// Do not process call offers that occurred before bot startup (with 2m clock skew tolerance)
 	if !v.Timestamp.IsZero() && v.Timestamp.Before(startupTime.Add(-2*time.Minute)) {
-		logger.Debug("anticall: skipping stale call offer before startup",
+		Debug("anticall: skipping stale call offer before startup",
 			"call_id", v.CallID,
 			"caller", v.CallCreator.String(),
 			"timestamp", v.Timestamp,
@@ -40,38 +36,45 @@ func HandleAntiCallEvent(ctx context.Context, cli *whatsmeow.Client, v *events.C
 		return
 	}
 
+	if cli.Store == nil || cli.Store.Identities == nil {
+		return
+	}
 	s, ok := cli.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return
 	}
 
-	voicemailStatus, _ := store.GetSetting(ctx, s, VoicemailSettingKey)
+	voicemailStatus, _ := GetSetting(ctx, s, VoicemailSettingKey)
 	if voicemailStatus == "" {
-		voicemailStatus, _ = store.GetSetting(ctx, s, "autoacceptcall_status")
+		voicemailStatus, _ = GetSetting(ctx, s, "autoacceptcall_status")
 	}
 	if voicemailStatus == "on" {
-		logger.Debug("anticall: skipping reject because voicemail is enabled", "call_id", v.CallID, "caller", v.CallCreator.String())
+		Debug("anticall: skipping reject because voicemail is enabled", "call_id", v.CallID, "caller", v.CallCreator.String())
 		return
 	}
 
-	status, _ := store.GetSetting(ctx, s, "anticall_status")
+	status, _ := GetSetting(ctx, s, "anticall_status")
 	if status != "on" {
-		logger.Debug("anticall: feature is disabled, ignoring call offer", "call_id", v.CallID, "status", status)
+		Debug("anticall: feature is disabled, ignoring call offer", "call_id", v.CallID, "status", status)
 		return
 	}
 
 	callerJID := v.CallCreator
 	callerNum := callerJID.User
 
-	contactsOnly, _ := store.GetSetting(ctx, s, "anticall_contacts_only")
-	allowedCC, _ := store.GetSetting(ctx, s, "anticall_allowed_cc")
+	contactsOnly, _ := GetSetting(ctx, s, "anticall_contacts_only")
+	allowedCC, _ := GetSetting(ctx, s, "anticall_allowed_cc")
 
 	reject := false
 
 	if contactsOnly == "true" {
-		contact, err := cli.Store.Contacts.GetContact(ctx, callerJID)
-		if err != nil || (!contact.Found || (contact.FirstName == "" && contact.FullName == "")) {
-			logger.Debug("anticall: caller is not in contacts and contacts-only mode is active", "caller", callerJID.String())
+		var contactFound bool
+		if cli.Store != nil && cli.Store.Contacts != nil {
+			contact, err := cli.Store.Contacts.GetContact(ctx, callerJID)
+			contactFound = err == nil && contact.Found && (contact.FirstName != "" || contact.FullName != "")
+		}
+		if !contactFound {
+			Debug("anticall: caller is not in contacts and contacts-only mode is active", "caller", callerJID.String())
 			reject = true
 		}
 	}
@@ -87,17 +90,17 @@ func HandleAntiCallEvent(ctx context.Context, cli *whatsmeow.Client, v *events.C
 			}
 		}
 		if !matched {
-			logger.Debug("anticall: caller country code is not in allowed CC whitelist", "caller", callerJID.String(), "allowedCC", allowedCC)
+			Debug("anticall: caller country code is not in allowed CC whitelist", "caller", callerJID.String(), "allowedCC", allowedCC)
 			reject = true
 		}
 	}
 
 	if !reject && contactsOnly != "true" && allowedCC == "" {
-		logger.Debug("anticall: rejecting call because unconditional anticall is active", "caller", callerJID.String())
+		Debug("anticall: rejecting call because unconditional anticall is active", "caller", callerJID.String())
 		reject = true
 	}
 
-	logger.Debug("anticall: evaluation completed",
+	Debug("anticall: evaluation completed",
 		"caller", callerJID.String(),
 		"call_id", v.CallID,
 		"contactsOnly", contactsOnly,
@@ -106,31 +109,31 @@ func HandleAntiCallEvent(ctx context.Context, cli *whatsmeow.Client, v *events.C
 	)
 
 	if reject {
-		logger.Warn("anticall: rejecting call offer", "from", callerJID.String(), "call_id", v.CallID)
+		Warn("anticall: rejecting call offer", "from", callerJID.String(), "call_id", v.CallID)
 		_ = cli.RejectCall(ctx, callerJID, v.CallID)
 
 		warnKey := "anticall_warn:" + callerJID.String()
-		rawWarn, _ := store.GetSetting(ctx, s, warnKey)
+		rawWarn, _ := GetSetting(ctx, s, warnKey)
 		warnCount, _ := strconv.Atoi(rawWarn)
 		warnCount++
-		_ = store.PutSetting(ctx, s, warnKey, strconv.Itoa(warnCount))
+		_ = PutSetting(ctx, s, warnKey, strconv.Itoa(warnCount))
 
-		rawMax, _ := store.GetSetting(ctx, s, "anticall_max_warn")
+		rawMax, _ := GetSetting(ctx, s, "anticall_max_warn")
 		maxWarn, _ := strconv.Atoi(rawMax)
 		if maxWarn <= 0 {
 			maxWarn = 3
 		}
 
-		logger.Debug("anticall: caller warning updated", "caller", callerJID.String(), "warnCount", warnCount, "maxWarn", maxWarn)
+		Debug("anticall: caller warning updated", "caller", callerJID.String(), "warnCount", warnCount, "maxWarn", maxWarn)
 
 		if warnCount >= maxWarn {
-			warnText := builder.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
+			warnText := Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
 			formatted := whatsrook.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 			_, _ = cli.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock, "")
-			logger.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
+			Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
 		} else {
-			warnText := builder.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
+			warnText := Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
 			formatted := whatsrook.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 		}

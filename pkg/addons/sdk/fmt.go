@@ -62,7 +62,7 @@ type MessageBuilder struct {
 	buf strings.Builder
 }
 
-// NewMessageBuilder initializes a new empty MessageBuilder.
+// NewMessageBuilder initializes a new empty Message
 func NewMessageBuilder() *MessageBuilder {
 	return &MessageBuilder{}
 }

@@ -1,4 +1,4 @@
-package dl
+package main
 
 import (
 	"encoding/json"
@@ -9,9 +9,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/logger"
 
 	"github.com/thruqe/whatsrook"
 )
@@ -25,11 +22,11 @@ const (
 )
 
 func init() {
-	dispatch.RegisterPreInterceptor("dl_cookie_reply", HandleCookieReplyIntercept)
+	RegisterPreInterceptor("dl_cookie_reply", HandleCookieReplyIntercept)
 }
 
 // HandleCookieReplyIntercept intercepts replies to the bot's cookie prompt message.
-func HandleCookieReplyIntercept(c *dispatch.Context, text string) bool {
+func HandleCookieReplyIntercept(c *Context, text string) bool {
 	if c == nil || c.Evt == nil {
 		return false
 	}
@@ -312,13 +309,13 @@ func parseJSONCookies(content string) (map[string]*PlatformCookieGroup, int, err
 }
 
 // saveAndReportCookies parses, groups, and saves cookies to the database table.
-func saveAndReportCookies(ctx *dispatch.Context, content string) error {
+func saveAndReportCookies(ctx *Context, content string) error {
 	groups, totalCount, err := ParseAndGroupCookies(content)
 	if err != nil || totalCount == 0 {
 		return ctx.Reply("No valid cookies found. Please ensure you are pasting Netscape format (tab-separated) or JSON cookies.")
 	}
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store is unavailable.")
 	}
@@ -334,7 +331,7 @@ func saveAndReportCookies(ctx *dispatch.Context, content string) error {
 		cookieText := sb.String()
 
 		if err := s.PutPlatformCookie(ctx.GetSendContext(), platform, g.Domain, cookieText); err != nil {
-			logger.Warn("Failed to persist platform cookie to database", "platform", platform, "err", err)
+			Warn("Failed to persist platform cookie to database", "platform", platform, "err", err)
 		}
 		updatedPlatforms = append(updatedPlatforms, fmt.Sprintf("- %s: %d cookies (%s)", platform, len(g.Lines), g.Domain))
 	}
@@ -342,12 +339,12 @@ func saveAndReportCookies(ctx *dispatch.Context, content string) error {
 
 	// Save merged cookies to session media cookies.txt
 	if merged, err := s.GetAllPlatformCookiesMerged(ctx.GetSendContext()); err == nil && merged != "" {
-		sessDir := dispatch.GetSessionMediaDir(ctx.Client)
+		sessDir := GetSessionMediaDir(ctx.Client)
 		_ = os.MkdirAll(sessDir, 0755)
 		_ = os.WriteFile(filepath.Join(sessDir, "cookies.txt"), []byte(merged), 0600)
 	}
 
-	tb := dispatch.NewText()
+	tb := NewText()
 	tb.Line("*Cookies saved successfully!*").Blank()
 	tb.Linef("Total: %d cookies across %d platform(s):", totalCount, len(groups))
 	for _, p := range updatedPlatforms {
@@ -360,11 +357,11 @@ func saveAndReportCookies(ctx *dispatch.Context, content string) error {
 }
 
 // getCookiesFilePath retrieves the appropriate cookies file path for a target URL.
-func getCookiesFilePath(ctx *dispatch.Context, rawURL string) (string, func()) {
+func getCookiesFilePath(ctx *Context, rawURL string) (string, func()) {
 	platform := ExtractPlatformFromURL(rawURL)
 
 	var cookieData string
-	if s, ok := dispatch.GetStore(ctx); ok {
+	if s, ok := GetStore(ctx); ok {
 		// 1. Try platform-specific cookies from bot_platform_cookies table
 		if platform != "" && platform != "generic" {
 			if val, err := s.GetPlatformCookie(ctx.GetSendContext(), platform); err == nil && strings.TrimSpace(val) != "" {
@@ -389,7 +386,7 @@ func getCookiesFilePath(ctx *dispatch.Context, rawURL string) (string, func()) {
 
 	// 4. Fallback to session media cookies.txt
 	if cookieData == "" {
-		sessDir := dispatch.GetSessionMediaDir(ctx.Client)
+		sessDir := GetSessionMediaDir(ctx.Client)
 		sessCookiePath := filepath.Join(sessDir, "cookies.txt")
 		if info, err := os.Stat(sessCookiePath); err == nil && info.Size() > 0 {
 			return sessCookiePath, func() {}
@@ -411,7 +408,7 @@ func getCookiesFilePath(ctx *dispatch.Context, rawURL string) (string, func()) {
 }
 
 // handleCookieCommand manages cookies configuration (.dl cookie [args]).
-func handleCookieCommand(ctx *dispatch.Context) error {
+func handleCookieCommand(ctx *Context) error {
 	args := ctx.Args[1:] // args after "cookie"
 
 	// Subaction: clear [platform]
@@ -421,12 +418,12 @@ func handleCookieCommand(ctx *dispatch.Context) error {
 			targetPlatform = strings.ToLower(strings.TrimSpace(args[1]))
 		}
 
-		if s, ok := dispatch.GetStore(ctx); ok {
+		if s, ok := GetStore(ctx); ok {
 			if targetPlatform != "" && targetPlatform != "all" {
 				_ = s.DeletePlatformCookie(ctx.GetSendContext(), targetPlatform)
 				// Re-sync session cookies.txt
 				if merged, err := s.GetAllPlatformCookiesMerged(ctx.GetSendContext()); err == nil {
-					sessDir := dispatch.GetSessionMediaDir(ctx.Client)
+					sessDir := GetSessionMediaDir(ctx.Client)
 					_ = os.WriteFile(filepath.Join(sessDir, "cookies.txt"), []byte(merged), 0600)
 				}
 				return ctx.Replyf("Stored cookies for platform %q have been deleted.", targetPlatform)
@@ -434,7 +431,7 @@ func handleCookieCommand(ctx *dispatch.Context) error {
 			_ = s.DeleteAllPlatformCookies(ctx.GetSendContext())
 			_ = s.DeleteSetting(ctx.GetSendContext(), SettingYTDLPCookies)
 		}
-		sessDir := dispatch.GetSessionMediaDir(ctx.Client)
+		sessDir := GetSessionMediaDir(ctx.Client)
 		_ = os.Remove(filepath.Join(sessDir, "cookies.txt"))
 		return ctx.Reply("All stored yt-dlp cookies have been deleted successfully.")
 	}
@@ -482,9 +479,9 @@ func handleCookieCommand(ctx *dispatch.Context) error {
 	return reportCookieStatus(ctx)
 }
 
-func reportCookieStatus(ctx *dispatch.Context) error {
+func reportCookieStatus(ctx *Context) error {
 	p := ctx.GetPrefix()
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 
 	var platforms []string
 	totalCookies := 0
@@ -509,7 +506,7 @@ func reportCookieStatus(ctx *dispatch.Context) error {
 		}
 	}
 
-	tb := dispatch.NewText()
+	tb := NewText()
 	if len(platforms) > 0 {
 		tb.Line("*yt-dlp Platform Cookies: ACTIVE*").Blank()
 		tb.Linef("Total: %d cookies stored across %d platform(s):", totalCookies, len(platforms))
@@ -537,14 +534,14 @@ func reportCookieStatus(ctx *dispatch.Context) error {
 }
 
 // sendFailureWithCookiePrompt handles media failures and guides the user to provide cookies.
-func sendFailureWithCookiePrompt(ctx *dispatch.Context, err error) error {
+func sendFailureWithCookiePrompt(ctx *Context, err error) error {
 	p := ctx.GetPrefix()
 	errMsg := err.Error()
 	if len(errMsg) > 250 {
 		errMsg = errMsg[:247] + "..."
 	}
 
-	tb := dispatch.NewText()
+	tb := NewText()
 	tb.Line("*Media Download Failed*").Blank()
 	tb.Linef("Error: %s", errMsg).Blank()
 	tb.Line("*Authentication or Bot Verification Required?*")

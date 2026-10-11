@@ -1,4 +1,4 @@
-package webp
+package main
 
 import (
 	"bytes"

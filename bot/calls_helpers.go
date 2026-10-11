@@ -1,9 +1,7 @@
-package calls
+package main
 
 import (
 	"sync"
-
-	"whatsrook/bot/store"
 
 	"go.mau.fi/whatsmeow/types"
 )
@@ -14,7 +12,7 @@ const (
 
 type PendingCall struct {
 	Target string
-	Kind   store.CallMediaKind
+	Kind   CallMediaKind
 }
 
 var (

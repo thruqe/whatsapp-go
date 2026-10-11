@@ -1,12 +1,10 @@
-package settings
+package main
 
 import (
 	"context"
 	"math/rand"
 	"sync"
 	"time"
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/store"
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
 )
@@ -78,8 +76,7 @@ var (
 
 	StpackSessionMu       sync.RWMutex
 	PendingStpackSessions = make(map[string]StpackSession)
-
-	SupportedTimezones = []string{
+	CommonTimezones       = []string{
 		"Africa/Abidjan",
 		"Africa/Accra",
 		"Africa/Addis_Ababa",
@@ -149,10 +146,10 @@ func DismissBotNamePrompt(ctx context.Context, s any) {
 	if s == nil {
 		return
 	}
-	if sw, ok := s.(*dispatch.StoreWrapper); ok && sw != nil {
+	if sw, ok := s.(*StoreWrapper); ok && sw != nil {
 		_ = sw.PutSetting(ctx, BotNamePromptDismissedKey, "true")
 	} else if sq, ok := s.(*sqlstore.SQLStore); ok && sq != nil {
-		_ = store.PutSetting(ctx, sq, BotNamePromptDismissedKey, "true")
+		_ = PutSetting(ctx, sq, BotNamePromptDismissedKey, "true")
 	}
 }
 
@@ -160,9 +157,9 @@ func ResetBotNamePromptDismissed(ctx context.Context, s any) {
 	if s == nil {
 		return
 	}
-	if sw, ok := s.(*dispatch.StoreWrapper); ok && sw != nil {
+	if sw, ok := s.(*StoreWrapper); ok && sw != nil {
 		_ = sw.PutSetting(ctx, BotNamePromptDismissedKey, "false")
 	} else if sq, ok := s.(*sqlstore.SQLStore); ok && sq != nil {
-		_ = store.PutSetting(ctx, sq, BotNamePromptDismissedKey, "false")
+		_ = PutSetting(ctx, sq, BotNamePromptDismissedKey, "false")
 	}
 }

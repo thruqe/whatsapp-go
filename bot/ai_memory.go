@@ -1,4 +1,4 @@
-package ai
+package main
 
 import (
 	"regexp"
@@ -6,9 +6,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"whatsrook/bot/builder"
-	"whatsrook/bot/external"
 )
 
 // ChatTurn represents a single conversational turn in a chat.
@@ -125,7 +122,7 @@ func FormatRecentHistory(chatID string, currentQuestion string) string {
 		return ""
 	}
 
-	tb := builder.NewText()
+	tb := NewText()
 	for _, t := range turns {
 		if !t.IsBot && t.Text == currentQuestion {
 			continue
@@ -145,8 +142,6 @@ func ClearChatHistory(chatID string) {
 	defer globalChatHistory.mu.Unlock()
 	delete(globalChatHistory.history, chatID)
 }
-
-var urlRegex = regexp.MustCompile(`(?i)\bhttps?://[^\s<>"]+`)
 
 func findURL(text string) string {
 	return urlRegex.FindString(text)
@@ -168,7 +163,7 @@ func InferContextualArgs(cmdName, rawArgs, question, quotedText string, history 
 			return "all"
 		}
 
-		official := external.OfficialPlugins
+		official := OfficialPlugins
 
 		findPlugin := func(text string) string {
 			tLower := strings.ToLower(text)

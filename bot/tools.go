@@ -1,6 +1,6 @@
 // tools package provides utilities for contact vCard syncing, user info inspection,
 // timezone lookups, and decorative Unicode font transformations.
-package tools
+package main
 
 import (
 	"strings"
@@ -10,14 +10,10 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waSyncAction"
 	"go.mau.fi/whatsmeow/types"
-
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/httpx"
-	"whatsrook/bot/logger"
 )
 
 func init() {
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "contact",
 		Alias:       "savecontact",
 		Description: "Save someone to your contacts and send their contact card",
@@ -25,7 +21,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleSaveContact,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "whois",
 		Alias:       "userinfo",
 		Description: "Show user profile details and profile picture",
@@ -33,15 +29,15 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleUserInfo,
 	})
-	dispatch.Register(&dispatch.Command{
-		Name:        "timezone",
-		Alias:       "tz",
-		Description: "View or change your timezone",
+	Register(&Command{
+		Name:        "tzinfo",
+		Alias:       "findtz",
+		Description: "View timezone information for a city or country",
 		Category:    "tools",
 		IsPublic:    true,
-		Handler:     handleTimezone,
+		Handler:     handleQueryTimezone,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "font",
 		Alias:       "fonts,fancy",
 		Description: "Convert text into stylish fancy fonts",
@@ -51,7 +47,7 @@ func init() {
 	})
 }
 
-func handleSaveContact(ctx *dispatch.Context) error {
+func handleSaveContact(ctx *Context) error {
 	p := ctx.GetPrefix()
 	isGroup := ctx.Chat.Server == types.GroupServer
 
@@ -113,7 +109,7 @@ func handleSaveContact(ctx *dispatch.Context) error {
 		firstName = fields[0]
 	}
 
-	logger.Debug("handleSaveContact: processing contact save", "target", targetJID.String(), "fullName", fullName, "firstName", firstName)
+	Debug("handleSaveContact: processing contact save", "target", targetJID.String(), "fullName", fullName, "firstName", firstName)
 
 	var pnStr string
 	var lidStr string
@@ -171,26 +167,26 @@ func handleSaveContact(ctx *dispatch.Context) error {
 		},
 	}
 
-	logger.Debug("handleSaveContact: sending AppState patch", "type", patch.Type, "indexJID", indexJID, "target", targetJID.String())
+	Debug("handleSaveContact: sending AppState patch", "type", patch.Type, "indexJID", indexJID, "target", targetJID.String())
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		logger.Error("handleSaveContact: failed to send AppState patch", "err", err, "target", targetJID.String())
+		Error("handleSaveContact: failed to send AppState patch", "err", err, "target", targetJID.String())
 	} else {
-		logger.Debug("handleSaveContact: AppState patch sent successfully", "target", targetJID.String())
+		Debug("handleSaveContact: AppState patch sent successfully", "target", targetJID.String())
 	}
 
 	if ctx.Client.Store != nil && ctx.Client.Store.Contacts != nil {
 		if err := ctx.Client.Store.Contacts.PutContactName(ctx.Ctx, targetJID.ToNonAD(), firstName, fullName); err != nil {
-			logger.Error("handleSaveContact: failed to update local contact store", "err", err, "target", targetJID.String())
+			Error("handleSaveContact: failed to update local contact store", "err", err, "target", targetJID.String())
 		} else {
-			logger.Debug("handleSaveContact: updated local contact store cache", "target", targetJID.String())
+			Debug("handleSaveContact: updated local contact store cache", "target", targetJID.String())
 		}
 		if !pnJID.IsEmpty() {
 			_ = ctx.Client.Store.Contacts.PutContactName(ctx.Ctx, pnJID.ToNonAD(), firstName, fullName)
 		}
 	}
 
-	vcard := dispatch.Sprintf("BEGIN:VCARD\nVERSION:3.0\nN:%s;%s;;;\nFN:%s\nTEL;type=CELL;waid=%s:+%s\nEND:VCARD", firstName, fullName, fullName, targetJID.User, targetJID.User)
+	vcard := Sprintf("BEGIN:VCARD\nVERSION:3.0\nN:%s;%s;;;\nFN:%s\nTEL;type=CELL;waid=%s:+%s\nEND:VCARD", firstName, fullName, fullName, targetJID.User, targetJID.User)
 	vcardMsg := &waE2E.Message{
 		ContactMessage: &waE2E.ContactMessage{
 			DisplayName: &fullName,
@@ -200,16 +196,16 @@ func handleSaveContact(ctx *dispatch.Context) error {
 
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, vcardMsg)
 	if err != nil {
-		logger.Error("handleSaveContact: failed to send vCard message", "err", err, "chat", ctx.Chat.String())
+		Error("handleSaveContact: failed to send vCard message", "err", err, "chat", ctx.Chat.String())
 	} else {
-		logger.Debug("handleSaveContact: sent native vCard contact message", "chat", ctx.Chat.String())
+		Debug("handleSaveContact: sent native vCard contact message", "chat", ctx.Chat.String())
 	}
 
 	resolvedJID, username := ctx.ResolveMention(targetJID)
-	return ctx.ReplyWithMentions(dispatch.Sprintf("Saved @%s (%s) to your WhatsApp contact sync state.", username, fullName), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(Sprintf("Saved @%s (%s) to your WhatsApp contact sync state.", username, fullName), []types.JID{resolvedJID})
 }
 
-func handleUserInfo(ctx *dispatch.Context) error {
+func handleUserInfo(ctx *Context) error {
 	p := ctx.GetPrefix()
 
 	targets := ctx.GetTargets()
@@ -288,7 +284,7 @@ func handleUserInfo(ctx *dispatch.Context) error {
 	}
 
 	if errPP == nil && ppInfo != nil && ppInfo.URL != "" {
-		imgData, errDownload := httpx.FetchBytes(ctx.Ctx, ppInfo.URL)
+		imgData, errDownload := FetchBytes(ctx.Ctx, ppInfo.URL)
 		if errDownload == nil && len(imgData) > 0 {
 			return ctx.ReplyWithImage(imgData, "image/jpeg", infoText)
 		}
@@ -297,7 +293,7 @@ func handleUserInfo(ctx *dispatch.Context) error {
 	return ctx.Reply(infoText)
 }
 
-func handleTimezone(ctx *dispatch.Context) error {
+func handleQueryTimezone(ctx *Context) error {
 	p := ctx.GetPrefix()
 	query := strings.TrimSpace(ctx.RawArgs)
 
@@ -311,7 +307,7 @@ func handleTimezone(ctx *dispatch.Context) error {
 		if err != nil {
 			return ctx.Replyf("Could not find timezone matching %q: %v", tzQuery, err)
 		}
-		if s, ok := dispatch.GetStore(ctx); ok {
+		if s, ok := GetStore(ctx); ok {
 			_ = s.PutSetting(ctx.Ctx, "timezone", tz.ID)
 		}
 		return ctx.Replyf("Bot timezone updated to *%s* (UTC%s).", tz.Location, tz.UTCOffset)
@@ -326,7 +322,7 @@ func handleTimezone(ctx *dispatch.Context) error {
 		tz.Location, tz.CurrentTime, tz.UTCOffset, tz.ID)
 }
 
-func handleFont(ctx *dispatch.Context) error {
+func handleFont(ctx *Context) error {
 	p := ctx.GetPrefix()
 	if ctx.RawArgs == "" {
 		return ctx.Replyf("Usage: `%sfont <style_number or text>` or `%sfonts` to preview all styles.", p, p)

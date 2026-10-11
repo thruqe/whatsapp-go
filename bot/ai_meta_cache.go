@@ -1,12 +1,9 @@
-// Instruction cache and group metadata cache powered by universal cache store.
-package ai
+// Instruction cache and group metadata cache powered by universal cache
+package main
 
 import (
 	"context"
 	"time"
-
-	"whatsrook/bot/builder"
-	"whatsrook/bot/cache"
 
 	"go.mau.fi/whatsmeow/types"
 )
@@ -15,19 +12,19 @@ const cacheTTL = 10 * time.Minute
 
 // GetOrBuildInstructionWithNameAndPrefix returns the cached instruction block for botName and prefix if still valid.
 func GetOrBuildInstructionWithNameAndPrefix(botName, prefix string, buildFn func() string) string {
-	key := builder.Sprintf("instruction:%s:%s", botName, prefix)
-	if val, ok, _ := cache.Get(context.Background(), key); ok && val != "" {
+	key := Sprintf("instruction:%s:%s", botName, prefix)
+	if val, ok, _ := CacheGet(context.Background(), key); ok && val != "" {
 		return val
 	}
 
 	instruction := buildFn()
-	_ = cache.Set(context.Background(), key, instruction, cacheTTL)
+	_ = Set(context.Background(), key, instruction, cacheTTL)
 	return instruction
 }
 
 // ClearInstructionCache invalidates the cached RUN_COMMAND prompt block.
 func ClearInstructionCache() {
-	_ = cache.DeletePrefix(context.Background(), "instruction:")
+	_ = DeletePrefix(context.Background(), "instruction:")
 }
 
 // GetOrFetchGroupMeta returns cached GroupInfo for chatKey if it's still
@@ -36,9 +33,9 @@ func ClearInstructionCache() {
 // keeps this from hammering WhatsApp's group-info endpoint on every
 // message in an active group.
 func GetOrFetchGroupMeta(chatKey string, fetchFn func() (types.GroupInfo, error)) (types.GroupInfo, error) {
-	cacheKey := builder.Sprintf("group_meta:%s", chatKey)
+	cacheKey := Sprintf("group_meta:%s", chatKey)
 	var cached types.GroupInfo
-	if ok, _ := cache.GetJSON(context.Background(), cacheKey, &cached); ok && !cached.JID.IsEmpty() {
+	if ok, _ := GetJSON(context.Background(), cacheKey, &cached); ok && !cached.JID.IsEmpty() {
 		return cached, nil
 	}
 
@@ -51,6 +48,6 @@ func GetOrFetchGroupMeta(chatKey string, fetchFn func() (types.GroupInfo, error)
 		return types.GroupInfo{}, err
 	}
 
-	_ = cache.SetJSON(context.Background(), cacheKey, info, cacheTTL)
+	_ = SetJSON(context.Background(), cacheKey, info, cacheTTL)
 	return info, nil
 }

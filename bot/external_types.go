@@ -1,4 +1,4 @@
-package external
+package main
 
 import (
 	"time"

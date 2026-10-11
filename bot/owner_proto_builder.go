@@ -1,6 +1,6 @@
-// proto_builder.go provides automatic payload conversion between JavaScript/dynamic objects
+// proto_go provides automatic payload conversion between JavaScript/dynamic objects
 // and WhatsApp Go protobuf equivalents (*waE2E.Message and sub-messages).
-package owner
+package main
 
 import (
 	"encoding/base64"
@@ -18,8 +18,6 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/encoding/protojson"
-
-	"whatsrook/bot/dispatch"
 )
 
 // ConvertToProtoMessage converts an arbitrary JavaScript or Go object into a *waE2E.Message.
@@ -28,7 +26,7 @@ import (
 // 2. Plain text strings (converted to Conversation or ExtendedTextMessage)
 // 3. Baileys-style payloads ({ text, image, video, audio, document, sticker, poll, react, delete, edit })
 // 4. Direct protobuf JSON/maps with camelCase, PascalCase, or snake_case field names.
-func ConvertToProtoMessage(val any, ctx *dispatch.Context) (*waE2E.Message, error) {
+func ConvertToProtoMessage(val any, ctx *Context) (*waE2E.Message, error) {
 	if val == nil {
 		return nil, fmt.Errorf("nil message payload")
 	}
@@ -71,7 +69,7 @@ func ConvertToProtoMessage(val any, ctx *dispatch.Context) (*waE2E.Message, erro
 }
 
 // convertBaileysPayload handles Baileys-style dictionary syntax.
-func convertBaileysPayload(m map[string]any, ctx *dispatch.Context) (*waE2E.Message, bool, error) {
+func convertBaileysPayload(m map[string]any, ctx *Context) (*waE2E.Message, bool, error) {
 	// Text message with optional mentions / quoted
 	if textVal, exists := getMapString(m, "text", "caption"); exists {
 		// Check if it's text-only (not a media caption)
@@ -403,7 +401,7 @@ func convertProtobufMapToMessage(m map[string]any) (*waE2E.Message, error) {
 	return nil, fmt.Errorf("unable to decode payload into protobuf Message: %w", err)
 }
 
-func buildContextInfo(m map[string]any, ctx *dispatch.Context) *waE2E.ContextInfo {
+func buildContextInfo(m map[string]any, ctx *Context) *waE2E.ContextInfo {
 	var ci *waE2E.ContextInfo
 
 	// Check for explicit contextInfo in map
@@ -507,7 +505,7 @@ func resolveMediaData(val any, defaultMime string) ([]byte, string, error) {
 	}
 }
 
-func uploadMedia(ctx *dispatch.Context, data []byte, mediaType whatsmeow.MediaType) (whatsmeow.UploadResponse, error) {
+func uploadMedia(ctx *Context, data []byte, mediaType whatsmeow.MediaType) (whatsmeow.UploadResponse, error) {
 	if ctx == nil || ctx.Client == nil {
 		return whatsmeow.UploadResponse{}, fmt.Errorf("whatsapp client unavailable")
 	}

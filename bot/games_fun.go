@@ -1,4 +1,4 @@
-package games
+package main
 
 import (
 	"context"
@@ -7,12 +7,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"whatsrook/bot/builder"
-	"whatsrook/bot/httpx"
 )
 
-var funHTTPClient = httpx.NewClient(4 * time.Second)
+var funHTTPClient = NewHttpClient(4 * time.Second)
 
 var fallbackFacts = []string{
 	"Honey never spoils; archaeologists have found 3,000-year-old edible honey in Egyptian tombs.",
@@ -103,9 +100,9 @@ func GetRandomQuote(ctx context.Context) string {
 			if json.NewDecoder(resp.Body).Decode(&res) == nil && strings.TrimSpace(res.Quote) != "" {
 				q := strings.TrimSpace(res.Quote)
 				if res.Author != "" {
-					return builder.Sprintf("%q – %s", q, res.Author)
+					return Sprintf("%q – %s", q, res.Author)
 				}
-				return builder.Sprintf("%q", q)
+				return Sprintf("%q", q)
 			}
 		}
 	}
@@ -122,9 +119,9 @@ func GetRandomQuote(ctx context.Context) string {
 				q := strings.TrimSpace(resList[0].Q)
 				a := strings.TrimSpace(resList[0].A)
 				if a != "" {
-					return builder.Sprintf("%q – %s", q, a)
+					return Sprintf("%q – %s", q, a)
 				}
-				return builder.Sprintf("%q", q)
+				return Sprintf("%q", q)
 			}
 		}
 	}
@@ -156,7 +153,7 @@ func GetRandomJoke(ctx context.Context) string {
 				Punchline string `json:"punchline"`
 			}
 			if json.NewDecoder(resp2.Body).Decode(&res2) == nil && strings.TrimSpace(res2.Setup) != "" {
-				return builder.Sprintf("%s\n\n%s", strings.TrimSpace(res2.Setup), strings.TrimSpace(res2.Punchline))
+				return Sprintf("%s\n\n%s", strings.TrimSpace(res2.Setup), strings.TrimSpace(res2.Punchline))
 			}
 		}
 	}

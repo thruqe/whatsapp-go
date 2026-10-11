@@ -1,4 +1,4 @@
-package builder
+package main
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"whatsrook/bot/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -75,7 +74,7 @@ func RegisterPollRoute(cfg PollRouteConfig) {
 			pollRoutesMu.Unlock()
 
 			if exists {
-				logger.Debug("WARook: poll expired after timeout and auto-deleted",
+				Debug("WARook: poll expired after timeout and auto-deleted",
 					"pollMsgID", cfg.PollMsgID,
 					"chat", cfg.Chat.String(),
 					"timeout", cfg.Timeout,
@@ -97,7 +96,7 @@ func RegisterPollRoute(cfg PollRouteConfig) {
 							preRevoke := cli.BuildRevoke(ch, types.EmptyJID, preID)
 							_, _ = cli.SendMessage(context.Background(), ch, preRevoke)
 						}
-						logger.Debug("WARook: auto-deleted expired poll and preceding messages", "pollMsgID", pID, "precedingMsgID", preID)
+						Debug("WARook: auto-deleted expired poll and preceding messages", "pollMsgID", pID, "precedingMsgID", preID)
 					}(client, chat, cfg.PollMsgID, cfg.PrecedingMsgID)
 				}
 			}
@@ -120,7 +119,7 @@ func RegisterPollRoute(cfg PollRouteConfig) {
 	total := len(pollRoutes)
 	pollRoutesMu.Unlock()
 
-	logger.Debug("WARook: registered poll vote handler",
+	Debug("WARook: registered poll vote handler",
 		"pollMsgID", cfg.PollMsgID,
 		"precedingMsgID", cfg.PrecedingMsgID,
 		"optionsCount", len(cfg.Options),
@@ -155,7 +154,7 @@ func DeregisterPollHandler(pollMsgID types.MessageID) {
 	}
 	total := len(pollRoutes)
 	pollRoutesMu.Unlock()
-	logger.Debug("WARook: deregistered poll vote handler",
+	Debug("WARook: deregistered poll vote handler",
 		"pollMsgID", pollMsgID,
 		"totalActivePollRoutes", total,
 	)
@@ -177,7 +176,7 @@ type PollBuilder struct {
 
 // NewPoll initializes a new PollBuilder for the given question (single-choice & 25s auto-delete by default).
 func NewPoll(rook *WARook, question string) *PollBuilder {
-	logger.Debug("PollBuilder: initialized", "question", question, "single", true, "timeout", DefaultPollTimeout)
+	Debug("PollBuilder: initialized", "question", question, "single", true, "timeout", DefaultPollTimeout)
 	return &PollBuilder{
 		rook:       rook,
 		question:   question,
@@ -189,7 +188,7 @@ func NewPoll(rook *WARook, question string) *PollBuilder {
 
 // Question sets or updates the question text of the poll.
 func (p *PollBuilder) Question(question string) *PollBuilder {
-	logger.Debug("PollBuilder: updated question", "prevQuestion", p.question, "newQuestion", question)
+	Debug("PollBuilder: updated question", "prevQuestion", p.question, "newQuestion", question)
 	p.question = question
 	return p
 }
@@ -199,7 +198,7 @@ func (p *PollBuilder) AddOption(option string) *PollBuilder {
 	opt := strings.TrimSpace(option)
 	if opt != "" {
 		p.options = append(p.options, opt)
-		logger.Debug("PollBuilder: option added", "option", opt, "totalOptions", len(p.options))
+		Debug("PollBuilder: option added", "option", opt, "totalOptions", len(p.options))
 	}
 	return p
 }
@@ -214,14 +213,14 @@ func (p *PollBuilder) AddOptions(options ...string) *PollBuilder {
 
 // SingleChoice restricts the poll to one selectable answer (default).
 func (p *PollBuilder) SingleChoice() *PollBuilder {
-	logger.Debug("PollBuilder: choice mode configured", "single", true)
+	Debug("PollBuilder: choice mode configured", "single", true)
 	p.single = true
 	return p
 }
 
 // MultiChoice allows multiple answers to be selected simultaneously.
 func (p *PollBuilder) MultiChoice() *PollBuilder {
-	logger.Debug("PollBuilder: choice mode configured", "single", false)
+	Debug("PollBuilder: choice mode configured", "single", false)
 	p.single = false
 	return p
 }
@@ -233,13 +232,13 @@ func (p *PollBuilder) Mentions(jids ...types.JID) *PollBuilder {
 			p.mentions = append(p.mentions, j)
 		}
 	}
-	logger.Debug("PollBuilder: mentions attached", "mentionsCount", len(p.mentions))
+	Debug("PollBuilder: mentions attached", "mentionsCount", len(p.mentions))
 	return p
 }
 
 // AsReply configures the poll to be sent quoting the triggering message.
 func (p *PollBuilder) AsReply() *PollBuilder {
-	logger.Debug("PollBuilder: configured as quoted reply")
+	Debug("PollBuilder: configured as quoted reply")
 	p.asReply = true
 	return p
 }
@@ -247,7 +246,7 @@ func (p *PollBuilder) AsReply() *PollBuilder {
 // AutoDelete configures whether the poll message should automatically be revoked/deleted
 // after being voted on or timing out (default: true).
 func (p *PollBuilder) AutoDelete(enable bool) *PollBuilder {
-	logger.Debug("PollBuilder: autoDelete configured", "enable", enable)
+	Debug("PollBuilder: autoDelete configured", "enable", enable)
 	p.autoDelete = enable
 	return p
 }
@@ -255,7 +254,7 @@ func (p *PollBuilder) AutoDelete(enable bool) *PollBuilder {
 // Timeout sets the expiration timeout after which an unvoted poll is automatically deleted (default: 25s).
 // Setting timeout <= 0 disables timeout auto-deletion.
 func (p *PollBuilder) Timeout(d time.Duration) *PollBuilder {
-	logger.Debug("PollBuilder: timeout configured", "timeout", d)
+	Debug("PollBuilder: timeout configured", "timeout", d)
 	p.timeout = d
 	if d <= 0 {
 		p.autoDelete = false
@@ -270,7 +269,7 @@ func (p *PollBuilder) AllowedSenders(jids ...types.JID) *PollBuilder {
 			p.allowedSenders = append(p.allowedSenders, j)
 		}
 	}
-	logger.Debug("PollBuilder: allowedSenders attached", "allowedCount", len(p.allowedSenders))
+	Debug("PollBuilder: allowedSenders attached", "allowedCount", len(p.allowedSenders))
 	return p
 }
 
@@ -293,10 +292,10 @@ func (p *PollBuilder) Send(to types.JID, fn ...func(req PollRequest, res *Respon
 // SendWithID sends the poll to the given JID, returns its MessageID, and optionally registers fn to receive votes.
 func (p *PollBuilder) SendWithID(to types.JID, fn ...func(req PollRequest, res *Response)) (types.MessageID, error) {
 	hasCallback := len(fn) > 0 && fn[0] != nil
-	logger.Debug("PollBuilder: SendWithID called", "to", to.String(), "hasCallback", hasCallback, "asReply", p.asReply)
+	Debug("PollBuilder: SendWithID called", "to", to.String(), "hasCallback", hasCallback, "asReply", p.asReply)
 	pollMsgID, precedingMsgID, err := p.sendMsgWithID(to, p.asReply)
 	if err != nil {
-		logger.Error("PollBuilder: SendWithID failed", "to", to.String(), "err", err)
+		Error("PollBuilder: SendWithID failed", "to", to.String(), "err", err)
 		return "", err
 	}
 	var cb func(req PollRequest, res *Response)
@@ -335,10 +334,10 @@ func (p *PollBuilder) ReplyWithID(fn ...func(req PollRequest, res *Response)) (t
 	}
 	chat := p.rook.sender.GetChat()
 	hasCallback := len(fn) > 0 && fn[0] != nil
-	logger.Debug("PollBuilder: ReplyWithID called", "chat", chat.String(), "hasCallback", hasCallback)
+	Debug("PollBuilder: ReplyWithID called", "chat", chat.String(), "hasCallback", hasCallback)
 	pollMsgID, precedingMsgID, err := p.sendMsgWithID(chat, true)
 	if err != nil {
-		logger.Error("PollBuilder: ReplyWithID failed", "chat", chat.String(), "err", err)
+		Error("PollBuilder: ReplyWithID failed", "chat", chat.String(), "err", err)
 		return "", err
 	}
 	var cb func(req PollRequest, res *Response)
@@ -369,10 +368,10 @@ func (p *PollBuilder) Once(to types.JID, fn ...func(req PollRequest, res *Respon
 // OnceWithID sends the poll to the given JID, returns its MessageID, and registers a one-shot handler.
 func (p *PollBuilder) OnceWithID(to types.JID, fn ...func(req PollRequest, res *Response)) (types.MessageID, error) {
 	hasCallback := len(fn) > 0 && fn[0] != nil
-	logger.Debug("PollBuilder: OnceWithID called", "to", to.String(), "hasCallback", hasCallback, "asReply", p.asReply)
+	Debug("PollBuilder: OnceWithID called", "to", to.String(), "hasCallback", hasCallback, "asReply", p.asReply)
 	pollMsgID, precedingMsgID, err := p.sendMsgWithID(to, p.asReply)
 	if err != nil {
-		logger.Error("PollBuilder: OnceWithID failed", "to", to.String(), "err", err)
+		Error("PollBuilder: OnceWithID failed", "to", to.String(), "err", err)
 		return "", err
 	}
 	var cb func(req PollRequest, res *Response)
@@ -411,10 +410,10 @@ func (p *PollBuilder) OnceReplyWithID(fn ...func(req PollRequest, res *Response)
 	}
 	chat := p.rook.sender.GetChat()
 	hasCallback := len(fn) > 0 && fn[0] != nil
-	logger.Debug("PollBuilder: OnceReplyWithID called", "chat", chat.String(), "hasCallback", hasCallback)
+	Debug("PollBuilder: OnceReplyWithID called", "chat", chat.String(), "hasCallback", hasCallback)
 	pollMsgID, precedingMsgID, err := p.sendMsgWithID(chat, true)
 	if err != nil {
-		logger.Error("PollBuilder: OnceReplyWithID failed", "chat", chat.String(), "err", err)
+		Error("PollBuilder: OnceReplyWithID failed", "chat", chat.String(), "err", err)
 		return "", err
 	}
 	var cb func(req PollRequest, res *Response)
@@ -457,7 +456,7 @@ func (p *PollBuilder) sendMsgWithID(to types.JID, asReply bool) (pollMsgID types
 	// If the question is long (> 250 chars), send descriptive body first then clean prompt
 	if len(q) > 250 {
 		fullText := q
-		logger.Debug("PollBuilder: question exceeds 250 characters, transmitting preceding text body",
+		Debug("PollBuilder: question exceeds 250 characters, transmitting preceding text body",
 			"fullLength", len(fullText),
 			"to", to.String(),
 			"asReply", asReply,
@@ -494,9 +493,9 @@ func (p *PollBuilder) sendMsgWithID(to types.JID, asReply bool) (pollMsgID types
 		respPre, errPre := cli.SendMessage(sender.GetSendContext(), to, textMsg)
 		if errPre == nil {
 			precedingMsgID = respPre.ID
-			logger.Debug("PollBuilder: preceding text body sent successfully", "msgID", precedingMsgID)
+			Debug("PollBuilder: preceding text body sent successfully", "msgID", precedingMsgID)
 		} else {
-			logger.Error("PollBuilder: failed to transmit preceding text body", "err", errPre)
+			Error("PollBuilder: failed to transmit preceding text body", "err", errPre)
 		}
 
 		lines := strings.Split(fullText, "\n")
@@ -507,7 +506,7 @@ func (p *PollBuilder) sendMsgWithID(to types.JID, asReply bool) (pollMsgID types
 		if q == "" {
 			q = "Select an option below:"
 		}
-		logger.Debug("PollBuilder: extracted poll header prompt after text split", "headerPrompt", q)
+		Debug("PollBuilder: extracted poll header prompt after text split", "headerPrompt", q)
 	}
 
 	if q == "" {
@@ -530,10 +529,10 @@ func (p *PollBuilder) sendMsgWithID(to types.JID, asReply bool) (pollMsgID types
 		} else {
 			opts = []string{"Yes", "No"}
 		}
-		logger.Debug("PollBuilder: padded options to meet minimum requirement of 2", "finalOptions", opts)
+		Debug("PollBuilder: padded options to meet minimum requirement of 2", "finalOptions", opts)
 	}
 
-	logger.Debug("PollBuilder: building poll creation payload",
+	Debug("PollBuilder: building poll creation payload",
 		"question", q,
 		"optionCount", len(opts),
 		"selectableCount", selectableCount,
@@ -559,7 +558,7 @@ func (p *PollBuilder) sendMsgWithID(to types.JID, asReply bool) (pollMsgID types
 	}
 
 	start := time.Now()
-	logger.Debug("PollBuilder: transmitting poll message",
+	Debug("PollBuilder: transmitting poll message",
 		"to", to.String(),
 		"question", q,
 		"options", opts,
@@ -570,7 +569,7 @@ func (p *PollBuilder) sendMsgWithID(to types.JID, asReply bool) (pollMsgID types
 
 	resp, err := cli.SendMessage(sender.GetSendContext(), to, msg)
 	if err != nil {
-		logger.Error("PollBuilder: failed to transmit poll message",
+		Error("PollBuilder: failed to transmit poll message",
 			"to", to.String(),
 			"question", q,
 			"err", err,
@@ -579,7 +578,7 @@ func (p *PollBuilder) sendMsgWithID(to types.JID, asReply bool) (pollMsgID types
 		return "", precedingMsgID, err
 	}
 
-	logger.Debug("PollBuilder: poll message sent successfully",
+	Debug("PollBuilder: poll message sent successfully",
 		"msgID", resp.ID,
 		"to", to.String(),
 		"serverTimestamp", resp.Timestamp,
@@ -692,7 +691,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 	}
 	key := pollUpdate.GetPollCreationMessageKey()
 	if key == nil || key.GetID() == "" {
-		logger.Debug("WARook: poll vote message key is empty or nil",
+		Debug("WARook: poll vote message key is empty or nil",
 			"sender", sender.GetSender().String(),
 			"chat", sender.GetChat().String(),
 		)
@@ -700,7 +699,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 	}
 	pollMsgID := types.MessageID(key.GetID())
 
-	logger.Debug("WARook: incoming poll vote event",
+	Debug("WARook: incoming poll vote event",
 		"targetPollMsgID", pollMsgID,
 		"sender", sender.GetSender().String(),
 		"chat", sender.GetChat().String(),
@@ -711,7 +710,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 	route, ok := pollRoutes[pollMsgID]
 	pollRoutesMu.RUnlock()
 	if !ok {
-		logger.Debug("WARook: no registered reactive route for poll message",
+		Debug("WARook: no registered reactive route for poll message",
 			"targetPollMsgID", pollMsgID,
 			"sender", sender.GetSender().String(),
 			"chat", sender.GetChat().String(),
@@ -748,7 +747,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 		}
 
 		if !isAllowed {
-			logger.Debug("WARook: ignoring poll vote from non-authorized sender (poll, timer, and route preserved)",
+			Debug("WARook: ignoring poll vote from non-authorized sender (poll, timer, and route preserved)",
 				"targetPollMsgID", pollMsgID,
 				"sender", senderJID.String(),
 				"chat", sender.GetChat().String(),
@@ -769,7 +768,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 		delete(pollRoutes, pollMsgID)
 		remaining := len(pollRoutes)
 		pollRoutesMu.Unlock()
-		logger.Debug("WARook: poll handler consumed and deregistered on vote",
+		Debug("WARook: poll handler consumed and deregistered on vote",
 			"targetPollMsgID", pollMsgID,
 			"remainingActivePollRoutes", remaining,
 		)
@@ -787,18 +786,18 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 		}
 		if client != nil && !chat.IsEmpty() {
 			go func(cli *whatsmeow.Client, ch types.JID, pID, preID types.MessageID) {
-				logger.Debug("WARook: auto-deleting completed poll message on vote", "pollMsgID", pID, "chat", ch.String())
+				Debug("WARook: auto-deleting completed poll message on vote", "pollMsgID", pID, "chat", ch.String())
 				revokeMsg := cli.BuildRevoke(ch, types.EmptyJID, pID)
 				_, err := cli.SendMessage(context.Background(), ch, revokeMsg)
 				if err != nil {
-					logger.Debug("WARook: auto-delete poll message failed", "pollMsgID", pID, "err", err)
+					Debug("WARook: auto-delete poll message failed", "pollMsgID", pID, "err", err)
 				} else {
-					logger.Debug("WARook: auto-deleted completed poll message", "pollMsgID", pID)
+					Debug("WARook: auto-deleted completed poll message", "pollMsgID", pID)
 				}
 				if preID != "" {
 					preRevoke := cli.BuildRevoke(ch, types.EmptyJID, preID)
 					_, _ = cli.SendMessage(context.Background(), ch, preRevoke)
-					logger.Debug("WARook: auto-deleted completed preceding text message", "precedingMsgID", preID)
+					Debug("WARook: auto-deleted completed preceding text message", "precedingMsgID", preID)
 				}
 			}(client, chat, pollMsgID, route.precedingMsgID)
 		}
@@ -809,14 +808,14 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 		cli = route.client
 	}
 	if cli == nil {
-		logger.Error("WARook: no client available to decrypt poll vote", "targetPollMsgID", pollMsgID)
+		Error("WARook: no client available to decrypt poll vote", "targetPollMsgID", pollMsgID)
 		return false
 	}
 
 	decryptStart := time.Now()
 	decrypted, err := cli.DecryptPollVote(context.Background(), evt)
 	if err != nil {
-		logger.Error("WARook: poll vote decryption failed",
+		Error("WARook: poll vote decryption failed",
 			"targetPollMsgID", pollMsgID,
 			"sender", sender.GetSender().String(),
 			"chat", sender.GetChat().String(),
@@ -826,7 +825,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 		return false
 	}
 
-	logger.Debug("WARook: poll vote decrypted successfully",
+	Debug("WARook: poll vote decrypted successfully",
 		"targetPollMsgID", pollMsgID,
 		"selectedHashesCount", len(decrypted.SelectedOptions),
 		"duration", time.Since(decryptStart),
@@ -840,7 +839,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 			if bytes.Equal(h[:], optHash) {
 				selectedOptions = append(selectedOptions, name)
 				matched = true
-				logger.Debug("WARook: matched poll option hash to option name",
+				Debug("WARook: matched poll option hash to option name",
 					"targetPollMsgID", pollMsgID,
 					"optionName", name,
 					"hashHex", fmt.Sprintf("%x", optHash),
@@ -849,7 +848,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 			}
 		}
 		if !matched {
-			logger.Debug("WARook: unmapped option hash in poll vote",
+			Debug("WARook: unmapped option hash in poll vote",
 				"targetPollMsgID", pollMsgID,
 				"hashHex", fmt.Sprintf("%x", optHash),
 				"expectedOptions", route.options,
@@ -857,7 +856,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 		}
 	}
 
-	logger.Debug("WARook: dispatching poll vote to reactive callback",
+	Debug("WARook: dispatching poll vote to reactive callback",
 		"targetPollMsgID", pollMsgID,
 		"sender", sender.GetSender().String(),
 		"chat", sender.GetChat().String(),
@@ -880,7 +879,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					logger.Error("WARook: poll handler panicked",
+					Error("WARook: poll handler panicked",
 						"targetPollMsgID", pollMsgID,
 						"sender", sender.GetSender().String(),
 						"chat", sender.GetChat().String(),
@@ -890,7 +889,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 			}()
 			handlerStart := time.Now()
 			route.fn(req, res)
-			logger.Debug("WARook: poll callback finished successfully",
+			Debug("WARook: poll callback finished successfully",
 				"targetPollMsgID", pollMsgID,
 				"duration", time.Since(handlerStart),
 			)
@@ -906,7 +905,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					logger.Error("WARook: default poll callback panicked",
+					Error("WARook: default poll callback panicked",
 						"targetPollMsgID", pollMsgID,
 						"sender", sender.GetSender().String(),
 						"chat", sender.GetChat().String(),
@@ -916,7 +915,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 			}()
 			handlerStart := time.Now()
 			fallbackFn(req, res)
-			logger.Debug("WARook: default poll callback finished successfully",
+			Debug("WARook: default poll callback finished successfully",
 				"targetPollMsgID", pollMsgID,
 				"duration", time.Since(handlerStart),
 			)
@@ -924,7 +923,7 @@ func DispatchPollVoteEvent(sender Sender, evt *events.Message) bool {
 		return true
 	}
 
-	logger.Debug("WARook: poll vote decrypted but route has no custom callback function",
+	Debug("WARook: poll vote decrypted but route has no custom callback function",
 		"targetPollMsgID", pollMsgID,
 		"selectedOptions", selectedOptions,
 	)

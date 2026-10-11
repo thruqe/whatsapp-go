@@ -1,4 +1,4 @@
-package group
+package main
 
 import (
 	"context"
@@ -9,12 +9,6 @@ import (
 	"os/exec"
 	"strconv"
 	"time"
-
-	"whatsrook/bot/botctx"
-	"whatsrook/bot/builder"
-	"whatsrook/bot/external"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/store"
 
 	"github.com/thruqe/whatsrook"
 
@@ -31,7 +25,7 @@ func HandleCaptcha(ctx context.Context, cli *whatsmeow.Client, g *events.GroupIn
 		return
 	}
 
-	logger.Debug("handleGroupCaptcha: received group info event",
+	Debug("handleGroupCaptcha: received group info event",
 		"group", g.JID.String(),
 		"joins", len(g.Join),
 		"leaves", len(g.Leave),
@@ -41,7 +35,7 @@ func HandleCaptcha(ctx context.Context, cli *whatsmeow.Client, g *events.GroupIn
 
 	// Do not process group events that happened before the bot started (with 2m clock skew tolerance)
 	if !g.Timestamp.IsZero() && g.Timestamp.Before(startupTime.Add(-2*time.Minute)) {
-		logger.Debug("handleGroupCaptcha: skipping stale group event before startup",
+		Debug("handleGroupCaptcha: skipping stale group event before startup",
 			"group", g.JID.String(),
 			"timestamp", g.Timestamp,
 		)
@@ -52,7 +46,7 @@ func HandleCaptcha(ctx context.Context, cli *whatsmeow.Client, g *events.GroupIn
 	if len(g.Leave) > 0 {
 		for _, participant := range g.Leave {
 			if pending, ok := RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
-				logger.Debug("handleGroupCaptcha: cancelled pending captcha for leaving participant", "group", g.JID.String(), "user", participant.String())
+				Debug("handleGroupCaptcha: cancelled pending captcha for leaving participant", "group", g.JID.String(), "user", participant.String())
 				if pending.MsgID != "" {
 					_, _ = cli.SendMessage(ctx, g.JID, cli.BuildRevoke(g.JID, types.EmptyJID, pending.MsgID))
 				}
@@ -63,7 +57,7 @@ func HandleCaptcha(ctx context.Context, cli *whatsmeow.Client, g *events.GroupIn
 	if len(g.Promote) > 0 {
 		for _, participant := range g.Promote {
 			if pending, ok := RemovePendingCaptcha(g.JID, participant); ok && pending != nil {
-				logger.Debug("handleGroupCaptcha: cancelled pending captcha for promoted admin", "group", g.JID.String(), "user", participant.String())
+				Debug("handleGroupCaptcha: cancelled pending captcha for promoted admin", "group", g.JID.String(), "user", participant.String())
 				if pending.MsgID != "" {
 					_, _ = cli.SendMessage(ctx, g.JID, cli.BuildRevoke(g.JID, types.EmptyJID, pending.MsgID))
 				}
@@ -71,7 +65,7 @@ func HandleCaptcha(ctx context.Context, cli *whatsmeow.Client, g *events.GroupIn
 		}
 	}
 	if len(g.Join) == 0 {
-		logger.Debug("handleGroupCaptcha: no joins present in event", "group", g.JID.String())
+		Debug("handleGroupCaptcha: no joins present in event", "group", g.JID.String())
 		return
 	}
 
@@ -89,31 +83,31 @@ func processGroupCaptchaJoins(cli *whatsmeow.Client, g *events.GroupInfo) {
 	}
 
 	chatKey := g.JID.ToNonAD().String()
-	status, _ := store.GetSetting(ctx, s, "captcha_status:"+chatKey)
+	status, _ := GetSetting(ctx, s, "captcha_status:"+chatKey)
 	if status == "" {
-		status, _ = store.GetSetting(ctx, s, "captcha_status:"+g.JID.String())
+		status, _ = GetSetting(ctx, s, "captcha_status:"+g.JID.String())
 	}
-	logger.Debug("processGroupCaptchaJoins: checking captcha status for group", "group", chatKey, "status", status, "joinCount", len(g.Join))
+	Debug("processGroupCaptchaJoins: checking captcha status for group", "group", chatKey, "status", status, "joinCount", len(g.Join))
 	if status != "on" {
-		logger.Debug("processGroupCaptchaJoins: captcha is disabled for group", "group", chatKey)
+		Debug("processGroupCaptchaJoins: captcha is disabled for group", "group", chatKey)
 		return
 	}
 
 	info, err := cli.GetGroupInfo(ctx, g.JID)
 	if err != nil || info == nil {
-		logger.Warn("processGroupCaptchaJoins: failed to retrieve group info", "group", chatKey, "err", err)
+		Warn("processGroupCaptchaJoins: failed to retrieve group info", "group", chatKey, "err", err)
 		return
 	}
 
 	// This plugin should only work if this bot is an admin
-	if !botctx.IsBotAdminRaw(ctx, cli, info) {
-		logger.Warn("handleGroupCaptcha: bot is not an admin in group, skipping captcha verification", "group", chatKey)
+	if !IsBotAdminRaw(ctx, cli, info) {
+		Warn("handleGroupCaptcha: bot is not an admin in group, skipping captcha verification", "group", chatKey)
 		return
 	}
 
 	// If group only allows admins to send messages, no need for verification
 	if info.IsAnnounce {
-		logger.Debug("handleGroupCaptcha: group is announce-only, skipping captcha verification", "group", chatKey)
+		Debug("handleGroupCaptcha: group is announce-only, skipping captcha verification", "group", chatKey)
 		return
 	}
 
@@ -124,11 +118,11 @@ func processGroupCaptchaJoins(cli *whatsmeow.Client, g *events.GroupInfo) {
 
 	// Timeout setting (default 120s / 2 mins)
 	timeoutSec := 120
-	if rawTime, _ := store.GetSetting(ctx, s, "captcha_time:"+chatKey); rawTime != "" {
+	if rawTime, _ := GetSetting(ctx, s, "captcha_time:"+chatKey); rawTime != "" {
 		if t, err := strconv.Atoi(rawTime); err == nil && t >= 10 {
 			timeoutSec = t
 		}
-	} else if rawTime, _ := store.GetSetting(ctx, s, "captcha_time:"+g.JID.String()); rawTime != "" {
+	} else if rawTime, _ := GetSetting(ctx, s, "captcha_time:"+g.JID.String()); rawTime != "" {
 		if t, err := strconv.Atoi(rawTime); err == nil && t >= 10 {
 			timeoutSec = t
 		}
@@ -137,12 +131,12 @@ func processGroupCaptchaJoins(cli *whatsmeow.Client, g *events.GroupInfo) {
 
 	for _, participant := range g.Join {
 		// Skip if participant is the bot itself
-		if botctx.IsSameUserRaw(ctx, cli, participant, *cli.Store.ID) {
-			logger.Debug("processGroupCaptchaJoins: skipping bot participant", "group", chatKey, "user", participant.String())
+		if IsSameUserRaw(ctx, cli, participant, *cli.Store.ID) {
+			Debug("processGroupCaptchaJoins: skipping bot participant", "group", chatKey, "user", participant.String())
 			continue
 		}
 
-		resolvedJIDs, username := botctx.ResolveMentionJIDs(ctx, cli, participant)
+		resolvedJIDs, username := ResolveMentionJIDs(ctx, cli, participant)
 		resolvedJID := participant.ToNonAD()
 		if len(resolvedJIDs) > 0 {
 			resolvedJID = resolvedJIDs[0]
@@ -151,11 +145,11 @@ func processGroupCaptchaJoins(cli *whatsmeow.Client, g *events.GroupInfo) {
 		// Generate random 4-digit code
 		codeInt, err := generateVerificationCode()
 		if err != nil {
-			logger.Error("Captcha number verification failed: %v", err)
+			Error("Captcha number verification failed: %v", err)
 		}
-		code := builder.Sprintf("%04d", codeInt)
+		code := Sprintf("%04d", codeInt)
 
-		logger.Debug("processGroupCaptchaJoins: registering pending captcha challenge",
+		Debug("processGroupCaptchaJoins: registering pending captcha challenge",
 			"group", chatKey,
 			"user", participant.String(),
 			"username", username,
@@ -175,39 +169,39 @@ func processGroupCaptchaJoins(cli *whatsmeow.Client, g *events.GroupInfo) {
 			code,
 			time.Duration(timeoutSec)*time.Second,
 			func() {
-				logger.Debug("processGroupCaptchaJoins: captcha timeout triggered for user", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
+				Debug("processGroupCaptchaJoins: captcha timeout triggered for user", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
 				// Timeout reached, kick user
 				currentInfo, gErr := cli.GetGroupInfo(context.Background(), g.JID)
 				if gErr != nil || currentInfo == nil {
-					logger.Warn("processGroupCaptchaJoins: failed to get group info during timeout kick", "group", g.JID.String(), "err", gErr)
+					Warn("processGroupCaptchaJoins: failed to get group info during timeout kick", "group", g.JID.String(), "err", gErr)
 					return
 				}
-				if !botctx.IsBotAdminRaw(context.Background(), cli, currentInfo) {
-					logger.Warn("handleGroupCaptcha: bot is no longer admin to kick unverified participant", "group", g.JID.String(), "user", partCopy.String())
+				if !IsBotAdminRaw(context.Background(), cli, currentInfo) {
+					Warn("handleGroupCaptcha: bot is no longer admin to kick unverified participant", "group", g.JID.String(), "user", partCopy.String())
 					return
 				}
 				// Don't attempt to kick admins/creators if they didn't verify
-				if botctx.IsAdminRaw(context.Background(), cli, currentInfo, partCopy) {
-					logger.Warn("handleGroupCaptcha: unverified participant is an admin or creator, skipping kick", "group", g.JID.String(), "user", partCopy.String())
+				if IsAdminRaw(context.Background(), cli, currentInfo, partCopy) {
+					Warn("handleGroupCaptcha: unverified participant is an admin or creator, skipping kick", "group", g.JID.String(), "user", partCopy.String())
 					return
 				}
 
 				_, kErr := cli.UpdateGroupParticipants(context.Background(), g.JID, []types.JID{partCopy}, whatsmeow.ParticipantChangeRemove)
 				if kErr != nil {
-					logger.Error("handleGroupCaptcha: failed to kick unverified participant", "user", partCopy.String(), "err", kErr)
+					Error("handleGroupCaptcha: failed to kick unverified participant", "user", partCopy.String(), "err", kErr)
 					return
 				}
 
-				logger.Debug("processGroupCaptchaJoins: unverified participant removed from group", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
+				Debug("processGroupCaptchaJoins: unverified participant removed from group", "group", g.JID.String(), "user", partCopy.String(), "username", userCopy)
 
-				kickTb := builder.NewText()
+				kickTb := NewText()
 				kickTb.Linef("@%s was removed from the group for failing to complete the captcha verification within %s.", userCopy, timeoutDisplay)
 				sendGroupEventMessageWithMentions(context.Background(), cli, g.JID, kickTb.Trimmed(), []types.JID{resolvedCopy})
 			},
 		)
 
 		// Generate 8-second captcha video using external captcha plugin
-		logger.Debug("processGroupCaptchaJoins: generating animated captcha video", "group", chatKey, "user", username, "code", code)
+		Debug("processGroupCaptchaJoins: generating animated captcha video", "group", chatKey, "user", username, "code", code)
 		var sess string
 		if cli != nil && cli.Store != nil && cli.Store.ID != nil {
 			sess = cli.Store.ID.User
@@ -216,19 +210,19 @@ func processGroupCaptchaJoins(cli *whatsmeow.Client, g *events.GroupInfo) {
 
 		var mediaUploaded *whatsmeow.UploadResponse
 		if errGen == nil && len(vidBytes) > 0 {
-			logger.Debug("processGroupCaptchaJoins: uploading animated captcha video", "group", chatKey, "bytes", len(vidBytes))
+			Debug("processGroupCaptchaJoins: uploading animated captcha video", "group", chatKey, "bytes", len(vidBytes))
 			uploaded, errUp := cli.Upload(ctx, vidBytes, whatsmeow.MediaVideo)
 			if errUp == nil {
 				mediaUploaded = &uploaded
-				logger.Debug("processGroupCaptchaJoins: captcha video uploaded successfully", "group", chatKey, "url", uploaded.URL)
+				Debug("processGroupCaptchaJoins: captcha video uploaded successfully", "group", chatKey, "url", uploaded.URL)
 			} else {
-				logger.Error("handleGroupCaptcha: video upload failed", "err", errUp)
+				Error("handleGroupCaptcha: video upload failed", "err", errUp)
 			}
 		} else {
-			logger.Debug("handleGroupCaptcha: captcha video generation unavailable/failed", "err", errGen)
+			Debug("handleGroupCaptcha: captcha video generation unavailable/failed", "err", errGen)
 		}
 
-		tbVid := builder.NewText()
+		tbVid := NewText()
 		tbVid.Linef("Welcome @%s! You are required to complete a verification code to join %s.", username, groupName)
 		tbVid.Linef("Please watch the video and reply with the 4-digit verification code within %s, otherwise you will be automatically removed.", timeoutDisplay)
 		formattedCaption := tbVid.Trimmed()
@@ -254,18 +248,18 @@ func processGroupCaptchaJoins(cli *whatsmeow.Client, g *events.GroupInfo) {
 				},
 			}
 			*vidMsg.VideoMessage.GifPlayback = true
-			logger.Debug("processGroupCaptchaJoins: sending video verification challenge", "group", chatKey, "user", username)
+			Debug("processGroupCaptchaJoins: sending video verification challenge", "group", chatKey, "user", username)
 			resp, errSend := cli.SendMessage(ctx, g.JID, vidMsg)
 			if errSend != nil {
-				logger.Error("handleGroupCaptcha: failed to send video verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
+				Error("handleGroupCaptcha: failed to send video verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
 			} else if resp.ID != "" {
 				SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
-				logger.Debug("handleGroupCaptcha: video verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
+				Debug("handleGroupCaptcha: video verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
 			}
 		} else {
 			// Fallback to text verification prompt if video generation/upload fails
-			logger.Warn("handleGroupCaptcha: falling back to text verification prompt", "group", g.JID.String(), "user", partCopy.String())
-			tbFallback := builder.NewText()
+			Warn("handleGroupCaptcha: falling back to text verification prompt", "group", g.JID.String(), "user", partCopy.String())
+			tbFallback := NewText()
 			tbFallback.Header("Verification Required")
 			tbFallback.Linef("Welcome @%s! You are required to complete a verification code to join %s.", username, groupName)
 			tbFallback.Blank()
@@ -283,10 +277,10 @@ func processGroupCaptchaJoins(cli *whatsmeow.Client, g *events.GroupInfo) {
 			}
 			resp, errSend := cli.SendMessage(ctx, g.JID, txtMsg)
 			if errSend != nil {
-				logger.Error("handleGroupCaptcha: failed to send fallback text verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
+				Error("handleGroupCaptcha: failed to send fallback text verification message", "group", g.JID.String(), "user", partCopy.String(), "err", errSend)
 			} else if resp.ID != "" {
 				SetPendingCaptchaMsgID(g.JID, partCopy, resp.ID)
-				logger.Debug("handleGroupCaptcha: fallback text verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
+				Debug("handleGroupCaptcha: fallback text verification challenge sent", "group", g.JID.String(), "msg_id", resp.ID, "user", partCopy.String())
 			}
 		}
 	}
@@ -294,7 +288,7 @@ func processGroupCaptchaJoins(cli *whatsmeow.Client, g *events.GroupInfo) {
 
 // generateCaptchaVideo attempts to generate an animated verification video using the external captcha plugin binary.
 func generateCaptchaVideo(ctx context.Context, code string, session ...string) ([]byte, error) {
-	pluginPath, err := external.DefaultDispatcher.PluginPath("captcha", session...)
+	pluginPath, err := ExternalDefaultDispatcher.PluginPath("captcha", session...)
 	if err != nil {
 		return nil, fmt.Errorf("captcha plugin resolution: %w", err)
 	}
@@ -336,9 +330,9 @@ func formatTimeoutStr(sec int) string {
 		if mins == 1 {
 			return "1 min"
 		}
-		return builder.Sprintf("%d mins", mins)
+		return Sprintf("%d mins", mins)
 	}
-	return builder.Sprintf("%d seconds", sec)
+	return Sprintf("%d seconds", sec)
 }
 
 func generateVerificationCode() (int, error) {

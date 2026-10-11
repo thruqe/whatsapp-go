@@ -1,4 +1,4 @@
-package builder
+package main
 
 import (
 	"fmt"
@@ -32,12 +32,12 @@ func NewTextf(format string, args ...any) *TextBuilder {
 	return b
 }
 
-// Sprintf formats according to a format specifier using TextBuilder.
+// Sprintf formats according to a format specifier using Text
 func Sprintf(format string, args ...any) string {
 	return NewTextf(format, args...).String()
 }
 
-// NewTextWithSender initializes a TextBuilder bound to a Sender for direct reply/send dispatch.
+// NewTextWithSender initializes a TextBuilder bound to a Sender for direct reply/send
 func NewTextWithSender(sender Sender, initial ...string) *TextBuilder {
 	b := &TextBuilder{sender: sender}
 	if len(initial) > 0 {
@@ -516,7 +516,7 @@ func (b *TextBuilder) WriteString(s string) (int, error) {
 	return b.sb.WriteString(s)
 }
 
-// WriteByte appends a byte to the builder.
+// WriteByte appends a byte to the
 func (b *TextBuilder) WriteByte(c byte) error {
 	return b.sb.WriteByte(c)
 }

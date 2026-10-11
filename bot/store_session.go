@@ -1,12 +1,9 @@
-package store
+package main
 
 import (
 	"context"
 	"fmt"
 	"strings"
-
-	"whatsrook/bot/cache"
-	"whatsrook/bot/logger"
 
 	"github.com/thruqe/whatsrook"
 
@@ -72,7 +69,7 @@ func PurgeSessionData(ctx context.Context, db *dbutil.Database, session string) 
 
 	preds := BuildSessionPredicates(session)
 	if len(preds) == 0 {
-		logger.Debug("PurgeSessionData: session identifier is empty; skipping deletion to prevent data loss")
+		Debug("PurgeSessionData: session identifier is empty; skipping deletion to prevent data loss")
 		return nil
 	}
 
@@ -85,46 +82,46 @@ func PurgeSessionData(ctx context.Context, db *dbutil.Database, session string) 
 
 	// Purge all custom domain models scoped by our_jid
 	if _, err := duosql.Delete[BotSetting](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge bot_settings", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge bot_settings", "err", err, "session", session)
 	}
 	if _, err := duosql.Delete[CallMediaConfig](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge call_media_config", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge call_media_config", "err", err, "session", session)
 	}
 	if _, err := duosql.Delete[BotFilter](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge bot_filters", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge bot_filters", "err", err, "session", session)
 	}
 	if _, err := duosql.Delete[BotBGM](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge bot_bgm", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge bot_bgm", "err", err, "session", session)
 	}
 	if _, err := duosql.Delete[BotStickerCmd](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge bot_sticker_cmds", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge bot_sticker_cmds", "err", err, "session", session)
 	}
 	if _, err := duosql.Delete[GroupStats](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge group_stats", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge group_stats", "err", err, "session", session)
 	}
 	if _, err := duosql.Delete[BotUserXP](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge bot_user_xp", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge bot_user_xp", "err", err, "session", session)
 	}
 	if _, err := duosql.Delete[BotGroupUserXP](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge bot_group_user_xp", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge bot_group_user_xp", "err", err, "session", session)
 	}
 	if _, err := duosql.Delete[CachedGroupParticipant](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge cached_group_participants", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge cached_group_participants", "err", err, "session", session)
 	}
 	if _, err := duosql.Delete[CachedGroup](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge cached_groups", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge cached_groups", "err", err, "session", session)
 	}
 	if _, err := duosql.Delete[CachedNewsletter](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge cached_newsletters", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge cached_newsletters", "err", err, "session", session)
 	}
 	if _, err := duosql.Delete[BotPlatformCookie](duo).Where(whereClause).Exec(ctx); err != nil {
-		logger.Warn("PurgeSessionData: failed to purge bot_platform_cookies", "err", err, "session", session)
+		Warn("PurgeSessionData: failed to purge bot_platform_cookies", "err", err, "session", session)
 	}
 
 	// Purge in-memory caches for all resolved session keys
 	purgeSessionCache(ctx, session)
 
-	logger.Debug("PurgeSessionData: successfully purged all session data", "session", session)
+	Debug("PurgeSessionData: successfully purged all session data", "session", session)
 	return nil
 }
 
@@ -165,9 +162,9 @@ func purgeSessionCache(ctx context.Context, session string) {
 			continue
 		}
 		seen[k] = true
-		_ = cache.DeletePrefix(ctx, "setting:"+k+":")
-		_ = cache.DeletePrefix(ctx, "filter:"+k+":")
-		_ = cache.DeletePrefix(ctx, "bgm:"+k+":")
-		_ = cache.DeletePrefix(ctx, "stkcmd:"+k+":")
+		_ = DeletePrefix(ctx, "setting:"+k+":")
+		_ = DeletePrefix(ctx, "filter:"+k+":")
+		_ = DeletePrefix(ctx, "bgm:"+k+":")
+		_ = DeletePrefix(ctx, "stkcmd:"+k+":")
 	}
 }

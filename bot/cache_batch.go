@@ -1,4 +1,4 @@
-package cache
+package main
 
 import (
 	"context"
@@ -164,7 +164,7 @@ func (b *WriteBehindBuffer[K, V]) PendingCount() int {
 	return len(b.dirty)
 }
 
-// Close gracefully terminates the worker and drains all remaining dirty items to the backing store.
+// Close gracefully terminates the worker and drains all remaining dirty items to the backing
 func (b *WriteBehindBuffer[K, V]) Close() error {
 	b.mu.Lock()
 	if b.closed {

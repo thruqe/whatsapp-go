@@ -1,4 +1,4 @@
-package dl
+package main
 
 import (
 	"context"
@@ -9,11 +9,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/httpx"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/media"
 
 	"github.com/thruqe/whatsrook"
 )
@@ -107,9 +102,9 @@ func cleanTopicAndContext(rawTitle, rawContext string) string {
 }
 
 // downloadAndSendDirectImage downloads a direct image URL and delivers it.
-func downloadAndSendDirectImage(ctx *dispatch.Context, rawURL string) error {
+func downloadAndSendDirectImage(ctx *Context, rawURL string) error {
 	timeoutCtx, cancel := context.WithTimeout(ctx.GetSendContext(), 30*time.Second)
-	imgBytes, err := httpx.FetchBytes(timeoutCtx, rawURL)
+	imgBytes, err := FetchBytes(timeoutCtx, rawURL)
 	cancel()
 	if err != nil || len(imgBytes) == 0 {
 		return fmt.Errorf("failed fetching direct image: %w", err)
@@ -120,7 +115,7 @@ func downloadAndSendDirectImage(ctx *dispatch.Context, rawURL string) error {
 }
 
 // downloadAndSendImages downloads and delivers single or multi-image galleries.
-func downloadAndSendImages(ctx *dispatch.Context, rawURL string, meta *MediaMeta) error {
+func downloadAndSendImages(ctx *Context, rawURL string, meta *MediaMeta) error {
 	baseCaption := buildCaption(meta)
 
 	// Case 1: Multiple entries already listed in meta (playlist/gallery)
@@ -136,7 +131,7 @@ func downloadAndSendImages(ctx *dispatch.Context, rawURL string, meta *MediaMeta
 			}
 		}
 		if len(items) > 0 {
-			logger.Debug("downloadAndSendImages: delivering multi-image gallery from meta entries", "count", len(items))
+			Debug("downloadAndSendImages: delivering multi-image gallery from meta entries", "count", len(items))
 			return sendImageItems(ctx, items, baseCaption)
 		}
 	}
@@ -144,7 +139,7 @@ func downloadAndSendImages(ctx *dispatch.Context, rawURL string, meta *MediaMeta
 	// Case 2: Single direct image in meta.URL
 	if meta.URL != "" && isDirectImage(meta.Ext) {
 		timeoutCtx, cancel := context.WithTimeout(ctx.GetSendContext(), 30*time.Second)
-		imgBytes, err := httpx.FetchBytes(timeoutCtx, meta.URL)
+		imgBytes, err := FetchBytes(timeoutCtx, meta.URL)
 		cancel()
 		if err == nil && len(imgBytes) > 0 {
 			return sendImageItems(ctx, []ImageItem{{Bytes: imgBytes}}, baseCaption)
@@ -225,7 +220,7 @@ func downloadAndSendImages(ctx *dispatch.Context, rawURL string, meta *MediaMeta
 }
 
 // sendImageItems delivers a collection of images to the chat as an album or single image.
-func sendImageItems(ctx *dispatch.Context, items []ImageItem, baseCaption string) error {
+func sendImageItems(ctx *Context, items []ImageItem, baseCaption string) error {
 	if len(items) == 0 {
 		return fmt.Errorf("no images found to download")
 	}
@@ -240,10 +235,10 @@ func sendImageItems(ctx *dispatch.Context, items []ImageItem, baseCaption string
 		imgBytes := item.Bytes
 		if len(imgBytes) == 0 && item.URL != "" {
 			timeoutCtx, cancel := context.WithTimeout(ctx.GetSendContext(), 30*time.Second)
-			fetched, err := httpx.FetchBytes(timeoutCtx, item.URL)
+			fetched, err := FetchBytes(timeoutCtx, item.URL)
 			cancel()
 			if err != nil || len(fetched) == 0 {
-				logger.Warn("sendImageItems: failed to fetch image URL", "url", item.URL, "err", err)
+				Warn("sendImageItems: failed to fetch image URL", "url", item.URL, "err", err)
 				continue
 			}
 			imgBytes = fetched
@@ -253,7 +248,7 @@ func sendImageItems(ctx *dispatch.Context, items []ImageItem, baseCaption string
 		}
 
 		// Ensure JPEG compatibility for WhatsApp image rendering
-		jpegData, errConv := media.EnsureJPEG(ctx.GetSendContext(), imgBytes)
+		jpegData, errConv := EnsureJPEG(ctx.GetSendContext(), imgBytes)
 		if errConv == nil && len(jpegData) > 0 {
 			imgBytes = jpegData
 		}
@@ -292,6 +287,6 @@ func sendImageItems(ctx *dispatch.Context, items []ImageItem, baseCaption string
 		})
 	}
 
-	logger.Debug("sendImageItems: sending multi-image album", "count", len(albumItems))
+	Debug("sendImageItems: sending multi-image album", "count", len(albumItems))
 	return ctx.ReplyWithAlbum(albumItems)
 }

@@ -1,4 +1,4 @@
-package media
+package main
 
 import (
 	"bytes"
@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/tcolgate/mp3"
+	"go.mau.fi/whatsmeow/types"
 )
 
 // EnsureJPEG is an alias for JPEGConvert for backward compatibility.
@@ -407,4 +408,18 @@ func ExtensionFor(mimetype string) string {
 	}
 	log.Printf("[DEBUG] Mapped mimetype %q to extension %q", mimetype, ext)
 	return ext
+}
+
+// SanitizeJID cleans a JID or string for safe filename usage.
+func SanitizeJID(jid any) string {
+	var s string
+	switch v := jid.(type) {
+	case types.JID:
+		s = v.String()
+	case string:
+		s = v
+	default:
+		s = fmt.Sprint(v)
+	}
+	return strings.ReplaceAll(strings.ReplaceAll(s, "@", "_"), ":", "_")
 }

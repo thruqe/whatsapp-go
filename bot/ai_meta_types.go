@@ -1,5 +1,5 @@
 // Data types for the Meta AI request context passed to handler functions.
-package ai
+package main
 
 import "go.mau.fi/whatsmeow/types"
 
@@ -31,9 +31,9 @@ type Tools struct {
 	Command string `json:"command"` // name of a registered bot command to invoke, e.g. "cpu"
 }
 
-// Response is the structured reply from Meta AI, containing the answer
+// MetaResponse is the structured reply from Meta AI, containing the answer
 // text and any tool invocations to execute.
-type Response struct {
+type MetaResponse struct {
 	ChatID string `json:"chat_id"`
 	Answer string `json:"answer"`
 	Tools  Tools  `json:"tools"`

@@ -1,18 +1,14 @@
-package business
+package main
 
 import (
 	"strings"
-
-	"whatsrook/bot/builder"
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/httpx"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 )
 
 func init() {
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "business",
 		Alias:       "biz",
 		Description: "View business profile details",
@@ -22,7 +18,7 @@ func init() {
 	})
 }
 
-func handleBusinessProfile(ctx *dispatch.Context) error {
+func handleBusinessProfile(ctx *Context) error {
 	rawTarget, queryJID, err := ResolveBusinessTarget(ctx.Ctx, ctx.Client, ctx.GetTargets(), ctx.Chat, ctx.GetPrefix(), "business")
 	if err != nil {
 		return ctx.Reply(err.Error())
@@ -70,11 +66,11 @@ func handleBusinessProfile(ctx *dispatch.Context) error {
 	var pfpData []byte
 	if ctx.Client != nil {
 		if picInfo, errPic := ctx.Client.GetProfilePictureInfo(ctx.Ctx, queryJID, &whatsmeow.GetProfilePictureParams{}); errPic == nil && picInfo != nil && picInfo.URL != "" {
-			pfpData, _ = httpx.FetchBytes(ctx.Ctx, picInfo.URL)
+			pfpData, _ = FetchBytes(ctx.Ctx, picInfo.URL)
 		}
 		if len(pfpData) == 0 && rawTarget != queryJID {
 			if picInfo, errPic := ctx.Client.GetProfilePictureInfo(ctx.Ctx, rawTarget, &whatsmeow.GetProfilePictureParams{}); errPic == nil && picInfo != nil && picInfo.URL != "" {
-				pfpData, _ = httpx.FetchBytes(ctx.Ctx, picInfo.URL)
+				pfpData, _ = FetchBytes(ctx.Ctx, picInfo.URL)
 			}
 		}
 	}
@@ -100,10 +96,10 @@ func summarizeUniformHours(entries []types.BusinessHoursConfig) (string, bool) {
 	}
 	switch {
 	case first.OpenTime != "" && first.CloseTime != "":
-		return builder.Sprintf("%s - %s (%s), every day", first.OpenTime, first.CloseTime, first.Mode), true
+		return Sprintf("%s - %s (%s), every day", first.OpenTime, first.CloseTime, first.Mode), true
 	case first.Mode == "open_24h":
 		return "Open 24 hours, every day", true
 	default:
-		return builder.Sprintf("%s, every day", first.Mode), true
+		return Sprintf("%s, every day", first.Mode), true
 	}
 }

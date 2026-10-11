@@ -1,4 +1,4 @@
-package botctx
+package main
 
 import (
 	"context"
@@ -11,13 +11,13 @@ import (
 	"github.com/thruqe/whatsrook"
 )
 
-// SettingGetter retrieves a setting value for a client and key from the database store.
+// SettingGetter retrieves a setting value for a client and key from the database
 type SettingGetter func(ctx context.Context, client *whatsmeow.Client, key string) (string, error)
 
-// SettingSetter updates a setting value for a client and key in the database store.
+// SettingSetter updates a setting value for a client and key in the database
 type SettingSetter func(ctx context.Context, client *whatsmeow.Client, key, value string) error
 
-// SettingDeleter removes a setting value for a client and key from the database store.
+// SettingDeleter removes a setting value for a client and key from the database
 type SettingDeleter func(ctx context.Context, client *whatsmeow.Client, key string) error
 
 var (

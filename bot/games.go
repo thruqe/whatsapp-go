@@ -1,4 +1,4 @@
-package games
+package main
 
 import (
 	"context"
@@ -15,9 +15,6 @@ import (
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
-
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/logger"
 
 	"github.com/thruqe/whatsrook"
 )
@@ -43,7 +40,7 @@ type GameSession struct {
 }
 
 func init() {
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "games",
 		Alias:       "game",
 		Description: "Play real-time multiplayer games in WhatsApp Webview",
@@ -53,7 +50,7 @@ func init() {
 	})
 
 	// Also register alias 'play'
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:         "play",
 		Description:  "Quickly launch a multiplayer webview game",
 		Category:     "games",
@@ -106,7 +103,7 @@ func parseGameType(s string) (gameType string, title string) {
 	}
 }
 
-func handleGames(ctx *dispatch.Context) error {
+func handleGames(ctx *Context) error {
 	fullArg := strings.ToLower(strings.TrimSpace(strings.Join(ctx.Args, " ")))
 	normalized := strings.ReplaceAll(strings.ReplaceAll(fullArg, "-", ""), " ", "")
 
@@ -141,7 +138,7 @@ func handleGames(ctx *dispatch.Context) error {
 	}
 }
 
-func showGamesMenu(ctx *dispatch.Context) error {
+func showGamesMenu(ctx *Context) error {
 	userJID := ctx.Sender.ToNonAD()
 	pushName := ctx.Evt.Info.PushName
 	if pushName == "" {
@@ -152,7 +149,7 @@ func showGamesMenu(ctx *dispatch.Context) error {
 		if err := sendGamesMenuWebview(ctx, userJID, pushName); err == nil {
 			return nil
 		} else {
-			logger.Warn("failed to send interactive games menu webview, falling back to poll", "err", err)
+			Warn("failed to send interactive games menu webview, falling back to poll", "err", err)
 		}
 	}
 
@@ -176,11 +173,11 @@ func showGamesMenu(ctx *dispatch.Context) error {
 		"Word Chain Leaderboard",
 	}
 
-	return dispatch.SendPollReply(ctx, question, options)
+	return SendPollReply(ctx, question, options)
 }
 
 // sendGamesMenuWebview sends an interactive message with in-app webview buttons for all available games.
-func sendGamesMenuWebview(ctx *dispatch.Context, userJID types.JID, pushName string) error {
+func sendGamesMenuWebview(ctx *Context, userJID types.JID, pushName string) error {
 	baseURL := GetGameServerURL()
 
 	sessID, err := GenerateGameSession(userJID, pushName, "global")
@@ -239,7 +236,7 @@ func BuildGamesMenuMessage(userJID types.JID, pushName string) (*waE2E.Message, 
 	})
 }
 
-func launchGame(ctx *dispatch.Context, gameType, gameTitle string) error {
+func launchGame(ctx *Context, gameType, gameTitle string) error {
 	userJID := ctx.Sender.ToNonAD()
 	pushName := ctx.Evt.Info.PushName
 	if pushName == "" {
@@ -248,7 +245,7 @@ func launchGame(ctx *dispatch.Context, gameType, gameTitle string) error {
 
 	sessionID, err := GenerateGameSession(userJID, pushName, gameType)
 	if err != nil {
-		logger.Error("failed to generate game session", "err", err)
+		Error("failed to generate game session", "err", err)
 		return ctx.Reply("Failed to generate game session. Please try again.")
 	}
 
@@ -269,7 +266,7 @@ func BuildGameWebviewPayload(displayText, targetURL string) (string, error) {
 }
 
 // sendGameWebview sends an in-app webview button matching the verified test command implementation.
-func sendGameWebview(ctx *dispatch.Context, gameTitle, sessionID, gameURL string, userJID types.JID) error {
+func sendGameWebview(ctx *Context, gameTitle, sessionID, gameURL string, userJID types.JID) error {
 	if ctx.Client != nil {
 		err := whatsrook.SendWebview(ctx.GetSendContext(), ctx.Client, ctx.Chat, whatsrook.WebviewMessageOpts{
 			Title: gameTitle,
@@ -285,7 +282,7 @@ func sendGameWebview(ctx *dispatch.Context, gameTitle, sessionID, gameURL string
 		if err == nil {
 			return nil
 		}
-		logger.Warn("failed to send interactive webview button, falling back to text", "err", err)
+		Warn("failed to send interactive webview button, falling back to text", "err", err)
 	}
 
 	// Fallback to text link if sending interactive message fails or in test environments
@@ -326,7 +323,7 @@ type LeaderboardEntry struct {
 	PointsDiff int    `json:"points_diff"`
 }
 
-func handleGamesLeaderboard(ctx *dispatch.Context, gameType, gameTitle string) error {
+func handleGamesLeaderboard(ctx *Context, gameType, gameTitle string) error {
 	baseURL := GetGameServerURL()
 	apiURL := fmt.Sprintf("%s/api/leaderboard", baseURL)
 	if gameType != "" && gameType != "global" {

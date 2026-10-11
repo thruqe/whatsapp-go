@@ -1,12 +1,9 @@
-package settings
+package main
 
 import (
 	"context"
 	"math/rand"
 	"time"
-
-	"whatsrook/bot/logger"
-	"whatsrook/bot/store"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCommon"
@@ -22,7 +19,7 @@ func HandleStatusBroadcast(ctx context.Context, cli *whatsmeow.Client, v *events
 		return
 	}
 
-	logger.Debug("likestatus: received status message event",
+	Debug("likestatus: received status message event",
 		"msgID", v.Info.ID,
 		"sender", v.Info.Sender.String(),
 		"chat", v.Info.Chat.String(),
@@ -30,7 +27,7 @@ func HandleStatusBroadcast(ctx context.Context, cli *whatsmeow.Client, v *events
 	)
 
 	if !v.Info.Timestamp.IsZero() && v.Info.Timestamp.Before(startupTime.Add(-2*time.Minute)) {
-		logger.Debug("likestatus: skipping stale status broadcast before startup",
+		Debug("likestatus: skipping stale status broadcast before startup",
 			"msgID", v.Info.ID,
 			"timestamp", v.Info.Timestamp,
 		)
@@ -47,27 +44,27 @@ func HandleStatusBroadcast(ctx context.Context, cli *whatsmeow.Client, v *events
 		senderJID = v.Info.Chat
 	}
 
-	statusView, _ := store.GetSetting(ctx, s, "autoread_status_view")
-	generalRead, _ := store.GetSetting(ctx, s, "autoread_status")
+	statusView, _ := GetSetting(ctx, s, "autoread_status_view")
+	generalRead, _ := GetSetting(ctx, s, "autoread_status")
 	if statusView == "on" || (generalRead == "on" && statusView != "off") {
 		_ = cli.MarkRead(ctx, []types.MessageID{v.Info.ID}, v.Info.Timestamp, types.StatusBroadcastJID, senderJID)
-		logger.Debug("autoread: marked status broadcast as read", "msgID", v.Info.ID, "sender", senderJID.String())
+		Debug("autoread: marked status broadcast as read", "msgID", v.Info.ID, "sender", senderJID.String())
 	}
 
-	statusSave, _ := store.GetSetting(ctx, s, "autostatussave")
+	statusSave, _ := GetSetting(ctx, s, "autostatussave")
 	if statusSave == "on" && cli.Store != nil && cli.Store.ID != nil {
 		ownerJID := cli.Store.ID.ToNonAD()
 		_, errSave := cli.SendMessage(ctx, ownerJID, v.Message)
 		if errSave != nil {
-			logger.Error("autostatussave: failed to forward status broadcast to owner", "err", errSave, "msgID", v.Info.ID)
+			Error("autostatussave: failed to forward status broadcast to owner", "err", errSave, "msgID", v.Info.ID)
 		} else {
-			logger.Debug("autostatussave: forwarded status broadcast to owner", "owner", ownerJID.String(), "msgID", v.Info.ID)
+			Debug("autostatussave: forwarded status broadcast to owner", "owner", ownerJID.String(), "msgID", v.Info.ID)
 		}
 	}
 
-	status, _ := store.GetSetting(ctx, s, "likestatus_status")
+	status, _ := GetSetting(ctx, s, "likestatus_status")
 	if status != "on" {
-		logger.Debug("likestatus: feature disabled, skipping auto-reaction", "status", status)
+		Debug("likestatus: feature disabled, skipping auto-reaction", "status", status)
 		return
 	}
 
@@ -89,8 +86,8 @@ func HandleStatusBroadcast(ctx context.Context, cli *whatsmeow.Client, v *events
 
 	_, err := cli.SendMessage(ctx, v.Info.Chat, reaction)
 	if err != nil {
-		logger.Error("likestatus: failed to react to status broadcast", "err", err, "msgID", v.Info.ID)
+		Error("likestatus: failed to react to status broadcast", "err", err, "msgID", v.Info.ID)
 	} else {
-		logger.Debug("likestatus: liked status broadcast", "emoji", emoji, "sender", senderJID.String(), "msgID", v.Info.ID)
+		Debug("likestatus: liked status broadcast", "emoji", emoji, "sender", senderJID.String(), "msgID", v.Info.ID)
 	}
 }

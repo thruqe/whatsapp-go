@@ -1,4 +1,4 @@
-package botctx
+package main
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package owner
+package main
 
 import (
 	"bytes"
@@ -20,20 +20,14 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"whatsrook/bot/botctx"
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/media"
-	"whatsrook/bot/store"
-
 	"github.com/thruqe/whatsrook"
 )
 
 func init() {
-	dispatch.RegisterPreInterceptor("owner_shell", func(c *dispatch.Context, text string) bool {
+	RegisterPreInterceptor("owner_shell", func(c *Context, text string) bool {
 		return HandleShellInput(c, text)
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "logout",
 		Alias:       "unpair",
 		Description: "Log out and disconnect the bot (Owner only)",
@@ -41,7 +35,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleLogoutCommand,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "presence",
 		Alias:       "online,setonline,active",
 		Description: "Set bot status to online (Owner only)",
@@ -49,7 +43,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handlePresence,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "bio",
 		Alias:       "setbio",
 		Description: "Update the bot's WhatsApp bio",
@@ -57,7 +51,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleBio,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "blocklist",
 		Alias:       "blocks",
 		Description: "Show list of blocked contacts",
@@ -65,7 +59,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleBlocklist,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "pp",
 		Alias:       "setpp",
 		Description: "Change the bot's profile picture (reply to an image)",
@@ -73,7 +67,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleSetBotPP,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "sh",
 		Alias:       "exec,ps,cmd,shell,bash",
 		Description: "Run a terminal command (Owner only)",
@@ -81,7 +75,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleSh,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "stop",
 		Alias:       "kill",
 		Description: "Stop any running terminal command in this chat",
@@ -89,7 +83,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleStopShell,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "status",
 		Alias:       "poststatus",
 		Description: "Post a new WhatsApp Status story",
@@ -97,7 +91,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleStatus,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "setsudo",
 		Alias:       "sudo,addsudo",
 		Description: "Add a bot admin (tag or reply to a user)",
@@ -105,35 +99,35 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleSetSudo,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "delsudo",
 		Description: "Remove a bot admin (tag or reply to a user)",
 		Category:    "owner",
 		IsPublic:    false,
 		Handler:     handleDelSudo,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "listsudo",
 		Description: "Show list of all bot admins",
 		Category:    "owner",
 		IsPublic:    false,
 		Handler:     handleListSudo,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "ban",
 		Description: "Block a user from using bot commands",
 		Category:    "owner",
 		IsPublic:    false,
 		Handler:     handleBan,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "unban",
 		Description: "Unblock a user so they can use bot commands",
 		Category:    "owner",
 		IsPublic:    false,
 		Handler:     handleUnban,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "mode",
 		Description: "Switch bot between public and private mode",
 		Category:    "owner",
@@ -142,7 +136,7 @@ func init() {
 	})
 }
 
-func handleBio(ctx *dispatch.Context) error {
+func handleBio(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage: %sbio <new WhatsApp status bio text>\n\nExample: %sbio Available | WhatsRook AI Bot", p, p)
@@ -157,7 +151,7 @@ func handleBio(ctx *dispatch.Context) error {
 	return ctx.Replyf("Bot status bio successfully updated to:\n\"%s\"", newBio)
 }
 
-func handleBlocklist(ctx *dispatch.Context) error {
+func handleBlocklist(ctx *Context) error {
 	bl, err := ctx.Client.GetBlocklist(ctx.Ctx, "")
 	if err != nil || bl == nil {
 		return ctx.Replyf("Failed to fetch blocklist: %v", err)
@@ -182,7 +176,7 @@ func handleBlocklist(ctx *dispatch.Context) error {
 	return ctx.ReplyWithMentions(tb.String(), mentions)
 }
 
-func extractImageFromContext(ctx *dispatch.Context) (whatsmeow.DownloadableMessage, string) {
+func extractImageFromContext(ctx *Context) (whatsmeow.DownloadableMessage, string) {
 	if ctx == nil {
 		return nil, ""
 	}
@@ -201,7 +195,7 @@ func extractImageFromContext(ctx *dispatch.Context) (whatsmeow.DownloadableMessa
 	return nil, ""
 }
 
-func handleSetBotPP(ctx *dispatch.Context) error {
+func handleSetBotPP(ctx *Context) error {
 	downloadable, mime := extractImageFromContext(ctx)
 	if downloadable == nil {
 		return ctx.Replyf("Please upload or reply to an image to set as profile picture. Usage: %spp", ctx.GetPrefix())
@@ -212,7 +206,7 @@ func handleSetBotPP(ctx *dispatch.Context) error {
 		return ctx.Replyf("Failed to download image: %v", err)
 	}
 
-	jpegData, errConv := media.EnsureJPEG(ctx.Ctx, rawBytes)
+	jpegData, errConv := EnsureJPEG(ctx.Ctx, rawBytes)
 	if errConv != nil || len(jpegData) == 0 {
 		return ctx.Replyf("Failed to process profile image format: %v", errConv)
 	}
@@ -225,17 +219,17 @@ func handleSetBotPP(ctx *dispatch.Context) error {
 		return ctx.Reply("Could not determine bot account JID.")
 	}
 
-	logger.Debug("handleSetBotPP: Setting bot profile picture", "rawBytes", len(rawBytes), "jpegBytes", len(jpegData), "mime", mime, "targetJID", ownJID.String())
+	Debug("handleSetBotPP: Setting bot profile picture", "rawBytes", len(rawBytes), "jpegBytes", len(jpegData), "mime", mime, "targetJID", ownJID.String())
 	picID, errSet := ctx.Client.SetGroupPhoto(ctx.Ctx, ownJID, jpegData)
 	if errSet != nil {
-		logger.Error("handleSetBotPP failed", "err", errSet)
+		Error("handleSetBotPP failed", "err", errSet)
 		return ctx.Replyf("Failed to update profile picture: %v", errSet)
 	}
 
 	return ctx.Replyf("Bot profile picture updated successfully! (Picture ID: %s)", picID)
 }
 
-func getShellChatKey(ctx *dispatch.Context) string {
+func getShellChatKey(ctx *Context) string {
 	if ctx == nil {
 		return ""
 	}
@@ -245,7 +239,7 @@ func getShellChatKey(ctx *dispatch.Context) string {
 	return ctx.Chat.ToNonAD().String()
 }
 
-func handleStopShell(ctx *dispatch.Context) error {
+func handleStopShell(ctx *Context) error {
 	chatKey := getShellChatKey(ctx)
 	ActiveShellSessionsMu.Lock()
 	session, exists := ActiveShellSessions[chatKey]
@@ -267,7 +261,7 @@ func handleStopShell(ctx *dispatch.Context) error {
 }
 
 // HandleShellInput checks if there is an active shell session in the chat and feeds stdin input to it.
-func HandleShellInput(ctx *dispatch.Context, text string) bool {
+func HandleShellInput(ctx *Context, text string) bool {
 	if text == "" {
 		return false
 	}
@@ -303,7 +297,7 @@ func HandleShellInput(ctx *dispatch.Context, text string) bool {
 
 	// If the text starts with a registered command prefix other than stop, don't capture as stdin
 	var prefixes []string
-	if s, ok := dispatch.GetSQLStore(ctx.Client); ok {
+	if s, ok := GetSQLStore(ctx.Client); ok {
 		if p, err := s.GetSetting(ctx.Ctx, "prefix"); err == nil && strings.TrimSpace(p) != "" {
 			prefixes = strings.Fields(p)
 		}
@@ -317,7 +311,7 @@ func HandleShellInput(ctx *dispatch.Context, text string) bool {
 			fields := strings.Fields(body)
 			if len(fields) > 0 {
 				cmdWord := strings.ToLower(fields[0])
-				if _, isCmd := dispatch.Get(cmdWord); isCmd {
+				if _, isCmd := Get(cmdWord); isCmd {
 					return false
 				}
 			}
@@ -334,7 +328,7 @@ func HandleShellInput(ctx *dispatch.Context, text string) bool {
 			_ = ctx.Replyf("Failed to write to stdin: %v", err)
 			return true
 		}
-		session.Buf.WriteString(dispatch.Sprintf("\n[stdin] %s\n", text))
+		session.Buf.WriteString(Sprintf("\n[stdin] %s\n", text))
 		select {
 		case session.UpdateCh <- struct{}{}:
 		default:
@@ -345,7 +339,7 @@ func HandleShellInput(ctx *dispatch.Context, text string) bool {
 	return false
 }
 
-func handleSh(ctx *dispatch.Context) error {
+func handleSh(ctx *Context) error {
 	commandStr := strings.TrimSpace(ctx.RawArgs)
 	if commandStr == "" {
 		p := ctx.GetPrefix()
@@ -507,7 +501,7 @@ trap __sh_exit EXIT
 		return ctx.Replyf("Failed to open stderr pipe: %v", err)
 	}
 
-	initialMsg := dispatch.Sprintf("*Executing Shell Command...*\n`%s`\n_Dir: `%s`_\n\n```\n(starting process...)\n```\n_Type in chat to send stdin input. Type `.stop` to kill._", commandStr, cwd)
+	initialMsg := Sprintf("*Executing Shell Command...*\n`%s`\n_Dir: `%s`_\n\n```\n(starting process...)\n```\n_Type in chat to send stdin input. Type `.stop` to kill._", commandStr, cwd)
 	msgID, err := ctx.ReplyWithID(initialMsg)
 	if err != nil {
 		if pwdFilePath != "" {
@@ -545,7 +539,7 @@ trap __sh_exit EXIT
 		if pwdFilePath != "" {
 			_ = os.Remove(pwdFilePath)
 		}
-		_, _ = ctx.Edit(msgID, dispatch.Sprintf("*Shell Error:*\n`%s`\n_Dir: `%s`_\n\n```\nFailed to start: %v\n```", commandStr, cwd, err))
+		_, _ = ctx.Edit(msgID, Sprintf("*Shell Error:*\n`%s`\n_Dir: `%s`_\n\n```\nFailed to start: %v\n```", commandStr, cwd, err))
 		return nil
 	}
 
@@ -599,7 +593,7 @@ trap __sh_exit EXIT
 			}
 
 			if cleaned != lastEditedText && time.Since(lastEditTime) >= 800*time.Millisecond {
-				updateText := dispatch.Sprintf("*Executing Shell Command...*\n`%s`\n_Dir: `%s`_\n\n```\n%s\n```\n_Type in chat to send stdin input. Type `.stop` to kill._", session.CommandStr, session.InitialDir, cleaned)
+				updateText := Sprintf("*Executing Shell Command...*\n`%s`\n_Dir: `%s`_\n\n```\n%s\n```\n_Type in chat to send stdin input. Type `.stop` to kill._", session.CommandStr, session.InitialDir, cleaned)
 				_, _ = ctx.Edit(session.MsgID, updateText)
 				lastEditedText = cleaned
 				lastEditTime = time.Now()
@@ -654,25 +648,25 @@ trap __sh_exit EXIT
 			cleaned = "(no output)"
 		}
 
-		statusStr := dispatch.Sprintf("Success (exited in %s)", duration)
+		statusStr := Sprintf("Success (exited in %s)", duration)
 		if userKilled {
-			statusStr = dispatch.Sprintf("Terminated by user (ran for %s)", duration)
+			statusStr = Sprintf("Terminated by user (ran for %s)", duration)
 		} else if execCtx.Err() == context.DeadlineExceeded {
-			statusStr = dispatch.Sprintf("Timed out after %s", duration)
+			statusStr = Sprintf("Timed out after %s", duration)
 		} else if waitErr != nil {
-			statusStr = dispatch.Sprintf("Failed: %v (ran for %s)", waitErr, duration)
+			statusStr = Sprintf("Failed: %v (ran for %s)", waitErr, duration)
 		}
 
 		if len(cleaned) <= 3500 {
-			finalMsg := dispatch.Sprintf("*Shell Output*\nCommand: `%s`\nDirectory: `%s`\nStatus: *%s*\n\n```\n%s\n```", session.CommandStr, finalDir, statusStr, cleaned)
+			finalMsg := Sprintf("*Shell Output*\nCommand: `%s`\nDirectory: `%s`\nStatus: *%s*\n\n```\n%s\n```", session.CommandStr, finalDir, statusStr, cleaned)
 			_, _ = ctx.Edit(session.MsgID, finalMsg)
 		} else if len(cleaned) <= 50000 {
-			finalMsg := dispatch.Sprintf("*Shell Output*\nCommand: `%s`\nDirectory: `%s`\nStatus: *%s*\n\n```\n%s\n```", session.CommandStr, finalDir, statusStr, cleaned)
+			finalMsg := Sprintf("*Shell Output*\nCommand: `%s`\nDirectory: `%s`\nStatus: *%s*\n\n```\n%s\n```", session.CommandStr, finalDir, statusStr, cleaned)
 			if _, editErr := ctx.Edit(session.MsgID, finalMsg); editErr != nil {
 				_ = ctx.Reply(finalMsg)
 			}
 		} else {
-			summaryMsg := dispatch.Sprintf("*Shell Output*\nCommand: `%s`\nDirectory: `%s`\nStatus: *%s*\n_(Full output attached below)_", session.CommandStr, finalDir, statusStr)
+			summaryMsg := Sprintf("*Shell Output*\nCommand: `%s`\nDirectory: `%s`\nStatus: *%s*\n_(Full output attached below)_", session.CommandStr, finalDir, statusStr)
 			_, _ = ctx.Edit(session.MsgID, summaryMsg)
 			_ = ctx.ReplyWithDocument([]byte(cleaned), "text/plain; charset=utf-8", "shell_output.txt", "Shell Output")
 		}
@@ -681,7 +675,7 @@ trap __sh_exit EXIT
 	return nil
 }
 
-func handleStatus(ctx *dispatch.Context) error {
+func handleStatus(ctx *Context) error {
 	text := strings.TrimSpace(ctx.RawArgs)
 
 	mediaBytes, mimetype, err := ctx.GetMedia()
@@ -702,7 +696,7 @@ func handleStatus(ctx *dispatch.Context) error {
 			}
 			uploaded, uErr := ctx.Client.Upload(ctx.Ctx, mediaBytes, whatsmeow.MediaImage)
 			if uErr != nil {
-				logger.Error("handleStatus: image upload failed", "err", uErr)
+				Error("handleStatus: image upload failed", "err", uErr)
 				return ctx.Replyf("Failed to upload status image: %v", uErr)
 			}
 			msg := &waE2E.Message{
@@ -723,7 +717,7 @@ func handleStatus(ctx *dispatch.Context) error {
 
 			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, types.StatusBroadcastJID, msg)
 			if sendErr != nil {
-				logger.Error("handleStatus: send image status failed", "err", sendErr)
+				Error("handleStatus: send image status failed", "err", sendErr)
 				return ctx.Replyf("Failed to post image status: %v", sendErr)
 			}
 			return ctx.Reply("Successfully posted image status update.")
@@ -735,7 +729,7 @@ func handleStatus(ctx *dispatch.Context) error {
 			}
 			uploaded, uErr := ctx.Client.Upload(ctx.Ctx, mediaBytes, whatsmeow.MediaVideo)
 			if uErr != nil {
-				logger.Error("handleStatus: video upload failed", "err", uErr)
+				Error("handleStatus: video upload failed", "err", uErr)
 				return ctx.Replyf("Failed to upload status video: %v", uErr)
 			}
 			msg := &waE2E.Message{
@@ -756,7 +750,7 @@ func handleStatus(ctx *dispatch.Context) error {
 
 			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, types.StatusBroadcastJID, msg)
 			if sendErr != nil {
-				logger.Error("handleStatus: send video status failed", "err", sendErr)
+				Error("handleStatus: send video status failed", "err", sendErr)
 				return ctx.Replyf("Failed to post video status: %v", sendErr)
 			}
 			return ctx.Reply("Successfully posted video status update.")
@@ -776,7 +770,7 @@ func handleStatus(ctx *dispatch.Context) error {
 
 	_, sendErr := ctx.Client.SendMessage(ctx.Ctx, types.StatusBroadcastJID, msg)
 	if sendErr != nil {
-		logger.Error("handleStatus: send text status failed", "err", sendErr)
+		Error("handleStatus: send text status failed", "err", sendErr)
 		return ctx.Replyf("Failed to post text status: %v", sendErr)
 	}
 	return ctx.Reply("Successfully posted text status update.")
@@ -794,7 +788,7 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 	switch nonAD.Server {
 	case types.HiddenUserServer:
 		lidJID = nonAD
-		// Resolve LID → PN from the LID store.
+		// Resolve LID → PN from the LID
 		if client != nil && client.Store != nil && client.Store.LIDs != nil {
 			if pn, err := client.Store.LIDs.GetPNForLID(ctx, nonAD); err == nil && !pn.IsEmpty() {
 				pnJID = pn.ToNonAD()
@@ -834,7 +828,7 @@ func resolveUserTokens(ctx context.Context, client *whatsmeow.Client, chat, targ
 		}
 	default:
 		pnJID = nonAD
-		// Resolve PN → LID from the LID store.
+		// Resolve PN → LID from the LID
 		if client != nil && client.Store != nil && client.Store.LIDs != nil {
 			if lid, err := client.Store.LIDs.GetLIDForPN(ctx, nonAD); err == nil && !lid.IsEmpty() {
 				lidJID = lid.ToNonAD()
@@ -977,7 +971,7 @@ func removeUserTokens(ctx context.Context, client *whatsmeow.Client, chat types.
 			// Also try parsing the stored token as a JID and using IsSameUserRaw.
 			if strings.Contains(entry, "@") {
 				if stored, err := types.ParseJID(entry); err == nil && stored.User != "" {
-					if botctx.IsSameUserRaw(ctx, client, targets[i], stored) {
+					if IsSameUserRaw(ctx, client, targets[i], stored) {
 						entryMatched = true
 						if !matched[i] {
 							matched[i] = true
@@ -996,14 +990,14 @@ func removeUserTokens(ctx context.Context, client *whatsmeow.Client, chat types.
 	return newList, removedJIDs, displayNames
 }
 
-func handleSetSudo(ctx *dispatch.Context) error {
+func handleSetSudo(ctx *Context) error {
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage:\n- %ssetsudo @user\n- %ssetsudo 1234567890\n- Reply to a user's message with %ssetsudo", p, p, p)
 	}
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1042,14 +1036,14 @@ func handleSetSudo(ctx *dispatch.Context) error {
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(sudoers, " ")); err != nil {
-		logger.Error("handleSetSudo: PutSetting failed", "err", err, "sudoers", sudoers)
+		Error("handleSetSudo: PutSetting failed", "err", err, "sudoers", sudoers)
 		return ctx.Replyf("Failed to update sudoers list: %v", err)
 	}
 
-	return ctx.ReplyWithMentions(dispatch.Sprintf("Added to sudo: %s", strings.Join(displayNames, ", ")), addedJIDs)
+	return ctx.ReplyWithMentions(Sprintf("Added to sudo: %s", strings.Join(displayNames, ", ")), addedJIDs)
 }
 
-func handleDelSudo(ctx *dispatch.Context) error {
+func handleDelSudo(ctx *Context) error {
 	if !ctx.IsOwner() {
 		return ctx.Reply("Only the bot owner can remove users from the sudo list.")
 	}
@@ -1063,7 +1057,7 @@ func handleDelSudo(ctx *dispatch.Context) error {
 		return ctx.Reply("Cannot remove the bot owner from sudoers.")
 	}
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1090,16 +1084,16 @@ func handleDelSudo(ctx *dispatch.Context) error {
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(newSudoers, " ")); err != nil {
-		logger.Error("handleDelSudo: PutSetting failed", "err", err, "newSudoers", newSudoers)
+		Error("handleDelSudo: PutSetting failed", "err", err, "newSudoers", newSudoers)
 		return ctx.Replyf("Failed to update sudoers list: %v", err)
 	}
 
-	return ctx.ReplyWithMentions(dispatch.Sprintf("Removed from sudo: %s", strings.Join(displayNames, ", ")), removedJIDs)
+	return ctx.ReplyWithMentions(Sprintf("Removed from sudo: %s", strings.Join(displayNames, ", ")), removedJIDs)
 }
 
-func handleListSudo(ctx *dispatch.Context) error {
+func handleListSudo(ctx *Context) error {
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1232,14 +1226,14 @@ func sanitizeSudoers(tokens []string) []string {
 	return sanitized
 }
 
-func handleBan(ctx *dispatch.Context) error {
+func handleBan(ctx *Context) error {
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage:\n- %sban @user\n- %sban 1234567890\n- Reply to a user's message with %sban", p, p, p)
 	}
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1258,7 +1252,7 @@ func handleBan(ctx *dispatch.Context) error {
 		if ctx.IsTargetOwner(target) {
 			continue
 		}
-		if botctx.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
+		if IsSudoRaw(ctx.Ctx, ctx.Client, target) {
 			continue
 		}
 
@@ -1289,17 +1283,17 @@ func handleBan(ctx *dispatch.Context) error {
 		return ctx.Reply("Failed to update banned users list.")
 	}
 
-	return ctx.ReplyWithMentions(dispatch.Sprintf("Banned from commands: %s", strings.Join(displayNames, ", ")), bannedJIDs)
+	return ctx.ReplyWithMentions(Sprintf("Banned from commands: %s", strings.Join(displayNames, ", ")), bannedJIDs)
 }
 
-func handleUnban(ctx *dispatch.Context) error {
+func handleUnban(ctx *Context) error {
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage:\n- %sunban @user\n- %sunban 1234567890\n- Reply to a user's message with %sunban", p, p, p)
 	}
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1329,11 +1323,11 @@ func handleUnban(ctx *dispatch.Context) error {
 		return ctx.Reply("Failed to update banned users list.")
 	}
 
-	return ctx.ReplyWithMentions(dispatch.Sprintf("Unbanned from commands: %s", strings.Join(displayNames, ", ")), unbannedJIDs)
+	return ctx.ReplyWithMentions(Sprintf("Unbanned from commands: %s", strings.Join(displayNames, ", ")), unbannedJIDs)
 }
 
-func handleMode(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleMode(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1363,7 +1357,7 @@ func handleMode(ctx *dispatch.Context) error {
 	return ctx.Replyf("Bot mode set to %s.", mode)
 }
 
-func handlePresence(ctx *dispatch.Context) error {
+func handlePresence(ctx *Context) error {
 	p := ctx.GetPrefix()
 	arg := ""
 	if len(ctx.Args) > 0 {
@@ -1384,18 +1378,18 @@ func handlePresence(ctx *dispatch.Context) error {
 		}
 		ctx.Client.SetForceActiveDeliveryReceipts(true)
 		if err := ctx.Client.SetPassive(ctx.Ctx, false); err != nil {
-			logger.Warn("SetPassive failed", "err", err)
+			Warn("SetPassive failed", "err", err)
 		}
 		if err := ctx.Client.SendPresence(ctx.Ctx, types.PresenceAvailable); err != nil {
 			return ctx.Replyf("Failed to set presence online: %v", err)
 		}
 		return ctx.Reply("Bot status is now set to online.")
 	default:
-		return dispatch.ErrUsage(p + "presence [online|offline]")
+		return ErrUsage(p + "presence [online|offline]")
 	}
 }
 
-func handleLogoutCommand(ctx *dispatch.Context) error {
+func handleLogoutCommand(ctx *Context) error {
 	_ = ctx.Reply("Logging out of WhatsApp...")
 
 	go func() {
@@ -1404,15 +1398,15 @@ func handleLogoutCommand(ctx *dispatch.Context) error {
 			logoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			if err := ctx.Client.Logout(logoutCtx); err != nil {
-				logger.Warn("Remote logout command returned error", "err", err)
+				Warn("Remote logout command returned error", "err", err)
 			}
 			ctx.Client.Disconnect()
-			if s, ok := dispatch.GetSQLStore(ctx.Client); ok && s != nil {
+			if s, ok := GetSQLStore(ctx.Client); ok && s != nil {
 				phone := ""
 				if ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
 					phone = ctx.Client.Store.ID.User
 				}
-				_ = store.PurgeSessionDataFromStore(logoutCtx, s.SQLStore, phone)
+				_ = PurgeSessionDataFromStore(logoutCtx, s.SQLStore, phone)
 			}
 			if ctx.Client.Store != nil {
 				_ = ctx.Client.Store.Delete(logoutCtx)

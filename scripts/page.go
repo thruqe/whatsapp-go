@@ -748,7 +748,7 @@ const pageJS = `
   });
 `
 
-// BuildPage constructs the Session ID generator HTML using htmlbuilder.
+// BuildPage constructs the Session ID generator HTML using html
 func BuildPage() *hb.Document {
 	doc := hb.New()
 	doc.Lang("en")

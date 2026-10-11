@@ -1,4 +1,4 @@
-package settings
+package main
 
 import (
 	"context"
@@ -24,24 +24,15 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"whatsrook/bot/ai"
-	"whatsrook/bot/builder"
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/external"
-	"whatsrook/bot/games"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/store"
-	"whatsrook/bot/tools"
-
 	"github.com/thruqe/whatsrook"
 )
 
-func sendPollReply(ctx *dispatch.Context, body string, options []string) error {
-	err := dispatch.SendPollReply(ctx, body, options)
+func sendPollReply(ctx *Context, body string, options []string) error {
+	err := SendPollReply(ctx, body, options)
 	if err != nil {
-		logger.Error("sendPollReply: failed to send interactive poll", "err", err, "chat", ctx.Chat.String(), "body", body, "options", options)
+		Error("sendPollReply: failed to send interactive poll", "err", err, "chat", ctx.Chat.String(), "body", body, "options", options)
 	} else {
-		logger.Debug("sendPollReply: successfully sent interactive poll", "chat", ctx.Chat.String(), "options", options)
+		Debug("sendPollReply: successfully sent interactive poll", "chat", ctx.Chat.String(), "options", options)
 	}
 	return err
 }
@@ -53,18 +44,18 @@ func resetAFKUserTracker() {
 }
 
 func init() {
-	sort.Strings(tools.SupportedTimezones)
+	sort.Strings(SupportedTimezones)
 
-	dispatch.RegisterPostProcessor("autoread", HandleAutoRead)
-	dispatch.RegisterPostProcessor("autoreact", HandleAutoReact)
-	dispatch.RegisterPreInterceptor("settings_afk", func(c *dispatch.Context, text string) bool {
+	RegisterPostProcessor("autoread", HandleAutoRead)
+	RegisterPostProcessor("autoreact", HandleAutoReact)
+	RegisterPreInterceptor("settings_afk", func(c *Context, text string) bool {
 		return HandleAFKAutoResponse(c.Ctx, c.Client, c.Evt, text)
 	})
-	dispatch.RegisterPreInterceptor("settings_stpack", func(c *dispatch.Context, text string) bool {
+	RegisterPreInterceptor("settings_stpack", func(c *Context, text string) bool {
 		return HandlePendingStpackInput(c, text)
 	})
 
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "afk",
 		Alias:       "away",
 		Description: "Set an automatic away message when you are busy",
@@ -72,7 +63,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleAFK,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "autobio",
 		Alias:       "bioauto",
 		Description: "Show current time and quotes in your WhatsApp bio automatically",
@@ -80,7 +71,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleAutoBio,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "timezone",
 		Alias:       "tz",
 		Description: "Set your timezone for automatic group muting",
@@ -88,14 +79,14 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleTimezone,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "setbot",
 		Description: "Easy setup guide to customize your bot",
 		Category:    "settings",
 		IsPublic:    false,
 		Handler:     handleSetBot,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "reconfig",
 		Alias:       "reconfigure",
 		Description: "Open the bot setup guide",
@@ -103,7 +94,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleReconfigure,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "autolike",
 		Alias:       "likestatus",
 		Description: "Automatically like your contacts' WhatsApp statuses",
@@ -111,13 +102,13 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleLikeStatusCmd,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "prefix",
 		Description: "View or change the command symbol (like . or !)",
 		Category:    "settings",
 		Handler:     handlePrefix,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "privacy",
 		Alias:       "myprivacy",
 		Description: "Change WhatsApp privacy settings (Last Seen, Profile Photo, Read Receipts)",
@@ -125,53 +116,53 @@ func init() {
 		IsPublic:    false,
 		Handler:     handlePrivacy,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "setcmd",
 		Description: "Make a sticker run a command when sent (reply to sticker)",
 		Category:    "tools",
 		Handler:     handleSetCmd,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "delcmd",
 		Description: "Remove a command linked to a sticker",
 		Category:    "tools",
 		Handler:     handleDelCmd,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "getcmd",
 		Description: "Show all sticker commands",
 		Category:    "tools",
 		Handler:     handleGetCmd,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "discmd",
 		Alias:       "disablecmd",
 		Description: "Turn off a command for members",
 		Category:    "owner",
 		Handler:     handleDisableCmd,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "encmd",
 		Alias:       "enablecmd",
 		Description: "Turn on a previously disabled command",
 		Category:    "owner",
 		Handler:     handleEnableCmd,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "autoview",
 		Alias:       "autovv",
 		Description: "Save View Once photos/videos directly to your chat",
 		Category:    "settings",
 		Handler:     handleAutoVV,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "savestatus",
 		Alias:       "autostatus",
 		Description: "Save your contacts' WhatsApp Statuses to your chat",
 		Category:    "settings",
 		Handler:     handleAutoStatusSave,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "autoreact",
 		Alias:       "reactauto, autoemoji",
 		Description: "Automatically react with emojis to incoming messages",
@@ -179,7 +170,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleAutoReactCmd,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "autoread",
 		Alias:       "readauto, autoblue, readreceipt",
 		Description: "Automatically mark incoming messages or statuses as read",
@@ -187,7 +178,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleAutoReadCmd,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "stpack",
 		Description: "Set sticker pack name and author name",
 		Category:    "settings",
@@ -196,7 +187,7 @@ func init() {
 	})
 }
 
-func UpdateOwnerLastActive(ctx context.Context, s *dispatch.StoreWrapper) {
+func UpdateOwnerLastActive(ctx context.Context, s *StoreWrapper) {
 	now := time.Now()
 	AFKMu.Lock()
 	LastActiveCache = now
@@ -207,7 +198,7 @@ func UpdateOwnerLastActive(ctx context.Context, s *dispatch.StoreWrapper) {
 	}
 }
 
-func GetOwnerLastActive(ctx context.Context, s *dispatch.StoreWrapper) time.Time {
+func GetOwnerLastActive(ctx context.Context, s *StoreWrapper) time.Time {
 	AFKMu.RLock()
 	cached := LastActiveCache
 	AFKMu.RUnlock()
@@ -225,8 +216,8 @@ func GetOwnerLastActive(ctx context.Context, s *dispatch.StoreWrapper) time.Time
 	return time.Now()
 }
 
-func handleAFK(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleAFK(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store unavailable.")
 	}
@@ -309,23 +300,23 @@ func humanRelativeTime(t time.Time) string {
 		return "1 minute ago"
 	case d < time.Hour:
 		mins := int(d / time.Minute)
-		return builder.Sprintf("%d minutes ago", mins)
+		return Sprintf("%d minutes ago", mins)
 	case d < 2*time.Hour:
 		return "1 hour ago"
 	case d < 24*time.Hour:
 		hrs := int(d / time.Hour)
-		return builder.Sprintf("%d hours ago", hrs)
+		return Sprintf("%d hours ago", hrs)
 	case d < 48*time.Hour:
 		return "yesterday"
 	case d < 7*24*time.Hour:
 		days := int(d / (24 * time.Hour))
-		return builder.Sprintf("%d days ago", days)
+		return Sprintf("%d days ago", days)
 	default:
 		return "on " + t.Format("Jan 2")
 	}
 }
 
-func setAFKStatus(ctx *dispatch.Context, s *dispatch.StoreWrapper, reason string) error {
+func setAFKStatus(ctx *Context, s *StoreWrapper, reason string) error {
 	lastActive := GetOwnerLastActive(ctx.Ctx, s)
 	now := time.Now()
 	nowStr := now.Format("2006-01-02 15:04:05 MST")
@@ -344,17 +335,17 @@ func setAFKStatus(ctx *dispatch.Context, s *dispatch.StoreWrapper, reason string
 	// instant twice under two labels just reads as a duplicate/bug).
 	var lastAvailableLine string
 	if now.Sub(lastActive) > time.Minute {
-		lastAvailableLine = builder.Sprintf("They were last around %s.\n", humanRelativeTime(lastActive))
+		lastAvailableLine = Sprintf("They were last around %s.\n", humanRelativeTime(lastActive))
 	}
 
-	msg := builder.Sprintf(
+	msg := Sprintf(
 		"AFK mode is on now.\n%s\nReason: %s\n\nSay `%safk back` or `%safk off` to switch it off.",
 		lastAvailableLine, reason, p, p,
 	)
 	return ctx.Reply(msg)
 }
 
-func sendAFKCustomizeGuide(ctx *dispatch.Context) error {
+func sendAFKCustomizeGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	return ctx.Text().
 		Header("AFK CUSTOMIZATION GUIDE").
@@ -389,10 +380,10 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 	defer func() {
 		dur := time.Since(afkStart)
 		if dur > 1*time.Millisecond {
-			logger.Debug("HandleAFKAutoResponse", "elapsed", dur)
+			Debug("HandleAFKAutoResponse", "elapsed", dur)
 		}
 	}()
-	s, ok := dispatch.GetSQLStore(client)
+	s, ok := GetSQLStore(client)
 	if !ok {
 		return false
 	}
@@ -410,7 +401,7 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 			if !isCommand {
 				_ = s.PutSetting(ctx, AFKStatusKey, "off")
 				resetAFKUserTracker()
-				cctx := &dispatch.Context{
+				cctx := &Context{
 					Ctx:    ctx,
 					Client: client,
 					Evt:    evt,
@@ -493,10 +484,10 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 	userTag := "@" + senderJID.User
 	groupName := evt.Info.Chat.String()
 
-	randomFact := games.GetRandomFact(ctx)
-	randomQuote := games.GetRandomQuote(ctx)
-	randomJoke := games.GetRandomJoke(ctx)
-	randomRizz := games.GetRandomRizz(ctx)
+	randomFact := GetRandomFact(ctx)
+	randomQuote := GetRandomQuote(ctx)
+	randomJoke := GetRandomJoke(ctx)
+	randomRizz := GetRandomRizz(ctx)
 
 	afkTimeRelative := humanRelativeTime(afkSetAt)
 	lastActiveRelative := humanRelativeTime(lastActiveAt)
@@ -528,7 +519,7 @@ func HandleAFKAutoResponse(ctx context.Context, client *whatsmeow.Client, evt *e
 		body = "Still away — " + body
 	}
 
-	cctx := &dispatch.Context{
+	cctx := &Context{
 		Ctx:    ctx,
 		Client: client,
 		Evt:    evt,
@@ -618,8 +609,8 @@ func StopAutoBioScheduler() {
 	}
 }
 
-func handleAutoBio(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleAutoBio(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -693,7 +684,7 @@ func handleAutoBio(ctx *dispatch.Context) error {
 	return sendAutoBioMenu(ctx, s)
 }
 
-func sendAutoBioMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
+func sendAutoBioMenu(ctx *Context, s *StoreWrapper) error {
 	enabled, _ := s.GetSetting(ctx.Ctx, "autobio_enabled")
 	statusStr := "DISABLED"
 	if enabled == "true" {
@@ -701,7 +692,7 @@ func sendAutoBioMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 	}
 	tzStr := getAutoBioTimezone(ctx.Ctx, s)
 
-	bodyText := dispatch.NewText().
+	bodyText := NewText().
 		Header("AUTOBIO CONFIGURATION").
 		Field("Status", statusStr).
 		Field("Timezone", tzStr).
@@ -722,7 +713,7 @@ func sendAutoBioMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 	return sendPollReply(ctx, bodyText, options)
 }
 
-func sendAutoBioCustomizeGuide(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
+func sendAutoBioCustomizeGuide(ctx *Context, s *StoreWrapper) error {
 	p := ctx.GetPrefix()
 	tzStr := getAutoBioTimezone(ctx.Ctx, s)
 	previewBio := generateBioText(tzStr)
@@ -743,7 +734,7 @@ func sendAutoBioCustomizeGuide(ctx *dispatch.Context, s *dispatch.StoreWrapper) 
 		Reply()
 }
 
-func getAutoBioTimezone(ctx context.Context, s *dispatch.StoreWrapper) string {
+func getAutoBioTimezone(ctx context.Context, s *StoreWrapper) string {
 	tz, err := s.GetSetting(ctx, "autobio_timezone")
 	if err == nil && tz != "" {
 		return tz
@@ -768,7 +759,7 @@ func generateBioText(tzStr string) string {
 	quote := BioQuotes[AutoBioRng.Intn(len(BioQuotes))]
 	AutoBioRngMutex.Unlock()
 
-	return dispatch.Sprintf("%s | %s", timeFormatted, quote)
+	return Sprintf("%s | %s", timeFormatted, quote)
 }
 
 func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error) {
@@ -779,7 +770,7 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 		return "", nil
 	}
 
-	s, ok := dispatch.GetSQLStore(client)
+	s, ok := GetSQLStore(client)
 	if !ok || s == nil || s.GetDB() == nil {
 		return "", nil
 	}
@@ -797,27 +788,27 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 		if !client.IsConnected() || !client.IsLoggedIn() || errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || strings.Contains(err.Error(), "not connected") || strings.Contains(err.Error(), "disconnected") || strings.Contains(err.Error(), "timed out") || ctx.Err() != nil {
 			return "", nil
 		}
-		logger.Error("AutoBio: Failed to update bio", "err", err)
+		Error("AutoBio: Failed to update bio", "err", err)
 		return "", err
 	}
 
-	logger.Debug("AutoBio: Bio updated", "bio", bioText, "timezone", tzStr)
+	Debug("AutoBio: Bio updated", "bio", bioText, "timezone", tzStr)
 	return bioText, nil
 }
 
-func getUserTimezone(ctx context.Context, s *dispatch.StoreWrapper) string {
+func getUserTimezone(ctx context.Context, s *StoreWrapper) string {
 	tz, err := s.GetSetting(ctx, "timezone")
 	if err != nil || tz == "" {
 		return "UTC"
 	}
-	if iana, ok := tools.ResolveTimezoneAlias(tz); ok {
+	if iana, ok := ResolveTimezoneAlias(tz); ok {
 		return iana
 	}
 	return tz
 }
 
-func handleTimezone(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleTimezone(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -828,7 +819,7 @@ func handleTimezone(ctx *dispatch.Context) error {
 			tzName = decoded
 		}
 
-		res, err := tools.SearchTimezone(tzName)
+		res, err := SearchTimezone(tzName)
 		if err != nil {
 			return ctx.Replyf("Invalid timezone: %q. Please select a valid IANA timezone, Windows timezone name, or abbreviation.", tzName)
 		}
@@ -846,11 +837,11 @@ func handleTimezone(ctx *dispatch.Context) error {
 
 	if len(ctx.Args) >= 2 && strings.ToLower(ctx.Args[0]) == "setidx" {
 		idx, err := strconv.Atoi(ctx.Args[1])
-		if err != nil || idx < 1 || idx > len(tools.SupportedTimezones) {
+		if err != nil || idx < 1 || idx > len(SupportedTimezones) {
 			return ctx.Reply("Invalid timezone selection.")
 		}
-		tzText := tools.SupportedTimezones[idx-1]
-		res, err := tools.SearchTimezone(tzText)
+		tzText := SupportedTimezones[idx-1]
+		res, err := SearchTimezone(tzText)
 		if err != nil {
 			return ctx.Replyf("Could not resolve timezone %q: %v", tzText, err)
 		}
@@ -862,7 +853,7 @@ func handleTimezone(ctx *dispatch.Context) error {
 
 	if len(ctx.Args) == 1 {
 		tzName := ctx.Args[0]
-		if res, err := tools.SearchTimezone(tzName); err == nil {
+		if res, err := SearchTimezone(tzName); err == nil {
 			_ = s.PutSetting(ctx.Ctx, "timezone", res.ID)
 			return ctx.Replyf("Bot timezone successfully set to *%s*.", res.ID)
 		}
@@ -871,11 +862,11 @@ func handleTimezone(ctx *dispatch.Context) error {
 	return renderTimezonePage(ctx, s, 1)
 }
 
-func renderTimezonePage(ctx *dispatch.Context, s *dispatch.StoreWrapper, page int) error {
+func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 	currentTZ := getUserTimezone(ctx.Ctx, s)
 
 	pageSize := 3
-	totalPages := (len(tools.SupportedTimezones) + pageSize - 1) / pageSize
+	totalPages := (len(SupportedTimezones) + pageSize - 1) / pageSize
 	if page < 1 {
 		page = 1
 	}
@@ -884,13 +875,13 @@ func renderTimezonePage(ctx *dispatch.Context, s *dispatch.StoreWrapper, page in
 	}
 
 	startIdx := (page - 1) * pageSize
-	endIdx := min(startIdx+pageSize, len(tools.SupportedTimezones))
+	endIdx := min(startIdx+pageSize, len(SupportedTimezones))
 
-	pageItems := tools.SupportedTimezones[startIdx:endIdx]
+	pageItems := SupportedTimezones[startIdx:endIdx]
 	p := ctx.GetPrefix()
 
 	tb := ctx.Text().
-		Headerf("Timezone Configuration (Page %d of %d, Total: %d)", page, totalPages, len(tools.SupportedTimezones)).
+		Headerf("Timezone Configuration (Page %d of %d, Total: %d)", page, totalPages, len(SupportedTimezones)).
 		Field("Current Timezone", currentTZ).
 		Blank().
 		Line("Select your local timezone below so automute & autounmute execute at your exact local time:").
@@ -908,15 +899,15 @@ func renderTimezonePage(ctx *dispatch.Context, s *dispatch.StoreWrapper, page in
 			if mins < 0 {
 				mins = -mins
 			}
-			offsetStr = dispatch.Sprintf(" (UTC%+03d:%02d)", hours, mins)
+			offsetStr = Sprintf(" (UTC%+03d:%02d)", hours, mins)
 		}
-		tb.Numbered(globalIdx, dispatch.Bold(tz)+offsetStr)
+		tb.Numbered(globalIdx, Bold(tz)+offsetStr)
 	}
 
 	var options []string
 	for idx, tz := range pageItems {
 		globalIdx := startIdx + idx + 1
-		optText := dispatch.Sprintf("%d. %s", globalIdx, tz)
+		optText := Sprintf("%d. %s", globalIdx, tz)
 		if len(optText) > 40 {
 			optText = optText[:37] + "..."
 		}
@@ -925,7 +916,7 @@ func renderTimezonePage(ctx *dispatch.Context, s *dispatch.StoreWrapper, page in
 
 	if page < totalPages {
 		nextPage := page + 1
-		options = append(options, dispatch.Sprintf("Next (Page %d)", nextPage))
+		options = append(options, Sprintf("Next (Page %d)", nextPage))
 	} else if page > 1 {
 		options = append(options, "First Page")
 	}
@@ -937,12 +928,12 @@ func renderTimezonePage(ctx *dispatch.Context, s *dispatch.StoreWrapper, page in
 	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
-func handleReconfigure(ctx *dispatch.Context) error {
+func handleReconfigure(ctx *Context) error {
 	key := ctx.Chat.ToNonAD().String() + ":" + ctx.Sender.ToNonAD().String()
 	BotWizardMu.Lock()
 	PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
 	BotWizardMu.Unlock()
-	if s, ok := dispatch.GetStore(ctx); ok {
+	if s, ok := GetStore(ctx); ok {
 		_ = s.PutSetting(ctx.Ctx, "wizard_config", "name")
 	}
 
@@ -991,7 +982,7 @@ func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, i
 		_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.png"))
 		_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.webp"))
 
-		tempInput := filepath.Join(authDir, dispatch.Sprintf("input_%d.mp4", time.Now().UnixNano()))
+		tempInput := filepath.Join(authDir, Sprintf("input_%d.mp4", time.Now().UnixNano()))
 		if err := os.WriteFile(tempInput, data, 0644); err != nil {
 			return "", errors.New("failed to save temp video: " + err.Error())
 		}
@@ -1005,7 +996,7 @@ func ProcessAndSaveThumbnail(ctx context.Context, authDir string, data []byte, i
 			targetPath)
 
 		if err := cmd.Run(); err != nil {
-			logger.Warn("ffmpeg video processing failed, checking raw video fallback", "err", err)
+			Warn("ffmpeg video processing failed, checking raw video fallback", "err", err)
 			if len(data) <= 10*1024*1024 {
 				if errWrite := os.WriteFile(targetPath, data, 0644); errWrite != nil {
 					return "", errors.New("failed to write raw video fallback: " + errWrite.Error())
@@ -1036,28 +1027,28 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	defer func() {
 		dur := time.Since(wizStart)
 		if dur > 1*time.Millisecond {
-			logger.Debug("HandlePendingBotCustomizationReply", "elapsed", dur)
+			Debug("HandlePendingBotCustomizationReply", "elapsed", dur)
 		}
 	}()
 
 	// Never intercept poll votes in text message handler — let Dispatch handle them
 	unwrapped := whatsrook.UnwrapMessageProto(evt.Message)
 	if unwrapped != nil && unwrapped.GetPollUpdateMessage() != nil {
-		logger.Debug("Wizard interceptor: skipping poll update message")
+		Debug("Wizard interceptor: skipping poll update message")
 		return false
 	}
 
-	var s *dispatch.StoreWrapper
+	var s *StoreWrapper
 	var okStore bool
 	if client != nil && client.Store != nil {
-		s, okStore = dispatch.GetSQLStore(client)
+		s, okStore = GetSQLStore(client)
 	}
 	if !okStore {
-		logger.Debug("Wizard interceptor: SQLStore not available")
+		Debug("Wizard interceptor: SQLStore not available")
 		return false
 	}
 
-	fakeCtx := &dispatch.Context{
+	fakeCtx := &Context{
 		Ctx:    ctx,
 		Client: client,
 		Chat:   evt.Info.Chat,
@@ -1067,7 +1058,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 	isOwner := fakeCtx.IsOwner()
 	isSudo := fakeCtx.IsSudo()
-	logger.Debug("Wizard interceptor: evaluating message",
+	Debug("Wizard interceptor: evaluating message",
 		"chat", evt.Info.Chat.String(),
 		"sender", evt.Info.Sender.String(),
 		"isFromMe", evt.Info.IsFromMe,
@@ -1077,17 +1068,17 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 	// Wizard configuration is strictly restricted to bot owner and sudoers
 	if !isOwner && !isSudo {
-		logger.Debug("Wizard interceptor: sender is neither owner nor sudoer, ignoring wizard")
+		Debug("Wizard interceptor: sender is neither owner nor sudoer, ignoring wizard")
 		return false
 	}
 
 	wizardConfig, err := s.GetSetting(ctx, "wizard_config")
-	logger.Debug("Wizard interceptor: current wizard_config setting",
+	Debug("Wizard interceptor: current wizard_config setting",
 		"wizardConfig", wizardConfig,
 		"err", err,
 	)
 	if wizardConfig == "done" {
-		logger.Debug("Wizard interceptor: wizard_config is 'done', skipping wizard")
+		Debug("Wizard interceptor: wizard_config is 'done', skipping wizard")
 		return false
 	}
 
@@ -1098,7 +1089,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	trimmedText := strings.TrimSpace(text)
 	lowerText := strings.ToLower(trimmedText)
 
-	logger.Debug("Wizard interceptor: extracted message info",
+	Debug("Wizard interceptor: extracted message info",
 		"key", key,
 		"prefix", p,
 		"text", text,
@@ -1107,7 +1098,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 	// Allow explicit setup/reconfigure commands to reach dispatch
 	if lowerText == p+"reconfigure" || lowerText == ".reconfigure" || strings.HasPrefix(lowerText, p+"setbot") || strings.HasPrefix(lowerText, ".setbot") {
-		logger.Debug("Wizard interceptor: message matches reconfigure/setbot command, passing to dispatcher")
+		Debug("Wizard interceptor: message matches reconfigure/setbot command, passing to dispatcher")
 		return false
 	}
 
@@ -1116,7 +1107,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	BotWizardMu.RUnlock()
 
 	if inWizard && time.Since(session.UpdatedAt) > WizardSessionTTL {
-		logger.Debug("Wizard interceptor: pending wizard session expired", "key", key, "updatedAt", session.UpdatedAt)
+		Debug("Wizard interceptor: pending wizard session expired", "key", key, "updatedAt", session.UpdatedAt)
 		BotWizardMu.Lock()
 		delete(PendingWizardState, key)
 		BotWizardMu.Unlock()
@@ -1126,7 +1117,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	// If not currently in an active in-memory session, initialize or resume step
 	if !inWizard {
 		currentStep := wizardConfig
-		logger.Debug("Wizard interceptor: not in active memory session", "currentStep", currentStep)
+		Debug("Wizard interceptor: not in active memory session", "currentStep", currentStep)
 		if currentStep == "" || currentStep == "name" {
 			BotWizardMu.Lock()
 			PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
@@ -1135,7 +1126,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 			bodyText := "Bot Customization Wizard (Step 1/4)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):"
 			replyErr := fakeCtx.Replyf("%s\n\n(Tip: Type %sreconfigure anytime to restart this wizard)", bodyText, p)
-			logger.Debug("Wizard interceptor: initiated Step 1 (name) prompt",
+			Debug("Wizard interceptor: initiated Step 1 (name) prompt",
 				"putErr", putErr,
 				"replyErr", replyErr,
 				"chat", evt.Info.Chat.String(),
@@ -1149,16 +1140,16 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		PendingWizardState[key] = session
 		BotWizardMu.Unlock()
 		inWizard = true
-		logger.Debug("Wizard interceptor: resumed wizard session from DB state", "step", currentStep)
+		Debug("Wizard interceptor: resumed wizard session from DB state", "step", currentStep)
 	}
 
-	logger.Debug("Wizard handling step", "chat", key, "step", session.Step, "text", text)
+	Debug("Wizard handling step", "chat", key, "step", session.Step, "text", text)
 
 	switch session.Step {
 	case "name":
-		logger.Debug("Wizard interceptor: handling 'name' step", "trimmedText", trimmedText)
+		Debug("Wizard interceptor: handling 'name' step", "trimmedText", trimmedText)
 		if trimmedText == "" {
-			logger.Debug("Wizard interceptor: empty text for 'name' step, ignoring")
+			Debug("Wizard interceptor: empty text for 'name' step, ignoring")
 			return false
 		}
 		newName := trimmedText
@@ -1166,15 +1157,15 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		putStepErr := s.PutSetting(ctx, "wizard_config", "thumb")
 		DismissBotNamePrompt(ctx, s)
 		_ = s.PutSetting(ctx, BotNameAwaitingInputPrefix+senderUser, "")
-		ai.ClearInstructionCache()
+		ClearInstructionCache()
 
 		BotWizardMu.Lock()
 		PendingWizardState[key] = WizardSession{Step: "thumb", UpdatedAt: time.Now()}
 		BotWizardMu.Unlock()
 
-		bodyText := dispatch.Sprintf("Bot name set to %q.\n\nBot Customization Wizard (Step 2/4)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip below to keep the default thumbnail.", newName)
+		bodyText := Sprintf("Bot name set to %q.\n\nBot Customization Wizard (Step 2/4)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip below to keep the default thumbnail.", newName)
 		pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-		logger.Debug("Wizard interceptor: saved bot name and sent Step 2 (thumb) prompt",
+		Debug("Wizard interceptor: saved bot name and sent Step 2 (thumb) prompt",
 			"newName", newName,
 			"putNameErr", putNameErr,
 			"putStepErr", putStepErr,
@@ -1184,37 +1175,37 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 	case "thumb":
 		downloadable, isVideo, mime := whatsrook.ExtractMediaFromEvent(evt)
-		logger.Debug("Wizard Step 2/4 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
+		Debug("Wizard Step 2/4 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
 
 		if downloadable == nil {
-			logger.Warn("Wizard Step 2/4 (thumb): No image/video/document media found in message", "chat", key)
+			Warn("Wizard Step 2/4 (thumb): No image/video/document media found in message", "chat", key)
 			bodyText := "Bot Customization Wizard (Step 2/4)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip below to keep the default thumbnail."
 			pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-			logger.Debug("Wizard Step 2/4 (thumb): resent Step 2 prompt with Skip poll", "pollErr", pollErr)
+			Debug("Wizard Step 2/4 (thumb): resent Step 2 prompt with Skip poll", "pollErr", pollErr)
 			return true
 		}
 
-		logger.Debug("Wizard Step 2/4 (thumb): Starting media download", "chat", key, "mime", mime)
+		Debug("Wizard Step 2/4 (thumb): Starting media download", "chat", key, "mime", mime)
 		data, err := client.Download(ctx, downloadable)
 
 		if err != nil || len(data) == 0 {
-			logger.Error("Wizard Step 2/4 (thumb): Media download failed", "chat", key, "err", err, "dataLen", len(data))
+			Error("Wizard Step 2/4 (thumb): Media download failed", "chat", key, "err", err, "dataLen", len(data))
 			replyErr := fakeCtx.Replyf("Failed to download media for thumbnail (error: %v). Please try sending another file or select Skip.", err)
-			logger.Debug("Wizard Step 2/4 (thumb): sent download failure reply", "replyErr", replyErr)
+			Debug("Wizard Step 2/4 (thumb): sent download failure reply", "replyErr", replyErr)
 			return true
 		}
 
-		logger.Debug("Wizard Step 2/4 (thumb): Media downloaded successfully", "chat", key, "bytesLen", len(data), "isVideo", isVideo)
+		Debug("Wizard Step 2/4 (thumb): Media downloaded successfully", "chat", key, "bytesLen", len(data), "isVideo", isVideo)
 		authDir := GetSessionAuthDir(client)
 		targetPath, errProc := ProcessAndSaveThumbnail(ctx, authDir, data, isVideo)
 		if errProc != nil {
-			logger.Error("Wizard Step 2/4 (thumb): Thumbnail processing failed", "chat", key, "err", errProc)
+			Error("Wizard Step 2/4 (thumb): Thumbnail processing failed", "chat", key, "err", errProc)
 			replyErr := fakeCtx.Replyf("Failed to process thumbnail: %v. Please try sending another file or select Skip.", errProc)
-			logger.Debug("Wizard Step 2/4 (thumb): sent processing failure reply", "replyErr", replyErr)
+			Debug("Wizard Step 2/4 (thumb): sent processing failure reply", "replyErr", replyErr)
 			return true
 		}
 
-		logger.Debug("Wizard Step 2/4 (thumb): Thumbnail saved successfully", "chat", key, "targetPath", targetPath)
+		Debug("Wizard Step 2/4 (thumb): Thumbnail saved successfully", "chat", key, "targetPath", targetPath)
 		putThumbErr := s.PutSetting(ctx, "menu_thumbnail_path", targetPath)
 		putStepErr := s.PutSetting(ctx, "wizard_config", "prefix")
 
@@ -1224,7 +1215,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 		bodyText := "Bot menu thumbnail updated successfully.\n\nBot Customization Wizard (Step 3/4)\n\nPlease type the symbol or prefix you want to use (e.g. ., !, / or 'none') and send it as a message.\n\nOr select Skip below to keep current prefix."
 		pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-		logger.Debug("Wizard interceptor: saved thumbnail and sent Step 3 (prefix) prompt",
+		Debug("Wizard interceptor: saved thumbnail and sent Step 3 (prefix) prompt",
 			"targetPath", targetPath,
 			"putThumbErr", putThumbErr,
 			"putStepErr", putStepErr,
@@ -1233,18 +1224,18 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		return true
 
 	case "prefix":
-		logger.Debug("Wizard interceptor: handling 'prefix' step", "trimmedText", trimmedText)
+		Debug("Wizard interceptor: handling 'prefix' step", "trimmedText", trimmedText)
 		if trimmedText == "" {
-			logger.Debug("Wizard interceptor: empty text for 'prefix' step, ignoring")
+			Debug("Wizard interceptor: empty text for 'prefix' step, ignoring")
 			return false
 		}
 		newPrefix := trimmedText
 		if _, err := validateBotPrefixInput(newPrefix); err != nil {
-			logger.Warn("Wizard interceptor: invalid prefix entered", "input", newPrefix, "err", err)
+			Warn("Wizard interceptor: invalid prefix entered", "input", newPrefix, "err", err)
 			_ = fakeCtx.Reply("Invalid prefix. Use a single symbol or short word only (for example: !, /, . or bot). Sentences like 'hello there' are not allowed.")
 			bodyText := "Bot Customization Wizard (Step 3/4)\n\nPlease type the symbol or prefix you want to use (e.g. ., !, / or 'none') and send it as a message.\n\nOr select Skip below to keep current prefix."
 			pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-			logger.Debug("Wizard interceptor: resent Step 3 prompt", "pollErr", pollErr)
+			Debug("Wizard interceptor: resent Step 3 prompt", "pollErr", pollErr)
 			return true
 		}
 		if strings.EqualFold(newPrefix, "none") || strings.EqualFold(newPrefix, "empty") {
@@ -1257,9 +1248,9 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		PendingWizardState[key] = WizardSession{Step: "bio", UpdatedAt: time.Now()}
 		BotWizardMu.Unlock()
 
-		bodyText := dispatch.Sprintf("Prefix set to %q.\n\nBot Customization Wizard (Step 4/4)\n\nPlease type the text for your bot's WhatsApp status bio and send it as a message.\n\nOr select Skip to finish.", newPrefix)
+		bodyText := Sprintf("Prefix set to %q.\n\nBot Customization Wizard (Step 4/4)\n\nPlease type the text for your bot's WhatsApp status bio and send it as a message.\n\nOr select Skip to finish.", newPrefix)
 		pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-		logger.Debug("Wizard interceptor: saved prefix and sent Step 4 (bio) prompt",
+		Debug("Wizard interceptor: saved prefix and sent Step 4 (bio) prompt",
 			"newPrefix", newPrefix,
 			"putPfxErr", putPfxErr,
 			"putStepErr", putStepErr,
@@ -1268,14 +1259,14 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		return true
 
 	case "bio":
-		logger.Debug("Wizard interceptor: handling 'bio' step", "trimmedText", trimmedText)
+		Debug("Wizard interceptor: handling 'bio' step", "trimmedText", trimmedText)
 		if trimmedText == "" {
-			logger.Debug("Wizard interceptor: empty text for 'bio' step, ignoring")
+			Debug("Wizard interceptor: empty text for 'bio' step, ignoring")
 			return false
 		}
 		newBio := trimmedText
 		statusErr := client.SetStatusMessage(ctx, types.SetStatusInput{Text: &newBio})
-		logger.Debug("Wizard interceptor: SetStatusMessage completed", "statusErr", statusErr)
+		Debug("Wizard interceptor: SetStatusMessage completed", "statusErr", statusErr)
 
 		putDoneErr := s.PutSetting(ctx, "wizard_config", "done")
 		DismissBotNamePrompt(ctx, s)
@@ -1285,7 +1276,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		BotWizardMu.Unlock()
 
 		summaryErr := sendWizardSummaryCard(fakeCtx)
-		logger.Debug("Wizard interceptor: completed customization wizard",
+		Debug("Wizard interceptor: completed customization wizard",
 			"putDoneErr", putDoneErr,
 			"summaryErr", summaryErr,
 		)
@@ -1295,11 +1286,11 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	return false
 }
 
-func handleSetBot(ctx *dispatch.Context) error {
-	logger.Debug("handleSetBot: command invoked", "rawArgs", ctx.RawArgs, "sender", ctx.Sender.String(), "chat", ctx.Chat.String())
-	s, ok := dispatch.GetStore(ctx)
+func handleSetBot(ctx *Context) error {
+	Debug("handleSetBot: command invoked", "rawArgs", ctx.RawArgs, "sender", ctx.Sender.String(), "chat", ctx.Chat.String())
+	s, ok := GetStore(ctx)
 	if !ok {
-		logger.Error("handleSetBot: settings store unavailable")
+		Error("handleSetBot: settings store unavailable")
 		return ctx.Reply("Settings store unavailable.")
 	}
 
@@ -1310,7 +1301,7 @@ func handleSetBot(ctx *dispatch.Context) error {
 
 	if len(args) > 0 {
 		sub := strings.ToLower(args[0])
-		logger.Debug("handleSetBot: processing subcommand", "sub", sub, "argsCount", len(args))
+		Debug("handleSetBot: processing subcommand", "sub", sub, "argsCount", len(args))
 
 		switch sub {
 		case "wizard", "setup", "reconfigure", "reconfig":
@@ -1370,7 +1361,7 @@ func handleSetBot(ctx *dispatch.Context) error {
 			if len(args) > 1 {
 				stepNum, _ = strconv.Atoi(args[1])
 			}
-			logger.Debug("handleSetBot: skip requested", "stepNum", stepNum)
+			Debug("handleSetBot: skip requested", "stepNum", stepNum)
 
 			// If no explicit step number, check current wizard state to determine which step to skip
 			if stepNum == 0 {
@@ -1452,7 +1443,7 @@ func handleSetBot(ctx *dispatch.Context) error {
 			_ = s.PutSetting(ctx.Ctx, BotNameSettingKey, newName)
 			DismissBotNamePrompt(ctx.Ctx, s)
 			_ = s.PutSetting(ctx.Ctx, BotNameAwaitingInputPrefix+senderUser, "")
-			ai.ClearInstructionCache()
+			ClearInstructionCache()
 			return ctx.Replyf("Bot name successfully updated to: %q!", newName)
 
 		case "prefix", "setprefix":
@@ -1487,7 +1478,7 @@ func handleSetBot(ctx *dispatch.Context) error {
 			_ = s.PutSetting(ctx.Ctx, "menu_thumbnail_path", "")
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.mp4"))
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.jpg"))
-			ai.ClearInstructionCache()
+			ClearInstructionCache()
 			return ctx.Reply("All bot settings (Name, Thumbnail, Prefix) reset to default values.")
 
 		case "setup_customize":
@@ -1529,7 +1520,7 @@ func handleSetBot(ctx *dispatch.Context) error {
 	return sendSetBotPage(ctx, 1)
 }
 
-func sendSetBotPage(ctx *dispatch.Context, pageNum int) error {
+func sendSetBotPage(ctx *Context, pageNum int) error {
 	p := ctx.GetPrefix()
 	botName := ctx.GetBotName()
 	curPrefix := p
@@ -1538,7 +1529,7 @@ func sendSetBotPage(ctx *dispatch.Context, pageNum int) error {
 	}
 
 	thumbStatus := "None (Default)"
-	if s, ok := dispatch.GetStore(ctx); ok {
+	if s, ok := GetStore(ctx); ok {
 		if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
 			if _, errStat := os.Stat(custom); errStat == nil {
 				thumbStatus = "Custom Thumbnail"
@@ -1578,7 +1569,7 @@ func sendSetBotPage(ctx *dispatch.Context, pageNum int) error {
 	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
-func sendWizardSummaryCard(ctx *dispatch.Context) error {
+func sendWizardSummaryCard(ctx *Context) error {
 	p := ctx.GetPrefix()
 	botName := ctx.GetBotName()
 	curPrefix := p
@@ -1587,7 +1578,7 @@ func sendWizardSummaryCard(ctx *dispatch.Context) error {
 	}
 
 	thumbStatus := "None (Default)"
-	if s, ok := dispatch.GetStore(ctx); ok {
+	if s, ok := GetStore(ctx); ok {
 		_ = s.PutSetting(ctx.Ctx, "wizard_config", "done")
 		DismissBotNamePrompt(ctx.Ctx, s)
 		if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
@@ -1610,8 +1601,8 @@ func sendWizardSummaryCard(ctx *dispatch.Context) error {
 	return sendPollReply(ctx, summaryText, []string{"Done", "Start Over"})
 }
 
-func handleLikeStatusCmd(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleLikeStatusCmd(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database store not available.")
 	}
@@ -1650,13 +1641,13 @@ func handleLikeStatusCmd(ctx *dispatch.Context) error {
 	}
 }
 
-func sendLikeStatusMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
+func sendLikeStatusMenu(ctx *Context, s *StoreWrapper) error {
 	status, _ := s.GetSetting(ctx.Ctx, "likestatus_status")
 	if status == "" {
 		status = "off"
 	}
 
-	bodyText := dispatch.NewText().
+	bodyText := NewText().
 		Header("LIFESTATUS AUTO-REACTION").
 		Field("Status", strings.ToUpper(status)).
 		Blank().
@@ -1676,7 +1667,7 @@ func sendLikeStatusMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 	return sendPollReply(ctx, bodyText, options)
 }
 
-func sendLikeStatusCustomizeGuide(ctx *dispatch.Context) error {
+func sendLikeStatusCustomizeGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	return ctx.Text().
 		Header("LIKESTATUS CUSTOMIZATION GUIDE").
@@ -1730,8 +1721,8 @@ func validateBotPrefixInput(raw string) ([]string, error) {
 	return parts, nil
 }
 
-func handlePrefix(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handlePrefix(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1775,14 +1766,14 @@ func handlePrefix(ctx *dispatch.Context) error {
 		if p == "empty" {
 			display = append(display, "(no prefix)")
 		} else {
-			display = append(display, dispatch.Sprintf("%q", p))
+			display = append(display, Sprintf("%q", p))
 		}
 	}
 	return ctx.Replyf("Prefix updated to: %s", strings.Join(display, ", "))
 }
 
-func handleStpack(ctx *dispatch.Context) error {
-	_, ok := dispatch.GetStore(ctx)
+func handleStpack(ctx *Context) error {
+	_, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -1798,7 +1789,7 @@ func handleStpack(ctx *dispatch.Context) error {
 	return ctx.Reply("Type sticker pack author name")
 }
 
-func HandlePendingStpackInput(ctx *dispatch.Context, text string) bool {
+func HandlePendingStpackInput(ctx *Context, text string) bool {
 	if ctx == nil || ctx.Client == nil || ctx.Sender.User == "" {
 		return false
 	}
@@ -1835,7 +1826,7 @@ func HandlePendingStpackInput(ctx *dispatch.Context, text string) bool {
 	}
 
 	var prefixes []string
-	if s, ok := dispatch.GetSQLStore(ctx.Client); ok {
+	if s, ok := GetSQLStore(ctx.Client); ok {
 		if p, err := s.GetSetting(ctx.Ctx, "prefix"); err == nil && strings.TrimSpace(p) != "" {
 			prefixes = strings.Fields(p)
 		}
@@ -1880,13 +1871,13 @@ func HandlePendingStpackInput(ctx *dispatch.Context, text string) bool {
 
 	case 2:
 		packName := trimmed
-		s, ok := dispatch.GetStore(ctx)
+		s, ok := GetStore(ctx)
 		if ok {
 			if err := s.PutSetting(ctx.Ctx, "sticker_author", session.Author); err != nil {
-				logger.Error("failed to update sticker_author", "err", err)
+				Error("failed to update sticker_author", "err", err)
 			}
 			if err := s.PutSetting(ctx.Ctx, "sticker_pack", packName); err != nil {
-				logger.Error("failed to update sticker_pack", "err", err)
+				Error("failed to update sticker_pack", "err", err)
 			}
 		}
 		StpackSessionMu.Lock()
@@ -1900,7 +1891,7 @@ func HandlePendingStpackInput(ctx *dispatch.Context, text string) bool {
 	return false
 }
 
-func handlePrivacy(ctx *dispatch.Context) error {
+func handlePrivacy(ctx *Context) error {
 	if len(ctx.Args) >= 2 {
 		name := strings.ToLower(ctx.Args[0])
 		val := strings.ToLower(ctx.Args[1])
@@ -1938,7 +1929,7 @@ func handlePrivacy(ctx *dispatch.Context) error {
 	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
-func updatePrivacySetting(ctx *dispatch.Context, nameStr, valStr string) error {
+func updatePrivacySetting(ctx *Context, nameStr, valStr string) error {
 	var name types.PrivacySettingType
 	var val types.PrivacySetting
 
@@ -1982,7 +1973,7 @@ func updatePrivacySetting(ctx *dispatch.Context, nameStr, valStr string) error {
 	return ctx.Replyf("Successfully updated privacy setting *%s* to *%s*.", name, val)
 }
 
-func handleSetCmd(ctx *dispatch.Context) error {
+func handleSetCmd(ctx *Context) error {
 	rawInput := strings.TrimSpace(ctx.RawArgs)
 	if rawInput == "" && len(ctx.Args) > 0 {
 		rawInput = strings.Join(ctx.Args, " ")
@@ -2004,13 +1995,13 @@ func handleSetCmd(ctx *dispatch.Context) error {
 	}
 
 	baseCmd := cleanBaseCmd
-	_, existsNative := dispatch.Get(baseCmd)
-	isExternal := external.DefaultDispatcher.IsInstalled(baseCmd, sess)
+	_, existsNative := Get(baseCmd)
+	isExternal := ExternalDefaultDispatcher.IsInstalled(baseCmd, sess)
 
 	if !existsNative && !isExternal {
 		baseCmd = rawBaseCmd
-		_, existsNative = dispatch.Get(baseCmd)
-		isExternal = external.DefaultDispatcher.IsInstalled(baseCmd, sess)
+		_, existsNative = Get(baseCmd)
+		isExternal = ExternalDefaultDispatcher.IsInstalled(baseCmd, sess)
 	}
 
 	if !existsNative && !isExternal {
@@ -2027,7 +2018,7 @@ func handleSetCmd(ctx *dispatch.Context) error {
 		return ctx.Reply("Could not recognize sticker. Please try another sticker.")
 	}
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database is temporarily unavailable. Please try again.")
 	}
@@ -2042,16 +2033,16 @@ func handleSetCmd(ctx *dispatch.Context) error {
 		}
 	}
 
-	if err := store.PutStickerCmd(ctx.Ctx, s.SQLStore, shaHex, storedCmd); err != nil {
-		logger.Error("handleSetCmd: failed to put sticker command", "err", err)
+	if err := PutStickerCmd(ctx.Ctx, s.SQLStore, shaHex, storedCmd); err != nil {
+		Error("handleSetCmd: failed to put sticker command", "err", err)
 		return ctx.Reply("Failed to link sticker command.")
 	}
 
 	return ctx.Replyf("Sticker linked to command %q.", storedCmd)
 }
 
-func handleDelCmd(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleDelCmd(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Database is temporarily unavailable. Please try again.")
 	}
@@ -2064,7 +2055,7 @@ func handleDelCmd(ctx *dispatch.Context) error {
 		}
 		shaHex := hex.EncodeToString(stk.GetFileSHA256())
 
-		if err := store.DeleteStickerCmdBySHA(ctx.Ctx, s.SQLStore, shaHex); err != nil {
+		if err := DeleteStickerCmdBySHA(ctx.Ctx, s.SQLStore, shaHex); err != nil {
 			return ctx.Reply("Failed to remove sticker command.")
 		}
 		return ctx.Reply("Sticker link removed.")
@@ -2076,20 +2067,20 @@ func handleDelCmd(ctx *dispatch.Context) error {
 
 	cmdName := strings.ToLower(ctx.Args[0])
 	cmdName = strings.TrimLeft(cmdName, "./!#$")
-	if err := store.DeleteStickerCmdByName(ctx.Ctx, s.SQLStore, cmdName); err != nil {
+	if err := DeleteStickerCmdByName(ctx.Ctx, s.SQLStore, cmdName); err != nil {
 		return ctx.Reply("Failed to remove sticker command.")
 	}
 
 	return ctx.Replyf("Mapped sticker(s) for command %q removed.", cmdName)
 }
 
-func handleGetCmd(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleGetCmd(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
 
-	cmds, err := store.ListStickerCmds(ctx.Ctx, s.SQLStore)
+	cmds, err := ListStickerCmds(ctx.Ctx, s.SQLStore)
 	if err != nil {
 		return ctx.Reply("Failed to query sticker commands.")
 	}
@@ -2113,7 +2104,7 @@ func handleGetCmd(ctx *dispatch.Context) error {
 	return tb.Reply()
 }
 
-func handleDisableCmd(ctx *dispatch.Context) error {
+func handleDisableCmd(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage:\n- %sdisablecmd <command_name>\nExample:\n- %sdisablecmd weather", p, p)
@@ -2124,12 +2115,12 @@ func handleDisableCmd(ctx *dispatch.Context) error {
 		return ctx.Reply("Cannot disable core system commands.")
 	}
 
-	_, exists := dispatch.Get(cmdName)
+	_, exists := Get(cmdName)
 	if !exists {
 		return ctx.Replyf("Command %q does not exist.", cmdName)
 	}
 
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -2154,14 +2145,14 @@ func handleDisableCmd(ctx *dispatch.Context) error {
 	return ctx.Replyf("Command %q has been disabled.", cmdName)
 }
 
-func handleEnableCmd(ctx *dispatch.Context) error {
+func handleEnableCmd(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage:\n- %senablecmd <command_name>\nExample:\n- %senablecmd weather", p, p)
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
-	s, ok := dispatch.GetStore(ctx)
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -2194,8 +2185,8 @@ func handleEnableCmd(ctx *dispatch.Context) error {
 	return ctx.Replyf("Command %q has been enabled.", cmdName)
 }
 
-func handleAutoVV(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleAutoVV(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -2215,12 +2206,12 @@ func handleAutoVV(ctx *dispatch.Context) error {
 			modeText = "Public (Same Chat)"
 		}
 
-		bodyText := dispatch.NewText().
+		bodyText := NewText().
 			Header("AUTO-VIEWONCE SETTINGS").
 			Field("Status", strings.ToUpper(curr)).
 			Field("Mode", modeText).
 			Blank().
-			Line("Automatically intercepts incoming ViewOnce media and re-uploads fresh non-expiring media.").
+			Line("Automatically intercepts incoming ViewOnce media and re-uploads fresh non-expiring ").
 			Blank().
 			Section("Modes:").
 			Bullet("Private (DM): Unwrapped media is saved & sent privately to your DM.").
@@ -2282,8 +2273,8 @@ func handleAutoVV(ctx *dispatch.Context) error {
 	}
 }
 
-func handleAutoStatusSave(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleAutoStatusSave(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -2294,7 +2285,7 @@ func handleAutoStatusSave(ctx *dispatch.Context) error {
 		if curr == "" {
 			curr = "off"
 		}
-		bodyText := dispatch.NewText().
+		bodyText := NewText().
 			Header("AUTO-STATUS SAVER").
 			Field("Status", strings.ToUpper(curr)).
 			Blank().
@@ -2381,8 +2372,8 @@ func parseEmojiList(input string) []string {
 	return []string{input}
 }
 
-func handleAutoReactCmd(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleAutoReactCmd(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -2472,7 +2463,7 @@ func handleAutoReactCmd(ctx *dispatch.Context) error {
 	}
 }
 
-func sendAutoReactMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
+func sendAutoReactMenu(ctx *Context, s *StoreWrapper) error {
 	status, _ := s.GetSetting(ctx.Ctx, "autoreact_status")
 	if status == "" {
 		status = "off"
@@ -2489,7 +2480,7 @@ func sendAutoReactMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 
 	displayEmojis := strings.Join(emojis, " ")
 	if len(emojis) > 10 {
-		displayEmojis = strings.Join(emojis[:10], " ") + dispatch.Sprintf(" (+%d more)", len(emojis)-10)
+		displayEmojis = strings.Join(emojis[:10], " ") + Sprintf(" (+%d more)", len(emojis)-10)
 	}
 
 	actionText := "Activate"
@@ -2524,7 +2515,7 @@ func sendAutoReactMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 	return sendPollReply(ctx, bodyText, options)
 }
 
-func sendAutoReactGuide(ctx *dispatch.Context) error {
+func sendAutoReactGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	return ctx.Text().
 		Header("AUTO-REACT GUIDE").
@@ -2546,8 +2537,8 @@ func sendAutoReactGuide(ctx *dispatch.Context) error {
 		Reply()
 }
 
-func handleAutoReadCmd(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleAutoReadCmd(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -2644,7 +2635,7 @@ func handleAutoReadCmd(ctx *dispatch.Context) error {
 	}
 }
 
-func sendAutoReadMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
+func sendAutoReadMenu(ctx *Context, s *StoreWrapper) error {
 	status, _ := s.GetSetting(ctx.Ctx, "autoread_status")
 	if status == "" {
 		status = "off"
@@ -2695,7 +2686,7 @@ func sendAutoReadMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 	return sendPollReply(ctx, bodyText, options)
 }
 
-func sendAutoReadGuide(ctx *dispatch.Context) error {
+func sendAutoReadGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	return ctx.Text().
 		Header("AUTO-READ GUIDE").
@@ -2717,7 +2708,7 @@ func sendAutoReadGuide(ctx *dispatch.Context) error {
 		Reply()
 }
 
-func HandleAutoReact(ctx context.Context, client *whatsmeow.Client, s *dispatch.StoreWrapper, evt *events.Message) {
+func HandleAutoReact(ctx context.Context, client *whatsmeow.Client, s *StoreWrapper, evt *events.Message) {
 	if evt == nil || evt.Info.IsFromMe || client == nil || s == nil {
 		return
 	}
@@ -2754,13 +2745,13 @@ func HandleAutoReact(ctx context.Context, client *whatsmeow.Client, s *dispatch.
 	reactionMsg := client.BuildReaction(evt.Info.Chat, senderJID, evt.Info.ID, emoji)
 	_, err := client.SendMessage(ctx, evt.Info.Chat, reactionMsg)
 	if err != nil {
-		logger.Debug("autoreact: failed to send reaction", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
+		Debug("autoreact: failed to send reaction", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
 	} else {
-		logger.Debug("autoreact: reaction sent", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "emoji", emoji)
+		Debug("autoreact: reaction sent", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "emoji", emoji)
 	}
 }
 
-func HandleAutoRead(ctx context.Context, client *whatsmeow.Client, s *dispatch.StoreWrapper, evt *events.Message) {
+func HandleAutoRead(ctx context.Context, client *whatsmeow.Client, s *StoreWrapper, evt *events.Message) {
 	if evt == nil || evt.Info.IsFromMe || client == nil || s == nil {
 		return
 	}
@@ -2775,9 +2766,9 @@ func HandleAutoRead(ctx context.Context, client *whatsmeow.Client, s *dispatch.S
 			}
 			err := client.MarkRead(ctx, []types.MessageID{evt.Info.ID}, evt.Info.Timestamp, types.StatusBroadcastJID, senderJID)
 			if err != nil {
-				logger.Debug("autoread: failed to mark status as read", "msg_id", evt.Info.ID, "err", err)
+				Debug("autoread: failed to mark status as read", "msg_id", evt.Info.ID, "err", err)
 			} else {
-				logger.Debug("autoread: status marked as read", "msg_id", evt.Info.ID, "sender", senderJID.String())
+				Debug("autoread: status marked as read", "msg_id", evt.Info.ID, "sender", senderJID.String())
 			}
 		}
 		return
@@ -2803,8 +2794,8 @@ func HandleAutoRead(ctx context.Context, client *whatsmeow.Client, s *dispatch.S
 
 	err := client.MarkRead(ctx, []types.MessageID{evt.Info.ID}, evt.Info.Timestamp, evt.Info.Chat, senderJID)
 	if err != nil {
-		logger.Debug("autoread: failed to mark message as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
+		Debug("autoread: failed to mark message as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID, "err", err)
 	} else {
-		logger.Debug("autoread: message marked as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID)
+		Debug("autoread: message marked as read", "chat", evt.Info.Chat.String(), "msg_id", evt.Info.ID)
 	}
 }

@@ -1,8 +1,7 @@
-package builder
+package main
 
 import (
 	"fmt"
-	"whatsrook/bot/logger"
 
 	"go.mau.fi/whatsmeow/types"
 )
@@ -132,7 +131,7 @@ func (m *MessageBuilder) Send() error {
 		to = sender.GetChat()
 	}
 
-	logger.Debug("WARook: MessageBuilder.Send", "to", to.String(), "mediaKind", m.mediaKind, "asReply", m.asReply)
+	Debug("WARook: MessageSend", "to", to.String(), "mediaKind", m.mediaKind, "asReply", m.asReply)
 
 	switch m.mediaKind {
 	case "reaction":
@@ -183,7 +182,7 @@ func (m *MessageBuilder) Send() error {
 	default:
 		// Plain text / Mentions / Group Mention
 		if m.text == "" {
-			return fmt.Errorf("WARook: MessageBuilder.Send called with no text or media")
+			return fmt.Errorf("WARook: MessageSend called with no text or media")
 		}
 		if m.groupMention {
 			if m.asReply {

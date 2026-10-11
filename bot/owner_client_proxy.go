@@ -1,7 +1,7 @@
 // client_proxy.go provides a dynamic reflection proxy and Baileys-compatible
 // bridge for the whatsmeow.Client instance, exposing all client methods
 // with automatic argument conversion to Go equivalents.
-package owner
+package main
 
 import (
 	"context"
@@ -19,14 +19,12 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"whatsrook/bot/dispatch"
-
 	"github.com/thruqe/whatsrook"
 )
 
 // SetupEvalJavaScriptEnvironment registers Baileys-style client proxies, protobuf builders,
 // utility globals, reflection methods, and extended tools into the Goja runtime.
-func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context, trackerOpt ...*EvalContextTracker) (*goja.Object, error) {
+func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *Context, trackerOpt ...*EvalContextTracker) (*goja.Object, error) {
 	var tracker *EvalContextTracker
 	if len(trackerOpt) > 0 && trackerOpt[0] != nil {
 		tracker = trackerOpt[0]
@@ -672,7 +670,7 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context, tra
 }
 
 // registerReflectedClientMethods registers every exported method on whatsmeow.Client into clientObj.
-func registerReflectedClientMethods(vm *goja.Runtime, clientObj *goja.Object, ctx *dispatch.Context, tracker *EvalContextTracker) {
+func registerReflectedClientMethods(vm *goja.Runtime, clientObj *goja.Object, ctx *Context, tracker *EvalContextTracker) {
 	if ctx.Client == nil {
 		return
 	}
@@ -711,7 +709,7 @@ func registerReflectedClientMethods(vm *goja.Runtime, clientObj *goja.Object, ct
 
 // createMethodWrapper wraps an arbitrary Go method into a Goja function with automatic parameter coercion,
 // metadata tagging, and call tracking.
-func createMethodWrapper(vm *goja.Runtime, name string, mVal reflect.Value, mType reflect.Type, ctx *dispatch.Context, meta FunctionMetadata, tracker *EvalContextTracker) goja.Value {
+func createMethodWrapper(vm *goja.Runtime, name string, mVal reflect.Value, mType reflect.Type, ctx *Context, meta FunctionMetadata, tracker *EvalContextTracker) goja.Value {
 	rawFn := func(call goja.FunctionCall) goja.Value {
 		if tracker != nil {
 			var argsSummary []string
@@ -744,7 +742,7 @@ func createMethodWrapper(vm *goja.Runtime, name string, mVal reflect.Value, mTyp
 		jsArgIdx := 0
 
 		// Context auto-injection: if method's 1st param is context.Context
-		firstIsContext := numIn > 0 && mType.In(0) == reflect.TypeOf((*context.Context)(nil)).Elem()
+		firstIsContext := numIn > 0 && mType.In(0) == reflect.TypeFor[context.Context]()
 		if firstIsContext {
 			// Check if caller supplied their own context
 			if len(call.Arguments) > 0 && isContextArg(call.Arguments[0]) {
@@ -810,7 +808,7 @@ func createMethodWrapper(vm *goja.Runtime, name string, mVal reflect.Value, mTyp
 
 		// Check if last return value is error
 		lastResult := results[len(results)-1]
-		if lastResult.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+		if lastResult.Type().Implements(reflect.TypeFor[error]()) {
 			if !lastResult.IsNil() {
 				err := lastResult.Interface().(error)
 				panic(vm.NewGoError(err))
@@ -879,7 +877,7 @@ func isContextArg(val goja.Value) bool {
 }
 
 // convertJSArgToGo converts a single JavaScript argument to the expected Go reflect.Type.
-func convertJSArgToGo(vm *goja.Runtime, jsVal goja.Value, targetType reflect.Type, ctx *dispatch.Context) (reflect.Value, error) {
+func convertJSArgToGo(vm *goja.Runtime, jsVal goja.Value, targetType reflect.Type, ctx *Context) (reflect.Value, error) {
 	if jsVal == nil || goja.IsUndefined(jsVal) || goja.IsNull(jsVal) {
 		return reflect.Zero(targetType), nil
 	}
@@ -887,7 +885,7 @@ func convertJSArgToGo(vm *goja.Runtime, jsVal goja.Value, targetType reflect.Typ
 	exported := jsVal.Export()
 
 	// 1. types.JID
-	if targetType == reflect.TypeOf(types.JID{}) {
+	if targetType == reflect.TypeFor[types.JID]() {
 		jid, err := resolveJID(exported, ctx)
 		if err != nil {
 			return reflect.Value{}, err
@@ -896,7 +894,7 @@ func convertJSArgToGo(vm *goja.Runtime, jsVal goja.Value, targetType reflect.Typ
 	}
 
 	// 2. []types.JID
-	if targetType == reflect.TypeOf([]types.JID{}) {
+	if targetType == reflect.TypeFor[[]types.JID]() {
 		jids, err := resolveJIDSlice(exported, ctx)
 		if err != nil {
 			return reflect.Value{}, err
@@ -905,7 +903,7 @@ func convertJSArgToGo(vm *goja.Runtime, jsVal goja.Value, targetType reflect.Typ
 	}
 
 	// 3. *waE2E.Message
-	if targetType == reflect.TypeOf((*waE2E.Message)(nil)) {
+	if targetType == reflect.TypeFor[*waE2E.Message]() {
 		msg, err := ConvertToProtoMessage(exported, ctx)
 		if err != nil {
 			return reflect.Value{}, err
@@ -914,8 +912,8 @@ func convertJSArgToGo(vm *goja.Runtime, jsVal goja.Value, targetType reflect.Typ
 	}
 
 	// 4. Protobuf Message pointer (*waE2E.ContextInfo, etc.)
-	if targetType.Implements(reflect.TypeOf((*proto.Message)(nil)).Elem()) {
-		if targetType.Kind() == reflect.Ptr {
+	if targetType.Implements(reflect.TypeFor[proto.Message]()) {
+		if targetType.Kind() == reflect.Pointer {
 			elemType := targetType.Elem()
 			newProto := reflect.New(elemType).Interface().(proto.Message)
 			if m, ok := exported.(map[string]any); ok {
@@ -933,21 +931,21 @@ func convertJSArgToGo(vm *goja.Runtime, jsVal goja.Value, targetType reflect.Typ
 	}
 
 	// 5. types.Presence, ChatPresence, ChatPresenceMedia, MessageID
-	if targetType == reflect.TypeOf(types.Presence("")) {
+	if targetType == reflect.TypeFor[types.Presence]() {
 		return reflect.ValueOf(types.Presence(jsVal.String())), nil
 	}
-	if targetType == reflect.TypeOf(types.ChatPresence("")) {
+	if targetType == reflect.TypeFor[types.ChatPresence]() {
 		return reflect.ValueOf(types.ChatPresence(jsVal.String())), nil
 	}
-	if targetType == reflect.TypeOf(types.ChatPresenceMedia("")) {
+	if targetType == reflect.TypeFor[types.ChatPresenceMedia]() {
 		return reflect.ValueOf(types.ChatPresenceMedia(jsVal.String())), nil
 	}
-	if targetType == reflect.TypeOf(types.MessageID("")) {
+	if targetType == reflect.TypeFor[types.MessageID]() {
 		return reflect.ValueOf(types.MessageID(jsVal.String())), nil
 	}
 
 	// 6. []byte
-	if targetType == reflect.TypeOf([]byte{}) {
+	if targetType == reflect.TypeFor[[]byte]() {
 		data, _, err := resolveMediaData(exported, "application/octet-stream")
 		if err != nil {
 			return reflect.Value{}, err
@@ -956,7 +954,7 @@ func convertJSArgToGo(vm *goja.Runtime, jsVal goja.Value, targetType reflect.Typ
 	}
 
 	// 7. time.Duration
-	if targetType == reflect.TypeOf(time.Duration(0)) {
+	if targetType == reflect.TypeFor[time.Duration]() {
 		switch v := exported.(type) {
 		case int64:
 			return reflect.ValueOf(time.Duration(v) * time.Millisecond), nil
@@ -972,7 +970,7 @@ func convertJSArgToGo(vm *goja.Runtime, jsVal goja.Value, targetType reflect.Typ
 	}
 
 	// 8. time.Time
-	if targetType == reflect.TypeOf(time.Time{}) {
+	if targetType == reflect.TypeFor[time.Time]() {
 		switch v := exported.(type) {
 		case int64:
 			return reflect.ValueOf(time.Unix(v, 0)), nil
@@ -1043,11 +1041,11 @@ func convertJSArgToGo(vm *goja.Runtime, jsVal goja.Value, targetType reflect.Typ
 	}
 
 	// 11. Generic Struct unmarshaling via JSON
-	if targetType.Kind() == reflect.Struct || (targetType.Kind() == reflect.Ptr && targetType.Elem().Kind() == reflect.Struct) {
+	if targetType.Kind() == reflect.Struct || (targetType.Kind() == reflect.Pointer && targetType.Elem().Kind() == reflect.Struct) {
 		jsonBytes, err := json.Marshal(exported)
 		if err == nil {
 			var newStruct reflect.Value
-			if targetType.Kind() == reflect.Ptr {
+			if targetType.Kind() == reflect.Pointer {
 				newStruct = reflect.New(targetType.Elem())
 				if err := json.Unmarshal(jsonBytes, newStruct.Interface()); err == nil {
 					return newStruct, nil
@@ -1070,7 +1068,7 @@ func convertJSArgToGo(vm *goja.Runtime, jsVal goja.Value, targetType reflect.Typ
 	return reflect.Zero(targetType), fmt.Errorf("cannot convert JS value %v (%T) to %v", exported, exported, targetType)
 }
 
-func resolveJID(val any, ctx *dispatch.Context) (types.JID, error) {
+func resolveJID(val any, ctx *Context) (types.JID, error) {
 	switch v := val.(type) {
 	case types.JID:
 		return v, nil
@@ -1115,7 +1113,7 @@ func resolveJID(val any, ctx *dispatch.Context) (types.JID, error) {
 	}
 }
 
-func resolveJIDSlice(val any, ctx *dispatch.Context) ([]types.JID, error) {
+func resolveJIDSlice(val any, ctx *Context) ([]types.JID, error) {
 	if arr, ok := val.([]any); ok {
 		var res []types.JID
 		for _, item := range arr {
@@ -1136,7 +1134,7 @@ func resolveJIDSlice(val any, ctx *dispatch.Context) ([]types.JID, error) {
 }
 
 // SetupGlobalConstants registers convenient helper objects (proto, wa, jid, toProto) into Goja with metadata.
-func SetupGlobalConstants(vm *goja.Runtime, ctx *dispatch.Context, trackerOpt ...*EvalContextTracker) {
+func SetupGlobalConstants(vm *goja.Runtime, ctx *Context, trackerOpt ...*EvalContextTracker) {
 	var tracker *EvalContextTracker
 	if len(trackerOpt) > 0 && trackerOpt[0] != nil {
 		tracker = trackerOpt[0]

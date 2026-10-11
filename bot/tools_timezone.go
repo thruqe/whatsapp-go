@@ -1,12 +1,10 @@
-package tools
+package main
 
 import (
 	"fmt"
 	"strings"
 	"sync"
 	"time"
-
-	"whatsrook/bot/builder"
 )
 
 type WindowsTZEntry struct {
@@ -114,6 +112,6 @@ func SearchTimezone(query string) (*TimezoneResult, error) {
 		ID:          iana,
 		Location:    strings.ReplaceAll(iana, "_", " "),
 		CurrentTime: now.Format("03:04 PM (15:04)"),
-		UTCOffset:   builder.Sprintf("%s%.0f", offsetSign, offsetHours),
+		UTCOffset:   Sprintf("%s%.0f", offsetSign, offsetHours),
 	}, nil
 }

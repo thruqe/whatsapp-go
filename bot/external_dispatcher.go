@@ -1,4 +1,4 @@
-package external
+package main
 
 import (
 	"archive/tar"
@@ -19,10 +19,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"whatsrook/bot/botctx"
-	"whatsrook/bot/logger"
-
-	"whatsrook/bot/builder"
 
 	"github.com/thruqe/whatsrook"
 
@@ -48,8 +44,8 @@ type Dispatcher struct {
 	sessions   map[string]*liveSession // key = "chatJID:pluginName"
 }
 
-// DefaultDispatcher is the shared default external plugin dispatcher instance.
-var DefaultDispatcher = NewDispatcher()
+// ExternalDefaultDispatcher is the shared default external plugin dispatcher instance.
+var ExternalDefaultDispatcher = NewDispatcher()
 
 // Option configures a Dispatcher instance.
 type Option func(*Dispatcher)
@@ -234,14 +230,14 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 	if isCancelRequest {
 		if d.CancelSession(chatKey, name, session) {
 			go func() {
-				_ = (&botctx.PluginContext{
+				_ = (&PluginContext{
 					Ctx: context.Background(), Client: client, Evt: evt,
 					Chat: evt.Info.Chat, Sender: evt.Info.Sender,
 				}).Replyf("Live %s tracking stopped.", name)
 			}()
 		} else {
 			go func() {
-				_ = (&botctx.PluginContext{
+				_ = (&PluginContext{
 					Ctx: context.Background(), Client: client, Evt: evt,
 					Chat: evt.Info.Chat, Sender: evt.Info.Sender,
 				}).Replyf("No active %s session running in this chat.", name)
@@ -255,7 +251,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 
 	// Launch execution in a non-blocking background goroutine
 	go func() {
-		plugCtx := &botctx.PluginContext{
+		plugCtx := &PluginContext{
 			Ctx:     ctx,
 			Client:  client,
 			Evt:     evt,
@@ -268,7 +264,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 
 		prefix := plugCtx.GetPrefix()
 		botName := plugCtx.GetBotName()
-		isSudo := botctx.IsSudoRaw(ctx, client, evt.Info.Sender)
+		isSudo := IsSudoRaw(ctx, client, evt.Info.Sender)
 		isOwner := plugCtx.IsOwner()
 
 		// Extract quoted message context if present
@@ -293,16 +289,16 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 			mentionStrs = append(mentionStrs, jid.String())
 		}
 
-		logger.Debug("external dispatcher: executing plugin", "plugin", name, "chat", chatKey)
+		Debug("external dispatcher: executing plugin", "plugin", name, "chat", chatKey)
 
 		// Extract media if present in the triggering or quoted message
 		var mediaPayload *MediaPayload
 		var tempMediaFile string
 		mediaData, mime, err := plugCtx.GetMedia()
 		if err != nil {
-			logger.Debug("external dispatcher: GetMedia result", "plugin", name, "err", err)
+			Debug("external dispatcher: GetMedia result", "plugin", name, "err", err)
 		} else if len(mediaData) > 0 {
-			logger.Debug("external dispatcher: GetMedia found media", "plugin", name, "mime", mime, "bytes", len(mediaData))
+			Debug("external dispatcher: GetMedia found media", "plugin", name, "mime", mime, "bytes", len(mediaData))
 			ext := ".bin"
 			switch {
 			case strings.Contains(mime, "image/jpeg") || strings.Contains(mime, "image/jpg"):
@@ -330,7 +326,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 						MimeType: mime,
 						IsQuoted: isQuoted,
 					}
-					logger.Debug("external dispatcher: saved media to temp file", "path", tempMediaFile)
+					Debug("external dispatcher: saved media to temp file", "path", tempMediaFile)
 				}
 				_ = tmp.Close()
 			}
@@ -536,7 +532,7 @@ func (d *Dispatcher) InstallAll(ctx context.Context, session ...string) ([]strin
 	var failed []string
 	for res := range resChan {
 		if res.err != nil {
-			failed = append(failed, builder.Sprintf("%s (%v)", res.name, res.err))
+			failed = append(failed, Sprintf("%s (%v)", res.name, res.err))
 		} else {
 			installed = append(installed, res.name)
 		}

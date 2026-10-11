@@ -1,4 +1,4 @@
-package httpx
+package main
 
 import (
 	"bytes"
@@ -83,8 +83,8 @@ func NewHybridTransport() *HybridTransport {
 	}
 }
 
-// NewClient constructs an http.Client equipped with the HybridTransport and the requested timeout.
-func NewClient(timeout ...time.Duration) *http.Client {
+// NewHttpClient constructs an http.Client equipped with the HybridTransport and the requested timeout.
+func NewHttpClient(timeout ...time.Duration) *http.Client {
 	t := DefaultHTTPTimeout
 	if len(timeout) > 0 {
 		t = timeout[0]
@@ -164,7 +164,7 @@ var (
 // HTTPClient returns the shared global HTTP client configured with HybridTransport (HTTP/3 + HTTP/2).
 func HTTPClient() *http.Client {
 	defaultClientOnce.Do(func() {
-		defaultClient = NewClient()
+		defaultClient = NewHttpClient()
 	})
 	return defaultClient
 }

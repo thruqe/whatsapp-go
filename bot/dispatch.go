@@ -3,7 +3,7 @@
 // it intercepts incoming WhatsApp message events, parses message bodies against active command prefixes,
 // checks chat permissions (public mode, group restrictions, admin requirements, sudo/owner authorization),
 // and dispatches to registered native handlers or external plugins.
-package dispatch
+package main
 
 import (
 	"context"
@@ -12,12 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"whatsrook/bot/botctx"
-	"whatsrook/bot/external"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/store"
-	"whatsrook/bot/system"
 
 	"github.com/thruqe/whatsrook"
 
@@ -77,7 +71,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	defer func() {
 		dur := time.Since(dispatchStart)
 		if dur > 1*time.Millisecond {
-			logger.Debug("Dispatch total execution", "msgID", msgID, "elapsed", dur)
+			Debug("Dispatch total execution", "msgID", msgID, "elapsed", dur)
 		}
 	}()
 	RecordRecentMessage(evt)
@@ -103,7 +97,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 	}
 
-	logger.Debug("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
+	Debug("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
 
 	// Reactive dispatch: list button responses and poll votes
 	cctx := &Context{
@@ -116,7 +110,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	displayText := extractInteractionDisplayText(evt)
 	if text != "" {
-		if botctx.DispatchListSelection(cctx, text, displayText) {
+		if DispatchListSelection(cctx, text, displayText) {
 			return true
 		}
 	}
@@ -129,20 +123,20 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		if key := pollUpdate.GetPollCreationMessageKey(); key != nil {
 			targetID = key.GetID()
 		}
-		logger.Debug("Dispatcher: incoming poll vote message detected",
+		Debug("Dispatcher: incoming poll vote message detected",
 			"targetPollMsgID", targetID,
 			"chat", evt.Info.Chat.String(),
 			"sender", evt.Info.Sender.String(),
 		)
-		if botctx.DispatchPollVoteEvent(cctx, evt) {
-			logger.Debug("Dispatcher: poll vote event successfully dispatched to reactive route",
+		if DispatchPollVoteEvent(cctx, evt) {
+			Debug("Dispatcher: poll vote event successfully dispatched to reactive route",
 				"targetPollMsgID", targetID,
 				"chat", evt.Info.Chat.String(),
 				"sender", evt.Info.Sender.String(),
 			)
 			return true
 		}
-		logger.Debug("Dispatcher: poll vote event has no matching reactive route",
+		Debug("Dispatcher: poll vote event has no matching reactive route",
 			"targetPollMsgID", targetID,
 			"chat", evt.Info.Chat.String(),
 			"sender", evt.Info.Sender.String(),
@@ -151,11 +145,11 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	s, okStore := GetSQLStore(client)
 	if okStore {
-		store.InitTables(ctx, s.SQLStore)
+		InitTables(ctx, s.SQLStore)
 	}
 
 	if evt.Info.Chat.Server == "g.us" && okStore {
-		go store.StoreGroupMessage(context.WithoutCancel(ctx), s.SQLStore, evt.Info.Chat, evt.Info.Sender)
+		go StoreGroupMessage(context.WithoutCancel(ctx), s.SQLStore, evt.Info.Chat, evt.Info.Sender)
 	}
 
 	// 1. Status Broadcast Auto-Save
@@ -186,7 +180,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		stk := msgProto.GetStickerMessage()
 		if stk != nil {
 			if isStale(evt) {
-				logger.Debug("Skipping sticker command from message sent before bot startup",
+				Debug("Skipping sticker command from message sent before bot startup",
 					"timestamp", evt.Info.Timestamp,
 					"startupTime", GetStartupTime(),
 				)
@@ -201,7 +195,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	// 5. Bot Tagged / Mention Proto
 	if isBotMentioned(client, evt) && okStore {
 		if isStale(evt) {
-			logger.Debug("Skipping bot mention response from message sent before bot startup",
+			Debug("Skipping bot mention response from message sent before bot startup",
 				"timestamp", evt.Info.Timestamp,
 				"startupTime", GetStartupTime(),
 			)
@@ -222,7 +216,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	tPre := time.Now()
 	prefixes := activePrefixes(ctx, client)
-	logger.Debug("Dispatch: activePrefixes", "msgID", msgID, "elapsed", time.Since(tPre), "prefixes", prefixes)
+	Debug("Dispatch: activePrefixes", "msgID", msgID, "elapsed", time.Since(tPre), "prefixes", prefixes)
 
 	sess := getClientSession(client)
 	isCommand := false
@@ -243,7 +237,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 				if clean := strings.TrimRight(cmdName, ",:;!? \t"); clean != "" {
 					cmdName = clean
 				}
-				if _, exists := Get(cmdName); exists || external.DefaultDispatcher.IsInstalled(cmdName, sess) || isLikelyCommandName(cmdName) {
+				if _, exists := Get(cmdName); exists || ExternalDefaultDispatcher.IsInstalled(cmdName, sess) || isLikelyCommandName(cmdName) {
 					isCommand = true
 					matchedBody = body
 					matchedPrefix = p
@@ -258,7 +252,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		fields := strings.Fields(body)
 		if len(fields) > 0 {
 			first := strings.ToLower(fields[0])
-			if _, exists := Get(first); exists || external.DefaultDispatcher.IsInstalled(first, sess) {
+			if _, exists := Get(first); exists || ExternalDefaultDispatcher.IsInstalled(first, sess) {
 				isCommand = true
 				matchedBody = body
 				matchedPrefix = ""
@@ -269,7 +263,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	// 6. Filters & BGM Trigger Words (Only evaluate for non-commands)
 	if !isCommand && okStore {
 		if isStale(evt) {
-			logger.Debug("Skipping filters and BGM from message sent before bot startup",
+			Debug("Skipping filters and BGM from message sent before bot startup",
 				"timestamp", evt.Info.Timestamp,
 				"startupTime", GetStartupTime(),
 			)
@@ -279,7 +273,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		handled := handleFiltersAndBGM(ctx, client, s.SQLStore, evt, text)
 		durFilt := time.Since(tFilt)
 		if durFilt > 1*time.Millisecond || handled {
-			logger.Debug("Dispatch: handleFiltersAndBGM", "msgID", msgID, "elapsed", durFilt, "handled", handled)
+			Debug("Dispatch: handleFiltersAndBGM", "msgID", msgID, "elapsed", durFilt, "handled", handled)
 		}
 		if handled {
 			return true
@@ -297,7 +291,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		handled := it.fn(cctx, text)
 		durIt := time.Since(tIt)
 		if durIt > 1*time.Millisecond || handled {
-			logger.Debug("Dispatch: pre-interceptor", "name", it.name, "elapsed", durIt, "handled", handled)
+			Debug("Dispatch: pre-interceptor", "name", it.name, "elapsed", durIt, "handled", handled)
 		}
 		if handled {
 			return true
@@ -307,7 +301,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	// If message was matched as a command, execute it
 	if isCommand {
 		if isStale(evt) {
-			logger.Debug("Skipping command from message sent before bot startup",
+			Debug("Skipping command from message sent before bot startup",
 				"prefix", matchedPrefix,
 				"body", matchedBody,
 				"timestamp", evt.Info.Timestamp,
@@ -338,23 +332,23 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		cmdName := strings.ToLower(fields[0])
 		args := fields[1:]
 		rawArgs := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
-		if external.DefaultDispatcher.IsInstalled(cmdName, sess) {
+		if ExternalDefaultDispatcher.IsInstalled(cmdName, sess) {
 			if isStale(evt) {
-				logger.Debug("Skipping external command from message sent before bot startup",
+				Debug("Skipping external command from message sent before bot startup",
 					"command", cmdName,
 					"timestamp", evt.Info.Timestamp,
 					"startupTime", GetStartupTime(),
 				)
 				return true
 			}
-			return external.DefaultDispatcher.Dispatch(ctx, client, evt, cmdName, args, rawArgs)
+			return ExternalDefaultDispatcher.Dispatch(ctx, client, evt, cmdName, args, rawArgs)
 		}
 	}
 
 	// 9. Sticker Commands via reply with arguments
 	if text != "" && okStore {
 		if isStale(evt) {
-			logger.Debug("Skipping quoted sticker command from message sent before bot startup",
+			Debug("Skipping quoted sticker command from message sent before bot startup",
 				"timestamp", evt.Info.Timestamp,
 				"startupTime", GetStartupTime(),
 			)
@@ -373,7 +367,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	for _, it := range fallbackList {
 		if isStale(evt) {
-			logger.Debug("Skipping fallback interceptor from message sent before bot startup",
+			Debug("Skipping fallback interceptor from message sent before bot startup",
 				"timestamp", evt.Info.Timestamp,
 				"startupTime", GetStartupTime(),
 			)
@@ -466,7 +460,7 @@ func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) 
 		return "", false
 	}
 	if isStale(cctx.Evt) {
-		logger.Debug("Skipping unknown command from message sent before bot startup",
+		Debug("Skipping unknown command from message sent before bot startup",
 			"prefix", prefix,
 			"cmdName", cmdName,
 			"timestamp", cctx.Evt.Info.Timestamp,
@@ -500,7 +494,7 @@ func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) 
 
 	msg := FormatUnknownCommandSuggestion(userTag, prefix, closest)
 
-	logger.Debug("Dispatcher: unknown command with prefix detected, suggesting closest", "prefix", prefix, "input", cmdName, "suggestion", closest, "user", userTag, "mentions", mentions)
+	Debug("Dispatcher: unknown command with prefix detected, suggesting closest", "prefix", prefix, "input", cmdName, "suggestion", closest, "user", userTag, "mentions", mentions)
 	_ = cctx.ReplyWithMentions(msg, mentions)
 	return msg, true
 }
@@ -508,7 +502,7 @@ func HandleUnknownCommand(cctx *Context, prefix, cmdName string) (string, bool) 
 func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, cmdLine string) bool {
 	runStart := time.Now()
 	if isStale(evt) {
-		logger.Debug("Skipping command execution from message sent before bot startup",
+		Debug("Skipping command execution from message sent before bot startup",
 			"cmdLine", cmdLine,
 			"timestamp", evt.Info.Timestamp,
 			"startupTime", GetStartupTime(),
@@ -528,8 +522,8 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	cmd, exists := Get(cmdName)
 	if !exists {
 		sess := getClientSession(client)
-		if external.DefaultDispatcher.IsInstalled(cmdName, sess) {
-			return external.DefaultDispatcher.Dispatch(ctx, client, evt, cmdName, args, rawArgs)
+		if ExternalDefaultDispatcher.IsInstalled(cmdName, sess) {
+			return ExternalDefaultDispatcher.Dispatch(ctx, client, evt, cmdName, args, rawArgs)
 		}
 		return false
 	}
@@ -601,22 +595,22 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	}
 	durChecks := time.Since(tChecks)
 	if durChecks > 1*time.Millisecond {
-		logger.Debug("runCommand: permission and ban checks", "cmd", cmdName, "elapsed", durChecks)
+		Debug("runCommand: permission and ban checks", "cmd", cmdName, "elapsed", durChecks)
 	}
 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				crashPath := system.RecordCrash(r, "command: "+cmdName, "user: "+cctx.Sender.String(), "chat: "+cctx.Chat.String())
-				logger.Error("Panic recovered in command handler", "command", cmdName, "panic", r, "crash_log", crashPath)
+				crashPath := RecordCrash(r, "command: "+cmdName, "user: "+cctx.Sender.String(), "chat: "+cctx.Chat.String())
+				Error("Panic recovered in command handler", "command", cmdName, "panic", r, "crash_log", crashPath)
 				_ = cctx.Reply("An unexpected internal error occurred while executing this command.")
 			}
 		}()
 
 		cmdStart := time.Now()
-		logger.Debug("Invoking cmd.Handler", "cmd", cmdName, "preHandlerElapsed", time.Since(runStart))
+		Debug("Invoking cmd.Handler", "cmd", cmdName, "preHandlerElapsed", time.Since(runStart))
 		err := cmd.Handler(cctx)
-		logger.Debug("cmd.Handler finished", "cmd", cmdName, "duration", time.Since(cmdStart), "err", err)
+		Debug("cmd.Handler finished", "cmd", cmdName, "duration", time.Since(cmdStart), "err", err)
 		if err != nil {
 			LogHandlerErrWithContext(cctx, cmdName, err)
 			_ = cctx.Replyf("%v", err)
@@ -697,11 +691,11 @@ func extractInteractionDisplayText(evt *events.Message) string {
 }
 
 func handleAutoViewOnce(ctx context.Context, client *whatsmeow.Client, s *sqlstore.SQLStore, evt *events.Message) {
-	raw, _ := store.GetSetting(ctx, s, "autovv")
+	raw, _ := GetSetting(ctx, s, "autovv")
 	if raw != "on" {
 		return
 	}
-	mode, _ := store.GetSetting(ctx, s, "autovv_mode")
+	mode, _ := GetSetting(ctx, s, "autovv_mode")
 	var targetJID types.JID
 	if (mode == "public" || mode == "chat") && !evt.Info.Chat.IsEmpty() {
 		targetJID = evt.Info.Chat
@@ -722,7 +716,7 @@ func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, s *sqls
 	}
 
 	shaHex := hex.EncodeToString(stk.GetFileSHA256())
-	rawCmd, err := store.GetStickerCmd(ctx, s, shaHex)
+	rawCmd, err := GetStickerCmd(ctx, s, shaHex)
 	if err != nil || strings.TrimSpace(rawCmd) == "" {
 		return false
 	}
@@ -768,7 +762,7 @@ func handleQuotedStickerCommand(ctx context.Context, client *whatsmeow.Client, s
 	}
 
 	shaHex := hex.EncodeToString(stk.GetFileSHA256())
-	rawCmd, err := store.GetStickerCmd(ctx, s, shaHex)
+	rawCmd, err := GetStickerCmd(ctx, s, shaHex)
 	if err != nil || strings.TrimSpace(rawCmd) == "" {
 		return false
 	}
@@ -838,12 +832,12 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, s *sqlst
 	filterChan := make(chan lookupResult, 1)
 
 	go func() {
-		p, err := store.GetBGM(ctx, s, trigger)
+		p, err := GetBGM(ctx, s, trigger)
 		bgmChan <- lookupResult{proto: p, err: err}
 	}()
 
 	go func() {
-		p, err := store.GetFilter(ctx, s, trigger)
+		p, err := GetFilter(ctx, s, trigger)
 		filterChan <- lookupResult{proto: p, err: err}
 	}()
 

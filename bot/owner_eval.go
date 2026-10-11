@@ -1,7 +1,7 @@
 // eval.go provides dynamic runtime code evaluation for bot owners and sudoers.
 // It supports both JavaScript (via Goja) and Grol (via grol.io/grol) with live
 // access to the incoming message payload, WhatsApp client, and execution context.
-package owner
+package main
 
 import (
 	"bytes"
@@ -15,10 +15,6 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/tools"
-
 	"github.com/thruqe/whatsrook"
 )
 
@@ -27,8 +23,8 @@ const (
 )
 
 func init() {
-	dispatch.RegisterPreInterceptor("owner_eval", HandleOwnerEvalIntercept)
-	dispatch.Register(&dispatch.Command{
+	RegisterPreInterceptor("owner_eval", HandleOwnerEvalIntercept)
+	Register(&Command{
 		Name:        "eval",
 		Alias:       "ev",
 		Description: "Evaluate JavaScript or Grol code with live bot context (Owner only)",
@@ -39,7 +35,7 @@ func init() {
 }
 
 // HandleOwnerEvalIntercept intercepts messages starting with $, >, =>, $gr, or $$ for owner/sudoers.
-func HandleOwnerEvalIntercept(c *dispatch.Context, text string) bool {
+func HandleOwnerEvalIntercept(c *Context, text string) bool {
 	if c == nil || text == "" {
 		return false
 	}
@@ -95,7 +91,7 @@ func HandleOwnerEvalIntercept(c *dispatch.Context, text string) bool {
 	return true
 }
 
-func handleEvalCommand(ctx *dispatch.Context) error {
+func handleEvalCommand(ctx *Context) error {
 	raw := strings.TrimSpace(ctx.RawArgs)
 	isGrol := false
 
@@ -188,7 +184,7 @@ func (r *EvalResult) FormatForReply() string {
 // replyEvalResult sends the evaluation output. If the response fits within WhatsApp's
 // message limit (<= 55,000 runes), it is sent directly in full. If it exceeds message size limits,
 // the full, un-truncated output is delivered as a document file so 100% of the content is preserved.
-func replyEvalResult(ctx *dispatch.Context, replyText, rawData string) {
+func replyEvalResult(ctx *Context, replyText, rawData string) {
 	if len([]rune(replyText)) <= 55000 {
 		_ = ctx.Reply(replyText)
 		return
@@ -210,20 +206,17 @@ func replyEvalResult(ctx *dispatch.Context, replyText, rawData string) {
 		chunkRunes := 45000
 		allRunes := []rune(replyText)
 		for i := 0; i < len(allRunes); i += chunkRunes {
-			end := i + chunkRunes
-			if end > len(allRunes) {
-				end = len(allRunes)
-			}
+			end := min(i+chunkRunes, len(allRunes))
 			_ = ctx.Reply(string(allRunes[i:end]))
 		}
 	}
 }
 
-func executeAndReplyEval(ctx *dispatch.Context, code string, isGrol bool) {
+func executeAndReplyEval(ctx *Context, code string, isGrol bool) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logger.Error("panic in eval execution", "panic", r)
+				Error("panic in eval execution", "panic", r)
 				_ = ctx.Replyf("*Eval Panic:*\n```\n%v\n```", r)
 			}
 		}()
@@ -255,7 +248,7 @@ func executeAndReplyEval(ctx *dispatch.Context, code string, isGrol bool) {
 }
 
 // ExecuteJavaScriptEval executes code in a sandboxed Goja runtime and returns the raw string result.
-func ExecuteJavaScriptEval(ctx *dispatch.Context, code string) (string, error) {
+func ExecuteJavaScriptEval(ctx *Context, code string) (string, error) {
 	detailed, err := executeJavaScriptEvalDetailed(ctx, code)
 	if err != nil {
 		return "", err
@@ -270,7 +263,7 @@ func ExecuteJavaScriptEval(ctx *dispatch.Context, code string) (string, error) {
 }
 
 // executeJavaScriptEvalDetailed executes code and captures full type, return type, function metadata, and console logs.
-func executeJavaScriptEvalDetailed(ctx *dispatch.Context, code string) (*EvalResult, error) {
+func executeJavaScriptEvalDetailed(ctx *Context, code string) (*EvalResult, error) {
 	vm := goja.New()
 	tracker := NewEvalTracker()
 
@@ -431,11 +424,11 @@ func executeJavaScriptEvalDetailed(ctx *dispatch.Context, code string) (*EvalRes
 }
 
 // executeGrolEval executes code in the Grol runtime with message and client metadata.
-func executeGrolEval(ctx *dispatch.Context, code string) (string, error) {
-	return tools.RunGrolScript(ctx, code)
+func executeGrolEval(ctx *Context, code string) (string, error) {
+	return RunGrolScript(ctx, code)
 }
 
-func buildEvalMessageMap(c *dispatch.Context) map[string]any {
+func buildEvalMessageMap(c *Context) map[string]any {
 	m := map[string]any{
 		"chat":      c.Chat.String(),
 		"sender":    c.Sender.String(),
@@ -525,7 +518,7 @@ func buildEvalMessageMap(c *dispatch.Context) map[string]any {
 	return m
 }
 
-func buildEvalClientMap(c *dispatch.Context) map[string]any {
+func buildEvalClientMap(c *Context) map[string]any {
 	m := map[string]any{
 		"raw": c.Client,
 		"user": func() string {
@@ -557,7 +550,7 @@ func buildEvalClientMap(c *dispatch.Context) map[string]any {
 	return m
 }
 
-func extractQuotedEvalCode(ctx *dispatch.Context) string {
+func extractQuotedEvalCode(ctx *Context) string {
 	quoted := ctx.GetQuotedMessage()
 	if quoted == nil {
 		return ""

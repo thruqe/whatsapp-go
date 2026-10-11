@@ -3,7 +3,7 @@
 // it acts as a facade over different storage backends like in-memory buffers or distributed stores.
 // you can use the package-level helpers directly for zero-setup global caching, or swap out the
 // default store anytime for custom instances, production clusters, and unit tests.
-package cache
+package main
 
 import (
 	"context"
@@ -145,7 +145,7 @@ func SetDefault(s Store) {
 }
 
 // get fetches a string value from the default cache.
-func Get(ctx context.Context, key string) (string, bool, error) {
+func CacheGet(ctx context.Context, key string) (string, bool, error) {
 	return Default().Get(ctx, key)
 }
 
@@ -170,7 +170,7 @@ func SetJSON(ctx context.Context, key string, value any, ttl time.Duration) erro
 }
 
 // delete removes an entry from the default cache.
-func Delete(ctx context.Context, key string) error {
+func CacheDelete(ctx context.Context, key string) error {
 	return Default().Delete(ctx, key)
 }
 
@@ -209,10 +209,10 @@ func Type() string {
 	return Default().Type()
 }
 
-// close safely shuts down the active default store and cleans up resources.
+// CacheClose safely shuts down the active default store and cleans up resources.
 // passing force = true triggers non-blocking teardown across underlying drivers.
 // todo: verify remote store drivers (e.g., valkey/redis connection pools) properly abort active socket transactions when force is set.
-func Close(force ...bool) error {
+func CacheClose(force ...bool) error {
 	defaultMu.Lock()
 	defer defaultMu.Unlock()
 

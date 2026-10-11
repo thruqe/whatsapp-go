@@ -1,11 +1,9 @@
-package store
+package main
 
 import (
 	"context"
 	"database/sql"
 	"errors"
-
-	"whatsrook/bot/cache"
 
 	"github.com/thruqe/duosql"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -19,7 +17,7 @@ func GetStickerCmd(ctx context.Context, s *sqlstore.SQLStore, shaHex string) (st
 	ourJID := ourJIDStr(s)
 	cacheKey := stickerCacheKey(ourJID, shaHex)
 
-	if val, ok, _ := cache.Get(ctx, cacheKey); ok {
+	if val, ok, _ := CacheGet(ctx, cacheKey); ok {
 		if val == cacheSentinelNil {
 			return "", nil
 		}
@@ -40,14 +38,14 @@ func GetStickerCmd(ctx context.Context, s *sqlstore.SQLStore, shaHex string) (st
 		One(ctx)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		_ = cache.Set(ctx, cacheKey, cacheSentinelNil, filterNegativeCacheTTL)
+		_ = Set(ctx, cacheKey, cacheSentinelNil, filterNegativeCacheTTL)
 		return "", nil
 	}
 	if err != nil {
 		return "", err
 	}
 
-	_ = cache.Set(ctx, cacheKey, cmd.CommandName, filterCacheTTL)
+	_ = Set(ctx, cacheKey, cmd.CommandName, filterCacheTTL)
 	return cmd.CommandName, nil
 }
 
@@ -63,7 +61,7 @@ func PutStickerCmd(ctx context.Context, s *sqlstore.SQLStore, shaHex, cmdName st
 	ourJID := ourJIDStr(s)
 
 	cacheKey := stickerCacheKey(ourJID, shaHex)
-	_ = cache.Set(ctx, cacheKey, cmdName, filterCacheTTL)
+	_ = Set(ctx, cacheKey, cmdName, filterCacheTTL)
 
 	item := &BotStickerCmd{
 		OurJID:        ourJID,
@@ -89,7 +87,7 @@ func DeleteStickerCmdBySHA(ctx context.Context, s *sqlstore.SQLStore, shaHex str
 	}
 	ourJID := ourJIDStr(s)
 
-	_ = cache.Delete(ctx, stickerCacheKey(ourJID, shaHex))
+	_ = CacheDelete(ctx, stickerCacheKey(ourJID, shaHex))
 
 	_, err = duosql.Delete[BotStickerCmd](duo).
 		Where(
@@ -111,7 +109,7 @@ func DeleteStickerCmdByName(ctx context.Context, s *sqlstore.SQLStore, cmdName s
 	}
 	ourJID := ourJIDStr(s)
 
-	_ = cache.DeletePrefix(ctx, "stkcmd:"+ourJID+":")
+	_ = DeletePrefix(ctx, "stkcmd:"+ourJID+":")
 
 	_, err = duosql.Delete[BotStickerCmd](duo).
 		Where(

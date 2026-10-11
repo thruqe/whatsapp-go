@@ -1,4 +1,4 @@
-package tools
+package main
 
 // Predefined Windows and IANA timezone entries.
 var tzEntries = []WindowsTZEntry{

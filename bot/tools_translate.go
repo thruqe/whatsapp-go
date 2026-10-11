@@ -1,4 +1,4 @@
-package tools
+package main
 
 import (
 	"encoding/json"
@@ -7,17 +7,13 @@ import (
 	"os"
 	"strings"
 
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/httpx"
-	"whatsrook/bot/logger"
-
 	"go.mau.fi/whatsmeow/types"
 )
 
 const TranslateSettingKey = "translate_lang"
 
 func init() {
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "translate",
 		Alias:       "tr,trans",
 		Description: "Translate text or a replied message into another language",
@@ -27,7 +23,7 @@ func init() {
 	})
 }
 
-func handleTranslate(ctx *dispatch.Context) error {
+func handleTranslate(ctx *Context) error {
 	p := ctx.GetPrefix()
 	raw := strings.TrimSpace(ctx.RawArgs)
 
@@ -49,7 +45,7 @@ func handleTranslate(ctx *dispatch.Context) error {
 			if !ok {
 				return ctx.Replyf("Unknown language %q. Please use language names (like English, Spanish, French) or short codes (like en, es, fr, de, ar).", langInput)
 			}
-			if s, okStore := dispatch.GetStore(ctx); okStore {
+			if s, okStore := GetStore(ctx); okStore {
 				_ = s.PutSetting(ctx.Ctx, TranslateSettingKey, code)
 			}
 			return ctx.Replyf("Default auto-translate language configured to *%s* (`%s`).", name, code)
@@ -58,7 +54,7 @@ func handleTranslate(ctx *dispatch.Context) error {
 			if !ctx.IsOwner() && !ctx.IsSudo() {
 				return ctx.Reply("Only the bot owner or sudoers can reset the default translation language.")
 			}
-			if s, okStore := dispatch.GetStore(ctx); okStore {
+			if s, okStore := GetStore(ctx); okStore {
 				_ = s.DeleteSetting(ctx.Ctx, TranslateSettingKey)
 			}
 			ownerPhone := getOwnerPhone(ctx)
@@ -114,7 +110,7 @@ func handleTranslate(ctx *dispatch.Context) error {
 	if !explicitlySpecified {
 		// Check configured default language in settings
 		var configured string
-		if s, okStore := dispatch.GetStore(ctx); okStore {
+		if s, okStore := GetStore(ctx); okStore {
 			if val, err := s.GetSetting(ctx.Ctx, TranslateSettingKey); err == nil && strings.TrimSpace(val) != "" {
 				configured = strings.TrimSpace(val)
 			}
@@ -147,7 +143,7 @@ func handleTranslate(ctx *dispatch.Context) error {
 	// 5. Execute translation
 	translated, sourceLangCode, err := executeTranslation(ctx, text, targetLang)
 	if err != nil {
-		logger.Error("handleTranslate: translation error", "err", err, "targetLang", targetLang)
+		Error("handleTranslate: translation error", "err", err, "targetLang", targetLang)
 		return ctx.Replyf("Translation failed: %v", err)
 	}
 
@@ -265,7 +261,7 @@ func unquoteText(s string) string {
 }
 
 // resolvePhoneNumber extracts the true E.164 phone number from a JID, ensuring LIDs are properly mapped to PNs.
-func resolvePhoneNumber(ctx *dispatch.Context, jid types.JID) string {
+func resolvePhoneNumber(ctx *Context, jid types.JID) string {
 	if jid.IsEmpty() {
 		return ""
 	}
@@ -317,7 +313,7 @@ func resolvePhoneNumber(ctx *dispatch.Context, jid types.JID) string {
 }
 
 // getOwnerPhone resolves the user or bot owner's phone number string.
-func getOwnerPhone(ctx *dispatch.Context) string {
+func getOwnerPhone(ctx *Context) string {
 	if ctx == nil {
 		return ""
 	}
@@ -362,11 +358,11 @@ func getOwnerPhone(ctx *dispatch.Context) string {
 }
 
 // executeTranslation performs the translation via Google Translate GTX endpoint with fallback.
-func executeTranslation(ctx *dispatch.Context, text, targetLang string) (translatedText string, sourceLang string, err error) {
+func executeTranslation(ctx *Context, text, targetLang string) (translatedText string, sourceLang string, err error) {
 	gtxURL := fmt.Sprintf("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=%s&dt=t&q=%s",
 		url.QueryEscape(targetLang), url.QueryEscape(text))
 
-	body, err := httpx.FetchBytes(ctx.Ctx, gtxURL)
+	body, err := FetchBytes(ctx.Ctx, gtxURL)
 	if err == nil && len(body) > 0 {
 		var rawResp []any
 		if jsonErr := json.Unmarshal(body, &rawResp); jsonErr == nil && len(rawResp) > 0 {
@@ -407,7 +403,7 @@ func executeTranslation(ctx *dispatch.Context, text, targetLang string) (transla
 	}
 
 	var mm myMemoryResp
-	if fetchErr := httpx.FetchJSON(ctx.Ctx, fallbackURL, &mm); fetchErr == nil && mm.ResponseData.TranslatedText != "" {
+	if fetchErr := FetchJSON(ctx.Ctx, fallbackURL, &mm); fetchErr == nil && mm.ResponseData.TranslatedText != "" {
 		src := "auto"
 		if len(mm.Matches) > 0 && mm.Matches[0].Source != "" {
 			src = mm.Matches[0].Source

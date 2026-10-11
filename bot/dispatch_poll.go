@@ -1,4 +1,4 @@
-package dispatch
+package main
 
 import (
 	"context"
@@ -9,9 +9,6 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-
-	"whatsrook/bot/builder"
-	"whatsrook/bot/logger"
 )
 
 // MapOptionToCommandArgs maps a plain poll option label back to its intended subcommand payload.
@@ -195,9 +192,9 @@ func MapOptionToCommandArgs(cmdName, option string) string {
 // SendPollReplyWithMentions creates an interactive poll reply quoting the triggering message.
 // If no custom callback fn is provided, it automatically registers a reactive route that maps
 // selected options to command invocations and executes them.
-func SendPollReplyWithMentions(ctx *Context, question string, options []string, jids []types.JID, fn ...func(req PollRequest, res *builder.Response)) error {
+func SendPollReplyWithMentions(ctx *Context, question string, options []string, jids []types.JID, fn ...func(req PollRequest, res *Response)) error {
 	cmdName := ctx.Command
-	logger.Debug("SendPollReplyWithMentions: creating poll reply",
+	Debug("SendPollReplyWithMentions: creating poll reply",
 		"command", cmdName,
 		"question", question,
 		"optionsCount", len(options),
@@ -215,10 +212,10 @@ func SendPollReplyWithMentions(ctx *Context, question string, options []string, 
 
 	client := ctx.Client
 
-	return poll.Reply(func(req PollRequest, res *builder.Response) {
+	return poll.Reply(func(req PollRequest, res *Response) {
 		for _, selected := range req.SelectedOptions {
 			cmdLine := MapOptionToCommandArgs(cmdName, selected)
-			logger.Debug("Interactive poll selection triggered",
+			Debug("Interactive poll selection triggered",
 				"command", cmdName,
 				"selected", selected,
 				"dispatchedCommand", cmdLine,
@@ -250,13 +247,13 @@ func SendPollReplyWithMentions(ctx *Context, question string, options []string, 
 }
 
 // SendPollReply creates an interactive poll reply quoting the triggering message with automatic command routing.
-func SendPollReply(ctx *Context, question string, options []string, fn ...func(req PollRequest, res *builder.Response)) error {
+func SendPollReply(ctx *Context, question string, options []string, fn ...func(req PollRequest, res *Response)) error {
 	return SendPollReplyWithMentions(ctx, question, options, nil, fn...)
 }
 
 func init() {
-	builder.SetDefaultPollCallback(func(req builder.PollRequest, res *builder.Response) {
-		logger.Debug("Default poll callback received vote",
+	SetDefaultPollCallback(func(req PollRequest, res *Response) {
+		Debug("Default poll callback received vote",
 			"pollMsgID", req.PollMsgID,
 			"sender", req.Sender.String(),
 			"chat", req.Chat.String(),

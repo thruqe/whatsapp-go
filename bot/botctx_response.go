@@ -1,4 +1,4 @@
-package botctx
+package main
 
 import (
 	"fmt"
@@ -7,9 +7,6 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events"
-
-	"whatsrook/bot/builder"
 
 	"github.com/thruqe/whatsrook"
 )
@@ -249,28 +246,28 @@ func (c *PluginContext) ReactMessage(targetID string, emoji string) error {
 }
 
 // Text initializes a new TextBuilder bound to this PluginContext.
-func (c *PluginContext) Text(initial ...string) *builder.TextBuilder {
-	return builder.NewTextWithSender(c, initial...)
+func (c *PluginContext) Text(initial ...string) *TextBuilder {
+	return NewTextWithSender(c, initial...)
 }
 
 // NewText initializes a new TextBuilder bound to this PluginContext.
-func (c *PluginContext) NewText(initial ...string) *builder.TextBuilder {
-	return builder.NewTextWithSender(c, initial...)
+func (c *PluginContext) NewText(initial ...string) *TextBuilder {
+	return NewTextWithSender(c, initial...)
 }
 
 // Rook returns a WARook builder engine bound to this PluginContext.
-func (c *PluginContext) Rook() *builder.WARook {
-	return builder.From(c)
+func (c *PluginContext) Rook() *WARook {
+	return From(c)
 }
 
 // Poll initializes a new PollBuilder bound to this PluginContext.
-func (c *PluginContext) Poll(question string) *builder.PollBuilder {
-	return builder.From(c).NewPoll(question)
+func (c *PluginContext) Poll(question string) *PollBuilder {
+	return From(c).NewPoll(question)
 }
 
 // NewPoll initializes a new PollBuilder bound to this PluginContext.
-func (c *PluginContext) NewPoll(question string) *builder.PollBuilder {
-	return builder.From(c).NewPoll(question)
+func (c *PluginContext) NewPoll(question string) *PollBuilder {
+	return From(c).NewPoll(question)
 }
 
 // StartAutoLoader is a no-op method.
@@ -292,20 +289,4 @@ func (c *PluginContext) ReplyWebview(opts whatsrook.WebviewMessageOpts) error {
 	return whatsrook.SendWebview(c.GetSendContext(), c.Client, c.Chat, opts)
 }
 
-var _ builder.Sender = (*PluginContext)(nil)
-
-// DispatchListSelection resolves an interactive list button response.
-func DispatchListSelection(ctx any, text, displayText string) bool {
-	if sender, ok := ctx.(builder.Sender); ok {
-		return builder.DispatchListSelection(sender, text, displayText)
-	}
-	return false
-}
-
-// DispatchPollVoteEvent routes incoming poll votes to reactive action handlers.
-func DispatchPollVoteEvent(ctx any, evt *events.Message) bool {
-	if sender, ok := ctx.(builder.Sender); ok {
-		return builder.DispatchPollVoteEvent(sender, evt)
-	}
-	return false
-}
+var _ Sender = (*PluginContext)(nil)

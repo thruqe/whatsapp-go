@@ -1,7 +1,7 @@
 // grol.go implements an embedded Grol (Go REPL Open Language) scripting engine
 // for WhatsApp chat environments. It enables evaluating mathematical expressions,
 // algorithms, string transformations, and scripting with safe session sandboxing.
-package tools
+package main
 
 import (
 	"bytes"
@@ -19,15 +19,9 @@ import (
 	"grol.io/grol/extensions"
 	"grol.io/grol/object"
 	"grol.io/grol/repl"
-
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/logger"
 )
 
 var (
-	//go:embed discord.gr
-	discordLibraryCode string
-
 	grolInitOnce     sync.Once
 	sessionsRegistry = newSessionManager(100, 30*time.Minute)
 )
@@ -39,7 +33,7 @@ const (
 
 func init() {
 	initGrol()
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "grol",
 		Alias:       "gr",
 		Description: "Execute or format Grol (Go REPL Open Language) code",
@@ -63,7 +57,7 @@ func initGrol() {
 			UnrestrictedIOs: false,
 		}
 		if err := extensions.Init(&extCfg); err != nil {
-			logger.Error("Failed to initialize grol extensions", "err", err)
+			log.Errf("Failed to initialize grol extensions: %v", err)
 		}
 	})
 }
@@ -132,16 +126,6 @@ func (m *sessionManager) getSession(key string) *grolSession {
 }
 
 func initSessionState(state *eval.State) {
-	if discordLibraryCode == "" {
-		return
-	}
-	opts := repl.EvalStringOptions()
-	opts.MaxDepth = 3000
-	buf := &strings.Builder{}
-	state.Out = buf
-	state.LogOut = buf
-	state.NoLog = true
-	_, _, _, _ = repl.EvalOne(context.Background(), state, discordLibraryCode, buf, opts)
 }
 
 func (m *sessionManager) deleteSession(key string) bool {
@@ -285,7 +269,7 @@ func stripMarkdownFences(s string) string {
 }
 
 // extractQuotedCode extracts text payload from a quoted WhatsApp message.
-func extractQuotedCode(ctx *dispatch.Context) string {
+func extractQuotedCode(ctx *Context) string {
 	quoted := ctx.GetQuotedMessage()
 	if quoted == nil {
 		return ""
@@ -308,7 +292,7 @@ func extractQuotedCode(ctx *dispatch.Context) string {
 }
 
 // getSessionKey builds a unique session identifier per chat (and per sender in groups).
-func getSessionKey(ctx *dispatch.Context) string {
+func getSessionKey(ctx *Context) string {
 	chatStr := ctx.Chat.String()
 	if ctx.IsGroup() {
 		return chatStr + ":" + ctx.Sender.ToNonAD().User
@@ -336,7 +320,7 @@ func grolHelpText(prefix string) string {
 		prefix)
 }
 
-func handleGrol(ctx *dispatch.Context) error {
+func handleGrol(ctx *Context) error {
 	p := ctx.GetPrefix()
 	flags := parseGrolFlags(ctx.RawArgs)
 	sessionKey := getSessionKey(ctx)
@@ -374,7 +358,7 @@ func handleGrol(ctx *dispatch.Context) error {
 }
 
 // RunGrolScript evaluates Grol code in the context of an incoming message and returns raw output string.
-func RunGrolScript(ctx *dispatch.Context, code string) (string, error) {
+func RunGrolScript(ctx *Context, code string) (string, error) {
 	sessionKey := getSessionKey(ctx)
 	flags := parseGrolFlags(code)
 	c := flags.code
@@ -384,7 +368,7 @@ func RunGrolScript(ctx *dispatch.Context, code string) (string, error) {
 	c = normalizeSmartQuotes(c)
 	c = stripMarkdownFences(c)
 
-	var pCtx *dispatch.Context
+	var pCtx *Context
 	var baseCtx context.Context
 	if ctx != nil {
 		pCtx = ctx
@@ -447,11 +431,11 @@ func RunGrolScript(ctx *dispatch.Context, code string) (string, error) {
 
 // runGrol executes or formats Grol code with strict timeout and output size limits.
 func runGrol(callerCtx any, sessionKey, code string, flags grolParsedFlags) (string, error) {
-	var pCtx *dispatch.Context
+	var pCtx *Context
 	var baseCtx context.Context
 
 	switch c := callerCtx.(type) {
-	case *dispatch.Context:
+	case *Context:
 		pCtx = c
 		baseCtx = c.GetSendContext()
 	case context.Context:
@@ -556,7 +540,7 @@ func runGrol(callerCtx any, sessionKey, code string, flags grolParsedFlags) (str
 	return fmt.Sprintf("*Grol Output:*\n```\n%s\n```", out), nil
 }
 
-func attachWhatsAppExtensions(state *eval.State, ctx *dispatch.Context, imagesSent *int) {
+func attachWhatsAppExtensions(state *eval.State, ctx *Context, imagesSent *int) {
 	delete(state.Extensions, "read")
 
 	sendImgExt := object.Extension{

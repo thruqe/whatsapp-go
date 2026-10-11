@@ -4,62 +4,17 @@
 // it maintains an in-memory synchronized registry of command handlers, parses incoming
 // message triggers against configured prefixes, evaluates authorization policies (owner, sudo, admin),
 // and executes commands with context cancellation and error handling.
-package dispatch
+package main
 
 import (
 	"fmt"
 	"math"
 	"strings"
 	"sync"
-
-	"whatsrook/bot/botctx"
-	"whatsrook/bot/builder"
-	"whatsrook/bot/external"
 )
 
-// Context aliases the core botctx.PluginContext execution context.
-type Context = botctx.PluginContext
-
-// TextBuilder aliases the fluent text composition builder.
-type TextBuilder = builder.TextBuilder
-
-// PollBuilder aliases the interactive poll creation builder.
-type PollBuilder = builder.PollBuilder
-
-// PollRequest aliases the structured poll configuration payload.
-type PollRequest = builder.PollRequest
-
-// NewText constructs a fluent text message builder.
-func NewText(initial ...string) *TextBuilder {
-	return builder.NewText(initial...)
-}
-
-var (
-	// Sprintf is an alias for standard string formatting.
-	Sprintf = builder.Sprintf
-	// Bold formats plain text as bold.
-	Bold = builder.Bold
-	// Boldf formats formatted text as bold.
-	Boldf = builder.Boldf
-	// Italic formats plain text as italic.
-	Italic = builder.Italic
-	// Italicf formats formatted text as italic.
-	Italicf = builder.Italicf
-	// Code formats plain text as inline code.
-	Code = builder.Code
-	// Codef formats formatted text as inline code.
-	Codef = builder.Codef
-	// CodeBlock formats plain text as a code block.
-	CodeBlock = builder.CodeBlock
-	// Strike formats plain text with strikethrough.
-	Strike = builder.Strike
-	// Strikef formats formatted text with strikethrough.
-	Strikef = builder.Strikef
-	// Quote formats plain text as a blockquote.
-	Quote = builder.Quote
-	// Quotef formats formatted text as a blockquote.
-	Quotef = builder.Quotef
-)
+// Context aliases the core PluginContext execution context.
+type Context = PluginContext
 
 // Handler represents the function signature executed when a command is triggered.
 type Handler func(ctx *Context) error
@@ -208,8 +163,8 @@ func ClosestCommand(target string, session ...string) string {
 	}
 
 	// Also check installed external plugins
-	if external.DefaultDispatcher != nil {
-		if plugins, err := external.DefaultDispatcher.List(session...); err == nil {
+	if ExternalDefaultDispatcher != nil {
+		if plugins, err := ExternalDefaultDispatcher.List(session...); err == nil {
 			for _, p := range plugins {
 				name := strings.ToLower(p.Name)
 				dist := damerauLevenshtein(target, name)

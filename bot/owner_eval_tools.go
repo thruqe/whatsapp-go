@@ -1,6 +1,6 @@
 // eval_tools.go provides extended utilities, standard library bridges, and introspection
 // helpers for the "$" owner eval runtime, including fetch, exec, fs, crypto, store, and type reflection.
-package owner
+package main
 
 import (
 	"bytes"
@@ -21,20 +21,18 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/dop251/goja"
-
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/store"
 )
 
 // RegisterEvalExtendedTools registers HTTP (fetch, http, axios), shell execution (exec, sh),
 // file system (fs), cryptography (crypto, base64, hex), system introspection (os, process, runtime),
 // store database APIs, and reflection helpers (type, returnType, methods, inspect) into the Goja runtime.
-func RegisterEvalExtendedTools(vm *goja.Runtime, ctx *dispatch.Context, tracker *EvalContextTracker) {
+func RegisterEvalExtendedTools(vm *goja.Runtime, ctx *Context, tracker *EvalContextTracker) {
 	if vm == nil {
 		return
 	}
@@ -49,16 +47,16 @@ func RegisterEvalExtendedTools(vm *goja.Runtime, ctx *dispatch.Context, tracker 
 	setupShellTools(vm, ctx, tracker)
 
 	// 4. File System (fs)
-	setupFSTools(vm, tracker)
+	setupFSTools(vm)
 
 	// 5. Cryptography & Encoding (crypto, base64, hex, atob, btoa)
-	setupCryptoTools(vm, tracker)
+	setupCryptoTools(vm)
 
 	// 6. System & Process Info (os, process, runtime)
 	setupSystemTools(vm, ctx)
 
 	// 7. Store / Database Access (store)
-	setupStoreTools(vm, ctx, tracker)
+	setupStoreTools(vm, ctx)
 
 	// 8. General Helpers (format, sprintf)
 	setupGeneralHelpers(vm, tracker)
@@ -149,8 +147,7 @@ func setupIntrospectionTools(vm *goja.Runtime, tracker *EvalContextTracker) {
 		if exported != nil {
 			rVal := reflect.ValueOf(exported)
 			rType := rVal.Type()
-			for i := 0; i < rType.NumMethod(); i++ {
-				m := rType.Method(i)
+			for m := range rType.Methods() {
 				if !m.IsExported() {
 					continue
 				}
@@ -257,7 +254,7 @@ func setupIntrospectionTools(vm *goja.Runtime, tracker *EvalContextTracker) {
 	_ = vm.Set("util", utilObj)
 }
 
-func setupHTTPTools(vm *goja.Runtime, ctx *dispatch.Context, tracker *EvalContextTracker) {
+func setupHTTPTools(vm *goja.Runtime, ctx *Context, tracker *EvalContextTracker) {
 	fetchHandler := func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			panic(vm.ToValue("fetch requires at least a URL argument"))
@@ -405,7 +402,7 @@ func setupHTTPTools(vm *goja.Runtime, ctx *dispatch.Context, tracker *EvalContex
 	_ = vm.Set("axios", httpObj)
 }
 
-func setupShellTools(vm *goja.Runtime, ctx *dispatch.Context, tracker *EvalContextTracker) {
+func setupShellTools(vm *goja.Runtime, ctx *Context, tracker *EvalContextTracker) {
 	chatKey := ""
 	if ctx != nil {
 		chatKey = ctx.Chat.String()
@@ -415,11 +412,13 @@ func setupShellTools(vm *goja.Runtime, ctx *dispatch.Context, tracker *EvalConte
 		if len(call.Arguments) == 0 {
 			panic(vm.ToValue("exec requires a command string"))
 		}
-		cmdStr := call.Arguments[0].String()
+		var cmdStr strings.Builder
+		cmdStr.WriteString(call.Arguments[0].String())
 		if len(call.Arguments) > 1 {
 			if argsList, ok := call.Arguments[1].Export().([]any); ok {
 				for _, a := range argsList {
-					cmdStr += " " + fmt.Sprintf("%v", a)
+					cmdStr.WriteString(" ")
+					cmdStr.WriteString(fmt.Sprintf("%v", a))
 				}
 			}
 		}
@@ -430,9 +429,9 @@ func setupShellTools(vm *goja.Runtime, ctx *dispatch.Context, tracker *EvalConte
 
 		var cmd *exec.Cmd
 		if _, err := exec.LookPath("bash"); err == nil {
-			cmd = exec.CommandContext(shCtx, "bash", "-c", cmdStr)
+			cmd = exec.CommandContext(shCtx, "bash", "-c", cmdStr.String())
 		} else {
-			cmd = exec.CommandContext(shCtx, "sh", "-c", cmdStr)
+			cmd = exec.CommandContext(shCtx, "sh", "-c", cmdStr.String())
 		}
 		cmd.Dir = workingDir
 
@@ -484,7 +483,7 @@ func setupShellTools(vm *goja.Runtime, ctx *dispatch.Context, tracker *EvalConte
 	tagAndSet(vm, vm.GlobalObject(), "sh", execMeta, execHandler, tracker)
 }
 
-func setupFSTools(vm *goja.Runtime, tracker *EvalContextTracker) {
+func setupFSTools(vm *goja.Runtime) {
 	fsObj := vm.NewObject()
 
 	// fs.readFile(path, [encoding])
@@ -634,7 +633,7 @@ func setupFSTools(vm *goja.Runtime, tracker *EvalContextTracker) {
 	_ = vm.Set("fs", fsObj)
 }
 
-func setupCryptoTools(vm *goja.Runtime, tracker *EvalContextTracker) {
+func setupCryptoTools(vm *goja.Runtime) {
 	cryptoObj := vm.NewObject()
 
 	toBytes := func(val any) []byte {
@@ -760,7 +759,7 @@ func setupCryptoTools(vm *goja.Runtime, tracker *EvalContextTracker) {
 	_ = vm.Set("hex", hexObj)
 }
 
-func setupSystemTools(vm *goja.Runtime, ctx *dispatch.Context) {
+func setupSystemTools(vm *goja.Runtime, ctx *Context) {
 	// os object
 	osObj := vm.NewObject()
 	_ = osObj.Set("platform", func(call goja.FunctionCall) goja.Value {
@@ -777,7 +776,7 @@ func setupSystemTools(vm *goja.Runtime, ctx *dispatch.Context) {
 		return vm.ToValue(h)
 	})
 	_ = osObj.Set("uptime", func(call goja.FunctionCall) goja.Value {
-		return vm.ToValue(time.Since(dispatch.GetStartupTime()).Seconds())
+		return vm.ToValue(time.Since(GetStartupTime()).Seconds())
 	})
 	_ = osObj.Set("memory", func(call goja.FunctionCall) goja.Value {
 		var m runtime.MemStats
@@ -827,52 +826,52 @@ func setupSystemTools(vm *goja.Runtime, ctx *dispatch.Context) {
 	_ = vm.Set("runtime", rtObj)
 }
 
-func setupStoreTools(vm *goja.Runtime, ctx *dispatch.Context, tracker *EvalContextTracker) {
+func setupStoreTools(vm *goja.Runtime, ctx *Context) {
 	storeObj := vm.NewObject()
 
-	sw, _ := dispatch.GetSQLStore(ctx.Client)
+	sw, _ := GetSQLStore(ctx.Client)
 
-	// store.getSetting(key)
+	// getSetting(key)
 	_ = storeObj.Set("getSetting", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || sw == nil || sw.SQLStore == nil {
 			return vm.ToValue("")
 		}
 		key := call.Arguments[0].String()
-		val, err := store.GetSetting(ctx.GetSendContext(), sw.SQLStore, key)
+		val, err := GetSetting(ctx.GetSendContext(), sw.SQLStore, key)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(val)
 	})
 
-	// store.setSetting(key, val)
+	// setSetting(key, val)
 	_ = storeObj.Set("setSetting", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 2 || sw == nil || sw.SQLStore == nil {
 			return vm.ToValue(false)
 		}
 		key := call.Arguments[0].String()
 		val := call.Arguments[1].String()
-		err := store.PutSetting(ctx.GetSendContext(), sw.SQLStore, key, val)
+		err := PutSetting(ctx.GetSendContext(), sw.SQLStore, key, val)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
 	})
 
-	// store.deleteSetting(key)
+	// deleteSetting(key)
 	_ = storeObj.Set("deleteSetting", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || sw == nil || sw.SQLStore == nil {
 			return vm.ToValue(false)
 		}
 		key := call.Arguments[0].String()
-		err := store.DeleteSetting(ctx.GetSendContext(), sw.SQLStore, key)
+		err := DeleteSetting(ctx.GetSendContext(), sw.SQLStore, key)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
 	})
 
-	// store.getChatSetting(chat, key)
+	// getChatSetting(chat, key)
 	_ = storeObj.Set("getChatSetting", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 2 || sw == nil || sw.SQLStore == nil {
 			return vm.ToValue("")
@@ -882,14 +881,14 @@ func setupStoreTools(vm *goja.Runtime, ctx *dispatch.Context, tracker *EvalConte
 			panic(vm.NewGoError(err))
 		}
 		key := call.Arguments[1].String()
-		val, err := store.GetSetting(ctx.GetSendContext(), sw.SQLStore, key+":"+chatJID.String())
+		val, err := GetSetting(ctx.GetSendContext(), sw.SQLStore, key+":"+chatJID.String())
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(val)
 	})
 
-	// store.setChatSetting(chat, key, val)
+	// setChatSetting(chat, key, val)
 	_ = storeObj.Set("setChatSetting", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 3 || sw == nil || sw.SQLStore == nil {
 			return vm.ToValue(false)
@@ -900,66 +899,66 @@ func setupStoreTools(vm *goja.Runtime, ctx *dispatch.Context, tracker *EvalConte
 		}
 		key := call.Arguments[1].String()
 		val := call.Arguments[2].String()
-		err = store.PutSetting(ctx.GetSendContext(), sw.SQLStore, key+":"+chatJID.String(), val)
+		err = PutSetting(ctx.GetSendContext(), sw.SQLStore, key+":"+chatJID.String(), val)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
 	})
 
-	// store.getFilter(trigger)
+	// getFilter(trigger)
 	_ = storeObj.Set("getFilter", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || sw == nil || sw.SQLStore == nil {
 			return vm.ToValue("")
 		}
 		trigger := call.Arguments[0].String()
-		filterProto, err := store.GetFilter(ctx.GetSendContext(), sw.SQLStore, trigger)
+		filterProto, err := GetFilter(ctx.GetSendContext(), sw.SQLStore, trigger)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(filterProto)
 	})
 
-	// store.setFilter(trigger, messageProto)
+	// setFilter(trigger, messageProto)
 	_ = storeObj.Set("setFilter", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 2 || sw == nil || sw.SQLStore == nil {
 			return vm.ToValue(false)
 		}
 		trigger := call.Arguments[0].String()
 		msgProto := call.Arguments[1].String()
-		err := store.PutFilter(ctx.GetSendContext(), sw.SQLStore, trigger, msgProto)
+		err := PutFilter(ctx.GetSendContext(), sw.SQLStore, trigger, msgProto)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
 	})
 
-	// store.deleteFilter(trigger)
+	// deleteFilter(trigger)
 	_ = storeObj.Set("deleteFilter", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || sw == nil || sw.SQLStore == nil {
 			return vm.ToValue(false)
 		}
 		trigger := call.Arguments[0].String()
-		err := store.DeleteFilter(ctx.GetSendContext(), sw.SQLStore, trigger)
+		err := DeleteFilter(ctx.GetSendContext(), sw.SQLStore, trigger)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
 	})
 
-	// store.listFilters()
+	// listFilters()
 	_ = storeObj.Set("listFilters", func(call goja.FunctionCall) goja.Value {
 		if sw == nil || sw.SQLStore == nil {
 			return vm.ToValue([]string{})
 		}
-		filters, err := store.ListFilters(ctx.GetSendContext(), sw.SQLStore)
+		filters, err := ListFilters(ctx.GetSendContext(), sw.SQLStore)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(filters)
 	})
 
-	// store.getLeaderboard(groupJID)
+	// getLeaderboard(groupJID)
 	_ = storeObj.Set("getLeaderboard", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || sw == nil || sw.SQLStore == nil {
 			return vm.ToValue([]any{})
@@ -968,14 +967,14 @@ func setupStoreTools(vm *goja.Runtime, ctx *dispatch.Context, tracker *EvalConte
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
-		lb, err := store.GetGroupLeaderboard(ctx.GetSendContext(), sw.SQLStore, groupJID.String())
+		lb, err := GetGroupLeaderboard(ctx.GetSendContext(), sw.SQLStore, groupJID.String())
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(lb)
 	})
 
-	// store.raw gives access to SQLStore directly if present
+	// raw gives access to SQLStore directly if present
 	if sw != nil && sw.SQLStore != nil {
 		_ = storeObj.Set("raw", sw.SQLStore)
 	}
@@ -1056,12 +1055,7 @@ func tagAndSet(vm *goja.Runtime, target *goja.Object, name string, meta Function
 }
 
 func containsString(slice []string, val string) bool {
-	for _, item := range slice {
-		if item == val {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, val)
 }
 
 func truncateString(s string, maxLen int) string {

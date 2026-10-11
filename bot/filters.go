@@ -1,4 +1,4 @@
-package filters
+package main
 
 import (
 	"context"
@@ -6,14 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"whatsrook/bot/botctx"
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/games"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/store"
-	"whatsrook/bot/system"
-	"whatsrook/bot/updater"
 
 	"github.com/thruqe/whatsrook"
 
@@ -24,28 +16,28 @@ import (
 )
 
 func init() {
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "filter",
 		Description: "Set, remove, or list auto-reply messages for specific words",
 		Category:    "filters",
 		IsPublic:    true,
 		Handler:     handleFilter,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "bgm",
 		Description: "Set, remove, or list audio auto-replies for specific words",
 		Category:    "filters",
 		IsPublic:    true,
 		Handler:     handleBGM,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "mention",
 		Description: "Set an auto-reply whenever you are tagged",
 		Category:    "filters",
 		IsPublic:    true,
 		Handler:     handleMention,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "filteradd",
 		Alias:       "addfilter",
 		Description: "Add an auto-reply message for a specific word",
@@ -53,7 +45,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleAddFilter,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "filterget",
 		Alias:       "getfilter",
 		Description: "Test the auto-reply message for a specific word",
@@ -61,7 +53,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleGetFilter,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "filters",
 		Alias:       "listfilters",
 		Description: "List all active auto-replies",
@@ -69,7 +61,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleListFilters,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "filterdel",
 		Alias:       "delfilter",
 		Description: "Remove an auto-reply message",
@@ -87,19 +79,19 @@ func RenderFilterTemplate(ctx context.Context, client *whatsmeow.Client, evt *ev
 	}
 
 	startMeasure := time.Now()
-	uptime := system.FormatDuration(time.Since(system.BootTime))
+	uptime := FormatDuration(time.Since(BootTime))
 
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	ramUsage := dispatch.Sprintf("%.2f MB", float64(memStats.Alloc)/1024/1024)
+	ramUsage := Sprintf("%.2f MB", float64(memStats.Alloc)/1024/1024)
 	goroutines := strconv.Itoa(runtime.NumGoroutine())
 
 	elapsed := time.Since(startMeasure)
 	var latency string
 	if ms := elapsed.Milliseconds(); ms > 0 {
-		latency = dispatch.Sprintf("%dms", ms)
+		latency = Sprintf("%dms", ms)
 	} else {
-		latency = dispatch.Sprintf("%dns", elapsed.Nanoseconds())
+		latency = Sprintf("%dns", elapsed.Nanoseconds())
 	}
 
 	ownerName := "Thruqe"
@@ -127,7 +119,7 @@ func RenderFilterTemplate(ctx context.Context, client *whatsmeow.Client, evt *ev
 		senderJIDStr = senderJID.String()
 
 		if client != nil {
-			rJID, username := botctx.ResolveMentionRaw(ctx, client, senderJID)
+			rJID, username := ResolveMentionRaw(ctx, client, senderJID)
 			resolvedJID = rJID
 			if pushName == "User" && username != "" {
 				pushName = username
@@ -145,13 +137,13 @@ func RenderFilterTemplate(ctx context.Context, client *whatsmeow.Client, evt *ev
 
 	botName := "WhatsRook"
 	prefix := "."
-	if s, ok := dispatch.GetSQLStore(client); ok {
-		botName = dispatch.GetBotName(ctx, s)
+	if s, ok := GetSQLStore(client); ok {
+		botName = GetBotName(ctx, s)
 		if p, err := s.GetSetting(ctx, "prefix"); err == nil && strings.TrimSpace(p) != "" {
 			prefix = strings.Fields(p)[0]
 		}
 	}
-	version := updater.GetAppVersion()
+	version := GetAppVersion()
 	if version == "" {
 		version = "v2.5.0"
 	}
@@ -180,16 +172,16 @@ func RenderFilterTemplate(ctx context.Context, client *whatsmeow.Client, evt *ev
 	lowerTpl := strings.ToLower(tpl)
 	var randomFact, randomQuote, randomJoke, randomRizz string
 	if strings.Contains(lowerTpl, "fact") {
-		randomFact = games.GetRandomFact(ctx)
+		randomFact = GetRandomFact(ctx)
 	}
 	if strings.Contains(lowerTpl, "quote") {
-		randomQuote = games.GetRandomQuote(ctx)
+		randomQuote = GetRandomQuote(ctx)
 	}
 	if strings.Contains(lowerTpl, "joke") {
-		randomJoke = games.GetRandomJoke(ctx)
+		randomJoke = GetRandomJoke(ctx)
 	}
 	if strings.Contains(lowerTpl, "rizz") {
-		randomRizz = games.GetRandomRizz(ctx)
+		randomRizz = GetRandomRizz(ctx)
 	}
 
 	replacer := strings.NewReplacer(
@@ -384,7 +376,7 @@ func appendUniqueMentions(existing []string, newMentions []string) []string {
 	return result
 }
 
-func sendFilterGuide(ctx *dispatch.Context) error {
+func sendFilterGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	return ctx.Text().
 		Header("AUTO-RESPONSE FILTERS GUIDE").
@@ -427,7 +419,7 @@ func sendFilterGuide(ctx *dispatch.Context) error {
 		Reply()
 }
 
-func sendMentionGuide(ctx *dispatch.Context) error {
+func sendMentionGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	return ctx.Text().
 		Header("TAG AUTO-RESPONSE GUIDE").
@@ -447,7 +439,7 @@ func sendMentionGuide(ctx *dispatch.Context) error {
 		Reply()
 }
 
-func sendBGMGuide(ctx *dispatch.Context) error {
+func sendBGMGuide(ctx *Context) error {
 	p := ctx.GetPrefix()
 	return ctx.Text().
 		Header("BGM AUTO-RESPONSE GUIDE").
@@ -460,8 +452,8 @@ func sendBGMGuide(ctx *dispatch.Context) error {
 		Reply()
 }
 
-func handleFilter(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleFilter(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -506,11 +498,11 @@ func handleFilter(ctx *dispatch.Context) error {
 			return ctx.Replyf("Failed to encode filter message: %v", err)
 		}
 
-		if err := store.PutFilter(ctx.Ctx, s.SQLStore, trigger, encoded); err != nil {
+		if err := PutFilter(ctx.Ctx, s.SQLStore, trigger, encoded); err != nil {
 			return ctx.Reply("Failed to save filter: " + err.Error())
 		}
 
-		logger.Debug("handleFilter: filter added", "trigger", trigger, "our_jid", ourJID)
+		Debug("handleFilter: filter added", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("Filter added for word %q. Placeholders like `@user`, `@uptime`, `@bot`, `@time`, etc. will be rendered dynamically.", trigger)
 
 	case "del", "delete", "remove", "rm", "-":
@@ -519,10 +511,10 @@ func handleFilter(ctx *dispatch.Context) error {
 		}
 		trigger := strings.ToLower(ctx.Args[1])
 
-		if err := store.DeleteFilter(ctx.Ctx, s.SQLStore, trigger); err != nil {
+		if err := DeleteFilter(ctx.Ctx, s.SQLStore, trigger); err != nil {
 			return ctx.Reply("Failed to delete filter: " + err.Error())
 		}
-		logger.Debug("handleFilter: filter removed", "trigger", trigger, "our_jid", ourJID)
+		Debug("handleFilter: filter removed", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("Filter for word %q removed.", trigger)
 
 	case "list", "show", "all":
@@ -557,17 +549,17 @@ func handleFilter(ctx *dispatch.Context) error {
 			return ctx.Replyf("Failed to encode filter message: %v", err)
 		}
 
-		if err := store.PutFilter(ctx.Ctx, s.SQLStore, trigger, encoded); err != nil {
+		if err := PutFilter(ctx.Ctx, s.SQLStore, trigger, encoded); err != nil {
 			return ctx.Reply("Failed to save filter: " + err.Error())
 		}
 
-		logger.Debug("handleFilter: filter added via shorthand", "trigger", trigger, "our_jid", ourJID)
+		Debug("handleFilter: filter added via shorthand", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("Filter added for word %q. Placeholders like `@user`, `@uptime`, `@bot`, `@time`, etc. will be rendered dynamically.", trigger)
 	}
 }
 
-func handleBGM(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleBGM(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -607,14 +599,14 @@ func handleBGM(ctx *dispatch.Context) error {
 		}
 		trigger = strings.ToLower(ctx.Args[1])
 
-		if err := store.DeleteBGM(ctx.Ctx, s.SQLStore, trigger); err != nil {
+		if err := DeleteBGM(ctx.Ctx, s.SQLStore, trigger); err != nil {
 			return ctx.Reply("Failed to delete BGM: " + err.Error())
 		}
-		logger.Debug("handleBGM: BGM removed", "trigger", trigger, "our_jid", ourJID)
+		Debug("handleBGM: BGM removed", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("BGM for word %q removed.", trigger)
 
 	case "list", "show", "all":
-		triggers, err := store.ListBGMs(ctx.Ctx, s.SQLStore)
+		triggers, err := ListBGMs(ctx.Ctx, s.SQLStore)
 		if err != nil {
 			return ctx.Reply("Failed to query BGMs: " + err.Error())
 		}
@@ -653,19 +645,19 @@ func handleBGM(ctx *dispatch.Context) error {
 			return ctx.Replyf("Failed to encode BGM message: %v", err)
 		}
 
-		if err := store.PutBGM(ctx.Ctx, s.SQLStore, trigger, encoded); err != nil {
+		if err := PutBGM(ctx.Ctx, s.SQLStore, trigger, encoded); err != nil {
 			return ctx.Reply("Failed to save BGM: " + err.Error())
 		}
 
-		logger.Debug("handleBGM: BGM added", "trigger", trigger, "our_jid", ourJID)
+		Debug("handleBGM: BGM added", "trigger", trigger, "our_jid", ourJID)
 		return ctx.Replyf("BGM added for word %q.", trigger)
 	}
 
 	return nil
 }
 
-func handleMention(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleMention(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -698,22 +690,22 @@ func handleMention(ctx *dispatch.Context) error {
 			return ctx.Replyf("Failed to encode mention message: %v", err)
 		}
 
-		if err := store.PutSetting(ctx.Ctx, s.SQLStore, "mention_proto", encoded); err != nil {
+		if err := PutSetting(ctx.Ctx, s.SQLStore, "mention_proto", encoded); err != nil {
 			return ctx.Reply("Failed to save mention setting: " + err.Error())
 		}
 
-		logger.Debug("handleMention: tag auto-response updated", "our_jid", ourJID)
+		Debug("handleMention: tag auto-response updated", "our_jid", ourJID)
 		return ctx.Reply("Tag auto-response configured with placeholder support.")
 
 	case "del", "remove", "clear", "-":
-		if err := store.DeleteSetting(ctx.Ctx, s.SQLStore, "mention_proto"); err != nil {
+		if err := DeleteSetting(ctx.Ctx, s.SQLStore, "mention_proto"); err != nil {
 			return ctx.Reply("Failed to delete mention setting: " + err.Error())
 		}
-		logger.Debug("handleMention: tag auto-response removed", "our_jid", ourJID)
+		Debug("handleMention: tag auto-response removed", "our_jid", ourJID)
 		return ctx.Reply("Tag auto-response removed.")
 
 	case "list", "show", "get", "test":
-		mentionProto, err := store.GetSetting(ctx.Ctx, s.SQLStore, "mention_proto")
+		mentionProto, err := GetSetting(ctx.Ctx, s.SQLStore, "mention_proto")
 		if err != nil || mentionProto == "" {
 			return ctx.Reply("No tag auto-response configured.")
 		}
@@ -735,16 +727,16 @@ func handleMention(ctx *dispatch.Context) error {
 			return ctx.Replyf("Failed to encode mention message: %v", err)
 		}
 
-		if err := store.PutSetting(ctx.Ctx, s.SQLStore, "mention_proto", encoded); err != nil {
+		if err := PutSetting(ctx.Ctx, s.SQLStore, "mention_proto", encoded); err != nil {
 			return ctx.Reply("Failed to save mention setting: " + err.Error())
 		}
 
-		logger.Debug("handleMention: tag auto-response updated via shorthand", "our_jid", ourJID)
+		Debug("handleMention: tag auto-response updated via shorthand", "our_jid", ourJID)
 		return ctx.Reply("Tag auto-response configured with placeholder support.")
 	}
 }
 
-func handleAddFilter(ctx *dispatch.Context) error {
+func handleAddFilter(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
 		return ctx.Replyf("Usage: `%saddfilter <word> <response text>` (or reply to a message)", p)
@@ -752,8 +744,8 @@ func handleAddFilter(ctx *dispatch.Context) error {
 	return handleFilter(ctx)
 }
 
-func handleGetFilter(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleGetFilter(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -764,7 +756,7 @@ func handleGetFilter(ctx *dispatch.Context) error {
 
 	trigger := strings.ToLower(ctx.Args[0])
 
-	filterProto, err := store.GetFilter(ctx.Ctx, s.SQLStore, trigger)
+	filterProto, err := GetFilter(ctx.Ctx, s.SQLStore, trigger)
 	if err != nil || filterProto == "" {
 		return ctx.Replyf("Filter for word %q not found.", trigger)
 	}
@@ -779,13 +771,13 @@ func handleGetFilter(ctx *dispatch.Context) error {
 	return err
 }
 
-func handleListFilters(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleListFilters(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
 
-	triggers, err := store.ListFilters(ctx.Ctx, s.SQLStore)
+	triggers, err := ListFilters(ctx.Ctx, s.SQLStore)
 	if err != nil {
 		return ctx.Reply("Failed to query filters: " + err.Error())
 	}
@@ -817,8 +809,8 @@ func handleListFilters(ctx *dispatch.Context) error {
 	return tb.Reply()
 }
 
-func handleDelFilter(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleDelFilter(ctx *Context) error {
+	s, ok := GetStore(ctx)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
@@ -830,9 +822,9 @@ func handleDelFilter(ctx *dispatch.Context) error {
 
 	trigger := strings.ToLower(ctx.Args[0])
 
-	if err := store.DeleteFilter(ctx.Ctx, s.SQLStore, trigger); err != nil {
+	if err := DeleteFilter(ctx.Ctx, s.SQLStore, trigger); err != nil {
 		return ctx.Reply("Failed to delete filter: " + err.Error())
 	}
-	logger.Debug("handleDelFilter: filter removed", "trigger", trigger, "our_jid", ourJID)
+	Debug("handleDelFilter: filter removed", "trigger", trigger, "our_jid", ourJID)
 	return ctx.Replyf("Filter for word %q removed.", trigger)
 }

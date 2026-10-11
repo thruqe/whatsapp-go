@@ -1,12 +1,9 @@
-package chats
+package main
 
 import (
 	"strconv"
 	"strings"
 	"time"
-	"whatsrook/bot/botctx"
-	"whatsrook/bot/dispatch"
-	"whatsrook/bot/logger"
 
 	"github.com/thruqe/whatsrook"
 
@@ -19,49 +16,49 @@ import (
 )
 
 func init() {
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "archive",
 		Description: "Move this chat to your archive",
 		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleArchive,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "unarchive",
 		Description: "Move this chat out of your archive",
 		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleUnarchive,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "pin",
 		Description: "Pin this chat or pin a replied message",
 		Category:    "chats",
 		IsPublic:    true,
 		Handler:     handlePin,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "unpin",
 		Description: "Unpin this chat or unpin a replied message",
 		Category:    "chats",
 		IsPublic:    true,
 		Handler:     handleUnpin,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "block",
 		Description: "Block this contact from messaging you",
 		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleBlock,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "unblock",
 		Description: "Unblock a previously blocked contact",
 		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleUnblock,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "clear",
 		Alias:       "clearchat",
 		Description: "Delete all messages in this chat",
@@ -69,7 +66,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleClear,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "dlt",
 		Alias:       "del,delete",
 		Description: "Delete a message (reply to the message to delete)",
@@ -77,7 +74,7 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleDelete,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "report",
 		Alias:       "reportchat",
 		Description: "Report a user or message for spam",
@@ -85,7 +82,7 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleReport,
 	})
-	dispatch.Register(&dispatch.Command{
+	Register(&Command{
 		Name:        "vv",
 		Alias:       "viewonce",
 		Description: "Open and resend a View Once photo or video (reply to it)",
@@ -95,7 +92,7 @@ func init() {
 	})
 }
 
-func handleArchive(ctx *dispatch.Context) error {
+func handleArchive(ctx *Context) error {
 	patch := appstate.BuildArchive(ctx.Chat, true, time.Time{}, nil)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
@@ -104,7 +101,7 @@ func handleArchive(ctx *dispatch.Context) error {
 	return ctx.Reply("This chat has been archived.")
 }
 
-func handleUnarchive(ctx *dispatch.Context) error {
+func handleUnarchive(ctx *Context) error {
 	patch := appstate.BuildArchive(ctx.Chat, false, time.Time{}, nil)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
@@ -113,7 +110,7 @@ func handleUnarchive(ctx *dispatch.Context) error {
 	return ctx.Reply("This chat has been unarchived.")
 }
 
-func handlePin(ctx *dispatch.Context) error {
+func handlePin(ctx *Context) error {
 	ci := ctx.GetContextInfo()
 	if ci != nil && ci.StanzaID != nil && *ci.StanzaID != "" {
 		isAuthorized := ctx.IsSudo()
@@ -132,7 +129,7 @@ func handlePin(ctx *dispatch.Context) error {
 		quotedSender, ok := ctx.GetQuotedSender()
 		quotedFromMe := false
 		if ok && ctx.Client.Store.ID != nil {
-			quotedFromMe = botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
+			quotedFromMe = IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
 		}
 
 		var participantStr *string
@@ -174,7 +171,7 @@ func handlePin(ctx *dispatch.Context) error {
 	return ctx.Reply("This chat has been pinned.")
 }
 
-func handleUnpin(ctx *dispatch.Context) error {
+func handleUnpin(ctx *Context) error {
 	ci := ctx.GetContextInfo()
 	if ci != nil && ci.StanzaID != nil && *ci.StanzaID != "" {
 		isAuthorized := ctx.IsSudo()
@@ -193,7 +190,7 @@ func handleUnpin(ctx *dispatch.Context) error {
 		quotedSender, ok := ctx.GetQuotedSender()
 		quotedFromMe := false
 		if ok && ctx.Client.Store.ID != nil {
-			quotedFromMe = botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
+			quotedFromMe = IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
 		}
 
 		var participantStr *string
@@ -232,7 +229,7 @@ func handleUnpin(ctx *dispatch.Context) error {
 	return ctx.Reply("This chat has been unpinned.")
 }
 
-func handleBlock(ctx *dispatch.Context) error {
+func handleBlock(ctx *Context) error {
 	target := ctx.Chat
 	targets := ctx.GetTargets()
 	if len(targets) > 0 {
@@ -243,7 +240,7 @@ func handleBlock(ctx *dispatch.Context) error {
 		return ctx.Reply("Groups cannot be blocked. The block command only applies to individual contacts.")
 	}
 
-	if botctx.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
+	if IsSudoRaw(ctx.Ctx, ctx.Client, target) {
 		return ctx.Reply("You cannot block the bot owner or authorized sudo users.")
 	}
 
@@ -259,8 +256,8 @@ func handleBlock(ctx *dispatch.Context) error {
 	}
 
 	resolvedJID, username := ctx.ResolveMention(target)
-	if err := ctx.ReplyWithMentions(dispatch.Sprintf("@%s has been blocked.", username), []types.JID{resolvedJID}); err != nil {
-		logger.Warn("handleBlock: failed to send block confirmation message", "target", target.String(), "err", err)
+	if err := ctx.ReplyWithMentions(Sprintf("@%s has been blocked.", username), []types.JID{resolvedJID}); err != nil {
+		Warn("handleBlock: failed to send block confirmation message", "target", target.String(), "err", err)
 	}
 
 	var lastErr error
@@ -275,14 +272,14 @@ func handleBlock(ctx *dispatch.Context) error {
 	}
 
 	if !blockedAny && lastErr != nil {
-		logger.Error("handleBlock: failed to block user", "target", target.String(), "err", lastErr)
+		Error("handleBlock: failed to block user", "target", target.String(), "err", lastErr)
 		return ctx.Reply("Could not block user: " + lastErr.Error())
 	}
 
 	return nil
 }
 
-func handleUnblock(ctx *dispatch.Context) error {
+func handleUnblock(ctx *Context) error {
 	target := ctx.Chat
 	targets := ctx.GetTargets()
 	if len(targets) > 0 {
@@ -320,10 +317,10 @@ func handleUnblock(ctx *dispatch.Context) error {
 	}
 
 	resolvedJID, username := ctx.ResolveMention(target)
-	return ctx.ReplyWithMentions(dispatch.Sprintf("@%s has been unblocked.", username), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(Sprintf("@%s has been unblocked.", username), []types.JID{resolvedJID})
 }
 
-func handleClear(ctx *dispatch.Context) error {
+func handleClear(ctx *Context) error {
 	patch := appstate.BuildDeleteChat(ctx.Chat, time.Now(), nil, true)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
@@ -332,7 +329,7 @@ func handleClear(ctx *dispatch.Context) error {
 	return ctx.Reply("All messages in this chat have been cleared.")
 }
 
-func handleDelete(ctx *dispatch.Context) error {
+func handleDelete(ctx *Context) error {
 	var targetID types.MessageID
 	if len(ctx.Args) > 0 && strings.TrimSpace(ctx.Args[0]) != "" {
 		targetID = types.MessageID(strings.TrimSpace(ctx.Args[0]))
@@ -374,11 +371,11 @@ func handleDelete(ctx *dispatch.Context) error {
 	return nil
 }
 
-func isJIDSudo(ctx *dispatch.Context, jid types.JID) bool {
-	return botctx.IsSudoRaw(ctx.Ctx, ctx.Client, jid)
+func isJIDSudo(ctx *Context, jid types.JID) bool {
+	return IsSudoRaw(ctx.Ctx, ctx.Client, jid)
 }
 
-func handleReport(ctx *dispatch.Context) error {
+func handleReport(ctx *Context) error {
 	p := ctx.GetPrefix()
 	if len(ctx.Args) == 0 && ctx.GetQuotedMessage() == nil {
 		return ctx.Replyf("*Warning*: The %sreport command reports a target user or chat directly to WhatsApp for spam and terms violations.\n\nUsage:\n- Reply to a message with %sreport\n- %sreport @user\n- %sreport <count>x", p, p, p, p)
@@ -495,13 +492,13 @@ func handleReport(ctx *dispatch.Context) error {
 
 	resolvedJID, username := ctx.ResolveMention(targetJID)
 	if count > 1 {
-		return ctx.ReplyWithMentions(dispatch.Sprintf("Reported @%s for spam to WhatsApp (%d times).", username, count), []types.JID{resolvedJID})
+		return ctx.ReplyWithMentions(Sprintf("Reported @%s for spam to WhatsApp (%d times).", username, count), []types.JID{resolvedJID})
 	}
-	return ctx.ReplyWithMentions(dispatch.Sprintf("Reported @%s for spam to WhatsApp.", username), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(Sprintf("Reported @%s for spam to WhatsApp.", username), []types.JID{resolvedJID})
 }
 
-func handleVV(ctx *dispatch.Context) error {
-	s, ok := dispatch.GetStore(ctx)
+func handleVV(ctx *Context) error {
+	s, ok := GetStore(ctx)
 
 	args := strings.Fields(ctx.RawArgs)
 	if len(args) > 0 {
@@ -580,7 +577,7 @@ func handleVV(ctx *dispatch.Context) error {
 	return nil
 }
 
-func sendVVMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
+func sendVVMenu(ctx *Context, s *StoreWrapper) error {
 	dest := "chat"
 	if s != nil {
 		if val, err := s.GetSetting(ctx.Ctx, "vv_destination"); err == nil && val != "" {
@@ -601,10 +598,10 @@ func sendVVMenu(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
 		"Customize",
 	}
 
-	return dispatch.SendPollReply(ctx, bodyText, options)
+	return SendPollReply(ctx, bodyText, options)
 }
 
-func sendVVCustomizeGuide(ctx *dispatch.Context, s *dispatch.StoreWrapper) error {
+func sendVVCustomizeGuide(ctx *Context, s *StoreWrapper) error {
 	p := ctx.GetPrefix()
 	dest := "chat"
 	if s != nil {

@@ -1,4 +1,4 @@
-package store
+package main
 
 import (
 	"context"
@@ -6,9 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"whatsrook/bot/cache"
-	"whatsrook/bot/logger"
 
 	"github.com/thruqe/duosql"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -38,13 +35,13 @@ func PrewarmSettings(ctx context.Context, s *sqlstore.SQLStore) error {
 	}
 
 	for _, item := range items {
-		_ = cache.Set(ctx, settingCacheKey(ourJID, item.Key), item.Value, settingCacheTTL)
+		_ = Set(ctx, settingCacheKey(ourJID, item.Key), item.Value, settingCacheTTL)
 		if s.JID != "" && s.JID != ourJID {
-			_ = cache.Set(ctx, settingCacheKey(s.JID, item.Key), item.Value, settingCacheTTL)
+			_ = Set(ctx, settingCacheKey(s.JID, item.Key), item.Value, settingCacheTTL)
 		}
 	}
 
-	logger.Debug("Prewarmed bot settings into cache", "count", len(items))
+	Debug("Prewarmed bot settings into cache", "count", len(items))
 	return nil
 }
 
@@ -56,7 +53,7 @@ func GetSetting(ctx context.Context, s *sqlstore.SQLStore, key string) (string, 
 	ourJID := ourJIDStr(s)
 	cacheKey := settingCacheKey(ourJID, key)
 
-	if val, ok, _ := cache.Get(ctx, cacheKey); ok {
+	if val, ok, _ := CacheGet(ctx, cacheKey); ok {
 		if val == cacheSentinelNil {
 			return "", nil
 		}
@@ -95,20 +92,20 @@ func fetchSettingFromDB(ctx context.Context, s *sqlstore.SQLStore, ourJID, cache
 
 	durDB := time.Since(dbStart)
 	if durDB > 1*time.Millisecond {
-		logger.Debug("store.GetSetting DB query", "key", key, "dbDuration", durDB, "total", time.Since(start))
+		Debug("GetSetting DB query", "key", key, "dbDuration", durDB, "total", time.Since(start))
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		_ = cache.Set(ctx, cacheKey, cacheSentinelNil, settingNegativeCacheTTL)
+		_ = Set(ctx, cacheKey, cacheSentinelNil, settingNegativeCacheTTL)
 		return "", nil
 	}
 	if err != nil {
 		return "", err
 	}
 
-	_ = cache.Set(ctx, cacheKey, setting.Value, settingCacheTTL)
+	_ = Set(ctx, cacheKey, setting.Value, settingCacheTTL)
 	if s.JID != "" && s.JID != ourJID {
-		_ = cache.Set(ctx, settingCacheKey(s.JID, key), setting.Value, settingCacheTTL)
+		_ = Set(ctx, settingCacheKey(s.JID, key), setting.Value, settingCacheTTL)
 	}
 	return setting.Value, nil
 }
@@ -121,9 +118,9 @@ func PutSetting(ctx context.Context, s *sqlstore.SQLStore, key, value string) er
 	ourJID := ourJIDStr(s)
 	cacheKey := settingCacheKey(ourJID, key)
 
-	_ = cache.Set(ctx, cacheKey, value, settingCacheTTL)
+	_ = Set(ctx, cacheKey, value, settingCacheTTL)
 	if s.JID != "" && s.JID != ourJID {
-		_ = cache.Set(ctx, settingCacheKey(s.JID, key), value, settingCacheTTL)
+		_ = Set(ctx, settingCacheKey(s.JID, key), value, settingCacheTTL)
 	}
 
 	duo, err := getDuoDB(s)
@@ -152,11 +149,11 @@ func DeleteSetting(ctx context.Context, s *sqlstore.SQLStore, key string) error 
 	ourJID := ourJIDStr(s)
 	cacheKey := settingCacheKey(ourJID, key)
 
-	_ = cache.Delete(ctx, cacheKey)
+	_ = CacheDelete(ctx, cacheKey)
 	if s.JID != "" && s.JID != ourJID {
-		_ = cache.Delete(ctx, settingCacheKey(s.JID, key))
+		_ = CacheDelete(ctx, settingCacheKey(s.JID, key))
 	}
-	_ = cache.Delete(ctx, settingCacheKey("", key))
+	_ = CacheDelete(ctx, settingCacheKey("", key))
 
 	duo, err := getDuoDB(s)
 	if err != nil {

@@ -1,4 +1,4 @@
-package external
+package main
 
 import (
 	"bufio"
@@ -13,14 +13,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"whatsrook/bot/botctx"
-	"whatsrook/bot/logger"
 
 	"go.mau.fi/whatsmeow/types"
 )
 
 // runProcess launches an external plugin executable and handles both streaming action frames and plain text stdout.
-func (d *Dispatcher) runProcess(plugCtx *botctx.PluginContext, path, name string, request Request) {
+func (d *Dispatcher) runProcess(plugCtx *PluginContext, path, name string, request Request) {
 	liveCtx, liveCancel := context.WithTimeout(context.Background(), d.liveTimeout)
 	defer liveCancel()
 
@@ -63,17 +61,17 @@ func (d *Dispatcher) runProcess(plugCtx *botctx.PluginContext, path, name string
 	cmd := exec.CommandContext(liveCtx, path, cmdArgs...)
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		logger.Error("external plugin stdout pipe failed", "plugin", name, "err", err)
+		Error("external plugin stdout pipe failed", "plugin", name, "err", err)
 		return
 	}
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		logger.Error("external plugin stdin pipe failed", "plugin", name, "err", err)
+		Error("external plugin stdin pipe failed", "plugin", name, "err", err)
 		return
 	}
 
 	if err := cmd.Start(); err != nil {
-		logger.Error("external plugin start failed", "plugin", name, "err", err)
+		Error("external plugin start failed", "plugin", name, "err", err)
 		_ = plugCtx.Replyf("Failed to start external plugin %q: %v", name, err)
 		return
 	}
@@ -148,7 +146,7 @@ func (d *Dispatcher) runProcess(plugCtx *botctx.PluginContext, path, name string
 
 				if isStreaming {
 					if errAction := d.handleActionFrame(plugCtx, stdinPipe, trimmed); errAction != nil {
-						logger.Debug("external plugin streaming action finished", "plugin", name, "err", errAction)
+						Debug("external plugin streaming action finished", "plugin", name, "err", errAction)
 						break
 					}
 				}
@@ -156,7 +154,7 @@ func (d *Dispatcher) runProcess(plugCtx *botctx.PluginContext, path, name string
 		}
 		if err != nil {
 			if err != io.EOF {
-				logger.Warn("external plugin stdout read finished", "plugin", name, "err", err)
+				Warn("external plugin stdout read finished", "plugin", name, "err", err)
 			}
 			break
 		}
@@ -168,7 +166,7 @@ func (d *Dispatcher) runProcess(plugCtx *botctx.PluginContext, path, name string
 	}
 }
 
-func tryDeliverOutputFile(plugCtx *botctx.PluginContext, name, tempOutputFile string) bool {
+func tryDeliverOutputFile(plugCtx *PluginContext, name, tempOutputFile string) bool {
 	if tempOutputFile == "" {
 		return false
 	}
@@ -195,7 +193,7 @@ func tryDeliverOutputFile(plugCtx *botctx.PluginContext, name, tempOutputFile st
 }
 
 // handleActionFrame processes a single action frame emitted by an external plugin on stdout.
-func (d *Dispatcher) handleActionFrame(ctx *botctx.PluginContext, stdinPipe io.WriteCloser, line string) error {
+func (d *Dispatcher) handleActionFrame(ctx *PluginContext, stdinPipe io.WriteCloser, line string) error {
 	var frame Action
 	if err := json.Unmarshal([]byte(line), &frame); err != nil {
 		return err
@@ -222,7 +220,7 @@ func (d *Dispatcher) handleActionFrame(ctx *botctx.PluginContext, stdinPipe io.W
 		}
 
 	case "send_image":
-		data, err := resolveMediaData(frame.Data)
+		data, err := resolveExternalMediaData(frame.Data)
 		if err != nil {
 			d.sendAck(stdinPipe, false, "", err)
 			return nil
@@ -235,7 +233,7 @@ func (d *Dispatcher) handleActionFrame(ctx *botctx.PluginContext, stdinPipe io.W
 		d.sendAck(stdinPipe, err == nil, "", err)
 
 	case "send_audio":
-		data, err := resolveMediaData(frame.Data)
+		data, err := resolveExternalMediaData(frame.Data)
 		if err != nil {
 			d.sendAck(stdinPipe, false, "", err)
 			return nil
@@ -248,7 +246,7 @@ func (d *Dispatcher) handleActionFrame(ctx *botctx.PluginContext, stdinPipe io.W
 		d.sendAck(stdinPipe, err == nil, "", err)
 
 	case "send_video":
-		data, err := resolveMediaData(frame.Data)
+		data, err := resolveExternalMediaData(frame.Data)
 		if err != nil {
 			d.sendAck(stdinPipe, false, "", err)
 			return nil
@@ -265,7 +263,7 @@ func (d *Dispatcher) handleActionFrame(ctx *botctx.PluginContext, stdinPipe io.W
 		d.sendAck(stdinPipe, err == nil, "", err)
 
 	case "send_document":
-		data, err := resolveMediaData(frame.Data)
+		data, err := resolveExternalMediaData(frame.Data)
 		if err != nil {
 			d.sendAck(stdinPipe, false, "", err)
 			return nil
@@ -282,18 +280,18 @@ func (d *Dispatcher) handleActionFrame(ctx *botctx.PluginContext, stdinPipe io.W
 		d.sendAck(stdinPipe, err == nil, "", err)
 
 	case "send_sticker":
-		data, err := resolveMediaData(frame.Data)
+		data, err := resolveExternalMediaData(frame.Data)
 		if err != nil {
-			logger.Error("send_sticker: resolve media data failed", "err", err)
+			Error("send_sticker: resolve media data failed", "err", err)
 			d.sendAck(stdinPipe, false, "", err)
 			return nil
 		}
-		logger.Debug("send_sticker: sending sticker to chat", "chat", ctx.Chat.String(), "bytes", len(data))
+		Debug("send_sticker: sending sticker to chat", "chat", ctx.Chat.String(), "bytes", len(data))
 		err = ctx.ReplyWithSticker(data)
 		if err != nil {
-			logger.Error("send_sticker: ReplyWithSticker failed", "chat", ctx.Chat.String(), "err", err)
+			Error("send_sticker: ReplyWithSticker failed", "chat", ctx.Chat.String(), "err", err)
 		} else {
-			logger.Debug("send_sticker: ReplyWithSticker succeeded", "chat", ctx.Chat.String())
+			Debug("send_sticker: ReplyWithSticker succeeded", "chat", ctx.Chat.String())
 		}
 		d.sendAck(stdinPipe, err == nil, "", err)
 
@@ -318,7 +316,7 @@ func (d *Dispatcher) handleActionFrame(ctx *botctx.PluginContext, stdinPipe io.W
 		return io.EOF
 
 	default:
-		logger.Debug("external plugin: unknown action frame", "action", frame.Action)
+		Debug("external plugin: unknown action frame", "action", frame.Action)
 	}
 
 	return nil
@@ -336,8 +334,8 @@ func (d *Dispatcher) sendAck(stdinPipe io.WriteCloser, ok bool, msgID string, er
 	_, _ = fmt.Fprintf(stdinPipe, "%s\n", data)
 }
 
-// resolveMediaData parses base64 media payload or downloads from HTTP/HTTPS URL.
-func resolveMediaData(raw string) ([]byte, error) {
+// resolveExternalMediaData parses base64 media payload or downloads from HTTP/HTTPS URL.
+func resolveExternalMediaData(raw string) ([]byte, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil, fmt.Errorf("media data is empty")

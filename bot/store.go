@@ -1,4 +1,4 @@
-package store
+package main
 
 import (
 	"context"
@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"whatsrook/bot/logger"
 
 	"github.com/thruqe/whatsrook"
 
@@ -47,7 +45,7 @@ func ResolveDatabaseTarget(dbInput string) (dialect string, dsn string) {
 
 	if trimmed == "" {
 		ensureParentDir(defaultSQLitePath)
-		logger.Debug("No database specified; using default SQLite database", "path", defaultSQLitePath)
+		Debug("No database specified; using default SQLite database", "path", defaultSQLitePath)
 		return "sqlite3", defaultSQLiteDSN
 	}
 
@@ -73,7 +71,7 @@ func ResolveDatabaseTarget(dbInput string) (dialect string, dsn string) {
 	}
 
 	ensureParentDir(defaultSQLitePath)
-	logger.Warn("Database target not provided or invalid; falling back to SQLite", "input", dbInput, "fallback", defaultSQLitePath)
+	Warn("Database target not provided or invalid; falling back to SQLite", "input", dbInput, "fallback", defaultSQLitePath)
 	return "sqlite3", defaultSQLiteDSN
 }
 
@@ -191,7 +189,7 @@ func InitTables(ctx context.Context, s *sqlstore.SQLStore) {
 	tablesInitMu.Unlock()
 
 	if err := RunMigrations(ctx, db); err != nil {
-		logger.Error("InitTables: failed to execute schema migrations", "err", err, "dialect", db.Dialect.String())
+		Error("InitTables: failed to execute schema migrations", "err", err, "dialect", db.Dialect.String())
 	}
 	_ = PrewarmSettings(ctx, s)
 }

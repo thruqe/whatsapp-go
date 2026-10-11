@@ -1,4 +1,4 @@
-package store
+package main
 
 import (
 	"context"
@@ -6,9 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"whatsrook/bot/cache"
-	"whatsrook/bot/logger"
 
 	"github.com/thruqe/duosql"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -23,7 +20,7 @@ func GetFilter(ctx context.Context, s *sqlstore.SQLStore, trigger string) (strin
 	ourJID := ourJIDStr(s)
 	cacheKey := filterCacheKey(ourJID, trigger)
 
-	if val, ok, _ := cache.Get(ctx, cacheKey); ok {
+	if val, ok, _ := CacheGet(ctx, cacheKey); ok {
 		if val == cacheSentinelNil {
 			return "", nil
 		}
@@ -57,20 +54,20 @@ func GetFilter(ctx context.Context, s *sqlstore.SQLStore, trigger string) (strin
 
 	durDB := time.Since(dbStart)
 	if durDB > 1*time.Millisecond {
-		logger.Debug("store.GetFilter DB query", "trigger", trigger, "dbDuration", durDB, "total", time.Since(start))
+		Debug("GetFilter DB query", "trigger", trigger, "dbDuration", durDB, "total", time.Since(start))
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		_ = cache.Set(ctx, cacheKey, cacheSentinelNil, filterNegativeCacheTTL)
+		_ = Set(ctx, cacheKey, cacheSentinelNil, filterNegativeCacheTTL)
 		return "", nil
 	}
 	if err != nil {
 		return "", err
 	}
 
-	_ = cache.Set(ctx, cacheKey, filter.MessageProto, filterCacheTTL)
+	_ = Set(ctx, cacheKey, filter.MessageProto, filterCacheTTL)
 	if s.JID != "" && s.JID != ourJID {
-		_ = cache.Set(ctx, filterCacheKey(s.JID, trigger), filter.MessageProto, filterCacheTTL)
+		_ = Set(ctx, filterCacheKey(s.JID, trigger), filter.MessageProto, filterCacheTTL)
 	}
 	return filter.MessageProto, nil
 }
@@ -87,9 +84,9 @@ func PutFilter(ctx context.Context, s *sqlstore.SQLStore, trigger, messageProto 
 	ourJID := ourJIDStr(s)
 
 	cacheKey := filterCacheKey(ourJID, trigger)
-	_ = cache.Set(ctx, cacheKey, messageProto, filterCacheTTL)
+	_ = Set(ctx, cacheKey, messageProto, filterCacheTTL)
 	if s.JID != "" && s.JID != ourJID {
-		_ = cache.Set(ctx, filterCacheKey(s.JID, trigger), messageProto, filterCacheTTL)
+		_ = Set(ctx, filterCacheKey(s.JID, trigger), messageProto, filterCacheTTL)
 	}
 
 	item := &BotFilter{
@@ -116,11 +113,11 @@ func DeleteFilter(ctx context.Context, s *sqlstore.SQLStore, trigger string) err
 	}
 	ourJID := ourJIDStr(s)
 
-	_ = cache.Delete(ctx, filterCacheKey(ourJID, trigger))
+	_ = CacheDelete(ctx, filterCacheKey(ourJID, trigger))
 	if s.JID != "" && s.JID != ourJID {
-		_ = cache.Delete(ctx, filterCacheKey(s.JID, trigger))
+		_ = CacheDelete(ctx, filterCacheKey(s.JID, trigger))
 	}
-	_ = cache.Delete(ctx, filterCacheKey("", trigger))
+	_ = CacheDelete(ctx, filterCacheKey("", trigger))
 
 	_, err = duosql.Delete[BotFilter](duo).
 		Where(
@@ -156,7 +153,7 @@ func ListFilters(ctx context.Context, s *sqlstore.SQLStore) ([]string, error) {
 		)).
 		OrderBy(duosql.Asc("trigger_word"))
 
-	return duosql.Pluck[string, BotFilter](q, ctx, "trigger_word")
+	return duosql.Pluck[string](q, ctx, "trigger_word")
 }
 
 // GetBGM retrieves a background music track configuration by keyword trigger.
@@ -168,7 +165,7 @@ func GetBGM(ctx context.Context, s *sqlstore.SQLStore, trigger string) (string, 
 	ourJID := ourJIDStr(s)
 	cacheKey := bgmCacheKey(ourJID, trigger)
 
-	if val, ok, _ := cache.Get(ctx, cacheKey); ok {
+	if val, ok, _ := CacheGet(ctx, cacheKey); ok {
 		if val == cacheSentinelNil {
 			return "", nil
 		}
@@ -202,20 +199,20 @@ func GetBGM(ctx context.Context, s *sqlstore.SQLStore, trigger string) (string, 
 
 	durDB := time.Since(dbStart)
 	if durDB > 1*time.Millisecond {
-		logger.Debug("store.GetBGM DB query", "trigger", trigger, "dbDuration", durDB, "total", time.Since(start))
+		Debug("GetBGM DB query", "trigger", trigger, "dbDuration", durDB, "total", time.Since(start))
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		_ = cache.Set(ctx, cacheKey, cacheSentinelNil, filterNegativeCacheTTL)
+		_ = Set(ctx, cacheKey, cacheSentinelNil, filterNegativeCacheTTL)
 		return "", nil
 	}
 	if err != nil {
 		return "", err
 	}
 
-	_ = cache.Set(ctx, cacheKey, bgm.MessageProto, filterCacheTTL)
+	_ = Set(ctx, cacheKey, bgm.MessageProto, filterCacheTTL)
 	if s.JID != "" && s.JID != ourJID {
-		_ = cache.Set(ctx, bgmCacheKey(s.JID, trigger), bgm.MessageProto, filterCacheTTL)
+		_ = Set(ctx, bgmCacheKey(s.JID, trigger), bgm.MessageProto, filterCacheTTL)
 	}
 	return bgm.MessageProto, nil
 }
@@ -232,9 +229,9 @@ func PutBGM(ctx context.Context, s *sqlstore.SQLStore, trigger, messageProto str
 	ourJID := ourJIDStr(s)
 
 	cacheKey := bgmCacheKey(ourJID, trigger)
-	_ = cache.Set(ctx, cacheKey, messageProto, filterCacheTTL)
+	_ = Set(ctx, cacheKey, messageProto, filterCacheTTL)
 	if s.JID != "" && s.JID != ourJID {
-		_ = cache.Set(ctx, bgmCacheKey(s.JID, trigger), messageProto, filterCacheTTL)
+		_ = Set(ctx, bgmCacheKey(s.JID, trigger), messageProto, filterCacheTTL)
 	}
 
 	item := &BotBGM{
@@ -250,7 +247,7 @@ func PutBGM(ctx context.Context, s *sqlstore.SQLStore, trigger, messageProto str
 	return err
 }
 
-// DeleteBGM deletes a background music trigger entry and evicts it from cache.
+// DeleteBGM deletes a background music trigger entry and evicts it from
 func DeleteBGM(ctx context.Context, s *sqlstore.SQLStore, trigger string) error {
 	if s == nil {
 		return nil
@@ -261,11 +258,11 @@ func DeleteBGM(ctx context.Context, s *sqlstore.SQLStore, trigger string) error 
 	}
 	ourJID := ourJIDStr(s)
 
-	_ = cache.Delete(ctx, bgmCacheKey(ourJID, trigger))
+	_ = CacheDelete(ctx, bgmCacheKey(ourJID, trigger))
 	if s.JID != "" && s.JID != ourJID {
-		_ = cache.Delete(ctx, bgmCacheKey(s.JID, trigger))
+		_ = CacheDelete(ctx, bgmCacheKey(s.JID, trigger))
 	}
-	_ = cache.Delete(ctx, bgmCacheKey("", trigger))
+	_ = CacheDelete(ctx, bgmCacheKey("", trigger))
 
 	_, err = duosql.Delete[BotBGM](duo).
 		Where(
@@ -301,5 +298,5 @@ func ListBGMs(ctx context.Context, s *sqlstore.SQLStore) ([]string, error) {
 		)).
 		OrderBy(duosql.Asc("trigger_word"))
 
-	return duosql.Pluck[string, BotBGM](q, ctx, "trigger_word")
+	return duosql.Pluck[string](q, ctx, "trigger_word")
 }

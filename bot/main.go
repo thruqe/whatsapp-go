@@ -13,12 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"whatsrook/bot/cache"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/store"
-	"whatsrook/bot/system"
-	"whatsrook/bot/updater"
-
 	"github.com/thruqe/whatsrook"
 )
 
@@ -44,8 +38,8 @@ type CLIArgs struct {
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			crashPath := system.RecordCrash(r, "top-level process panic")
-			logger.Error("Fatal runtime crash", "panic", r, "crash_log", crashPath)
+			crashPath := RecordCrash(r, "top-level process panic")
+			Error("Fatal runtime crash", "panic", r, "crash_log", crashPath)
 			os.Exit(1)
 		}
 	}()
@@ -55,14 +49,14 @@ func main() {
 	if args.Version {
 		v := Version
 		if v == "dev" || v == "" {
-			v = updater.GetBinaryVersion()
+			v = GetBinaryVersion()
 		}
 		fmt.Println(v)
 		return
 	}
 
 	if args.Verbose {
-		logger.SetVerbose(true)
+		SetVerbose(true)
 	}
 
 	if args.Update {
@@ -78,23 +72,23 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	if updater.GetStoredAutoUpdate() && os.Getenv("_WHATSRROK_AUTOUPDATE_RESTARTED") != "1" {
+	if GetStoredAutoUpdate() && os.Getenv("_WHATSRROK_AUTOUPDATE_RESTARTED") != "1" {
 		ctxAuto, cancelAuto := context.WithTimeout(ctx, 45*time.Second)
-		updated, err := updater.PerformAutoUpdate(ctxAuto, os.Stdout)
+		updated, err := PerformAutoUpdate(ctxAuto, os.Stdout)
 		cancelAuto()
 		if err != nil {
-			logger.Warn("auto-update check failed", "err", err)
+			Warn("auto-update check failed", "err", err)
 		} else if updated {
 			fmt.Println("==> Auto-update applied successfully! Restarting WhatsRook...")
 			_ = os.Setenv("_WHATSRROK_AUTOUPDATE_RESTARTED", "1")
-			err := updater.RestartProcess()
-			logger.Error("failed to restart process after auto-update", "err", err)
+			err := RestartProcess()
+			Error("failed to restart process after auto-update", "err", err)
 			return
 		}
 	}
 
 	// Resolve database target: keep args.Database empty for SQLite fallback
-	dialect, resolvedDB := store.ResolveDatabaseTarget(args.Database)
+	dialect, resolvedDB := ResolveDatabaseTarget(args.Database)
 	if dialect == "postgres" {
 		args.Database = resolvedDB
 	} else {
@@ -106,9 +100,9 @@ func main() {
 		return
 	}
 
-	cache.Init(10000)
+	Init(10000)
 	defer func() {
-		_ = cache.Close()
+		_ = CacheClose()
 	}()
 
 	clientType, ok := whatsrook.ParseClientType(args.Client)
@@ -130,7 +124,7 @@ func main() {
 
 	err := bot.Start(ctx)
 	if err != nil {
-		logger.Error("bot execution failure", "err", err)
+		Error("bot execution failure", "err", err)
 		os.Exit(1)
 	}
 }
@@ -399,7 +393,7 @@ func handleLogoutCLI(ctx context.Context, args CLIArgs) {
 	if session == "" {
 		sessions, err := whatsrook.ListStoredSessions(ctx, dataDir, args.Database)
 		if err != nil {
-			logger.Error("failed to list stored sessions for logout", "err", err)
+			Error("failed to list stored sessions for logout", "err", err)
 			fmt.Printf("Error: failed to query stored sessions: %v\n", err)
 			os.Exit(1)
 		}
@@ -439,16 +433,16 @@ func handleLogoutCLI(ctx context.Context, args CLIArgs) {
 	}
 
 	cleanSession := strings.TrimPrefix(session, "+")
-	logger.Debug("initiating logout for session", "session", cleanSession)
+	Debug("initiating logout for session", "session", cleanSession)
 	fmt.Printf("Logging out session +%s...\n", cleanSession)
 
 	if err := whatsrook.DeleteStoredSession(ctx, dataDir, args.Database, cleanSession); err != nil {
-		logger.Error("failed to complete session logout", "session", cleanSession, "err", err)
+		Error("failed to complete session logout", "session", cleanSession, "err", err)
 		fmt.Printf("Error: failed to complete logout for session +%s: %v\n", cleanSession, err)
 		os.Exit(1)
 	}
 
-	logger.Debug("session logged out and credentials removed", "session", cleanSession)
+	Debug("session logged out and credentials removed", "session", cleanSession)
 	fmt.Printf("Session +%s logged out and credentials purged successfully.\n", cleanSession)
 }
 
@@ -459,18 +453,18 @@ func handleUpdate(op string) {
 	switch op {
 	case "stable", "beta":
 		targetChannel = op
-		current := updater.GetStoredChannel()
+		current := GetStoredChannel()
 		if op != current {
 			fmt.Printf("==> Switching release channel: %s -> %s\n", current, op)
-			if err := updater.SetStoredChannel(op); err != nil {
-				logger.Error("failed to set release channel", "err", err)
+			if err := SetStoredChannel(op); err != nil {
+				Error("failed to set release channel", "err", err)
 				os.Exit(1)
 			}
 		} else {
 			fmt.Printf("==> Already tracking channel: %s\n", current)
 		}
 	default:
-		if updater.CurrentIsBeta() {
+		if CurrentIsBeta() {
 			targetChannel = "beta"
 		} else {
 			targetChannel = "stable"
@@ -478,25 +472,25 @@ func handleUpdate(op string) {
 	}
 
 	if op == "check" {
-		up := updater.New(updater.Options{
+		up := New(Options{
 			Out:     os.Stdout,
 			Channel: targetChannel,
 		})
 		if _, err := up.Check(ctx); err != nil {
-			logger.Error("update check failed", "err", err)
+			Error("update check failed", "err", err)
 			os.Exit(1)
 		}
 		return
 	}
 
-	up := updater.New(updater.Options{
+	up := New(Options{
 		Out:     os.Stdout,
 		Channel: targetChannel,
 	})
 
 	res, err := up.Upgrade(ctx, targetChannel == "beta")
 	if err != nil {
-		logger.Error("upgrade procedure failed", "err", err)
+		Error("upgrade procedure failed", "err", err)
 		os.Exit(1)
 	}
 
@@ -508,19 +502,19 @@ func handleUpdate(op string) {
 func handleAutoUpdateCLI(val string) {
 	switch val {
 	case "on":
-		if err := updater.SetStoredAutoUpdate(true); err != nil {
-			logger.Error("failed to enable auto-update", "err", err)
+		if err := SetStoredAutoUpdate(true); err != nil {
+			Error("failed to enable auto-update", "err", err)
 			os.Exit(1)
 		}
 		fmt.Println("==> Auto-update enabled. WhatsRook will automatically check and apply updates on startup.")
 	case "off":
-		if err := updater.SetStoredAutoUpdate(false); err != nil {
-			logger.Error("failed to disable auto-update", "err", err)
+		if err := SetStoredAutoUpdate(false); err != nil {
+			Error("failed to disable auto-update", "err", err)
 			os.Exit(1)
 		}
 		fmt.Println("==> Auto-update disabled.")
 	default:
-		if updater.GetStoredAutoUpdate() {
+		if GetStoredAutoUpdate() {
 			fmt.Println("Auto-update is currently enabled (ON).")
 		} else {
 			fmt.Println("Auto-update is currently disabled (OFF).")

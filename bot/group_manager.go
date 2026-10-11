@@ -1,13 +1,10 @@
-package group
+package main
 
 import (
 	"context"
 	"fmt"
 	"sync"
 	"time"
-
-	"whatsrook/bot/logger"
-	"whatsrook/bot/store"
 
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/whatsmeow"
@@ -20,8 +17,8 @@ import (
 // GroupManager provides a thread-safe registry, cache, and sync coordinator for WhatsApp groups, communities, and newsletters.
 type GroupManager struct {
 	mu          sync.RWMutex
-	groups      map[types.JID]*store.GroupMetadata
-	newsletters map[types.JID]*store.NewsletterMetadata
+	groups      map[types.JID]*GroupMetadata
+	newsletters map[types.JID]*NewsletterMetadata
 
 	syncing sync.Mutex
 }
@@ -29,8 +26,8 @@ type GroupManager struct {
 // NewGroupManager creates a new GroupManager.
 func NewGroupManager() *GroupManager {
 	return &GroupManager{
-		groups:      make(map[types.JID]*store.GroupMetadata),
-		newsletters: make(map[types.JID]*store.NewsletterMetadata),
+		groups:      make(map[types.JID]*GroupMetadata),
+		newsletters: make(map[types.JID]*NewsletterMetadata),
 	}
 }
 
@@ -50,28 +47,28 @@ func (gm *GroupManager) LoadFromDB(ctx context.Context, cli *whatsmeow.Client) e
 
 	ourJID := cli.Store.ID.ToNonAD().String()
 
-	groups, err := store.LoadAllCachedGroups(ctx, db, ourJID)
+	groups, err := LoadAllCachedGroups(ctx, db, ourJID)
 	if err != nil {
-		logger.Warn("GroupManager: failed to load cached groups from DB", "err", err)
+		Warn("GroupManager: failed to load cached groups from DB", "err", err)
 	} else {
 		gm.mu.Lock()
 		for _, g := range groups {
 			gm.groups[g.JID] = g
 		}
 		gm.mu.Unlock()
-		logger.Debug("GroupManager: loaded cached groups from DB", "count", len(groups))
+		Debug("GroupManager: loaded cached groups from DB", "count", len(groups))
 	}
 
-	newsletters, errN := store.LoadAllCachedNewsletters(ctx, db, ourJID)
+	newsletters, errN := LoadAllCachedNewsletters(ctx, db, ourJID)
 	if errN != nil {
-		logger.Warn("GroupManager: failed to load cached newsletters from DB", "err", errN)
+		Warn("GroupManager: failed to load cached newsletters from DB", "err", errN)
 	} else {
 		gm.mu.Lock()
 		for _, n := range newsletters {
 			gm.newsletters[n.JID] = n
 		}
 		gm.mu.Unlock()
-		logger.Debug("GroupManager: loaded cached newsletters from DB", "count", len(newsletters))
+		Debug("GroupManager: loaded cached newsletters from DB", "count", len(newsletters))
 	}
 
 	return nil
@@ -86,8 +83,8 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 	gm.syncing.Lock()
 	defer gm.syncing.Unlock()
 
-	logger.Debug("GroupManager: starting full sync of groups, communities, and newsletters...")
-	logger.Info("Syncing groups and channels...")
+	Debug("GroupManager: starting full sync of groups, communities, and newsletters...")
+	Info("Syncing groups and channels...")
 
 	ourJID := ""
 	var s *sqlstore.SQLStore
@@ -99,10 +96,10 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 	}
 
 	// 1. Fetch joined groups and communities
-	var syncedGroups []*store.GroupMetadata
+	var syncedGroups []*GroupMetadata
 	joinedGroups, err := cli.GetJoinedGroups(ctx)
 	if err != nil {
-		logger.Error("GroupManager: failed to fetch joined groups", "err", err)
+		Error("GroupManager: failed to fetch joined groups", "err", err)
 	} else {
 		for _, g := range joinedGroups {
 			meta := gm.convertGroupInfo(g)
@@ -116,19 +113,19 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 		gm.mu.Unlock()
 
 		if s != nil && s.GetDB() != nil {
-			go func(groups []*store.GroupMetadata, db *dbutil.Database, jid string) {
+			go func(groups []*GroupMetadata, db *dbutil.Database, jid string) {
 				for _, meta := range groups {
-					_ = store.SaveCachedGroup(context.Background(), db, jid, meta)
+					_ = SaveCachedGroup(context.Background(), db, jid, meta)
 				}
 			}(syncedGroups, s.GetDB(), ourJID)
 		}
 	}
 
 	// 2. Fetch subscribed newsletters (channels)
-	var syncedNewsletters []*store.NewsletterMetadata
+	var syncedNewsletters []*NewsletterMetadata
 	newsletters, errN := cli.GetSubscribedNewsletters(ctx)
 	if errN != nil {
-		logger.Error("GroupManager: failed to fetch subscribed newsletters", "err", errN)
+		Error("GroupManager: failed to fetch subscribed newsletters", "err", errN)
 	} else {
 		for _, n := range newsletters {
 			meta := gm.convertNewsletterMetadata(n)
@@ -142,9 +139,9 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 		gm.mu.Unlock()
 
 		if s != nil && s.GetDB() != nil {
-			go func(news []*store.NewsletterMetadata, db *dbutil.Database, jid string) {
+			go func(news []*NewsletterMetadata, db *dbutil.Database, jid string) {
 				for _, meta := range news {
-					_ = store.SaveCachedNewsletter(context.Background(), db, jid, meta)
+					_ = SaveCachedNewsletter(context.Background(), db, jid, meta)
 				}
 			}(syncedNewsletters, s.GetDB(), ourJID)
 		}
@@ -158,7 +155,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 		}
 	}
 
-	logger.Debug("GroupManager: sync complete",
+	Debug("GroupManager: sync complete",
 		"total_groups", len(syncedGroups),
 		"communities", communityCount,
 		"newsletters", len(syncedNewsletters),
@@ -203,7 +200,7 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 		return
 	}
 
-	logger.Debug("GroupManager: warming up participant device cache...", "unique_participants", len(uniqueJIDs))
+	Debug("GroupManager: warming up participant device ..", "unique_participants", len(uniqueJIDs))
 	start := time.Now()
 
 	// Chunk queries into batches of 150 to keep USync requests optimal
@@ -221,7 +218,7 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 			if ctx.Err() != nil {
 				return
 			}
-			logger.Debug("GroupManager: device warmup batch error", "batch_start", i, "err", err)
+			Debug("GroupManager: device warmup batch error", "batch_start", i, "err", err)
 		} else {
 			totalCached += len(devices)
 			allDeviceJIDs = append(allDeviceJIDs, devices...)
@@ -244,15 +241,15 @@ func (gm *GroupManager) WarmupDevices(ctx context.Context, cli *whatsmeow.Client
 		}
 	}
 
-	logger.Debug("GroupManager: device and session cache warm up complete",
+	Debug("GroupManager: device and session cache warm up complete",
 		"total_participants", len(uniqueJIDs),
 		"companion_devices", totalCached,
 		"duration", time.Since(start),
 	)
-	logger.Info("Sync complete, bot is ready")
+	Info("Sync complete, bot is ready")
 }
 
-func (gm *GroupManager) convertGroupInfo(g *types.GroupInfo) *store.GroupMetadata {
+func (gm *GroupManager) convertGroupInfo(g *types.GroupInfo) *GroupMetadata {
 	if g == nil {
 		return nil
 	}
@@ -301,11 +298,11 @@ func (gm *GroupManager) convertGroupInfo(g *types.GroupInfo) *store.GroupMetadat
 	isDefaultSubgroup := g.GroupIsDefaultSub.IsDefaultSubGroup
 	isGeneralChat := g.GroupGeneralChat.IsGeneralChat
 
-	var participants []store.GroupParticipantMetadata
+	var participants []GroupParticipantMetadata
 	adminCount := 0
 	for _, p := range g.Participants {
 		pnJID := p.JID.ToNonAD()
-		pm := store.GroupParticipantMetadata{
+		pm := GroupParticipantMetadata{
 			JID:          pnJID,
 			LID:          p.LID,
 			IsAdmin:      p.IsAdmin,
@@ -318,7 +315,7 @@ func (gm *GroupManager) convertGroupInfo(g *types.GroupInfo) *store.GroupMetadat
 		participants = append(participants, pm)
 	}
 
-	return &store.GroupMetadata{
+	return &GroupMetadata{
 		JID:                    g.JID,
 		Name:                   name,
 		Topic:                  topic,
@@ -345,7 +342,7 @@ func (gm *GroupManager) convertGroupInfo(g *types.GroupInfo) *store.GroupMetadat
 	}
 }
 
-func (gm *GroupManager) convertNewsletterMetadata(n *types.NewsletterMetadata) *store.NewsletterMetadata {
+func (gm *GroupManager) convertNewsletterMetadata(n *types.NewsletterMetadata) *NewsletterMetadata {
 	if n == nil {
 		return nil
 	}
@@ -368,7 +365,7 @@ func (gm *GroupManager) convertNewsletterMetadata(n *types.NewsletterMetadata) *
 		mute = string(n.ViewerMeta.Mute)
 	}
 
-	return &store.NewsletterMetadata{
+	return &NewsletterMetadata{
 		JID:              n.ID,
 		Name:             name,
 		Description:      desc,
@@ -412,7 +409,7 @@ func (gm *GroupManager) UpdateFromEvent(ctx context.Context, cli *whatsmeow.Clie
 				meta.IsEphemeral = v.IsEphemeral
 				meta.EphemeralDuration = uint32(v.Timer.Seconds())
 				if s != nil && s.GetDB() != nil {
-					_ = store.SaveCachedGroup(ctx, s.GetDB(), ourJID, meta)
+					_ = SaveCachedGroup(ctx, s.GetDB(), ourJID, meta)
 				}
 			}
 			gm.mu.Unlock()
@@ -424,7 +421,7 @@ func (gm *GroupManager) UpdateFromEvent(ctx context.Context, cli *whatsmeow.Clie
 		gm.newsletters[meta.JID] = meta
 		gm.mu.Unlock()
 		if s != nil && s.GetDB() != nil {
-			_ = store.SaveCachedNewsletter(ctx, s.GetDB(), ourJID, meta)
+			_ = SaveCachedNewsletter(ctx, s.GetDB(), ourJID, meta)
 		}
 
 	case *events.NewsletterLeave:
@@ -432,7 +429,7 @@ func (gm *GroupManager) UpdateFromEvent(ctx context.Context, cli *whatsmeow.Clie
 		delete(gm.newsletters, v.ID)
 		gm.mu.Unlock()
 		if s != nil && s.GetDB() != nil {
-			_ = store.DeleteCachedNewsletter(ctx, s.GetDB(), ourJID, v.ID.String())
+			_ = DeleteCachedNewsletter(ctx, s.GetDB(), ourJID, v.ID.String())
 		}
 
 	case *events.NewsletterMuteChange:
@@ -441,7 +438,7 @@ func (gm *GroupManager) UpdateFromEvent(ctx context.Context, cli *whatsmeow.Clie
 			n.MuteState = string(v.Mute)
 			n.UpdatedAt = time.Now().UTC()
 			if s != nil && s.GetDB() != nil {
-				_ = store.SaveCachedNewsletter(ctx, s.GetDB(), ourJID, n)
+				_ = SaveCachedNewsletter(ctx, s.GetDB(), ourJID, n)
 			}
 		}
 		gm.mu.Unlock()
@@ -472,7 +469,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 				gm.groups[g.JID] = meta
 				gm.mu.Unlock()
 				if s != nil && s.GetDB() != nil {
-					_ = store.SaveCachedGroup(ctx, s.GetDB(), ourJID, meta)
+					_ = SaveCachedGroup(ctx, s.GetDB(), ourJID, meta)
 				}
 			}
 		}
@@ -484,7 +481,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 		delete(gm.groups, g.JID)
 		gm.mu.Unlock()
 		if s != nil && s.GetDB() != nil {
-			_ = store.DeleteCachedGroup(ctx, s.GetDB(), ourJID, g.JID.String())
+			_ = DeleteCachedGroup(ctx, s.GetDB(), ourJID, g.JID.String())
 		}
 		return
 	}
@@ -546,7 +543,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 				}
 			}
 			if !already {
-				meta.Participants = append(meta.Participants, store.GroupParticipantMetadata{
+				meta.Participants = append(meta.Participants, GroupParticipantMetadata{
 					JID:          resolvedJID,
 					IsAdmin:      false,
 					IsSuperAdmin: false,
@@ -559,7 +556,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 	if len(g.Leave) > 0 {
 		for _, l := range g.Leave {
 			resolvedJID := l.ToNonAD()
-			newParticipants := make([]store.GroupParticipantMetadata, 0, len(meta.Participants))
+			newParticipants := make([]GroupParticipantMetadata, 0, len(meta.Participants))
 			for _, p := range meta.Participants {
 				if p.JID != resolvedJID {
 					newParticipants = append(newParticipants, p)
@@ -610,7 +607,7 @@ func (gm *GroupManager) handleGroupInfoEvent(ctx context.Context, cli *whatsmeow
 	gm.mu.Unlock()
 
 	if s != nil && s.GetDB() != nil {
-		_ = store.SaveCachedGroup(ctx, s.GetDB(), ourJID, meta)
+		_ = SaveCachedGroup(ctx, s.GetDB(), ourJID, meta)
 	}
 }
 
@@ -635,7 +632,7 @@ func (gm *GroupManager) handleJoinedGroupEvent(ctx context.Context, cli *whatsme
 	gm.mu.Unlock()
 
 	if s != nil && s.GetDB() != nil {
-		_ = store.SaveCachedGroup(ctx, s.GetDB(), ourJID, meta)
+		_ = SaveCachedGroup(ctx, s.GetDB(), ourJID, meta)
 	}
 }
 
@@ -650,7 +647,7 @@ func (gm *GroupManager) handlePictureEvent(ctx context.Context, p *events.Pictur
 		if g, ok := gm.groups[p.JID]; ok {
 			g.UpdatedAt = time.Now().UTC()
 			if s != nil && s.GetDB() != nil {
-				_ = store.SaveCachedGroup(ctx, s.GetDB(), ourJID, g)
+				_ = SaveCachedGroup(ctx, s.GetDB(), ourJID, g)
 			}
 		}
 		gm.mu.Unlock()
@@ -660,7 +657,7 @@ func (gm *GroupManager) handlePictureEvent(ctx context.Context, p *events.Pictur
 			n.PictureURL = p.PictureID
 			n.UpdatedAt = time.Now().UTC()
 			if s != nil && s.GetDB() != nil {
-				_ = store.SaveCachedNewsletter(ctx, s.GetDB(), ourJID, n)
+				_ = SaveCachedNewsletter(ctx, s.GetDB(), ourJID, n)
 			}
 		}
 		gm.mu.Unlock()

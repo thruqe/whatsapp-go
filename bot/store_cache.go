@@ -1,4 +1,4 @@
-package store
+package main
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
-// SaveCachedGroup serializes group metadata and its roster of participants into the cache store.
+// SaveCachedGroup serializes group metadata and its roster of participants into the cache
 func SaveCachedGroup(ctx context.Context, db *dbutil.Database, ourJID string, g *GroupMetadata) error {
 	if db == nil || g == nil {
 		return nil
@@ -173,7 +173,7 @@ func DeleteCachedGroup(ctx context.Context, db *dbutil.Database, ourJID, groupJI
 	return err
 }
 
-// DeleteCachedNewsletter clears a channel entry from the cache.
+// DeleteCachedNewsletter clears a channel entry from the
 func DeleteCachedNewsletter(ctx context.Context, db *dbutil.Database, ourJID, newsletterJID string) error {
 	if db == nil {
 		return nil

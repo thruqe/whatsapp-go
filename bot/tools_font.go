@@ -1,18 +1,16 @@
-package tools
+package main
 
 import (
 	"context"
 	"strings"
 	"sync"
 
-	"whatsrook/bot/dispatch"
-
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
 func init() {
-	dispatch.RegisterPostProcessor("font_style", func(ctx context.Context, client *whatsmeow.Client, s *dispatch.StoreWrapper, evt *events.Message) {
+	RegisterPostProcessor("font_style", func(ctx context.Context, client *whatsmeow.Client, s *StoreWrapper, evt *events.Message) {
 		if style, err := s.GetSetting(ctx, "font_style"); err == nil && style != "" {
 			SetFontStyle(style)
 		}

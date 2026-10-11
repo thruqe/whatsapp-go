@@ -241,7 +241,7 @@ type Client struct {
 	AutoTrustIdentity bool
 
 	// RawNodeHandler, if non-nil, is called for every inbound node
-	// after decoding but before standard dispatch. See [RawNodeHandler].
+	// after decoding but before standard  See [RawNodeHandler].
 	RawNodeHandler RawNodeHandler
 
 	// DisabledFeatures controls which built-in processing paths are

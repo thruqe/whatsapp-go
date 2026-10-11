@@ -1,14 +1,10 @@
-package group
+package main
 
 import (
 	"context"
 	"strconv"
 	"strings"
 	"time"
-
-	"whatsrook/bot/botctx"
-	"whatsrook/bot/logger"
-	"whatsrook/bot/store"
 
 	"github.com/thruqe/whatsrook"
 
@@ -24,7 +20,7 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 		return
 	}
 
-	logger.Debug("handleGroupGreetings: received group info event",
+	Debug("handleGroupGreetings: received group info event",
 		"group", g.JID.String(),
 		"joins", len(g.Join),
 		"leaves", len(g.Leave),
@@ -33,7 +29,7 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 
 	// Do not process group events that happened before the bot started (with 2m clock skew tolerance)
 	if !g.Timestamp.IsZero() && g.Timestamp.Before(startupTime.Add(-2*time.Minute)) {
-		logger.Debug("handleGroupGreetings: skipping stale group event before startup",
+		Debug("handleGroupGreetings: skipping stale group event before startup",
 			"group", g.JID.String(),
 			"timestamp", g.Timestamp,
 		)
@@ -49,15 +45,15 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 
 	// Process joins (Welcome)
 	if len(g.Join) > 0 {
-		status, _ := store.GetSetting(ctx, s, "welcome_status:"+chatKey)
+		status, _ := GetSetting(ctx, s, "welcome_status:"+chatKey)
 		if status == "" {
-			status, _ = store.GetSetting(ctx, s, "welcome_status:"+g.JID.String())
+			status, _ = GetSetting(ctx, s, "welcome_status:"+g.JID.String())
 		}
-		logger.Debug("handleGroupGreetings: evaluating welcome greeting", "group", chatKey, "status", status, "joinCount", len(g.Join))
+		Debug("handleGroupGreetings: evaluating welcome greeting", "group", chatKey, "status", status, "joinCount", len(g.Join))
 		if status == "on" {
-			tag, _ := store.GetSetting(ctx, s, "welcome_tag:"+chatKey)
-			descOpt, _ := store.GetSetting(ctx, s, "welcome_desc:"+chatKey)
-			customMsg, _ := store.GetSetting(ctx, s, "welcome_msg:"+chatKey)
+			tag, _ := GetSetting(ctx, s, "welcome_tag:"+chatKey)
+			descOpt, _ := GetSetting(ctx, s, "welcome_desc:"+chatKey)
+			customMsg, _ := GetSetting(ctx, s, "welcome_msg:"+chatKey)
 
 			info, err := cli.GetGroupInfo(ctx, g.JID)
 			groupName := "the group"
@@ -82,7 +78,7 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := botctx.ResolveMentionRaw(ctx, cli, info.OwnerJID)
+					_, ownerName := ResolveMentionRaw(ctx, cli, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -91,7 +87,7 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 			}
 
 			for _, participant := range g.Join {
-				resolvedJIDs, username := botctx.ResolveMentionJIDs(ctx, cli, participant)
+				resolvedJIDs, username := ResolveMentionJIDs(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -147,12 +143,12 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 					},
 				}
 
-				logger.Debug("handleGroupGreetings: sending welcome greeting message", "group", g.JID.String(), "participant", participant.String(), "username", username)
+				Debug("handleGroupGreetings: sending welcome greeting message", "group", g.JID.String(), "participant", participant.String(), "username", username)
 				resp, errSend := cli.SendMessage(ctx, g.JID, msg)
 				if errSend != nil {
-					logger.Error("handleGroupGreetings: failed to send welcome greeting", "group", g.JID.String(), "user", participant.String(), "err", errSend)
+					Error("handleGroupGreetings: failed to send welcome greeting", "group", g.JID.String(), "user", participant.String(), "err", errSend)
 				} else {
-					logger.Debug("handleGroupGreetings: welcome greeting sent successfully", "group", g.JID.String(), "msg_id", resp.ID, "user", username)
+					Debug("handleGroupGreetings: welcome greeting sent successfully", "group", g.JID.String(), "msg_id", resp.ID, "user", username)
 				}
 			}
 		}
@@ -160,15 +156,15 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 
 	// Process leaves (Goodbye)
 	if len(g.Leave) > 0 {
-		status, _ := store.GetSetting(ctx, s, "goodbye_status:"+chatKey)
+		status, _ := GetSetting(ctx, s, "goodbye_status:"+chatKey)
 		if status == "" {
-			status, _ = store.GetSetting(ctx, s, "goodbye_status:"+g.JID.String())
+			status, _ = GetSetting(ctx, s, "goodbye_status:"+g.JID.String())
 		}
-		logger.Debug("handleGroupGreetings: evaluating goodbye greeting", "group", chatKey, "status", status, "leaveCount", len(g.Leave))
+		Debug("handleGroupGreetings: evaluating goodbye greeting", "group", chatKey, "status", status, "leaveCount", len(g.Leave))
 		if status == "on" {
-			tag, _ := store.GetSetting(ctx, s, "goodbye_tag:"+chatKey)
-			descOpt, _ := store.GetSetting(ctx, s, "goodbye_desc:"+chatKey)
-			customMsg, _ := store.GetSetting(ctx, s, "goodbye_msg:"+chatKey)
+			tag, _ := GetSetting(ctx, s, "goodbye_tag:"+chatKey)
+			descOpt, _ := GetSetting(ctx, s, "goodbye_desc:"+chatKey)
+			customMsg, _ := GetSetting(ctx, s, "goodbye_msg:"+chatKey)
 
 			info, err := cli.GetGroupInfo(ctx, g.JID)
 			groupName := "the group"
@@ -193,7 +189,7 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := botctx.ResolveMentionRaw(ctx, cli, info.OwnerJID)
+					_, ownerName := ResolveMentionRaw(ctx, cli, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -203,11 +199,11 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 
 			for _, participant := range g.Leave {
 				if g.Sender != nil && !g.Sender.IsEmpty() && *g.Sender != participant {
-					logger.Debug("handleGroupGreetings: skipping goodbye for kicked participant", "group", g.JID.String(), "participant", participant.String(), "actor", g.Sender.String())
+					Debug("handleGroupGreetings: skipping goodbye for kicked participant", "group", g.JID.String(), "participant", participant.String(), "actor", g.Sender.String())
 					continue
 				}
 
-				resolvedJIDs, username := botctx.ResolveMentionJIDs(ctx, cli, participant)
+				resolvedJIDs, username := ResolveMentionJIDs(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -263,12 +259,12 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 					},
 				}
 
-				logger.Debug("handleGroupGreetings: sending goodbye greeting message", "group", g.JID.String(), "participant", participant.String(), "username", username)
+				Debug("handleGroupGreetings: sending goodbye greeting message", "group", g.JID.String(), "participant", participant.String(), "username", username)
 				resp, errSend := cli.SendMessage(ctx, g.JID, msg)
 				if errSend != nil {
-					logger.Error("handleGroupGreetings: failed to send goodbye greeting", "group", g.JID.String(), "user", participant.String(), "err", errSend)
+					Error("handleGroupGreetings: failed to send goodbye greeting", "group", g.JID.String(), "user", participant.String(), "err", errSend)
 				} else {
-					logger.Debug("handleGroupGreetings: goodbye greeting sent successfully", "group", g.JID.String(), "msg_id", resp.ID, "user", username)
+					Debug("handleGroupGreetings: goodbye greeting sent successfully", "group", g.JID.String(), "msg_id", resp.ID, "user", username)
 				}
 			}
 		}
