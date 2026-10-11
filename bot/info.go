@@ -605,7 +605,11 @@ func buildMenuText(ctx *Context, args []string) string {
 					seenCat[cat] = true
 					categoryOrder = append(categoryOrder, cat)
 				}
-				categories[cat] = append(categories[cat], entry{name: ep.Name, desc: ep.Description})
+				desc := Translate(ctx.Lang(), "cmd."+nameLower+".desc")
+				if desc == "cmd."+nameLower+".desc" || desc == "" {
+					desc = ep.Description
+				}
+				categories[cat] = append(categories[cat], entry{name: ep.Name, desc: desc})
 				displayedCount++
 			}
 		}
@@ -654,13 +658,43 @@ func buildMenuText(ctx *Context, args []string) string {
 		prefix = ctx.GetPrefix()
 	}
 
+	modeKey := "menu.public"
+	if botMode == "Private" {
+		modeKey = "menu.private"
+	}
+	botModeLocalized := ctx.T(modeKey)
+	if botModeLocalized == modeKey || botModeLocalized == "" {
+		botModeLocalized = botMode
+	}
+
+	userField := ctx.T("menu.user")
+	if userField == "menu.user" || userField == "" {
+		userField = "User"
+	}
+	prefixField := ctx.T("menu.prefix")
+	if prefixField == "menu.prefix" || prefixField == "" {
+		prefixField = "Prefix"
+	}
+	commandsField := ctx.T("menu.commands")
+	if commandsField == "menu.commands" || commandsField == "" {
+		commandsField = "Commands"
+	}
+	modeField := ctx.T("menu.mode")
+	if modeField == "menu.mode" || modeField == "" {
+		modeField = "Mode"
+	}
+	uptimeField := ctx.T("menu.uptime")
+	if uptimeField == "menu.uptime" || uptimeField == "" {
+		uptimeField = "Uptime"
+	}
+
 	introBuilder := NewText().
 		Header(botName).
-		Field("User", user).
-		Field("Prefix", prefix).
-		Field("Commands", strconv.Itoa(displayedCount)).
-		Field("Mode", botMode).
-		Field("Uptime", uptime)
+		Field(userField, user).
+		Field(prefixField, prefix).
+		Field(commandsField, strconv.Itoa(displayedCount)).
+		Field(modeField, botModeLocalized).
+		Field(uptimeField, uptime)
 
 	tb := NewText()
 	tb.Line("```\n" + introBuilder.Trimmed() + "\n```")
@@ -671,15 +705,119 @@ func buildMenuText(ctx *Context, args []string) string {
 		sort.Slice(cmds, func(i, j int) bool {
 			return cmds[i].name < cmds[j].name
 		})
-		tb.Linef(" ╭─❏ %s ❏", ToSmallCaps(cat))
+		catDisplay := cat
+		if catLoc := ctx.T("cat." + strings.ToLower(cat)); catLoc != "cat."+strings.ToLower(cat) && catLoc != "" {
+			catDisplay = catLoc
+		}
+		tb.Linef(" ╭─❏ %s ❏", ToSmallCaps(catDisplay))
 		for _, e := range cmds {
-			tb.Linef(" │ %s", ToSmallCaps(e.name))
+			if matchedCat != "" && e.desc != "" {
+				tb.Linef(" │ %s - %s", ToSmallCaps(e.name), e.desc)
+			} else {
+				tb.Linef(" │ %s", ToSmallCaps(e.name))
+			}
 		}
 		tb.Line(" ╰─────────────────")
 		tb.Blank()
 	}
 
 	return tb.Trimmed()
+}
+
+func renderCommandHelp(ctx *Context, name string) (string, bool) {
+	nameLower := strings.ToLower(name)
+	nameLower = strings.TrimLeft(nameLower, ".!/#$,;:~` \t")
+
+	// 1. Check built-in command
+	cmd, ok := Get(nameLower)
+	if ok && cmd != nil {
+		p := ctx.GetPrefix()
+		catName := cmd.Category
+		if catLoc := ctx.T("cat." + strings.ToLower(cmd.Category)); catLoc != "cat."+strings.ToLower(cmd.Category) && catLoc != "" {
+			catName = catLoc
+		}
+
+		desc := cmd.LocalizedDescription(ctx.Lang())
+		access := ctx.T("cmd.info.public")
+		if !cmd.IsPublic {
+			access = ctx.T("cmd.info.sudo")
+		}
+
+		tb := NewText()
+		tb.Linef(" ╭─❏ %s ❏", ToSmallCaps(cmd.Name))
+		tb.Linef(" │ %s", ctx.T("cmd.info.command", p+cmd.Name))
+		if cmd.Alias != "" {
+			aliases := strings.Split(cmd.Alias, ",")
+			for i, a := range aliases {
+				aliases[i] = p + strings.TrimSpace(a)
+			}
+			tb.Linef(" │ %s", ctx.T("cmd.info.alias", strings.Join(aliases, ", ")))
+		}
+		tb.Linef(" │ %s", ctx.T("cmd.info.category", catName))
+		if desc != "" {
+			tb.Linef(" │ %s", ctx.T("cmd.info.description", desc))
+		}
+		tb.Linef(" │ %s", ctx.T("cmd.info.access", access))
+		if cmd.GroupOnly {
+			tb.Linef(" │ %s", ctx.T("cmd.info.group_only"))
+		}
+		tb.Line(" ╰─────────────────")
+		return tb.Trimmed(), true
+	}
+
+	// 2. Check external plugin
+	sess := getSession(ctx)
+	if ExternalDefaultDispatcher != nil {
+		if extPlugins, err := ExternalDefaultDispatcher.List(sess); err == nil {
+			for _, ep := range extPlugins {
+				if strings.EqualFold(ep.Name, nameLower) {
+					p := ctx.GetPrefix()
+					desc := Translate(ctx.Lang(), "cmd."+nameLower+".desc")
+					if desc == "cmd."+nameLower+".desc" || desc == "" {
+						desc = ep.Description
+					}
+					access := ctx.T("cmd.info.public")
+					if !ep.IsPublic {
+						access = ctx.T("cmd.info.sudo")
+					}
+					catName := ctx.T("cat.externals")
+
+					tb := NewText()
+					tb.Linef(" ╭─❏ %s ❏", ToSmallCaps(ep.Name))
+					tb.Linef(" │ %s", ctx.T("cmd.info.command", p+ep.Name))
+					tb.Linef(" │ %s", ctx.T("cmd.info.category", catName))
+					if desc != "" {
+						tb.Linef(" │ %s", ctx.T("cmd.info.description", desc))
+					}
+					tb.Linef(" │ %s", ctx.T("cmd.info.access", access))
+					tb.Line(" ╰─────────────────")
+					return tb.Trimmed(), true
+				}
+			}
+		}
+	}
+
+	// 3. Check official plugins list
+	for _, op := range OfficialPlugins {
+		if strings.EqualFold(op, nameLower) {
+			p := ctx.GetPrefix()
+			desc := Translate(ctx.Lang(), "cmd."+nameLower+".desc")
+			catName := ctx.T("cat.externals")
+
+			tb := NewText()
+			tb.Linef(" ╭─❏ %s ❏", ToSmallCaps(op))
+			tb.Linef(" │ %s", ctx.T("cmd.info.command", p+op))
+			tb.Linef(" │ %s", ctx.T("cmd.info.category", catName))
+			if desc != "" && desc != "cmd."+nameLower+".desc" {
+				tb.Linef(" │ %s", ctx.T("cmd.info.description", desc))
+			}
+			tb.Linef(" │ %s", ctx.T("cmd.info.access", ctx.T("cmd.info.public")))
+			tb.Line(" ╰─────────────────")
+			return tb.Trimmed(), true
+		}
+	}
+
+	return "", false
 }
 
 func handleMenu(ctx *Context) error {
@@ -709,6 +847,10 @@ func handleMenu(ctx *Context) error {
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.mp4"))
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.jpg"))
 			return ctx.Reply("Bot menu thumbnail reset to default.")
+		}
+
+		if helpText, found := renderCommandHelp(ctx, sub); found {
+			return ctx.Reply(helpText)
 		}
 	}
 
@@ -825,13 +967,22 @@ func handlePing(ctx *Context) error {
 
 func handleRepo(ctx *Context) error {
 	repoURL := "https://github.com/thruqe/whatsapp-go"
+	starPrompt := ctx.T("repo.star_prompt")
+	if starPrompt == "repo.star_prompt" || starPrompt == "" {
+		starPrompt = "Please star the repository if you like the project, it helps support and motivate me."
+	}
+	poweredBy := ctx.T("repo.powered_by")
+	if poweredBy == "repo.powered_by" || poweredBy == "" {
+		poweredBy = "Powered by"
+	}
+
 	return ctx.Text().
 		Header("WhatsRook Repository").
 		Line(repoURL).
 		Blank().
-		Line("Please star the repository if you like the project, it helps support and motivate me.").
+		Line(starPrompt).
 		Blank().
-		Field("Powered by", ctx.GetBotName()).
+		Field(poweredBy, ctx.GetBotName()).
 		Reply()
 }
 

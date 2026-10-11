@@ -147,10 +147,19 @@ func handlePluginList(ctx *Context) error {
 		return ctx.Replyf("No external plugins installed.\n\nType `%sinstall <name>` or `%sinstall all` to install plugins (detected platform: %s/%s).\n\nRegistry: %s", p, p, runtime.GOOS, runtime.GOARCH, ExternalDefaultDispatcher.RegistryURL())
 	}
 
-	tb := ctx.Text().Headerf("Installed External Plugins (%s):", suffix)
+	headerText := ctx.T("cat.externals")
+	if headerText == "cat.externals" || headerText == "" {
+		headerText = "Installed External Plugins"
+	}
+
+	tb := ctx.Text().Headerf("%s (%s):", headerText, suffix)
 	for _, plugin := range plugins {
-		if plugin.Description != "" {
-			tb.Bulletf("%s - %s", Bold(plugin.Name), plugin.Description)
+		desc := Translate(ctx.Lang(), "cmd."+strings.ToLower(plugin.Name)+".desc")
+		if desc == "cmd."+strings.ToLower(plugin.Name)+".desc" || desc == "" {
+			desc = plugin.Description
+		}
+		if desc != "" {
+			tb.Bulletf("%s - %s", Bold(plugin.Name), desc)
 		} else {
 			tb.Bullet(Bold(plugin.Name))
 		}
