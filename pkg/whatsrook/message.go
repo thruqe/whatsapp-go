@@ -256,7 +256,7 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		aud.ViewOnce = new(false)
 	}
 
-	header := fmt.Sprintf("*Anti-ViewOnce*: from @%s", senderJID.User)
+	header := fmt.Sprintf("Anti-ViewOnce: from @%s", senderJID.User)
 	if pushName != "" {
 		header += fmt.Sprintf(" (%s)", pushName)
 	}
@@ -282,15 +282,31 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 	return err
 }
 
-var emojiRegex = regexp.MustCompile(`[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{1F1E0}-\x{1F1FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{FE00}-\x{FE0F}\x{1F900}-\x{1F9FF}\x{1FA70}-\x{1FAFF}]`)
+var (
+	emojiRegex      = regexp.MustCompile(`[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{1F1E0}-\x{1F1FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{FE00}-\x{FE0F}\x{1F900}-\x{1F9FF}\x{1FA70}-\x{1FAFF}]`)
+	formattingRegex = regexp.MustCompile("```|[`*_~]")
+	quoteLineRegex  = regexp.MustCompile(`(?m)^>\s*`)
+)
 
 // RemoveEmojis strips emoji characters from a string.
 func RemoveEmojis(s string) string {
 	return emojiRegex.ReplaceAllString(s, "")
 }
 
-// FormatTextResponseRaw applies global output sanitization or formatting.
+// StripWhatsAppFormatting strips WhatsApp markdown formatting symbols (*, _, ~, `, ```, >).
+func StripWhatsAppFormatting(s string) string {
+	s = formattingRegex.ReplaceAllString(s, "")
+	s = quoteLineRegex.ReplaceAllString(s, "")
+	return s
+}
+
+// FormatTextResponseRaw applies global output sanitization, stripping emojis and WhatsApp string formatting.
 func FormatTextResponseRaw(text string) string {
+	if text == "" {
+		return ""
+	}
+	text = RemoveEmojis(text)
+	text = StripWhatsAppFormatting(text)
 	return text
 }
 

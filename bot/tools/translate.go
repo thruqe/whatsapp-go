@@ -187,11 +187,11 @@ func handleTranslate(ctx *dispatch.Context) error {
 
 	// 6. Build response cleanly and naturally
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("🌐 *%s* → *%s*\n\n", srcDisplay, tgtDisplay))
+	sb.WriteString(fmt.Sprintf("%s -> %s\n\n", srcDisplay, tgtDisplay))
 	sb.WriteString(translated)
 
 	if targetNote != "" {
-		sb.WriteString(fmt.Sprintf("\n\n_%s_", targetNote))
+		sb.WriteString(fmt.Sprintf("\n\n%s", targetNote))
 	}
 
 	return ctx.Reply(sb.String())

@@ -60,4 +60,4 @@ jobs:
           GOEXPERIMENT: nojsonv2
         run: |
           (cd pkg/whatsrook && go build -v ./...)
-          (cd bot/cmd && go build -v .)
+          (cd bot && go build -v .)

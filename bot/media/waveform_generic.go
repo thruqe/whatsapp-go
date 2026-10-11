@@ -3,5 +3,5 @@
 package media
 
 func sumAbsPCM16(pcm []byte) uint64 {
-	return sumAbsPCM16Generic(pcm)
+	return SumAbsPCM16Generic(pcm)
 }

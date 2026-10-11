@@ -306,7 +306,7 @@ func handleDL(ctx *dispatch.Context) error {
 
 	if formatChoice == "audio" {
 		if meta != nil && !meta.HasAudio() {
-			return ctx.Reply("⚠️ This media (GIF/silent video) does not contain an audio track.")
+			return ctx.Reply("This media (GIF/silent video) does not contain an audio track.")
 		}
 		if err := downloadAndSendAudio(ctx, targetURL, meta); err != nil {
 			return sendFailureWithCookiePrompt(ctx, err)
@@ -361,7 +361,7 @@ func handleDL(ctx *dispatch.Context) error {
 
 		if strings.Contains(selectedLower, "audio") {
 			if meta != nil && !meta.HasAudio() {
-				_ = ctx.Reply("⚠️ This media does not contain an audio track.")
+				_ = ctx.Reply("This media does not contain an audio track.")
 				return
 			}
 			if err := downloadAndSendAudio(ctx, targetURL, meta); err != nil {

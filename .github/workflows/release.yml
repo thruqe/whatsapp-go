@@ -138,7 +138,7 @@ jobs:
           if [ "${{ matrix.target.os }}" = "windows" ]; then
             GOOS="" GOARCH="" go -C scripts run . res "$APP_VERSION"
           fi
-          (cd bot/cmd && go build -trimpath -ldflags="-s -w -buildid= -X main.Version=${APP_VERSION} -X whatsrook/bot/updater.BinaryVersion=${APP_VERSION} -X whatsrook/bot/updater.CommitSHA=${COMMIT_SHA}" -v -o "../../$BIN_NAME" .)
+          (cd bot && go build -trimpath -ldflags="-s -w -buildid= -X main.Version=${APP_VERSION} -X whatsrook/bot/updater.BinaryVersion=${APP_VERSION} -X whatsrook/bot/updater.CommitSHA=${COMMIT_SHA}" -v -o "../$BIN_NAME" .)
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
 
       - name: Setup UPX

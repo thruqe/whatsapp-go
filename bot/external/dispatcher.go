@@ -237,7 +237,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 				_ = (&botctx.PluginContext{
 					Ctx: context.Background(), Client: client, Evt: evt,
 					Chat: evt.Info.Chat, Sender: evt.Info.Sender,
-				}).Replyf("🛑 Live %s tracking stopped.", name)
+				}).Replyf("Live %s tracking stopped.", name)
 			}()
 		} else {
 			go func() {
