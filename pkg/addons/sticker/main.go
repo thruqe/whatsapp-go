@@ -60,40 +60,80 @@ func writeExifMetadata(webpBytes []byte, packName, author string) []byte {
 	return out
 }
 
+const maxStickerBytes = 650 * 1024 // 650 KB WhatsApp sticker size limit
+
 func convertToSticker(inputPath, packName, author string) ([]byte, error) {
 	tmpDir := os.TempDir()
 	outPath := filepath.Join(tmpDir, fmt.Sprintf("sticker_%d_%d.webp", os.Getpid(), rand.Uint32()))
+	defer os.Remove(outPath)
 
-	vf := "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0"
+	type compressProfile struct {
+		fps     int
+		quality int
+		scale   string
+	}
 
-	cmd := exec.Command("ffmpeg",
-		"-y",
-		"-i", inputPath,
-		"-t", "8",
-		"-vf", vf,
-		"-vcodec", "libwebp",
-		"-lossless", "0",
-		"-q:v", "35",
-		"-compression_level", "6",
-		"-loop", "0",
-		"-preset", "default",
-		"-an",
-		"-pix_fmt", "yuva420p",
-		outPath,
-	)
+	// Progressive compression profiles from high quality down to aggressively compressed
+	profiles := []compressProfile{
+		{fps: 15, quality: 35, scale: "512:512"},
+		{fps: 15, quality: 25, scale: "512:512"},
+		{fps: 12, quality: 20, scale: "512:512"},
+		{fps: 10, quality: 18, scale: "448:448"},
+		{fps: 10, quality: 15, scale: "384:384"},
+		{fps: 8, quality: 10, scale: "320:320"},
+		{fps: 6, quality: 8, scale: "256:256"},
+	}
 
-	if err := cmd.Run(); err != nil {
+	var bestWebp []byte
+	var lastErr error
+
+	for _, prof := range profiles {
 		_ = os.Remove(outPath)
-		return nil, fmt.Errorf("ffmpeg failed to process sticker: %w", err)
+
+		vf := fmt.Sprintf("fps=%d,scale=%s:force_original_aspect_ratio=decrease,pad=%s:(ow-iw)/2:(oh-ih)/2:color=black@0",
+			prof.fps, prof.scale, prof.scale)
+
+		cmd := exec.Command("ffmpeg",
+			"-y",
+			"-i", inputPath,
+			"-t", "10", // Hard cap: strictly maximum 10 seconds
+			"-vf", vf,
+			"-vcodec", "libwebp",
+			"-lossless", "0",
+			"-q:v", fmt.Sprintf("%d", prof.quality),
+			"-compression_level", "6",
+			"-loop", "0",
+			"-preset", "default",
+			"-an",
+			"-pix_fmt", "yuva420p",
+			outPath,
+		)
+
+		if err := cmd.Run(); err != nil {
+			lastErr = err
+			continue
+		}
+
+		raw, err := os.ReadFile(outPath)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		withExif := writeExifMetadata(raw, packName, author)
+		if len(withExif) <= maxStickerBytes {
+			return withExif, nil
+		}
+		bestWebp = withExif
 	}
 
-	webpRaw, err := os.ReadFile(outPath)
-	_ = os.Remove(outPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read sticker output: %w", err)
+	if len(bestWebp) > 0 {
+		return bestWebp, nil
 	}
-
-	return writeExifMetadata(webpRaw, packName, author), nil
+	if lastErr != nil {
+		return nil, fmt.Errorf("ffmpeg failed to process sticker: %w", lastErr)
+	}
+	return nil, fmt.Errorf("unable to generate sticker within %d bytes", maxStickerBytes)
 }
 
 func main() {
