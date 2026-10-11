@@ -1100,9 +1100,9 @@ func handleFFmpeg(ctx *Context) error {
 			} else if strings.HasSuffix(outFile, ".webp") {
 				return ctx.SendSticker(outBytes)
 			} else if strings.HasSuffix(outFile, ".png") || strings.HasSuffix(outFile, ".jpg") {
-				return ctx.SendImage(outBytes, "image/jpeg", "FFmpeg processed image")
+				return ctx.SendImage(outBytes, "image/jpeg", "")
 			} else {
-				return ctx.SendVideo(outBytes, "video/mp4", "FFmpeg processed video")
+				return ctx.SendVideo(outBytes, "video/mp4", "")
 			}
 		}
 
@@ -1138,17 +1138,24 @@ func handleDownloadMessage(ctx *Context) error {
 		return ctx.Reply("No downloadable media found in the target or quoted message.")
 	}
 
+	caption := ""
+	if quoted := ctx.GetQuotedMessage(); quoted != nil {
+		caption = whatsrook.ExtractTextFromProto(quoted)
+	} else if ctx.Evt != nil && ctx.Evt.Message != nil {
+		caption = whatsrook.ExtractTextFromProto(ctx.Evt.Message)
+	}
+
 	switch {
 	case strings.HasPrefix(mimetype, "image/webp"):
 		return ctx.SendSticker(mediaData)
 	case strings.HasPrefix(mimetype, "image/"):
-		return ctx.SendImage(mediaData, mimetype, "Downloaded image")
+		return ctx.SendImage(mediaData, mimetype, caption)
 	case strings.HasPrefix(mimetype, "video/"):
-		return ctx.SendVideo(mediaData, mimetype, "Downloaded video")
+		return ctx.SendVideo(mediaData, mimetype, caption)
 	case strings.HasPrefix(mimetype, "audio/"):
 		return ctx.SendAudio(mediaData, mimetype)
 	default:
-		return ctx.SendDocument(mediaData, mimetype, "downloaded_media", "")
+		return ctx.SendDocument(mediaData, mimetype, "downloaded_media", caption)
 	}
 }
 

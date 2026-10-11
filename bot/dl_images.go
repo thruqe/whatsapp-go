@@ -110,8 +110,7 @@ func downloadAndSendDirectImage(ctx *Context, rawURL string) error {
 		return fmt.Errorf("failed fetching direct image: %w", err)
 	}
 
-	caption := "*Image Download*"
-	return sendImageItems(ctx, []ImageItem{{Bytes: imgBytes}}, caption)
+	return sendImageItems(ctx, []ImageItem{{Bytes: imgBytes}}, "")
 }
 
 // downloadAndSendImages downloads and delivers single or multi-image galleries.
