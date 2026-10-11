@@ -329,3 +329,22 @@ func TestEvalExtendedTools(t *testing.T) {
 		t.Errorf("exec failed: got %q (err=%v)", shRes, err)
 	}
 }
+
+func TestEvalNoTruncation(t *testing.T) {
+	ctx := &dispatch.Context{}
+
+	// Generates a large string of 10,000 characters
+	res, err := executeJavaScriptEvalDetailed(ctx, "'X'.repeat(10000)")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	reply := res.FormatForReply()
+	if strings.Contains(reply, "(truncated)") {
+		t.Errorf("expected output NOT to be truncated, but found '(truncated)' in output")
+	}
+
+	if len(res.Value) != 10000 {
+		t.Errorf("expected full 10000 characters, got %d", len(res.Value))
+	}
+}

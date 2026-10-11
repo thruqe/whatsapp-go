@@ -595,7 +595,7 @@ trap __sh_exit EXIT
 			}
 
 			if len(cleaned) > 3500 {
-				cleaned = "... (truncated)\n" + cleaned[len(cleaned)-3400:]
+				cleaned = cleaned[len(cleaned)-3500:]
 			}
 
 			if cleaned != lastEditedText && time.Since(lastEditTime) >= 800*time.Millisecond {
@@ -663,12 +663,19 @@ trap __sh_exit EXIT
 			statusStr = dispatch.Sprintf("Failed: %v (ran for %s)", waitErr, duration)
 		}
 
-		if len(cleaned) > 3500 {
-			cleaned = "... (truncated)\n" + cleaned[len(cleaned)-3400:]
+		if len(cleaned) <= 3500 {
+			finalMsg := dispatch.Sprintf("*Shell Output*\nCommand: `%s`\nDirectory: `%s`\nStatus: *%s*\n\n```\n%s\n```", session.CommandStr, finalDir, statusStr, cleaned)
+			_, _ = ctx.Edit(session.MsgID, finalMsg)
+		} else if len(cleaned) <= 50000 {
+			finalMsg := dispatch.Sprintf("*Shell Output*\nCommand: `%s`\nDirectory: `%s`\nStatus: *%s*\n\n```\n%s\n```", session.CommandStr, finalDir, statusStr, cleaned)
+			if _, editErr := ctx.Edit(session.MsgID, finalMsg); editErr != nil {
+				_ = ctx.Reply(finalMsg)
+			}
+		} else {
+			summaryMsg := dispatch.Sprintf("*Shell Output*\nCommand: `%s`\nDirectory: `%s`\nStatus: *%s*\n_(Full output attached below)_", session.CommandStr, finalDir, statusStr)
+			_, _ = ctx.Edit(session.MsgID, summaryMsg)
+			_ = ctx.ReplyWithDocument([]byte(cleaned), "text/plain; charset=utf-8", "shell_output.txt", "Shell Output")
 		}
-
-		finalMsg := dispatch.Sprintf("*Shell Output*\nCommand: `%s`\nDirectory: `%s`\nStatus: *%s*\n\n```\n%s\n```", session.CommandStr, finalDir, statusStr, cleaned)
-		_, _ = ctx.Edit(session.MsgID, finalMsg)
 	}()
 
 	return nil

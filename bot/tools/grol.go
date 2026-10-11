@@ -33,7 +33,7 @@ var (
 )
 
 const (
-	maxGrolOutputRunes = 3000
+	maxGrolOutputRunes = 50000
 	maxGrolExecTimeout = 5 * time.Second
 )
 
@@ -422,7 +422,7 @@ func RunGrolScript(ctx *dispatch.Context, code string) (string, error) {
 
 	out := strings.TrimSpace(outBuf.String())
 	if runes := []rune(out); len(runes) > maxGrolOutputRunes {
-		out = string(runes[:maxGrolOutputRunes]) + "\n... (truncated)"
+		out = string(runes[:maxGrolOutputRunes])
 	}
 
 	// Auto-send image if an image was newly created and returned without calling SendImage explicitly
@@ -504,7 +504,7 @@ func runGrol(callerCtx any, sessionKey, code string, flags grolParsedFlags) (str
 
 	out := strings.TrimSpace(outBuf.String())
 	if runes := []rune(out); len(runes) > maxGrolOutputRunes {
-		out = string(runes[:maxGrolOutputRunes]) + "\n... (truncated)"
+		out = string(runes[:maxGrolOutputRunes])
 	}
 
 	if flags.formatOnly {

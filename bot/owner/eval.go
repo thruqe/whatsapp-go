@@ -23,8 +23,7 @@ import (
 )
 
 const (
-	maxEvalTimeout     = 10 * time.Second
-	maxEvalOutputChars = 3500
+	maxEvalTimeout = 10 * time.Second
 )
 
 func init() {
@@ -180,13 +179,44 @@ func (r *EvalResult) FormatForReply() string {
 	if val == "" {
 		sb.WriteString("`(executed successfully, undefined)`")
 	} else {
-		if runes := []rune(val); len(runes) > maxEvalOutputChars {
-			val = string(runes[:maxEvalOutputChars]) + "\n... (truncated)"
-		}
 		sb.WriteString(fmt.Sprintf("```\n%s\n```", val))
 	}
 
 	return strings.TrimSpace(sb.String())
+}
+
+// replyEvalResult sends the evaluation output. If the response fits within WhatsApp's
+// message limit (<= 55,000 runes), it is sent directly in full. If it exceeds message size limits,
+// the full, un-truncated output is delivered as a document file so 100% of the content is preserved.
+func replyEvalResult(ctx *dispatch.Context, replyText, rawData string) {
+	if len([]rune(replyText)) <= 55000 {
+		_ = ctx.Reply(replyText)
+		return
+	}
+
+	filename := "eval_output.txt"
+	trimmed := strings.TrimSpace(rawData)
+	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+		filename = "eval_output.json"
+	}
+
+	payload := []byte(rawData)
+	if len(payload) == 0 {
+		payload = []byte(replyText)
+	}
+
+	caption := "*Eval Output:* `(Full output attached as document)`"
+	if err := ctx.ReplyWithDocument(payload, "text/plain; charset=utf-8", filename, caption); err != nil {
+		chunkRunes := 45000
+		allRunes := []rune(replyText)
+		for i := 0; i < len(allRunes); i += chunkRunes {
+			end := i + chunkRunes
+			if end > len(allRunes) {
+				end = len(allRunes)
+			}
+			_ = ctx.Reply(string(allRunes[i:end]))
+		}
+	}
 }
 
 func executeAndReplyEval(ctx *dispatch.Context, code string, isGrol bool) {
@@ -208,10 +238,8 @@ func executeAndReplyEval(ctx *dispatch.Context, code string, isGrol bool) {
 				_ = ctx.Reply("*Eval Output:* `(executed successfully, undefined)`")
 				return
 			}
-			if runes := []rune(result); len(runes) > maxEvalOutputChars {
-				result = string(runes[:maxEvalOutputChars]) + "\n... (truncated)"
-			}
-			_ = ctx.Replyf("*Eval Output:*\n```\n%s\n```", result)
+			replyText := fmt.Sprintf("*Eval Output:*\n```\n%s\n```", result)
+			replyEvalResult(ctx, replyText, result)
 			return
 		}
 
@@ -221,7 +249,8 @@ func executeAndReplyEval(ctx *dispatch.Context, code string, isGrol bool) {
 			return
 		}
 
-		_ = ctx.Reply(res.FormatForReply())
+		replyText := res.FormatForReply()
+		replyEvalResult(ctx, replyText, res.Value)
 	}()
 }
 
