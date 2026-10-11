@@ -268,11 +268,11 @@ func (cli *Client) handleRetryReceipt(ctx context.Context, receipt *events.Recei
 	)
 	cli.incomingRetryRequestCounterLock.Unlock()
 	if !accepted {
-		cli.Log.Warnf("Dropping retry request from %s for %s: retry counter capacity reached", messageID, receipt.Sender)
+		cli.Log.Warnf("Dropping retry request from %s for %s: retry counter capacity reached", receipt.Sender, messageID)
 		return nil
 	}
 	if internalCounter >= 10 {
-		cli.Log.Warnf("Dropping retry request from %s for %s: internal retry counter is %d", messageID, receipt.Sender, internalCounter)
+		cli.Log.Warnf("Dropping retry request from %s for %s: internal retry counter is %d", receipt.Sender, messageID, internalCounter)
 		return nil
 	}
 
@@ -310,9 +310,13 @@ func (cli *Client) handleRetryReceipt(ctx context.Context, receipt *events.Recei
 		}
 	}
 
-	// TODO pre-retry callback for fb
-	if cli.PreRetryCallback != nil && !cli.PreRetryCallback(receipt, messageID, retryCount, msg.wa) {
-		cli.Log.Debugf("Cancelled retry receipt in PreRetryCallback")
+	if msg.wa != nil {
+		if cli.PreRetryCallback != nil && !cli.PreRetryCallback(receipt, messageID, retryCount, msg.wa) {
+			cli.Log.Debugf("Cancelled retry receipt in PreRetryCallback")
+			return nil
+		}
+	} else if cli.PreRetryCallbackFB != nil && !cli.PreRetryCallbackFB(receipt, messageID, retryCount, msg.fb) {
+		cli.Log.Debugf("Cancelled retry receipt in PreRetryCallbackFB")
 		return nil
 	}
 
@@ -335,6 +339,17 @@ func (cli *Client) handleRetryReceipt(ctx context.Context, receipt *events.Recei
 		frankingHash.Write(plaintext)
 		frankingTag = frankingHash.Sum(nil)
 	}
+	encryptionIdentity := receipt.Sender
+	if msg.wa != nil && receipt.Sender.Server == types.DefaultUserServer {
+		lidForPN, err := cli.Store.LIDs.GetLIDForPN(ctx, receipt.Sender)
+		if err != nil {
+			cli.Log.Warnf("Failed to get LID for %s: %v", receipt.Sender, err)
+		} else if !lidForPN.IsEmpty() {
+			cli.migrateSessionStore(ctx, receipt.Sender, lidForPN)
+			encryptionIdentity = lidForPN
+		}
+	}
+
 	_, hasKeys := node.GetOptionalChildByTag("keys")
 	var bundle *prekey.Bundle
 	if hasKeys {
@@ -342,7 +357,7 @@ func (cli *Client) handleRetryReceipt(ctx context.Context, receipt *events.Recei
 		if err != nil {
 			return fmt.Errorf("failed to read prekey bundle in retry receipt: %w", err)
 		}
-	} else if reason, recreate := cli.shouldRecreateSession(ctx, retryCount, receipt.Sender); recreate {
+	} else if reason, recreate := cli.shouldRecreateSession(ctx, retryCount, encryptionIdentity); recreate {
 		cli.Log.Debugf("Fetching prekeys for %s for handling retry receipt with no prekey bundle because %s", receipt.Sender, reason)
 		var keys map[types.JID]preKeyResp
 		keys, err = cli.fetchPreKeys(ctx, []types.JID{receipt.Sender})
@@ -372,16 +387,6 @@ func (cli *Client) handleRetryReceipt(ctx context.Context, receipt *events.Recei
 	var encrypted *waBinary.Node
 	var includeDeviceIdentity bool
 	if msg.wa != nil {
-		encryptionIdentity := receipt.Sender
-		if receipt.Sender.Server == types.DefaultUserServer {
-			lidForPN, err := cli.Store.LIDs.GetLIDForPN(ctx, receipt.Sender)
-			if err != nil {
-				cli.Log.Warnf("Failed to get LID for %s: %v", receipt.Sender, err)
-			} else if !lidForPN.IsEmpty() {
-				cli.migrateSessionStore(ctx, receipt.Sender, lidForPN)
-				encryptionIdentity = lidForPN
-			}
-		}
 		unlockSession := cli.Store.LockSession(encryptionIdentity.SignalAddress().String())
 		encrypted, includeDeviceIdentity, err = cli.encryptMessageForDevice(ctx, plaintext, encryptionIdentity, bundle, encAttrs, nil)
 		unlockSession()
