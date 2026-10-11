@@ -199,7 +199,6 @@ func sendGamesMenuWebview(ctx *Context, userJID types.JID, pushName string) erro
 			"• 3. Word Chain (.games wcg)\n" +
 			"• 4. Leaderboard (.games lb)\n\n" +
 			"Tap below to launch the Games Portal:",
-		Footer:     "whatsrook • in-app webview",
 		ButtonText: "Open In-App Webview",
 		URL:        menuURL,
 	})
@@ -239,7 +238,6 @@ func sendGameWebview(ctx *Context, gameTitle, sessionID, gameURL string, userJID
 				"• Player: %s\n"+
 				"• Session: %s\n\n"+
 				"Tap below to launch inside WhatsApp in-app browser.", gameTitle, userJID.User, sessionID),
-			Footer:     "whatsrook • in-app webview",
 			ButtonText: "Open In-App Webview",
 			URL:        gameURL,
 		})

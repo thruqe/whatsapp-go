@@ -17,7 +17,6 @@ import (
 var (
 	// errkeynotfound is returned when a requested key does not exist or has expired.
 	// this keeps cache misses distinct from network drops or decoding failures.
-	// todo: make sure all store drivers return this exact sentinel error on missing keys.
 	ErrKeyNotFound = errors.New("cache: key not found")
 
 	// defaultstore holds the active global cache backend instance.
@@ -43,7 +42,6 @@ type Store interface {
 	Get(ctx context.Context, key string) (string, bool, error)
 
 	// getbytes returns the raw byte payload directly without string conversion overhead.
-	// todo: make sure driver implementations avoid extra memory copies here.
 	GetBytes(ctx context.Context, key string) ([]byte, bool, error)
 
 	// getjson decodes a cached json payload directly into the target pointer.
@@ -72,7 +70,6 @@ type Store interface {
 
 	// deleteprefix deletes all keys starting with the given prefix.
 	// note: for remote stores, use cursor-based scanning (like scan) instead of blocking commands.
-	// todo: check that remote drivers use safe batch sizes when deleting by prefix.
 	DeletePrefix(ctx context.Context, prefix string) error
 
 	// exists checks if a key is present without loading its full payload into memory.
@@ -91,7 +88,6 @@ type Store interface {
 
 // init sets up the global in-memory cache backend with a maximum entry limit.
 // passing maxentries <= 0 defaults to 10,000 entries to keep memory usage low and predictable.
-// todo: add metrics to track eviction rates when the store hits max capacity.
 func Init(maxEntries int) Store {
 	defaultMu.Lock()
 	defer defaultMu.Unlock()
@@ -163,7 +159,6 @@ func DeletePrefix(ctx context.Context, prefix string) error {
 
 // CacheClose safely shuts down the active default store and cleans up resources.
 // passing force = true triggers non-blocking teardown across underlying drivers.
-// todo: verify remote store drivers (e.g., valkey/redis connection pools) properly abort active socket transactions when force is set.
 func CacheClose(force ...bool) error {
 	defaultMu.Lock()
 	defer defaultMu.Unlock()
@@ -179,7 +174,6 @@ func CacheClose(force ...bool) error {
 // serializevalue converts various go types into raw byte slices.
 // primitives and strings are handled directly for maximum speed and lower cpu/memory overhead,
 // while complex structs and maps fall back to standard json encoding.
-// todo: benchmark msgpack or protobuf for heavy struct serialization.
 func serializeValue(value any) ([]byte, error) {
 	switch v := value.(type) {
 	case string:

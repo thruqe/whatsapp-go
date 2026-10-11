@@ -68,7 +68,6 @@ func NewMemoryStore(maxEntries int) *MemoryStore {
 
 // startpruneworker executes a long-running periodic background sweep to harvest expired keys.
 // this prevents passive memory bloat when expired keys are not actively accessed by read operations.
-// todo: allow dynamic reconfiguration of the ticker interval via configuration options.
 func (m *MemoryStore) startPruneWorker(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer func() {
@@ -89,7 +88,6 @@ func (m *MemoryStore) startPruneWorker(interval time.Duration) {
 
 // pruneexpiredbatch performs bounded chunked expiration starting from the tail (oldest entries).
 // this limits lock hold duration to prevent write starvation on the primary request execution path.
-// todo: implement an adaptive batch size algorithm based on expired-to-sampled key ratios.
 func (m *MemoryStore) pruneExpiredBatch(now time.Time, batchSize int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -127,7 +125,6 @@ func (m *MemoryStore) Get(ctx context.Context, key string) (string, bool, error)
 // getbytes retrieves the raw byte payload associated with key and promotes the node to the lru head.
 // this implements lazy eviction: if an accessed item is expired, it is immediately purged and returns false.
 // returns a defensive deep copy of the byte slice to guarantee internal immutability against caller mutation.
-// todo: evaluate providing an unsafe zero-copy variant for read-heavy performance-critical paths.
 func (m *MemoryStore) GetBytes(_ context.Context, key string) ([]byte, bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -328,7 +325,6 @@ func (m *MemoryStore) DeleteMany(_ context.Context, keys []string) error {
 
 // deleteprefix invalidates all keys matching the lexical prefix via linear traversal $\mathcal{o}(n)$.
 // note: this locks the store across the full list scan; use with discretion on large keyspaces.
-// todo: consider a trie index or radix tree if prefix-based invalidation becomes a hot execution path.
 func (m *MemoryStore) DeletePrefix(_ context.Context, prefix string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -383,7 +379,6 @@ func (m *MemoryStore) Type() string {
 // passing force = true skips synchronization with the background pruning worker (<-m.prunedone),
 // returning immediately for non-blocking teardown during emergency halts or process exit signals.
 // this is idempotent: subsequent calls on an already closed instance return immediately without error.
-// todo: implement a context-bounded shutdown variant with a timeout before falling back to forced termination.
 func (m *MemoryStore) Close(force ...bool) error {
 	m.mu.Lock()
 	if m.closed {
