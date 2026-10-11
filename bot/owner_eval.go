@@ -106,7 +106,7 @@ func HandleOwnerEvalIntercept(c *Context, text string) bool {
 	}
 
 	if code == "" {
-		_ = c.Reply("*Owner Eval (Baileys-style)*\n\n" +
+		_ = c.Reply("*Owner Eval*\n\n" +
 			"*Usage:*\n" +
 			"• `$ <javascript>` or `> <javascript>`\n" +
 			"• `$gr <grol>` or `$$ <grol>`\n" +
@@ -202,7 +202,7 @@ func (r *EvalResult) FormatForReply() string {
 
 	val := r.Value
 	if val == "" {
-		sb.WriteString("`(executed successfully, undefined)`")
+		sb.WriteString("0")
 	} else {
 		sb.WriteString(fmt.Sprintf("```\n%s\n```", val))
 	}
@@ -257,7 +257,7 @@ func executeAndReplyEval(ctx *Context, code string, isGrol bool) {
 				return
 			}
 			if result == "" {
-				_ = ctx.Reply("*Eval Output:* `(executed successfully, undefined)`")
+				_ = ctx.Reply("*Eval Output:* 0")
 				return
 			}
 			replyText := fmt.Sprintf("*Eval Output:*\n```\n%s\n```", result)

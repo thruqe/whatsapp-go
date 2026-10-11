@@ -534,7 +534,7 @@ func runGrol(callerCtx any, sessionKey, code string, flags grolParsedFlags) (str
 		if imagesSent > 0 {
 			return "*Grol Output:* `(image generated and sent successfully)`", nil
 		}
-		return "*Grol Output:* `(executed successfully, nil result)`", nil
+		return "*Grol Output:* 0", nil
 	}
 
 	return fmt.Sprintf("*Grol Output:*\n```\n%s\n```", out), nil
