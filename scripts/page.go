@@ -478,6 +478,7 @@ const pageCSS = `
 `
 
 const pageJS = `
+  document.addEventListener('DOMContentLoaded', () => {
     const config = {
       phone: '',
       business: false,
@@ -581,13 +582,13 @@ const pageJS = `
 
     function nextFromStep2() {
       showError('');
-      const cleanPhone = inputPhone.value.trim().replace(/[\\s\\-()]/g, '');
+      const cleanPhone = inputPhone.value.trim().replace(/[\s()+-]/g, '');
       if (config.auth === 'pair') {
         if (!cleanPhone) {
           showError('Please enter your phone number with your country code to get a pairing code.');
           return;
         }
-        if (!/^\\+?\\d{8,15}$/.test(cleanPhone)) {
+        if (!/^\+?\d{8,15}$/.test(cleanPhone)) {
           showError('Please enter a valid phone number (e.g., +2348012345678).');
           return;
         }
@@ -604,7 +605,7 @@ const pageJS = `
     function isValidPostgresUrl(url) {
       const trimmed = url.trim();
       if (!trimmed) return false;
-      const pattern = /^(postgres|postgresql):\\/\\/(?:([^:]+)(?::([^@]*))?@)?([a-zA-Z0-9.-]+)(?::(\\d+))?\\/([a-zA-Z0-9_-]+)(?:\\?.*)?$/;
+      const pattern = /^(postgres|postgresql):\/\/(?:([^:]+)(?::([^@]*))?@)?([a-zA-Z0-9.-]+)(?::(\d+))?\/([a-zA-Z0-9_-]+)(?:\?.*)?$/;
       return pattern.test(trimmed);
     }
 
@@ -721,7 +722,7 @@ const pageJS = `
       for (let i = 0; i < bytes.byteLength; i++) {
         binary += String.fromCharCode(bytes[i]);
       }
-      return btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
+      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     }
 
     async function generateSessionToken(cfg) {
@@ -744,6 +745,7 @@ const pageJS = `
 
       return "SE_ID:" + toBase64RawUrl(combined);
     }
+  });
 `
 
 // BuildPage constructs the Session ID generator HTML using htmlbuilder.
