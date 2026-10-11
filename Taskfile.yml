@@ -127,7 +127,7 @@ tasks:
         platforms: [linux, darwin, windows]
       - cmd: go -C scripts run . res
         platforms: [windows]
-      - go -C bot/cmd build -trimpath -ldflags="-s -w -buildid=" -v -o ../../{{.BIN_PATH}} .
+      - go -C bot build -trimpath -ldflags="-s -w -buildid=" -v -o ../{{.BIN_PATH}} .
 
   build:upx:
     desc: "Build stripped binary and compress with UPX into {{.BIN_PATH}}"
