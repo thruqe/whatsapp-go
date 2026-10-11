@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -19,8 +20,36 @@ import (
 )
 
 const (
-	maxEvalTimeout = 10 * time.Second
+	maxEvalTimeout = 60 * time.Second
 )
+
+var (
+	reEvalTemplateURL = regexp.MustCompile(`(?m)(:\s*|=\s*|return\s+|\(\s*)(https?://\$\{[^\n;,\)]+\})`)
+	reEvalTemplateStr = regexp.MustCompile(`(?m)(:\s*|=\s*|return\s+|\(\s*)([A-Za-z0-9_-]+\s+\$\{[^}]+\})`)
+	reEvalUnquotedIP  = regexp.MustCompile(`([\(,:\s\[=])([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})([,\)\s;\]])`)
+)
+
+// preprocessEvalCode normalizes common mobile typing quirks, fixes unquoted IPs and URLs,
+// strips markdown code fences, and prepares code for JavaScript execution.
+func preprocessEvalCode(code string) string {
+	c := strings.TrimSpace(code)
+	c = strings.TrimPrefix(c, "$")
+	c = strings.TrimPrefix(c, ">")
+	c = strings.TrimSpace(c)
+
+	if strings.HasPrefix(c, "```") {
+		lines := strings.Split(c, "\n")
+		if len(lines) >= 2 && strings.HasPrefix(strings.TrimSpace(lines[len(lines)-1]), "```") {
+			c = strings.TrimSpace(strings.Join(lines[1:len(lines)-1], "\n"))
+		}
+	}
+
+	c = reEvalTemplateURL.ReplaceAllString(c, "${1}`${2}`")
+	c = reEvalTemplateStr.ReplaceAllString(c, "${1}`${2}`")
+	c = reEvalUnquotedIP.ReplaceAllString(c, `${1}"${2}"${3}`)
+	c = reEvalUnquotedIP.ReplaceAllString(c, `${1}"${2}"${3}`)
+	return c
+}
 
 func init() {
 	RegisterPreInterceptor("owner_eval", HandleOwnerEvalIntercept)
@@ -254,7 +283,7 @@ func executeJavaScriptEvalDetailed(ctx *Context, code string) (*EvalResult, erro
 
 	// Set execution deadline
 	timer := time.AfterFunc(maxEvalTimeout, func() {
-		vm.Interrupt("execution timeout exceeded (10s)")
+		vm.Interrupt(fmt.Sprintf("execution timeout exceeded (%v)", maxEvalTimeout))
 	})
 	defer timer.Stop()
 
@@ -347,11 +376,11 @@ func executeJavaScriptEvalDetailed(ctx *Context, code string) (*EvalResult, erro
 	SetupGlobalConstants(vm, ctx, tracker)
 	_ = vm.Set("ctx", ctx)
 
-	trimmedCode := strings.TrimSpace(code)
-	val, err := vm.RunString(trimmedCode)
+	cleanedCode := preprocessEvalCode(code)
+	val, err := vm.RunString(cleanedCode)
 	if err != nil && strings.Contains(err.Error(), "Illegal return statement") {
 		// Bare return statement detected: execute wrapped in an IIFE function
-		val, err = vm.RunString("(function() {\n" + trimmedCode + "\n})()")
+		val, err = vm.RunString("(function() {\n" + cleanedCode + "\n})()")
 	}
 	if err != nil {
 		return nil, err

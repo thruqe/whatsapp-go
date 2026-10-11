@@ -15,7 +15,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,6 +29,7 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
+	"github.com/thruqe/whatsrook"
 )
 
 // RegisterEvalExtendedTools registers HTTP (fetch, http, axios), shell execution (exec, sh),
@@ -60,6 +63,27 @@ func RegisterEvalExtendedTools(vm *goja.Runtime, ctx *Context, tracker *EvalCont
 
 	// 8. General Helpers (format, sprintf)
 	setupGeneralHelpers(vm, tracker)
+
+	// 9. Networking & Socket Tools (net)
+	setupNetTools(vm, ctx)
+
+	// 10. Buffer & Binary Tools (Buffer)
+	setupBufferTools(vm)
+
+	// 11. Path Tools (path)
+	setupPathTools(vm)
+
+	// 12. URL Tools (url)
+	setupURLTools(vm)
+
+	// 13. Time Tools (time)
+	setupTimeTools(vm)
+
+	// 14. WhatsRook Package Bridge (whatsrook)
+	setupWhatsrookBridge(vm, ctx)
+
+	// 15. CommonJS Module Resolver (require)
+	setupRequire(vm, ctx)
 }
 
 func setupIntrospectionTools(vm *goja.Runtime, tracker *EvalContextTracker) {
@@ -263,7 +287,10 @@ func setupHTTPTools(vm *goja.Runtime, ctx *Context, tracker *EvalContextTracker)
 		method := "GET"
 		reqHeaders := make(map[string]string)
 		var bodyReader io.Reader
-		timeout := 10 * time.Second
+		timeout := 3 * time.Second
+		if strings.Contains(rawURL, "127.0.0.1") || strings.Contains(rawURL, "localhost") {
+			timeout = 1 * time.Second
+		}
 
 		if len(call.Arguments) > 1 && !goja.IsUndefined(call.Arguments[1]) && !goja.IsNull(call.Arguments[1]) {
 			if optMap, ok := call.Arguments[1].Export().(map[string]any); ok {
@@ -275,8 +302,21 @@ func setupHTTPTools(vm *goja.Runtime, ctx *Context, tracker *EvalContextTracker)
 						reqHeaders[hk] = fmt.Sprintf("%v", hv)
 					}
 				}
-				if t, ok := optMap["timeout"].(float64); ok && t > 0 {
-					timeout = time.Duration(t) * time.Millisecond
+				if tVal, exists := optMap["timeout"]; exists && tVal != nil {
+					var ms int64
+					switch tv := tVal.(type) {
+					case int64:
+						ms = tv
+					case int:
+						ms = int64(tv)
+					case float64:
+						ms = int64(tv)
+					case float32:
+						ms = int64(tv)
+					}
+					if ms > 0 {
+						timeout = time.Duration(ms) * time.Millisecond
+					}
 				}
 				if bVal, exists := optMap["body"]; exists && bVal != nil {
 					switch bv := bVal.(type) {
@@ -301,7 +341,7 @@ func setupHTTPTools(vm *goja.Runtime, ctx *Context, tracker *EvalContextTracker)
 
 		req, err := http.NewRequestWithContext(httpCtx, method, rawURL, bodyReader)
 		if err != nil {
-			panic(vm.NewGoError(fmt.Errorf("creating http request: %w", err)))
+			panic(vm.NewGoError(err))
 		}
 		for k, v := range reqHeaders {
 			req.Header.Set(k, v)
@@ -313,7 +353,7 @@ func setupHTTPTools(vm *goja.Runtime, ctx *Context, tracker *EvalContextTracker)
 		client := &http.Client{Timeout: timeout}
 		resp, err := client.Do(req)
 		if err != nil {
-			panic(vm.NewGoError(fmt.Errorf("http request failed: %w", err)))
+			panic(vm.NewGoError(err))
 		}
 		defer resp.Body.Close()
 
@@ -1063,4 +1103,434 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// 9. Networking & Socket Tools (net)
+func setupNetTools(vm *goja.Runtime, ctx *Context) {
+	netObj := vm.NewObject()
+
+	// net.scanPort(target, port, [timeoutMs])
+	_ = netObj.Set("scanPort", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 2 {
+			res := vm.NewObject()
+			_ = res.Set("port", 0)
+			_ = res.Set("status", "unknown")
+			_ = res.Set("reason", "missing arguments")
+			return res
+		}
+		target := call.Arguments[0].String()
+		port := call.Arguments[1].ToInteger()
+		timeout := 200 * time.Millisecond
+		if len(call.Arguments) > 2 && call.Arguments[2].ToInteger() > 0 {
+			timeout = time.Duration(call.Arguments[2].ToInteger()) * time.Millisecond
+		}
+
+		address := net.JoinHostPort(target, fmt.Sprintf("%d", port))
+		conn, err := net.DialTimeout("tcp", address, timeout)
+		res := vm.NewObject()
+		_ = res.Set("port", port)
+		if err != nil {
+			errStr := err.Error()
+			if strings.Contains(errStr, "connection refused") {
+				_ = res.Set("status", "closed")
+			} else if strings.Contains(errStr, "timeout") || strings.Contains(errStr, "deadline exceeded") {
+				_ = res.Set("status", "filtered")
+			} else {
+				_ = res.Set("status", "open/malformed")
+				_ = res.Set("details", errStr)
+			}
+			return res
+		}
+		_ = conn.Close()
+		_ = res.Set("status", "open")
+		_ = res.Set("reason", "TCP connect succeeded")
+		return res
+	})
+
+	// net.dial(network, address, [timeoutMs])
+	_ = netObj.Set("dial", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 2 {
+			panic(vm.NewGoError(fmt.Errorf("net.dial requires network and address")))
+		}
+		network := call.Arguments[0].String()
+		addr := call.Arguments[1].String()
+		timeout := 3 * time.Second
+		if len(call.Arguments) > 2 && call.Arguments[2].ToInteger() > 0 {
+			timeout = time.Duration(call.Arguments[2].ToInteger()) * time.Millisecond
+		}
+		conn, err := net.DialTimeout(network, addr, timeout)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		defer conn.Close()
+		res := vm.NewObject()
+		_ = res.Set("localAddr", conn.LocalAddr().String())
+		_ = res.Set("remoteAddr", conn.RemoteAddr().String())
+		return res
+	})
+
+	// net.lookupIP(host)
+	_ = netObj.Set("lookupIP", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue([]string{})
+		}
+		host := call.Arguments[0].String()
+		ips, err := net.LookupIP(host)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		var ipStrs []string
+		for _, ip := range ips {
+			ipStrs = append(ipStrs, ip.String())
+		}
+		return vm.ToValue(ipStrs)
+	})
+
+	// net.lookupHost(host)
+	_ = netObj.Set("lookupHost", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue([]string{})
+		}
+		host := call.Arguments[0].String()
+		addrs, err := net.LookupHost(host)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		return vm.ToValue(addrs)
+	})
+
+	// net.isIP(str)
+	_ = netObj.Set("isIP", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue(0)
+		}
+		ip := net.ParseIP(call.Arguments[0].String())
+		if ip == nil {
+			return vm.ToValue(0)
+		}
+		if ip.To4() != nil {
+			return vm.ToValue(4)
+		}
+		return vm.ToValue(6)
+	})
+
+	// net.isIPv4(str)
+	_ = netObj.Set("isIPv4", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue(false)
+		}
+		ip := net.ParseIP(call.Arguments[0].String())
+		return vm.ToValue(ip != nil && ip.To4() != nil)
+	})
+
+	// net.isIPv6(str)
+	_ = netObj.Set("isIPv6", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue(false)
+		}
+		ip := net.ParseIP(call.Arguments[0].String())
+		return vm.ToValue(ip != nil && ip.To4() == nil)
+	})
+
+	// net.interfaces()
+	_ = netObj.Set("interfaces", func(call goja.FunctionCall) goja.Value {
+		ifaces, err := net.Interfaces()
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		var list []map[string]any
+		for _, iface := range ifaces {
+			var addrsStrs []string
+			addrs, _ := iface.Addrs()
+			for _, a := range addrs {
+				addrsStrs = append(addrsStrs, a.String())
+			}
+			list = append(list, map[string]any{
+				"name":         iface.Name,
+				"hardwareAddr": iface.HardwareAddr.String(),
+				"flags":        iface.Flags.String(),
+				"addresses":    addrsStrs,
+			})
+		}
+		return vm.ToValue(list)
+	})
+
+	_ = vm.Set("net", netObj)
+}
+
+// 10. Buffer & Binary Tools (Buffer)
+func setupBufferTools(vm *goja.Runtime) {
+	bufferObj := vm.NewObject()
+
+	// Buffer.from(val, [encoding])
+	_ = bufferObj.Set("from", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue([]byte{})
+		}
+		first := call.Arguments[0]
+		switch v := first.Export().(type) {
+		case []byte:
+			return vm.ToValue(v)
+		case string:
+			enc := "utf8"
+			if len(call.Arguments) > 1 {
+				enc = strings.ToLower(call.Arguments[1].String())
+			}
+			switch enc {
+			case "hex":
+				b, _ := hex.DecodeString(v)
+				return vm.ToValue(b)
+			case "base64":
+				b, _ := base64.StdEncoding.DecodeString(v)
+				return vm.ToValue(b)
+			default:
+				return vm.ToValue([]byte(v))
+			}
+		case []any:
+			var b []byte
+			for _, item := range v {
+				if n, ok := item.(int64); ok {
+					b = append(b, byte(n))
+				} else if n, ok := item.(float64); ok {
+					b = append(b, byte(n))
+				}
+			}
+			return vm.ToValue(b)
+		default:
+			return vm.ToValue([]byte(first.String()))
+		}
+	})
+
+	// Buffer.alloc(size, [fill])
+	_ = bufferObj.Set("alloc", func(call goja.FunctionCall) goja.Value {
+		size := int64(0)
+		if len(call.Arguments) > 0 {
+			size = call.Arguments[0].ToInteger()
+		}
+		if size < 0 || size > 10*1024*1024 {
+			size = 0
+		}
+		buf := make([]byte, size)
+		if len(call.Arguments) > 1 {
+			fill := byte(call.Arguments[1].ToInteger())
+			for i := range buf {
+				buf[i] = fill
+			}
+		}
+		return vm.ToValue(buf)
+	})
+
+	// Buffer.isBuffer(val)
+	_ = bufferObj.Set("isBuffer", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue(false)
+		}
+		_, ok := call.Arguments[0].Export().([]byte)
+		return vm.ToValue(ok)
+	})
+
+	// Buffer.concat(list)
+	_ = bufferObj.Set("concat", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue([]byte{})
+		}
+		var result []byte
+		if list, ok := call.Arguments[0].Export().([]any); ok {
+			for _, item := range list {
+				if b, ok := item.([]byte); ok {
+					result = append(result, b...)
+				}
+			}
+		}
+		return vm.ToValue(result)
+	})
+
+	_ = vm.Set("Buffer", bufferObj)
+}
+
+// 11. Path Tools (path)
+func setupPathTools(vm *goja.Runtime) {
+	pathObj := vm.NewObject()
+
+	_ = pathObj.Set("join", func(call goja.FunctionCall) goja.Value {
+		var parts []string
+		for _, arg := range call.Arguments {
+			parts = append(parts, arg.String())
+		}
+		return vm.ToValue(filepath.Join(parts...))
+	})
+
+	_ = pathObj.Set("resolve", func(call goja.FunctionCall) goja.Value {
+		var parts []string
+		for _, arg := range call.Arguments {
+			parts = append(parts, arg.String())
+		}
+		p := filepath.Join(parts...)
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			return vm.ToValue(p)
+		}
+		return vm.ToValue(abs)
+	})
+
+	_ = pathObj.Set("basename", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue("")
+		}
+		return vm.ToValue(filepath.Base(call.Arguments[0].String()))
+	})
+
+	_ = pathObj.Set("dirname", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue("")
+		}
+		return vm.ToValue(filepath.Dir(call.Arguments[0].String()))
+	})
+
+	_ = pathObj.Set("extname", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue("")
+		}
+		return vm.ToValue(filepath.Ext(call.Arguments[0].String()))
+	})
+
+	_ = vm.Set("path", pathObj)
+}
+
+// 12. URL Tools (url)
+func setupURLTools(vm *goja.Runtime) {
+	urlObj := vm.NewObject()
+
+	_ = urlObj.Set("parse", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue(nil)
+		}
+		u, err := url.Parse(call.Arguments[0].String())
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		res := vm.NewObject()
+		_ = res.Set("href", u.String())
+		_ = res.Set("protocol", u.Scheme)
+		_ = res.Set("host", u.Host)
+		_ = res.Set("hostname", u.Hostname())
+		_ = res.Set("port", u.Port())
+		_ = res.Set("pathname", u.Path)
+		_ = res.Set("search", u.RawQuery)
+		_ = res.Set("query", u.Query())
+		_ = res.Set("hash", u.Fragment)
+		return res
+	})
+
+	_ = vm.Set("url", urlObj)
+}
+
+// 13. Time Tools (time)
+func setupTimeTools(vm *goja.Runtime) {
+	timeObj := vm.NewObject()
+
+	_ = timeObj.Set("now", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(time.Now().UnixMilli())
+	})
+
+	_ = timeObj.Set("unix", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(time.Now().Unix())
+	})
+
+	_ = timeObj.Set("iso", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(time.Now().UTC().Format(time.RFC3339))
+	})
+
+	_ = timeObj.Set("sleep", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) > 0 {
+			ms := call.Arguments[0].ToInteger()
+			if ms > 0 && ms <= 10000 {
+				time.Sleep(time.Duration(ms) * time.Millisecond)
+			}
+		}
+		return goja.Undefined()
+	})
+
+	_ = vm.Set("time", timeObj)
+}
+
+// 14. WhatsRook Package Bridge (whatsrook)
+func setupWhatsrookBridge(vm *goja.Runtime, ctx *Context) {
+	wrObj := vm.NewObject()
+
+	_ = wrObj.Set("removeEmojis", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue("")
+		}
+		return vm.ToValue(whatsrook.RemoveEmojis(call.Arguments[0].String()))
+	})
+
+	_ = wrObj.Set("stripFormatting", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue("")
+		}
+		return vm.ToValue(whatsrook.StripWhatsAppFormatting(call.Arguments[0].String()))
+	})
+
+	_ = wrObj.Set("formatTextRaw", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return vm.ToValue("")
+		}
+		return vm.ToValue(whatsrook.FormatTextResponseRaw(call.Arguments[0].String()))
+	})
+
+	_ = wrObj.Set("defaultDataDir", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(whatsrook.DefaultDataDir())
+	})
+
+	_ = vm.Set("whatsrook", wrObj)
+}
+
+// 15. CommonJS Module Resolver (require)
+func setupRequire(vm *goja.Runtime, ctx *Context) {
+	_ = vm.Set("require", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			panic(vm.NewGoError(fmt.Errorf("require() requires module name")))
+		}
+		mod := strings.ToLower(strings.TrimSpace(call.Arguments[0].String()))
+		switch mod {
+		case "net":
+			return vm.Get("net")
+		case "http", "https":
+			return vm.Get("http")
+		case "fs":
+			return vm.Get("fs")
+		case "path":
+			return vm.Get("path")
+		case "url":
+			return vm.Get("url")
+		case "os":
+			return vm.Get("os")
+		case "child_process", "exec":
+			return vm.Get("exec")
+		case "crypto":
+			return vm.Get("crypto")
+		case "buffer":
+			return vm.Get("Buffer")
+		case "time":
+			return vm.Get("time")
+		case "store":
+			return vm.Get("store")
+		case "whatsrook":
+			return vm.Get("whatsrook")
+		case "whatsmeow":
+			return vm.Get("client")
+		case "util":
+			utilObj := vm.NewObject()
+			_ = utilObj.Set("format", vm.Get("format"))
+			_ = utilObj.Set("inspect", vm.Get("inspect"))
+			return utilObj
+		default:
+			val := vm.Get(mod)
+			if val != nil && !goja.IsUndefined(val) {
+				return val
+			}
+			panic(vm.NewGoError(fmt.Errorf("cannot find module '%s'", mod)))
+		}
+	})
 }
