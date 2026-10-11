@@ -46,11 +46,6 @@ func NewTextWithSender(sender Sender, initial ...string) *TextBuilder {
 	return b
 }
 
-// NewTextWithContext initializes a TextBuilder bound to a Sender (alias for NewTextWithSender).
-func NewTextWithContext(sender Sender, initial ...string) *TextBuilder {
-	return NewTextWithSender(sender, initial...)
-}
-
 // --- Text & Line Appenders ---
 
 // Line appends the given text strings joined by space, followed by a newline (\n).

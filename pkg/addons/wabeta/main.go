@@ -111,7 +111,8 @@ func main() {
 	if len(paragraphs) > 0 {
 		out.WriteString(strings.Join(paragraphs, "\n\n"))
 	} else {
-		out.WriteString("Read more at: " + articleURL)
+		out.WriteString("Read more at: ")
+		out.WriteString(articleURL)
 	}
 
 	sdk.Respond(strings.TrimSpace(out.String()))

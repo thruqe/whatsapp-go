@@ -247,21 +247,6 @@ func executeAndReplyEval(ctx *Context, code string, isGrol bool) {
 	}()
 }
 
-// ExecuteJavaScriptEval executes code in a sandboxed Goja runtime and returns the raw string result.
-func ExecuteJavaScriptEval(ctx *Context, code string) (string, error) {
-	detailed, err := executeJavaScriptEvalDetailed(ctx, code)
-	if err != nil {
-		return "", err
-	}
-	if detailed.ConsoleLogs != "" && detailed.Value != "" {
-		return detailed.ConsoleLogs + "\n" + detailed.Value, nil
-	}
-	if detailed.Value != "" {
-		return detailed.Value, nil
-	}
-	return detailed.ConsoleLogs, nil
-}
-
 // executeJavaScriptEvalDetailed executes code and captures full type, return type, function metadata, and console logs.
 func executeJavaScriptEvalDetailed(ctx *Context, code string) (*EvalResult, error) {
 	vm := goja.New()

@@ -136,13 +136,6 @@ func FormatRecentHistory(chatID string, currentQuestion string) string {
 	return tb.Trimmed()
 }
 
-// ClearChatHistory purges the in-memory conversation memory for a chat.
-func ClearChatHistory(chatID string) {
-	globalChatHistory.mu.Lock()
-	defer globalChatHistory.mu.Unlock()
-	delete(globalChatHistory.history, chatID)
-}
-
 func findURL(text string) string {
 	return urlRegex.FindString(text)
 }

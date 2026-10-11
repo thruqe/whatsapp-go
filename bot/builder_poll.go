@@ -131,35 +131,6 @@ func RegisterPollRoute(cfg PollRouteConfig) {
 	)
 }
 
-// RegisterPollHandler registers a reactive handler for votes on a specific poll message.
-func RegisterPollHandler(pollMsgID types.MessageID, options []string, once bool, fn func(req PollRequest, res *Response)) {
-	RegisterPollRoute(PollRouteConfig{
-		PollMsgID:  pollMsgID,
-		Options:    options,
-		Once:       once,
-		AutoDelete: true,
-		Timeout:    DefaultPollTimeout,
-		Fn:         fn,
-	})
-}
-
-// DeregisterPollHandler removes the registered handler for a poll message and cancels any pending timeout.
-func DeregisterPollHandler(pollMsgID types.MessageID) {
-	pollRoutesMu.Lock()
-	if r, ok := pollRoutes[pollMsgID]; ok {
-		if r.timer != nil {
-			r.timer.Stop()
-		}
-		delete(pollRoutes, pollMsgID)
-	}
-	total := len(pollRoutes)
-	pollRoutesMu.Unlock()
-	Debug("WARook: deregistered poll vote handler",
-		"pollMsgID", pollMsgID,
-		"totalActivePollRoutes", total,
-	)
-}
-
 // PollBuilder builds and sends a WhatsApp poll (with optional quoted reply)
 // and registers a reactive callback for votes with automatic expiration and deletion.
 type PollBuilder struct {

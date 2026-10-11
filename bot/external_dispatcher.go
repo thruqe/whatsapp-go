@@ -76,20 +76,6 @@ func (d *Dispatcher) RegistryURL() string {
 	return DefaultReleaseRegistry
 }
 
-// WithRegistryURL sets a custom registry download URL for official plugins.
-func WithRegistryURL(url string) Option {
-	return func(d *Dispatcher) {
-		d.registryURL = strings.TrimRight(url, "/")
-	}
-}
-
-// WithPluginDir sets a custom directory for plugin binaries.
-func WithPluginDir(dir string) Option {
-	return func(d *Dispatcher) {
-		d.pluginDir = dir
-	}
-}
-
 // PluginDir returns the resolved directory where external plugin binaries are stored.
 // If session is provided and non-empty, the directory is scoped to that session (~/.whatsrook/sessions/<session>/plugins).
 func (d *Dispatcher) PluginDir(session ...string) (string, error) {
@@ -159,19 +145,6 @@ func (d *Dispatcher) IsInstalled(name string, session ...string) bool {
 func (d *Dispatcher) IsOfficial(name string) bool {
 	name = strings.ToLower(strings.TrimSpace(name))
 	return slices.Contains(OfficialPlugins, name)
-}
-
-// IsPublic returns true if the plugin is marked public (all official plugins or manifest is_public: true).
-func (d *Dispatcher) IsPublic(name string, session ...string) bool {
-	if d.IsOfficial(name) {
-		return true
-	}
-	path, err := d.PluginPath(name, session...)
-	if err != nil {
-		return false
-	}
-	manifest := d.readManifest(path)
-	return manifest.IsPublic
 }
 
 // sessionKey creates a composite lookup key for active live sessions.

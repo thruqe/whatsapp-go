@@ -132,19 +132,9 @@ func OpusPTTConvert(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, erro
 	return meta, nil
 }
 
-// OpusPTT is an alias for OpusPTTConvert for concise caller ergonomics.
-func OpusPTT(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, error) {
-	return OpusPTTConvert(ctx, audioBytes)
-}
-
 // EnsureOpusPTT is an alias for OpusPTTConvert.
 func EnsureOpusPTT(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, error) {
 	return OpusPTTConvert(ctx, audioBytes)
-}
-
-// ExtractWaveformForTest exposes waveform extraction for test validation.
-func ExtractWaveformForTest(pcmBytes []byte, sampleRate int) (uint32, []byte) {
-	return extractWaveformAndDuration(pcmBytes, sampleRate)
 }
 
 func extractWaveformAndDuration(pcmBytes []byte, sampleRate int) (uint32, []byte) {

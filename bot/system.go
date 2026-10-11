@@ -36,15 +36,6 @@ type Stats struct {
 	NumGC uint32
 }
 
-// String renders a Stats snapshot as a compact, human-readable summary.
-func (s Stats) String() string {
-	return fmt.Sprintf(
-		"%s/%s %s | cpus=%d goroutines=%d alloc=%s sys=%s gc=%d",
-		s.OS, s.Arch, s.GoVersion, s.NumCPU, s.NumGoroutine,
-		FormatBytes(s.MemAlloc), FormatBytes(s.MemSys), s.NumGC,
-	)
-}
-
 // GetStats returns a point-in-time snapshot of runtime memory and CPU statistics.
 func GetStats() Stats {
 	var m runtime.MemStats

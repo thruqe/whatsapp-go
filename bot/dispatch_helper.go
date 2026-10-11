@@ -173,16 +173,4 @@ func init() {
 		}
 		return "", nil
 	}
-	GlobalSettingSetter = func(ctx context.Context, client *whatsmeow.Client, key, value string) error {
-		if s, ok := GetSQLStore(client); ok {
-			return s.PutSetting(ctx, key, value)
-		}
-		return nil
-	}
-	GlobalSettingDeleter = func(ctx context.Context, client *whatsmeow.Client, key string) error {
-		if s, ok := GetSQLStore(client); ok {
-			return s.DeleteSetting(ctx, key)
-		}
-		return nil
-	}
 }

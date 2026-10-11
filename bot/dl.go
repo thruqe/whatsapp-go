@@ -1083,16 +1083,7 @@ func runFFmpegWithProgress(
 	return nil
 }
 
-// EnsureWhatsAppVideo converts or remuxes a video file to meet WhatsApp's strict compatibility requirements:
-// - MP4 container with faststart (moov atom at beginning)
-// - H.264 (AVC) video codec, yuv420p pixel format, main profile, level 4.0
-// - Even width & height dimensions
-// - AAC audio codec, 44.1kHz or 48kHz stereo/mono
-func EnsureWhatsAppVideo(ctx context.Context, inputPath, outputPath string) error {
-	return EnsureWhatsAppVideoWithProgress(ctx, inputPath, outputPath, 0, nil)
-}
-
-// EnsureWhatsAppVideoWithProgress is EnsureWhatsAppVideo with transcoding progress estimation.
+// EnsureWhatsAppVideoWithProgress transcodes video for WhatsApp compatibility with progress estimation.
 func EnsureWhatsAppVideoWithProgress(
 	ctx context.Context,
 	inputPath, outputPath string,
@@ -1115,11 +1106,6 @@ func EnsureWhatsAppVideoWithProgress(
 		"-movflags", "+faststart",
 		outputPath,
 	)
-}
-
-// EnsureWhatsAppOpus converts an audio file into an OGG Opus stream suitable for WhatsApp.
-func EnsureWhatsAppOpus(ctx context.Context, inputPath, outputPath string) error {
-	return EnsureWhatsAppOpusWithProgress(ctx, inputPath, outputPath, 0, nil)
 }
 
 // EnsureWhatsAppOpusWithProgress is EnsureWhatsAppOpus with transcoding progress estimation.

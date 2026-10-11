@@ -69,18 +69,6 @@ func (t *EvalContextTracker) LastCall() *CallRecord {
 	return &cp
 }
 
-// Calls returns a copy of all recorded calls during this eval execution.
-func (t *EvalContextTracker) Calls() []CallRecord {
-	if t == nil {
-		return nil
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	res := make([]CallRecord, len(t.calls))
-	copy(res, t.calls)
-	return res
-}
-
 // TagFunction attaches metadata properties (.name, .type, .returnType, .paramTypes, .signature, .toString)
 // onto a Goja function object.
 func TagFunction(vm *goja.Runtime, fnVal goja.Value, meta FunctionMetadata) *goja.Object {

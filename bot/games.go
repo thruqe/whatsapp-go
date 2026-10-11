@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 
 	"github.com/thruqe/whatsrook"
@@ -206,36 +205,6 @@ func sendGamesMenuWebview(ctx *Context, userJID types.JID, pushName string) erro
 	})
 }
 
-// BuildGamesMenuMessage constructs the direct interactive in-app webview message for the games menu.
-func BuildGamesMenuMessage(userJID types.JID, pushName string) (*waE2E.Message, error) {
-	baseURL := GetGameServerURL()
-
-	sessID, err := GenerateGameSession(userJID, pushName, "global")
-	if err != nil {
-		return nil, err
-	}
-
-	q := url.Values{}
-	q.Set("session", sessID)
-	q.Set("user", userJID.User)
-	q.Set("name", pushName)
-	menuURL := fmt.Sprintf("%s/?%s", baseURL, q.Encode())
-
-	return whatsrook.BuildWebviewMessage(whatsrook.WebviewMessageOpts{
-		Title: "WhatsRook Multiplayer Games",
-		Body: "Play live real-time multiplayer games against other players inside WhatsApp in-app browser!\n\n" +
-			"Available Games:\n" +
-			"• 1. Tic-Tac-Toe (.games ttt)\n" +
-			"• 2. Connect 4 (.games c4)\n" +
-			"• 3. Word Chain (.games wcg)\n" +
-			"• 4. Leaderboard (.games lb)\n\n" +
-			"Tap below to launch the Games Portal:",
-		Footer:     "whatsrook • in-app webview",
-		ButtonText: "Open In-App Webview",
-		URL:        menuURL,
-	})
-}
-
 func launchGame(ctx *Context, gameType, gameTitle string) error {
 	userJID := ctx.Sender.ToNonAD()
 	pushName := ctx.Evt.Info.PushName
@@ -258,11 +227,6 @@ func launchGame(ctx *Context, gameType, gameTitle string) error {
 	gameURL := fmt.Sprintf("%s/?%s", baseURL, q.Encode())
 
 	return sendGameWebview(ctx, gameTitle, sessionID, gameURL, userJID)
-}
-
-// BuildGameWebviewPayload constructs the button JSON payload with verified webview hints.
-func BuildGameWebviewPayload(displayText, targetURL string) (string, error) {
-	return whatsrook.BuildWebviewPayload(displayText, targetURL)
 }
 
 // sendGameWebview sends an in-app webview button matching the verified test command implementation.
@@ -295,21 +259,6 @@ func sendGameWebview(ctx *Context, gameTitle, sessionID, gameURL string, userJID
 		gameTitle, gameTitle, userJID.User, sessionID, gameURL)
 
 	return ctx.ReplyWithMentions(fallback, []types.JID{userJID})
-}
-
-// BuildGameWebviewMessage constructs the direct interactive in-app webview message for a specific game session.
-func BuildGameWebviewMessage(gameTitle, sessionID, gameURL string, userJID types.JID) (*waE2E.Message, error) {
-	return whatsrook.BuildWebviewMessage(whatsrook.WebviewMessageOpts{
-		Title: gameTitle,
-		Body: fmt.Sprintf("Real-time multiplayer match session ready!\n\n"+
-			"• Game: %s\n"+
-			"• Player: %s\n"+
-			"• Session: %s\n\n"+
-			"Tap below to launch inside WhatsApp in-app browser.", gameTitle, userJID.User, sessionID),
-		Footer:     "whatsrook • in-app webview",
-		ButtonText: "Open In-App Webview",
-		URL:        gameURL,
-	})
 }
 
 // LeaderboardEntry matches the structure returned by the games server API.

@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand/v2"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -22,50 +19,16 @@ const (
 	DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 WhatsRook/1.0"
 	// DefaultHTTPTimeout is the default duration before an outbound request is aborted.
 	DefaultHTTPTimeout = 30 * time.Second
-	// DefaultMaxResponseBytes caps how much of a response body FetchBytes/FetchJSON/PostJSON
+	// DefaultMaxResponseBytes caps how much of a response body FetchBytes/FetchJSON
 	// will read, guarding against unbounded memory growth from a misbehaving or hostile server.
 	DefaultMaxResponseBytes = 64 << 20 // 64 MiB
 	// DefaultMaxRetries is the number of retry attempts made for idempotent requests that
 	// fail with a retryable error or status code.
 	DefaultMaxRetries = 2
-	// defaultFilePerm is used for files written by DownloadFile.
-	defaultFilePerm os.FileMode = 0o644
-	// defaultDirPerm is used when DownloadFile needs to create the destination directory.
-	defaultDirPerm os.FileMode = 0o755
 )
 
 // RequestOption configures an outgoing HTTP request.
 type RequestOption func(*http.Request)
-
-// WithHeader sets a single request header.
-func WithHeader(key, value string) RequestOption {
-	return func(req *http.Request) {
-		req.Header.Set(key, value)
-	}
-}
-
-// WithHeaders sets multiple request headers.
-func WithHeaders(headers map[string]string) RequestOption {
-	return func(req *http.Request) {
-		for k, v := range headers {
-			req.Header.Set(k, v)
-		}
-	}
-}
-
-// WithBearerToken sets the Authorization header with a Bearer token.
-func WithBearerToken(token string) RequestOption {
-	return func(req *http.Request) {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-}
-
-// WithUserAgent sets a custom User-Agent header.
-func WithUserAgent(ua string) RequestOption {
-	return func(req *http.Request) {
-		req.Header.Set("User-Agent", ua)
-	}
-}
 
 // HybridTransport transparently supports HTTP/3 (QUIC) with fallback to HTTP/2 and HTTP/1.1.
 type HybridTransport struct {
@@ -288,104 +251,5 @@ func FetchJSON(ctx context.Context, rawURL string, target any, opts ...RequestOp
 	if err := json.Unmarshal(data, target); err != nil {
 		return fmt.Errorf("httpx: unmarshal json from %s: %w", rawURL, err)
 	}
-	return nil
-}
-
-// PostJSON issues a POST request with payload encoded as JSON, and decodes the response into target.
-// POST is not retried by default, since it is not inherently idempotent; only the initial
-// network dial failing before any bytes were sent is safe to retry, which doWithRetry's
-// client.Do already handles at the transport/dial level via req's context.
-func PostJSON(ctx context.Context, rawURL string, payload any, target any, opts ...RequestOption) error {
-	bodyBytes, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("httpx: marshal request body: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rawURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return fmt.Errorf("httpx: build request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", DefaultUserAgent)
-	for _, opt := range opts {
-		opt(req)
-	}
-
-	resp, err := HTTPClient().Do(req)
-	if err != nil {
-		return fmt.Errorf("httpx: post %s: %w", rawURL, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := readLimited(resp.Body)
-		return statusError(rawURL, resp, body)
-	}
-
-	if target != nil {
-		limited := io.LimitReader(resp.Body, DefaultMaxResponseBytes+1)
-		if err := json.NewDecoder(limited).Decode(target); err != nil {
-			return fmt.Errorf("httpx: decode response from %s: %w", rawURL, err)
-		}
-	}
-	return nil
-}
-
-// DownloadFile downloads a remote file to a local destination path, streaming
-// directly to disk rather than buffering the full body in memory.
-func DownloadFile(ctx context.Context, rawURL, destPath string, opts ...RequestOption) (err error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	if err != nil {
-		return fmt.Errorf("httpx: build request: %w", err)
-	}
-	req.Header.Set("User-Agent", DefaultUserAgent)
-	for _, opt := range opts {
-		opt(req)
-	}
-
-	resp, err := doWithRetry(ctx, HTTPClient(), req, retryConfig{maxRetries: DefaultMaxRetries})
-	if err != nil {
-		return fmt.Errorf("httpx: download %s: %w", rawURL, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := readLimited(resp.Body)
-		return statusError(rawURL, resp, body)
-	}
-
-	if dir := filepath.Dir(destPath); dir != "." {
-		if err := os.MkdirAll(dir, defaultDirPerm); err != nil {
-			return fmt.Errorf("httpx: create destination directory %q: %w", dir, err)
-		}
-	}
-
-	// Write to a temp file in the same directory and rename into place, so a
-	// failed or interrupted download never leaves a partial file at destPath.
-	tmp, err := os.CreateTemp(filepath.Dir(destPath), filepath.Base(destPath)+".tmp-*")
-	if err != nil {
-		return fmt.Errorf("httpx: create temp file for %q: %w", destPath, err)
-	}
-	tmpPath := tmp.Name()
-	defer func() {
-		if err != nil {
-			os.Remove(tmpPath)
-		}
-	}()
-
-	if _, copyErr := io.Copy(tmp, resp.Body); copyErr != nil {
-		tmp.Close()
-		return fmt.Errorf("httpx: write %s to %q: %w", rawURL, destPath, copyErr)
-	}
-	if closeErr := tmp.Close(); closeErr != nil {
-		return fmt.Errorf("httpx: close temp file for %q: %w", destPath, closeErr)
-	}
-	if chmodErr := os.Chmod(tmpPath, defaultFilePerm); chmodErr != nil {
-		return fmt.Errorf("httpx: set permissions on %q: %w", destPath, chmodErr)
-	}
-	if renameErr := os.Rename(tmpPath, destPath); renameErr != nil {
-		return fmt.Errorf("httpx: rename temp file to %q: %w", destPath, renameErr)
-	}
-
 	return nil
 }

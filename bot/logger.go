@@ -26,8 +26,6 @@ import (
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
-
-	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
 // LogEntry encapsulates a structured log event dispatched to subscribers.
@@ -52,11 +50,9 @@ type state struct {
 }
 
 var (
-	current    atomic.Pointer[state]
-	isInit     atomic.Bool
-	nextHookID atomic.Uint32
-	hooks      sync.Map // uint32 -> LogHook
-	isVerbose  atomic.Bool
+	current   atomic.Pointer[state]
+	hooks     sync.Map // uint32 -> LogHook
+	isVerbose atomic.Bool
 )
 
 type verboseLevelEnabler struct {
@@ -87,12 +83,6 @@ func setState(lvl zap.AtomicLevel, raw *zap.Logger) {
 
 func cur() *state { return current.Load() }
 
-// L returns the underlying *zap.Logger.
-func L() *zap.Logger { return cur().raw }
-
-// S returns the underlying *zap.SugaredLogger.
-func S() *zap.SugaredLogger { return cur().sugar }
-
 // SetLevel sets the global minimum logging level dynamically.
 func SetLevel(lvl zapcore.Level) { cur().level.SetLevel(lvl) }
 
@@ -106,67 +96,6 @@ func SetVerbose(verbose bool) {
 		SetLevel(zapcore.InfoLevel)
 	}
 }
-
-// IsVerbose reports whether verbose mode is active.
-func IsVerbose() bool {
-	return isVerbose.Load()
-}
-
-// GetLevel returns the current global logging level.
-func GetLevel() zapcore.Level { return cur().level.Level() }
-
-// AddHook registers a callback that receives structured log entries in real-time.
-// It returns an unsubscribe closure to deregister the hook.
-func AddHook(fn LogHook) (unsubscribe func()) {
-	if fn == nil {
-		return func() {}
-	}
-	id := nextHookID.Add(1)
-	hooks.Store(id, fn)
-	return func() { hooks.Delete(id) }
-}
-
-// ClearHooks removes all currently registered log hooks.
-func ClearHooks() {
-	hooks.Range(func(k, _ any) bool {
-		hooks.Delete(k)
-		return true
-	})
-}
-
-// InitLogger initializes the global logger with console stdout and event hook streaming (no disk file creation).
-func InitLogger(_ string, verbose bool) error {
-	isVerbose.Store(verbose)
-	lvl := zap.NewAtomicLevelAt(zapcore.InfoLevel)
-	if verbose {
-		lvl.SetLevel(zapcore.DebugLevel)
-	}
-
-	enabler := verboseLevelEnabler{level: lvl}
-	core := zapcore.NewTee(
-		zapcore.NewCore(newConsoleEncoder(true), zapcore.Lock(os.Stdout), enabler),
-		newHookCore(enabler),
-	)
-	setState(lvl, zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1)))
-	isInit.Store(true)
-	return nil
-}
-
-// Close flushes buffered log entries and resets the logger to its default configuration.
-func Close() {
-	_ = cur().raw.Sync()
-	ClearHooks()
-	isVerbose.Store(false)
-	lvl := zap.NewAtomicLevelAt(zapcore.InfoLevel)
-	setState(lvl, newDefaultLogger(lvl, os.Stdout))
-	isInit.Store(false)
-}
-
-// CloseLogger is an alias for Close.
-func CloseLogger() { Close() }
-
-// Sync flushes any buffered log entries.
-func Sync() error { return cur().raw.Sync() }
 
 // ─────────────────────────────────────────────────────────────
 // Hook Zap Core — fans out log entries to registered LogHooks
@@ -470,45 +399,6 @@ func newDefaultLogger(lvl zap.AtomicLevel, w io.Writer) *zap.Logger {
 }
 
 // ─────────────────────────────────────────────────────────────
-// whatsmeow adapter
-// ─────────────────────────────────────────────────────────────
-
-type zapWaLogger struct {
-	sugar *zap.SugaredLogger
-	raw   *zap.Logger
-}
-
-var _ waLog.Logger = (*zapWaLogger)(nil)
-
-// WhatsmeowStyle creates a fast waLog.Logger adapter with module prefix.
-func WhatsmeowStyle(module string, _ string, _ bool) waLog.Logger {
-	sub := cur().raw.Named(module).WithOptions(zap.AddCallerSkip(1))
-	return &zapWaLogger{sugar: sub.Sugar(), raw: sub}
-}
-
-// NewWaLogger creates a waLog.Logger with the given module name.
-func NewWaLogger(module string) waLog.Logger {
-	return WhatsmeowStyle(module, "INFO", true)
-}
-
-func (z *zapWaLogger) format(msg string, args []any) string {
-	if len(args) == 0 {
-		return msg
-	}
-	return fmt.Sprintf(msg, args...)
-}
-
-func (z *zapWaLogger) Warnf(msg string, args ...any)  { z.sugar.Warn(z.format(msg, args)) }
-func (z *zapWaLogger) Errorf(msg string, args ...any) { z.sugar.Error(z.format(msg, args)) }
-func (z *zapWaLogger) Infof(msg string, args ...any)  { z.sugar.Info(z.format(msg, args)) }
-func (z *zapWaLogger) Debugf(msg string, args ...any) { z.sugar.Debug(z.format(msg, args)) }
-
-func (z *zapWaLogger) Sub(module string) waLog.Logger {
-	sub := z.raw.Named(module)
-	return &zapWaLogger{sugar: sub.Sugar(), raw: sub}
-}
-
-// ─────────────────────────────────────────────────────────────
 // zerolog adapter
 // ─────────────────────────────────────────────────────────────
 
@@ -594,12 +484,6 @@ func ZerologStyle(module string) zerolog.Logger {
 // Direct logging functions
 // ─────────────────────────────────────────────────────────────
 
-// Named returns a new sub-logger with the specified name.
-func Named(name string) *zap.SugaredLogger { return cur().raw.Named(name).Sugar() }
-
-// With creates a child logger with additional structured context.
-func With(args ...any) *zap.SugaredLogger { return cur().sugar.With(args...) }
-
 // asFields reports whether every arg is a pre-built zapcore.Field, returning
 // them typed if so. Lets callers pass zap.Field for the zero-alloc path
 // while still supporting Infow-style key/value pairs.
@@ -653,53 +537,11 @@ func logMessage(lvl zapcore.Level, msg string, args ...any) {
 // Info logs at InfoLevel. Accepts key-value pairs or zap.Field arguments.
 func Info(msg string, args ...any) { logMessage(zapcore.InfoLevel, msg, args...) }
 
-// Infof formats message according to format specifier and logs at InfoLevel.
-func Infof(template string, args ...any) { cur().sugar.Infof(template, args...) }
-
-// Infow logs at InfoLevel with structured context (key-value pairs).
-func Infow(msg string, keysAndValues ...any) { cur().sugar.Infow(msg, keysAndValues...) }
-
 // Debug logs at DebugLevel. Accepts key-value pairs or zap.Field arguments.
 func Debug(msg string, args ...any) { logMessage(zapcore.DebugLevel, msg, args...) }
-
-// Debugf formats message according to format specifier and logs at DebugLevel.
-func Debugf(template string, args ...any) { cur().sugar.Debugf(template, args...) }
-
-// Debugw logs at DebugLevel with structured context (key-value pairs).
-func Debugw(msg string, keysAndValues ...any) { cur().sugar.Debugw(msg, keysAndValues...) }
 
 // Warn logs at WarnLevel. Accepts key-value pairs or zap.Field arguments.
 func Warn(msg string, args ...any) { logMessage(zapcore.WarnLevel, msg, args...) }
 
-// Warnf formats message according to format specifier and logs at WarnLevel.
-func Warnf(template string, args ...any) { cur().sugar.Warnf(template, args...) }
-
-// Warnw logs at WarnLevel with structured context (key-value pairs).
-func Warnw(msg string, keysAndValues ...any) { cur().sugar.Warnw(msg, keysAndValues...) }
-
 // Error logs at ErrorLevel. Accepts key-value pairs or zap.Field arguments.
 func Error(msg string, args ...any) { logMessage(zapcore.ErrorLevel, msg, args...) }
-
-// Errorf formats message according to format specifier and logs at ErrorLevel.
-func Errorf(template string, args ...any) { cur().sugar.Errorf(template, args...) }
-
-// Errorw logs at ErrorLevel with structured context (key-value pairs).
-func Errorw(msg string, keysAndValues ...any) { cur().sugar.Errorw(msg, keysAndValues...) }
-
-// Fatal logs at FatalLevel then calls os.Exit(1).
-func Fatal(msg string, args ...any) { logMessage(zapcore.FatalLevel, msg, args...) }
-
-// Fatalf formats message and logs at FatalLevel then calls os.Exit(1).
-func Fatalf(template string, args ...any) { cur().sugar.Fatalf(template, args...) }
-
-// Fatalw logs at FatalLevel with structured context then calls os.Exit(1).
-func Fatalw(msg string, keysAndValues ...any) { cur().sugar.Fatalw(msg, keysAndValues...) }
-
-// Panic logs at PanicLevel then panics.
-func Panic(msg string, args ...any) { logMessage(zapcore.PanicLevel, msg, args...) }
-
-// Panicf formats message and logs at PanicLevel then panics.
-func Panicf(template string, args ...any) { cur().sugar.Panicf(template, args...) }
-
-// Panicw logs at PanicLevel with structured context then panics.
-func Panicw(msg string, keysAndValues ...any) { cur().sugar.Panicw(msg, keysAndValues...) }

@@ -122,13 +122,6 @@ func All() []*Command {
 	return out
 }
 
-// Count returns the total number of unique registered commands.
-func Count() int {
-	registryMu.RLock()
-	defer registryMu.RUnlock()
-	return len(order)
-}
-
 // ClosestCommand returns the registered command name or alias closest in edit distance
 // to the provided target string using Damerau-Levenshtein distance.
 func ClosestCommand(target string, session ...string) string {

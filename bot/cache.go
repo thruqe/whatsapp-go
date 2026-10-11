@@ -131,27 +131,9 @@ func Default() Store {
 	return defaultStore
 }
 
-// setdefault lets you swap the active global store at runtime.
-// useful for injecting mock stores in tests or switching to a distributed backend in production.
-func SetDefault(s Store) {
-	defaultMu.Lock()
-	defer defaultMu.Unlock()
-
-	// close the old store if we are replacing it with a new instance
-	if defaultStore != nil && defaultStore != s {
-		_ = defaultStore.Close()
-	}
-	defaultStore = s
-}
-
 // get fetches a string value from the default cache.
 func CacheGet(ctx context.Context, key string) (string, bool, error) {
 	return Default().Get(ctx, key)
-}
-
-// getbytes fetches raw bytes from the default cache without string conversions.
-func GetBytes(ctx context.Context, key string) ([]byte, bool, error) {
-	return Default().GetBytes(ctx, key)
 }
 
 // getjson decodes cached json data into the target pointer.
@@ -174,39 +156,9 @@ func CacheDelete(ctx context.Context, key string) error {
 	return Default().Delete(ctx, key)
 }
 
-// GetManyBytes fetches raw bytes for multiple keys from the default cache.
-func GetManyBytes(ctx context.Context, keys []string) (map[string][]byte, error) {
-	return Default().GetManyBytes(ctx, keys)
-}
-
-// SetMany saves multiple key-value pairs with a uniform ttl in the default cache.
-func SetMany(ctx context.Context, entries map[string][]byte, ttl time.Duration) error {
-	return Default().SetMany(ctx, entries, ttl)
-}
-
-// DeleteMany removes multiple keys from the default cache.
-func DeleteMany(ctx context.Context, keys []string) error {
-	return Default().DeleteMany(ctx, keys)
-}
-
 // deleteprefix removes all keys starting with prefix from the default cache.
 func DeletePrefix(ctx context.Context, prefix string) error {
 	return Default().DeletePrefix(ctx, prefix)
-}
-
-// exists checks if a key exists in the default cache.
-func Exists(ctx context.Context, key string) (bool, error) {
-	return Default().Exists(ctx, key)
-}
-
-// clear flushes all data in the default cache.
-func Clear(ctx context.Context) error {
-	return Default().Clear(ctx)
-}
-
-// type returns the name of the active default cache engine.
-func Type() string {
-	return Default().Type()
 }
 
 // CacheClose safely shuts down the active default store and cleans up resources.

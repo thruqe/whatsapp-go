@@ -14,16 +14,8 @@ import (
 // SettingGetter retrieves a setting value for a client and key from the database
 type SettingGetter func(ctx context.Context, client *whatsmeow.Client, key string) (string, error)
 
-// SettingSetter updates a setting value for a client and key in the database
-type SettingSetter func(ctx context.Context, client *whatsmeow.Client, key, value string) error
-
-// SettingDeleter removes a setting value for a client and key from the database
-type SettingDeleter func(ctx context.Context, client *whatsmeow.Client, key string) error
-
 var (
-	GlobalSettingGetter  SettingGetter
-	GlobalSettingSetter  SettingSetter
-	GlobalSettingDeleter SettingDeleter
+	GlobalSettingGetter SettingGetter
 )
 
 // GetClientSetting retrieves a configuration value from the global setting getter or identity store fallback.
@@ -41,36 +33,6 @@ func GetClientSetting(ctx context.Context, client *whatsmeow.Client, key string)
 		}
 	}
 	return "", nil
-}
-
-// PutClientSetting writes a configuration value to the global setting setter or identity store fallback.
-func PutClientSetting(ctx context.Context, client *whatsmeow.Client, key, value string) error {
-	if GlobalSettingSetter != nil {
-		return GlobalSettingSetter(ctx, client, key, value)
-	}
-	if client != nil && client.Store != nil && client.Store.Identities != nil {
-		if s, ok := client.Store.Identities.(interface {
-			PutSetting(ctx context.Context, key, value string) error
-		}); ok {
-			return s.PutSetting(ctx, key, value)
-		}
-	}
-	return nil
-}
-
-// DeleteClientSetting deletes a configuration value using the global setting deleter or identity store fallback.
-func DeleteClientSetting(ctx context.Context, client *whatsmeow.Client, key string) error {
-	if GlobalSettingDeleter != nil {
-		return GlobalSettingDeleter(ctx, client, key)
-	}
-	if client != nil && client.Store != nil && client.Store.Identities != nil {
-		if s, ok := client.Store.Identities.(interface {
-			DeleteSetting(ctx context.Context, key string) error
-		}); ok {
-			return s.DeleteSetting(ctx, key)
-		}
-	}
-	return nil
 }
 
 // IsOwner returns true if the sender is the primary bot owner.
