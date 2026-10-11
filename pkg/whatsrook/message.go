@@ -256,25 +256,17 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		aud.ViewOnce = new(false)
 	}
 
-	header := fmt.Sprintf("Anti-ViewOnce: from @%s", senderJID.User)
-	if pushName != "" {
-		header += fmt.Sprintf(" (%s)", pushName)
-	}
-	if len(sourceChat) > 0 && !sourceChat[0].IsEmpty() && sourceChat[0] != targetJID {
-		header += fmt.Sprintf(" in %s", sourceChat[0].String())
-	}
-
 	if img := clone.GetImageMessage(); img != nil {
 		if origCap := img.GetCaption(); origCap != "" {
-			img.Caption = new(header + "\n\n" + origCap)
+			img.Caption = new(origCap)
 		} else {
-			img.Caption = new(header)
+			img.Caption = nil
 		}
 	} else if vid := clone.GetVideoMessage(); vid != nil {
 		if origCap := vid.GetCaption(); origCap != "" {
-			vid.Caption = new(header + "\n\n" + origCap)
+			vid.Caption = new(origCap)
 		} else {
-			vid.Caption = new(header)
+			vid.Caption = nil
 		}
 	}
 
