@@ -70,7 +70,7 @@ func runRes(args []string) error {
 		}
 	}
 
-	cmdDir := filepath.Join(rootDir, "bot", "cmd")
+	cmdDir := filepath.Join(rootDir, "bot")
 	year := time.Now().Year()
 
 	fmt.Printf("Generating binary resources (Product Version: %s, File Version: %s, Icon: %s)...\n", productVersion, fileVersion, filepath.Base(iconPath))
