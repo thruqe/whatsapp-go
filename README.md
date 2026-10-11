@@ -14,16 +14,57 @@ If you want to install on your system, see the [Installation Guide](./docs/INSTA
 
 ## Features
 
-- Messaging & Media
-- VoIP Calls & Media Playout
-- Groups & Communities Management
-- Newsletters & Channels
-- Deep Bot Customization
-- Plugin & Tools Engine
-- Dedicated WebSocket & JSON API
-- Incredibly low memory & CPU usage
-- External plugins support
-- Support for multiple platforms
+### End-to-End Encrypted Messaging & Rich Media Engine
+- **Noise & Signal Protocol Compliance**: Native multi-device implementation with end-to-end encryption, protocol buffer serialization, and secure cryptographic key exchanges.
+- **High-Performance Media Pipeline**: Download, convert, and deliver photos, videos, documents, audio voice notes (Opus PTT with native audio waveforms), and animated WebP stickers.
+- **Optimized Sticker Studio**: Convert images and videos into WhatsApp stickers with custom EXIF metadata (pack name and author). Automatically caps animated video stickers to 10 seconds and compresses them under WhatsApp's 650 KB limit.
+- **View-Once Vault**: Automatically intercept or resend expiring View-Once photos and videos (`.vv`, `.autoview`) directly into chat.
+
+### Autonomous Agentic AI & Multilingual Intelligence
+- **Proactive Tool-Using Meta AI**: Equipped with intent-to-tool routing that proactively executes bot commands (downloads, sticker creation, weather, translations, calculations) on the user's behalf.
+- **Composed & Grounded Demeanor**: Relaxed, sensible, and natural conversational tone without hyperactivity, giggling, or underworld street slang across all languages.
+- **Multilingual Support Across 8 Locales**: Complete localized catalogs and command descriptions in English (`en`), Spanish (`es`), Indonesian (`id`), Portuguese (`pt`), French (`fr`), Arabic (`ar`), Russian (`ru`), and German (`de`) with auto-detection from country calling codes (`.lang`).
+- **Contextual Dialogue Memory**: Maintains recent conversational turns, quoted message context, and participant identity for intelligent replies in both DMs and group chats.
+
+### Automated Group & Community Administration
+- **Complete Participant Control**: Add, remove (`.kick`, `.kickall`), promote, and demote group members and admins with single commands.
+- **Comprehensive Group Moderation**:
+  - **Anti-Link**: Automatically detect and purge unauthorized group invite links or external URLs.
+  - **Anti-Spam & Anti-Flood**: Mitigate rapid message floods and repetitive spam bursts.
+  - **Anti-Word**: Filter and delete messages matching configurable banned word lists.
+  - **Anti-Msg**: Automatically delete messages from restricted participants.
+  - **CAPTCHA Verification**: Protect groups from automated bots by requiring new members to solve a quick verification challenge.
+- **Scheduled Auto-Mute / Auto-Unmute**: Configure daily open and close schedules (`.automute`, `.autounmute`) tied to your local timezone (`.timezone`).
+- **Activity Metrics & Warnings**: Track member participation stats (`.gstats`), issue formal warnings (`.warn`, `.unwarn`), and configure enforcement thresholds (`.setwarn`).
+- **Custom Welcome & Goodbye Greetings**: Deliver automatic greeting and farewell messages when members join or depart.
+
+### VoIP Calls, Audio Playout & Voicemail
+- **Encrypted VoIP Engine**: Built-in SRTP, SRTCP, and Sframe encrypted calling stack with STUN/TURN ICE negotiation.
+- **Anti-Call Protection**: Automatically reject incoming unsolicited voice or video calls (`.anticall`) to protect bot uptime and privacy.
+- **Automated Voicemail**: Automatically answer unanswered calls with customizable audio voicemail responses (`.voicemail`).
+- **Audio Cards & Media Playout**: Stream custom audio cards and external media during calls and alive queries.
+
+### Embedded Scripting Runtimes (Grol & JavaScript)
+- **Grol Language Runtime**: Embedded [Grol](https://grol.io/) (Go REPL Open Language) scripting engine (`.grol`) with per-chat persistent sessions, mathematical calculations, AST inspection (`-p`), and canonical code beautification (`-f`).
+- **Live Context Evaluation**: Safely evaluate JavaScript and Grol code snippets (`.eval`) with live access to current message, sender, chat metadata, and bot client APIs.
+
+### Modular Plugin & Extension Architecture
+- **Dual Plugin Engine**: Fast compiled internal commands paired with decoupled out-of-process standalone executable plugins.
+- **Standalone Addon SDK**: Build custom plugins in Go or any language using the lightweight JSON-RPC standard I/O protocol (`pkg/addons/sdk`).
+- **29 Official Plugins**: Built-in catalog of plugins including weather forecasts, currency/crypto tickers (`.btc`, `.markets`), calculations (`.calc`), text-to-speech (`.tts`), QR code generation, screenshots (`.ss`), URL shorteners, news, and jokes.
+- **Dynamic Plugin Lifecycle**: Install, inspect, and update plugins on the fly directly from GitHub releases without restarting the bot (`.install`, `.plist`, `.uninstall`).
+
+### Deep Customization & Interactive Menu
+- **Interactive Visual Menu**: Browse commands grouped by category (`.menu`) with custom thumbnails and detailed per-command help cards (`.help <command>`).
+- **Customizable Alive Identity**: Personalize your `.alive` card with custom message templates, dynamic placeholders (`{uptime}`, `{latency}`, `{ram}`, `{goroutines}`, `{fact}`, `{quote}`), custom images, and audio cards.
+- **Custom Sticker Command Triggers**: Bind stickers to trigger specific bot commands automatically (`.setcmd`, `.delcmd`).
+- **Configurable Command Prefixes**: Customize single or multi-character command prefixes (`.prefix`).
+
+### Privacy, Security & Operational Modes
+- **Public & Private Modes**: Instantly toggle between public community mode and owner-only private mode (`.mode`).
+- **Sudo & Role Authorization**: Multi-tier permission model distinguishing between regular members, group admins, sudoers, and the bot owner (`.setsudo`, `.delsudo`, `.listsudo`).
+- **Granular Privacy Controls**: Manage WhatsApp privacy settings (Last Seen, Profile Photo, and Read Receipts) directly from chat commands (`.privacy`).
+- **Ultra-Low Resource Footprint**: Single self-contained Go binary compiled with `-trimpath` and stripped symbols; operates smoothly on minimal RAM (<30 MB) and negligible CPU usage on low-power devices, VPS instances, or Raspberry Pi.
 
 ## Contributions
 
