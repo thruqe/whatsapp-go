@@ -13,12 +13,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/cache"
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/system"
+	"whatsrook/bot/cache"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/store"
+	"whatsrook/bot/system"
 	"whatsrook/bot/updater"
+
+	"github.com/thruqe/whatsrook"
 )
 
 // Version is the application version (set at build time).

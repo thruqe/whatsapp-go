@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/store"
 
 	"go.mau.fi/util/dbutil"

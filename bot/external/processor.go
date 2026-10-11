@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/thruqe/whatsrook/util/logger"
 	"io"
 	"net/http"
 	"os"
@@ -14,14 +13,14 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/thruqe/whatsrook"
+	"whatsrook/bot/botctx"
+	"whatsrook/bot/logger"
 
 	"go.mau.fi/whatsmeow/types"
 )
 
 // runProcess launches an external plugin executable and handles both streaming action frames and plain text stdout.
-func (d *Dispatcher) runProcess(plugCtx *whatsrook.PluginContext, path, name string, request Request) {
+func (d *Dispatcher) runProcess(plugCtx *botctx.PluginContext, path, name string, request Request) {
 	liveCtx, liveCancel := context.WithTimeout(context.Background(), d.liveTimeout)
 	defer liveCancel()
 
@@ -169,7 +168,7 @@ func (d *Dispatcher) runProcess(plugCtx *whatsrook.PluginContext, path, name str
 	}
 }
 
-func tryDeliverOutputFile(plugCtx *whatsrook.PluginContext, name, tempOutputFile string) bool {
+func tryDeliverOutputFile(plugCtx *botctx.PluginContext, name, tempOutputFile string) bool {
 	if tempOutputFile == "" {
 		return false
 	}
@@ -196,7 +195,7 @@ func tryDeliverOutputFile(plugCtx *whatsrook.PluginContext, name, tempOutputFile
 }
 
 // handleActionFrame processes a single action frame emitted by an external plugin on stdout.
-func (d *Dispatcher) handleActionFrame(ctx *whatsrook.PluginContext, stdinPipe io.WriteCloser, line string) error {
+func (d *Dispatcher) handleActionFrame(ctx *botctx.PluginContext, stdinPipe io.WriteCloser, line string) error {
 	var frame Action
 	if err := json.Unmarshal([]byte(line), &frame); err != nil {
 		return err

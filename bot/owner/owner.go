@@ -20,11 +20,13 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/media"
+	"whatsrook/bot/botctx"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/logger"
+	"whatsrook/bot/media"
 	"whatsrook/bot/store"
+
+	"github.com/thruqe/whatsrook"
 )
 
 func init() {
@@ -968,7 +970,7 @@ func removeUserTokens(ctx context.Context, client *whatsmeow.Client, chat types.
 			// Also try parsing the stored token as a JID and using IsSameUserRaw.
 			if strings.Contains(entry, "@") {
 				if stored, err := types.ParseJID(entry); err == nil && stored.User != "" {
-					if whatsrook.IsSameUserRaw(ctx, client, targets[i], stored) {
+					if botctx.IsSameUserRaw(ctx, client, targets[i], stored) {
 						entryMatched = true
 						if !matched[i] {
 							matched[i] = true
@@ -1249,7 +1251,7 @@ func handleBan(ctx *dispatch.Context) error {
 		if ctx.IsTargetOwner(target) {
 			continue
 		}
-		if whatsrook.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
+		if botctx.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
 			continue
 		}
 

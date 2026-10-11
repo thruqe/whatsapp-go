@@ -6,9 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/botctx"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/store"
+
+	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -80,7 +82,7 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := whatsrook.ResolveMentionRaw(ctx, cli, info.OwnerJID)
+					_, ownerName := botctx.ResolveMentionRaw(ctx, cli, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -89,7 +91,7 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 			}
 
 			for _, participant := range g.Join {
-				resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, participant)
+				resolvedJIDs, username := botctx.ResolveMentionJIDs(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -191,7 +193,7 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := whatsrook.ResolveMentionRaw(ctx, cli, info.OwnerJID)
+					_, ownerName := botctx.ResolveMentionRaw(ctx, cli, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -205,7 +207,7 @@ func HandleGreetings(ctx context.Context, cli *whatsmeow.Client, g *events.Group
 					continue
 				}
 
-				resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, participant)
+				resolvedJIDs, username := botctx.ResolveMentionJIDs(ctx, cli, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {

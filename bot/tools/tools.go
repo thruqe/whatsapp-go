@@ -11,9 +11,9 @@ import (
 	"go.mau.fi/whatsmeow/proto/waSyncAction"
 	"go.mau.fi/whatsmeow/types"
 
-	"github.com/thruqe/whatsrook/util/httpx"
-	"github.com/thruqe/whatsrook/util/logger"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/httpx"
+	"whatsrook/bot/logger"
 )
 
 func init() {

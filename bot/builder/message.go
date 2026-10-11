@@ -2,7 +2,7 @@ package builder
 
 import (
 	"fmt"
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/logger"
 
 	"go.mau.fi/whatsmeow/types"
 )

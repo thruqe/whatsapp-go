@@ -2,10 +2,10 @@ package qr
 
 import (
 	"fmt"
-	"github.com/thruqe/whatsrook/util/logger"
 	"net"
 	"net/http"
 	"sync"
+	"whatsrook/bot/logger"
 
 	"github.com/skip2/go-qrcode"
 )

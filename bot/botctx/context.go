@@ -12,9 +12,10 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/thruqe/whatsrook/util/builder"
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/message"
+	"whatsrook/bot/builder"
+	"whatsrook/bot/logger"
+
+	"github.com/thruqe/whatsrook"
 )
 
 // Text & Formatting Facades
@@ -128,7 +129,7 @@ func (c *PluginContext) ReplyContextInfo() *waE2E.ContextInfo {
 }
 
 func (c *PluginContext) formatTextResponse(text string) string {
-	return message.FormatTextResponseRaw(text)
+	return whatsrook.FormatTextResponseRaw(text)
 }
 
 func (c *PluginContext) replyContextInfo() *waE2E.ContextInfo {
@@ -140,10 +141,10 @@ func (c *PluginContext) replyContextInfo() *waE2E.ContextInfo {
 
 	var quotedMsg *waE2E.Message
 	if c.Evt.Message != nil {
-		unwrapped := message.UnwrapMessageProto(c.Evt.Message)
+		unwrapped := whatsrook.UnwrapMessageProto(c.Evt.Message)
 		if unwrapped != nil {
 			if cloned, ok := proto.Clone(unwrapped).(*waE2E.Message); ok && cloned != nil {
-				message.StripContextInfo(cloned)
+				whatsrook.StripContextInfo(cloned)
 				quotedMsg = cloned
 			}
 		}
@@ -226,9 +227,9 @@ func (c *PluginContext) GetQuotedMessage() *waE2E.Message {
 	if c == nil || c.Evt == nil || c.Evt.Message == nil {
 		return nil
 	}
-	ci := message.GetContextInfoFromProto(c.Evt.Message)
+	ci := whatsrook.GetContextInfoFromProto(c.Evt.Message)
 	if ci != nil && ci.QuotedMessage != nil {
-		return message.UnwrapMessageProto(ci.QuotedMessage)
+		return whatsrook.UnwrapMessageProto(ci.QuotedMessage)
 	}
 	return nil
 }
@@ -238,7 +239,7 @@ func (c *PluginContext) GetQuotedSender() (types.JID, bool) {
 	if c == nil || c.Evt == nil || c.Evt.Message == nil {
 		return types.EmptyJID, false
 	}
-	ci := message.GetContextInfoFromProto(c.Evt.Message)
+	ci := whatsrook.GetContextInfoFromProto(c.Evt.Message)
 	if ci != nil && ci.Participant != nil && *ci.Participant != "" {
 		if parsed, err := types.ParseJID(*ci.Participant); err == nil && !parsed.IsEmpty() {
 			return parsed.ToNonAD(), true
@@ -270,7 +271,7 @@ func (c *PluginContext) GetContextInfo() *waE2E.ContextInfo {
 	if c == nil || c.Evt == nil || c.Evt.Message == nil {
 		return nil
 	}
-	return message.GetContextInfoFromProto(c.Evt.Message)
+	return whatsrook.GetContextInfoFromProto(c.Evt.Message)
 }
 
 // GetMentionedJIDs returns any mentioned JIDs in the triggering message context.
@@ -295,12 +296,12 @@ func (c *PluginContext) GetMedia() ([]byte, string, error) {
 	}
 
 	if c.Evt != nil && c.Evt.Message != nil {
-		if data, mime, err := message.Download(c.GetSendContext(), c.Client, c.Evt.Message); err == nil && len(data) > 0 {
+		if data, mime, err := whatsrook.Download(c.GetSendContext(), c.Client, c.Evt.Message); err == nil && len(data) > 0 {
 			return data, mime, nil
 		}
 	}
 	if quoted := c.GetQuotedMessage(); quoted != nil {
-		if data, mime, err := message.Download(c.GetSendContext(), c.Client, quoted); err == nil && len(data) > 0 {
+		if data, mime, err := whatsrook.Download(c.GetSendContext(), c.Client, quoted); err == nil && len(data) > 0 {
 			return data, mime, nil
 		}
 	}

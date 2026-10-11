@@ -12,8 +12,10 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/thruqe/whatsrook"
+	"whatsrook/bot/botctx"
 	"whatsrook/bot/store"
+
+	"github.com/thruqe/whatsrook"
 )
 
 // StoreWrapper wraps sqlstore.SQLStore to expose strongly-typed settings access methods.
@@ -168,19 +170,19 @@ func RecordRecentMessage(evt *events.Message) {
 }
 
 func init() {
-	whatsrook.GlobalSettingGetter = func(ctx context.Context, client *whatsmeow.Client, key string) (string, error) {
+	botctx.GlobalSettingGetter = func(ctx context.Context, client *whatsmeow.Client, key string) (string, error) {
 		if s, ok := GetSQLStore(client); ok {
 			return s.GetSetting(ctx, key)
 		}
 		return "", nil
 	}
-	whatsrook.GlobalSettingSetter = func(ctx context.Context, client *whatsmeow.Client, key, value string) error {
+	botctx.GlobalSettingSetter = func(ctx context.Context, client *whatsmeow.Client, key, value string) error {
 		if s, ok := GetSQLStore(client); ok {
 			return s.PutSetting(ctx, key, value)
 		}
 		return nil
 	}
-	whatsrook.GlobalSettingDeleter = func(ctx context.Context, client *whatsmeow.Client, key string) error {
+	botctx.GlobalSettingDeleter = func(ctx context.Context, client *whatsmeow.Client, key string) error {
 		if s, ok := GetSQLStore(client); ok {
 			return s.DeleteSetting(ctx, key)
 		}

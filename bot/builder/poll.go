@@ -5,10 +5,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"github.com/thruqe/whatsrook/util/logger"
 	"strings"
 	"sync"
 	"time"
+	"whatsrook/bot/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"

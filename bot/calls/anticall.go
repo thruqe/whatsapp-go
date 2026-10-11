@@ -6,9 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/builder"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/store"
+
+	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -122,13 +124,13 @@ func HandleAntiCallEvent(ctx context.Context, cli *whatsmeow.Client, v *events.C
 		logger.Debug("anticall: caller warning updated", "caller", callerJID.String(), "warnCount", warnCount, "maxWarn", maxWarn)
 
 		if warnCount >= maxWarn {
-			warnText := whatsrook.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
+			warnText := builder.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
 			formatted := whatsrook.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 			_, _ = cli.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock, "")
 			logger.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
 		} else {
-			warnText := whatsrook.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
+			warnText := builder.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
 			formatted := whatsrook.FormatTextResponseRaw(warnText)
 			_, _ = cli.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 		}

@@ -1,4 +1,4 @@
-package message
+package whatsrook
 
 import (
 	"go.mau.fi/whatsmeow/proto/waE2E"

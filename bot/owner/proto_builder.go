@@ -313,6 +313,63 @@ func convertBaileysPayload(m map[string]any, ctx *dispatch.Context) (*waE2E.Mess
 		}
 	}
 
+	// Location payload: { location: { degreesLatitude: ..., degreesLongitude: ..., name: "...", address: "..." } }
+	if locVal, exists := m["location"]; exists {
+		if lMap, ok := locVal.(map[string]any); ok {
+			lat := 0.0
+			long := 0.0
+			if v, ok := lMap["degreesLatitude"].(float64); ok {
+				lat = v
+			} else if v, ok := lMap["latitude"].(float64); ok {
+				lat = v
+			} else if v, ok := lMap["lat"].(float64); ok {
+				lat = v
+			}
+			if v, ok := lMap["degreesLongitude"].(float64); ok {
+				long = v
+			} else if v, ok := lMap["longitude"].(float64); ok {
+				long = v
+			} else if v, ok := lMap["long"].(float64); ok {
+				long = v
+			} else if v, ok := lMap["lng"].(float64); ok {
+				long = v
+			}
+			locMsg := &waE2E.LocationMessage{
+				DegreesLatitude:  new(lat),
+				DegreesLongitude: new(long),
+				ContextInfo:      buildContextInfo(m, ctx),
+			}
+			if name, ok := getMapString(lMap, "name"); ok {
+				locMsg.Name = new(name)
+			}
+			if addr, ok := getMapString(lMap, "address"); ok {
+				locMsg.Address = new(addr)
+			}
+			if u, ok := getMapString(lMap, "url"); ok {
+				locMsg.URL = new(u)
+			}
+			return &waE2E.Message{LocationMessage: locMsg}, true, nil
+		}
+	}
+
+	// Contact payload: { contact: { displayName: "...", vcard: "..." } }
+	if conVal, exists := m["contact"]; exists {
+		if cMap, ok := conVal.(map[string]any); ok {
+			displayName, _ := getMapString(cMap, "displayName", "name")
+			vcard, _ := getMapString(cMap, "vcard")
+			if vcard == "" {
+				phone, _ := getMapString(cMap, "phone", "number")
+				vcard = fmt.Sprintf("BEGIN:VCARD\nVERSION:3.0\nFN:%s\nTEL;type=CELL;waid=%s:+%s\nEND:VCARD", displayName, phone, phone)
+			}
+			conMsg := &waE2E.ContactMessage{
+				DisplayName: new(displayName),
+				Vcard:       new(vcard),
+				ContextInfo: buildContextInfo(m, ctx),
+			}
+			return &waE2E.Message{ContactMessage: conMsg}, true, nil
+		}
+	}
+
 	return nil, false, nil
 }
 

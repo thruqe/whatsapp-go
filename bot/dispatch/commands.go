@@ -8,16 +8,17 @@ package dispatch
 
 import (
 	"fmt"
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/builder"
-	"github.com/thruqe/whatsrook/util/external"
 	"math"
 	"strings"
 	"sync"
+
+	"whatsrook/bot/botctx"
+	"whatsrook/bot/builder"
+	"whatsrook/bot/external"
 )
 
-// Context aliases the core whatsrook.PluginContext execution context.
-type Context = whatsrook.PluginContext
+// Context aliases the core botctx.PluginContext execution context.
+type Context = botctx.PluginContext
 
 // TextBuilder aliases the fluent text composition builder.
 type TextBuilder = builder.TextBuilder
@@ -30,34 +31,34 @@ type PollRequest = builder.PollRequest
 
 // NewText constructs a fluent text message builder.
 func NewText(initial ...string) *TextBuilder {
-	return whatsrook.NewText(initial...)
+	return builder.NewText(initial...)
 }
 
 var (
 	// Sprintf is an alias for standard string formatting.
-	Sprintf = whatsrook.Sprintf
+	Sprintf = builder.Sprintf
 	// Bold formats plain text as bold.
-	Bold = whatsrook.Bold
+	Bold = builder.Bold
 	// Boldf formats formatted text as bold.
-	Boldf = whatsrook.Boldf
+	Boldf = builder.Boldf
 	// Italic formats plain text as italic.
-	Italic = whatsrook.Italic
+	Italic = builder.Italic
 	// Italicf formats formatted text as italic.
-	Italicf = whatsrook.Italicf
+	Italicf = builder.Italicf
 	// Code formats plain text as inline code.
-	Code = whatsrook.Code
+	Code = builder.Code
 	// Codef formats formatted text as inline code.
-	Codef = whatsrook.Codef
+	Codef = builder.Codef
 	// CodeBlock formats plain text as a code block.
-	CodeBlock = whatsrook.CodeBlock
+	CodeBlock = builder.CodeBlock
 	// Strike formats plain text with strikethrough.
-	Strike = whatsrook.Strike
+	Strike = builder.Strike
 	// Strikef formats formatted text with strikethrough.
-	Strikef = whatsrook.Strikef
+	Strikef = builder.Strikef
 	// Quote formats plain text as a blockquote.
-	Quote = whatsrook.Quote
+	Quote = builder.Quote
 	// Quotef formats formatted text as a blockquote.
-	Quotef = whatsrook.Quotef
+	Quotef = builder.Quotef
 )
 
 // Handler represents the function signature executed when a command is triggered.

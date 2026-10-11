@@ -7,13 +7,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/system"
+	"whatsrook/bot/botctx"
 	"whatsrook/bot/dispatch"
 	"whatsrook/bot/games"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/store"
+	"whatsrook/bot/system"
 	"whatsrook/bot/updater"
+
+	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -125,7 +127,7 @@ func RenderFilterTemplate(ctx context.Context, client *whatsmeow.Client, evt *ev
 		senderJIDStr = senderJID.String()
 
 		if client != nil {
-			rJID, username := whatsrook.ResolveMentionRaw(ctx, client, senderJID)
+			rJID, username := botctx.ResolveMentionRaw(ctx, client, senderJID)
 			resolvedJID = rJID
 			if pushName == "User" && username != "" {
 				pushName = username

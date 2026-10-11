@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/external"
+	"whatsrook/bot/builder"
+	"whatsrook/bot/external"
 )
 
 // ChatTurn represents a single conversational turn in a chat.
@@ -125,7 +125,7 @@ func FormatRecentHistory(chatID string, currentQuestion string) string {
 		return ""
 	}
 
-	tb := whatsrook.NewText()
+	tb := builder.NewText()
 	for _, t := range turns {
 		if !t.IsBot && t.Text == currentQuestion {
 			continue

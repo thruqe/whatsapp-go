@@ -24,14 +24,16 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/external"
-	"github.com/thruqe/whatsrook/util/logger"
 	"whatsrook/bot/ai"
+	"whatsrook/bot/builder"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/external"
 	"whatsrook/bot/games"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/store"
 	"whatsrook/bot/tools"
+
+	"github.com/thruqe/whatsrook"
 )
 
 func sendPollReply(ctx *dispatch.Context, body string, options []string) error {
@@ -307,17 +309,17 @@ func humanRelativeTime(t time.Time) string {
 		return "1 minute ago"
 	case d < time.Hour:
 		mins := int(d / time.Minute)
-		return whatsrook.Sprintf("%d minutes ago", mins)
+		return builder.Sprintf("%d minutes ago", mins)
 	case d < 2*time.Hour:
 		return "1 hour ago"
 	case d < 24*time.Hour:
 		hrs := int(d / time.Hour)
-		return whatsrook.Sprintf("%d hours ago", hrs)
+		return builder.Sprintf("%d hours ago", hrs)
 	case d < 48*time.Hour:
 		return "yesterday"
 	case d < 7*24*time.Hour:
 		days := int(d / (24 * time.Hour))
-		return whatsrook.Sprintf("%d days ago", days)
+		return builder.Sprintf("%d days ago", days)
 	default:
 		return "on " + t.Format("Jan 2")
 	}
@@ -342,10 +344,10 @@ func setAFKStatus(ctx *dispatch.Context, s *dispatch.StoreWrapper, reason string
 	// instant twice under two labels just reads as a duplicate/bug).
 	var lastAvailableLine string
 	if now.Sub(lastActive) > time.Minute {
-		lastAvailableLine = whatsrook.Sprintf("They were last around %s.\n", humanRelativeTime(lastActive))
+		lastAvailableLine = builder.Sprintf("They were last around %s.\n", humanRelativeTime(lastActive))
 	}
 
-	msg := whatsrook.Sprintf(
+	msg := builder.Sprintf(
 		"AFK mode is on now.\n%s\nReason: %s\n\nSay `%safk back` or `%safk off` to switch it off.",
 		lastAvailableLine, reason, p, p,
 	)

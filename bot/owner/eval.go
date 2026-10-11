@@ -5,6 +5,7 @@ package owner
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -14,10 +15,11 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/logger"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/tools"
+
+	"github.com/thruqe/whatsrook"
 )
 
 const (
@@ -117,6 +119,76 @@ func handleEvalCommand(ctx *dispatch.Context) error {
 	return nil
 }
 
+// EvalResult contains the result, output, and full type and reflection metadata of an eval run.
+type EvalResult struct {
+	Value       string
+	Type        string
+	ReturnType  string
+	ResultType  string
+	CalledFunc  string
+	FuncType    string
+	FuncParams  []string
+	IsFunction  bool
+	ConsoleLogs string
+}
+
+// FormatForReply formats the evaluation result into a Markdown reply with type, return type,
+// and function metadata for the WhatsApp "$" command.
+func (r *EvalResult) FormatForReply() string {
+	var sb strings.Builder
+
+	if r.ConsoleLogs != "" {
+		sb.WriteString("*Console Log:*\n```\n")
+		sb.WriteString(r.ConsoleLogs)
+		sb.WriteString("\n```\n\n")
+	}
+
+	sb.WriteString("*Eval Output:*\n")
+
+	if r.IsFunction {
+		if r.CalledFunc != "" {
+			sb.WriteString(fmt.Sprintf("• *Function:* `%s`\n", r.CalledFunc))
+		}
+		if r.FuncType != "" {
+			sb.WriteString(fmt.Sprintf("• *Type:* `%s`\n", r.FuncType))
+		}
+		if r.ReturnType != "" {
+			sb.WriteString(fmt.Sprintf("• *Return Type:* `%s`\n", r.ReturnType))
+		}
+		if len(r.FuncParams) > 0 {
+			sb.WriteString(fmt.Sprintf("• *Parameters:* `(%s)`\n", strings.Join(r.FuncParams, ", ")))
+		}
+		return strings.TrimSpace(sb.String())
+	}
+
+	if r.CalledFunc != "" {
+		sb.WriteString(fmt.Sprintf("• *Function:* `%s`\n", r.CalledFunc))
+		if r.FuncType != "" {
+			sb.WriteString(fmt.Sprintf("• *Function Type:* `%s`\n", r.FuncType))
+		}
+		if r.ReturnType != "" {
+			sb.WriteString(fmt.Sprintf("• *Return Type:* `%s`\n", r.ReturnType))
+		}
+		if r.ResultType != "" {
+			sb.WriteString(fmt.Sprintf("• *Result Type:* `%s`\n", r.ResultType))
+		}
+	} else if r.ResultType != "" && r.ResultType != "nil" {
+		sb.WriteString(fmt.Sprintf("• *Type:* `%s`\n", r.ResultType))
+	}
+
+	val := r.Value
+	if val == "" {
+		sb.WriteString("`(executed successfully, undefined)`")
+	} else {
+		if runes := []rune(val); len(runes) > maxEvalOutputChars {
+			val = string(runes[:maxEvalOutputChars]) + "\n... (truncated)"
+		}
+		sb.WriteString(fmt.Sprintf("```\n%s\n```", val))
+	}
+
+	return strings.TrimSpace(sb.String())
+}
+
 func executeAndReplyEval(ctx *dispatch.Context, code string, isGrol bool) {
 	go func() {
 		defer func() {
@@ -126,36 +198,52 @@ func executeAndReplyEval(ctx *dispatch.Context, code string, isGrol bool) {
 			}
 		}()
 
-		var result string
-		var err error
-
 		if isGrol {
-			result, err = executeGrolEval(ctx, code)
-		} else {
-			result, err = executeJavaScriptEval(ctx, code)
+			result, err := executeGrolEval(ctx, code)
+			if err != nil {
+				_ = ctx.Replyf("*Eval Error:*\n```\n%v\n```", err)
+				return
+			}
+			if result == "" {
+				_ = ctx.Reply("*Eval Output:* `(executed successfully, undefined)`")
+				return
+			}
+			if runes := []rune(result); len(runes) > maxEvalOutputChars {
+				result = string(runes[:maxEvalOutputChars]) + "\n... (truncated)"
+			}
+			_ = ctx.Replyf("*Eval Output:*\n```\n%s\n```", result)
+			return
 		}
 
+		res, err := executeJavaScriptEvalDetailed(ctx, code)
 		if err != nil {
 			_ = ctx.Replyf("*Eval Error:*\n```\n%v\n```", err)
 			return
 		}
 
-		if result == "" {
-			_ = ctx.Reply("*Eval Output:* `(executed successfully, undefined)`")
-			return
-		}
-
-		if runes := []rune(result); len(runes) > maxEvalOutputChars {
-			result = string(runes[:maxEvalOutputChars]) + "\n... (truncated)"
-		}
-
-		_ = ctx.Replyf("*Eval Output:*\n```\n%s\n```", result)
+		_ = ctx.Reply(res.FormatForReply())
 	}()
 }
 
-// executeJavaScriptEval executes code in a sandboxed Goja JavaScript runtime.
+// executeJavaScriptEval executes code in a sandboxed Goja runtime and returns the raw string result.
 func executeJavaScriptEval(ctx *dispatch.Context, code string) (string, error) {
+	detailed, err := executeJavaScriptEvalDetailed(ctx, code)
+	if err != nil {
+		return "", err
+	}
+	if detailed.ConsoleLogs != "" && detailed.Value != "" {
+		return detailed.ConsoleLogs + "\n" + detailed.Value, nil
+	}
+	if detailed.Value != "" {
+		return detailed.Value, nil
+	}
+	return detailed.ConsoleLogs, nil
+}
+
+// executeJavaScriptEvalDetailed executes code and captures full type, return type, function metadata, and console logs.
+func executeJavaScriptEvalDetailed(ctx *dispatch.Context, code string) (*EvalResult, error) {
 	vm := goja.New()
+	tracker := NewEvalTracker()
 
 	// Set execution deadline
 	timer := time.AfterFunc(maxEvalTimeout, func() {
@@ -184,17 +272,29 @@ func executeJavaScriptEval(ctx *dispatch.Context, code string) (string, error) {
 	_ = vm.Set("console", consoleObj)
 	_ = vm.Set("print", logFn)
 
-	// Built-in reply helper
-	_ = vm.Set("reply", func(call goja.FunctionCall) goja.Value {
+	// Built-in reply helper with metadata
+	tagAndSet(vm, vm.GlobalObject(), "reply", FunctionMetadata{
+		Name:       "reply",
+		Signature:  "(msg string)",
+		Type:       "func(msg string) bool",
+		ReturnType: "bool",
+		ParamTypes: []string{"string"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) > 0 {
 			msg := call.Arguments[0].String()
 			_ = ctx.Reply(msg)
 		}
-		return goja.Undefined()
-	})
+		return vm.ToValue(true)
+	}, tracker)
 
-	// JSON formatter helper
-	_ = vm.Set("json", func(call goja.FunctionCall) goja.Value {
+	// JSON formatter helper with metadata
+	tagAndSet(vm, vm.GlobalObject(), "json", FunctionMetadata{
+		Name:       "json",
+		Signature:  "(val any)",
+		Type:       "func(val any) string",
+		ReturnType: "string",
+		ParamTypes: []string{"any"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			return vm.ToValue("")
 		}
@@ -204,10 +304,16 @@ func executeJavaScriptEval(ctx *dispatch.Context, code string) (string, error) {
 			return vm.ToValue(fmt.Sprintf("<json error: %v>", err))
 		}
 		return vm.ToValue(string(data))
-	})
+	}, tracker)
 
-	// Sleep helper
-	_ = vm.Set("sleep", func(call goja.FunctionCall) goja.Value {
+	// Sleep helper with metadata
+	tagAndSet(vm, vm.GlobalObject(), "sleep", FunctionMetadata{
+		Name:       "sleep",
+		Signature:  "(ms number)",
+		Type:       "func(ms number) void",
+		ReturnType: "void",
+		ParamTypes: []string{"number"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) > 0 {
 			ms := call.Arguments[0].ToInteger()
 			if ms > 0 && ms <= 10000 {
@@ -215,14 +321,14 @@ func executeJavaScriptEval(ctx *dispatch.Context, code string) (string, error) {
 			}
 		}
 		return goja.Undefined()
-	})
+	}, tracker)
 
 	// Build message and client objects
 	msgMap := buildEvalMessageMap(ctx)
 	_ = vm.Set("message", msgMap)
 	_ = vm.Set("m", msgMap)
 
-	clientObj, err := SetupEvalJavaScriptEnvironment(vm, ctx)
+	clientObj, err := SetupEvalJavaScriptEnvironment(vm, ctx, tracker)
 	if err == nil && clientObj != nil {
 		_ = vm.Set("client", clientObj)
 		_ = vm.Set("conn", clientObj)
@@ -231,7 +337,7 @@ func executeJavaScriptEval(ctx *dispatch.Context, code string) (string, error) {
 		_ = vm.Set("client", clientMap)
 		_ = vm.Set("conn", clientMap)
 	}
-	SetupGlobalConstants(vm, ctx)
+	SetupGlobalConstants(vm, ctx, tracker)
 	_ = vm.Set("ctx", ctx)
 
 	trimmedCode := strings.TrimSpace(code)
@@ -241,12 +347,41 @@ func executeJavaScriptEval(ctx *dispatch.Context, code string) (string, error) {
 		val, err = vm.RunString("(function() {\n" + trimmedCode + "\n})()")
 	}
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	output := strings.TrimSpace(logBuf.String())
+	evalRes := &EvalResult{
+		ConsoleLogs: strings.TrimSpace(logBuf.String()),
+	}
+
+	// Check if evaluated value is a function
+	if val != nil && !goja.IsUndefined(val) && !goja.IsNull(val) {
+		if meta := ExtractFunctionMetadata(val); meta != nil && (meta.Type != "" || meta.Name != "") {
+			evalRes.IsFunction = true
+			evalRes.CalledFunc = meta.Name
+			evalRes.FuncType = meta.Type
+			evalRes.ReturnType = meta.ReturnType
+			evalRes.FuncParams = meta.ParamTypes
+			evalRes.Value = meta.Type
+			return evalRes, nil
+		}
+	}
+
+	// Check if a function was invoked during execution
+	lastCall := tracker.LastCall()
+	if lastCall != nil {
+		evalRes.CalledFunc = lastCall.Name
+		evalRes.FuncType = lastCall.Type
+		evalRes.ReturnType = lastCall.ReturnType
+		evalRes.ResultType = lastCall.ResultType
+	}
+
 	if val != nil && !goja.IsUndefined(val) && !goja.IsNull(val) {
 		exported := val.Export()
+		if evalRes.ResultType == "" {
+			evalRes.ResultType = GetValueTypeName(exported)
+		}
+
 		var resStr string
 		switch v := exported.(type) {
 		case string:
@@ -260,14 +395,10 @@ func executeJavaScriptEval(ctx *dispatch.Context, code string) (string, error) {
 				resStr = fmt.Sprintf("%+v", v)
 			}
 		}
-
-		if output != "" {
-			return output + "\n" + resStr, nil
-		}
-		return resStr, nil
+		evalRes.Value = resStr
 	}
 
-	return output, nil
+	return evalRes, nil
 }
 
 // executeGrolEval executes code in the Grol runtime with message and client metadata.
@@ -288,6 +419,41 @@ func buildEvalMessageMap(c *dispatch.Context) map[string]any {
 		"timestamp": time.Now().Unix(),
 	}
 
+	// Direct message action shortcuts
+	m["reply"] = func(text string) error {
+		return c.Reply(text)
+	}
+	m["react"] = func(emoji string) error {
+		if c.Evt == nil || c.Client == nil {
+			return nil
+		}
+		reaction := c.Client.BuildReaction(c.Chat, c.Sender, c.Evt.Info.ID, emoji)
+		_, err := c.Client.SendMessage(c.GetSendContext(), c.Chat, reaction)
+		return err
+	}
+	m["delete"] = func() error {
+		if c.Evt == nil || c.Client == nil {
+			return nil
+		}
+		_, err := whatsrook.SendDelete(c.GetSendContext(), c.Client, c.Chat, c.Evt.Info.ID)
+		return err
+	}
+	m["download"] = func() (map[string]any, error) {
+		if c.Evt == nil || c.Evt.Message == nil || c.Client == nil {
+			return nil, fmt.Errorf("no message to download")
+		}
+		data, mime, err := whatsrook.Download(c.GetSendContext(), c.Client, c.Evt.Message)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{
+			"data":     data,
+			"mimetype": mime,
+			"size":     len(data),
+			"base64":   base64.StdEncoding.EncodeToString(data),
+		}, nil
+	}
+
 	if c.Evt != nil {
 		m["id"] = c.Evt.Info.ID
 		m["isFromMe"] = c.Evt.Info.IsFromMe
@@ -305,6 +471,24 @@ func buildEvalMessageMap(c *dispatch.Context) map[string]any {
 		}
 		if sender, ok := c.GetQuotedSender(); ok {
 			quotedMap["sender"] = sender.String()
+		}
+		quotedMap["reply"] = func(text string) error {
+			return c.Reply(text)
+		}
+		quotedMap["download"] = func() (map[string]any, error) {
+			if c.Client == nil {
+				return nil, fmt.Errorf("client unavailable")
+			}
+			data, mime, err := whatsrook.Download(c.GetSendContext(), c.Client, quoted)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{
+				"data":     data,
+				"mimetype": mime,
+				"size":     len(data),
+				"base64":   base64.StdEncoding.EncodeToString(data),
+			}, nil
 		}
 		m["quoted"] = quotedMap
 	}

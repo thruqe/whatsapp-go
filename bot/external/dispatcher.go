@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/thruqe/whatsrook/util/logger"
 	"io"
 	"net/http"
 	"os"
@@ -20,6 +19,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"whatsrook/bot/botctx"
+	"whatsrook/bot/logger"
+
+	"whatsrook/bot/builder"
 
 	"github.com/thruqe/whatsrook"
 
@@ -231,14 +234,14 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 	if isCancelRequest {
 		if d.CancelSession(chatKey, name, session) {
 			go func() {
-				_ = (&whatsrook.PluginContext{
+				_ = (&botctx.PluginContext{
 					Ctx: context.Background(), Client: client, Evt: evt,
 					Chat: evt.Info.Chat, Sender: evt.Info.Sender,
 				}).Replyf("🛑 Live %s tracking stopped.", name)
 			}()
 		} else {
 			go func() {
-				_ = (&whatsrook.PluginContext{
+				_ = (&botctx.PluginContext{
 					Ctx: context.Background(), Client: client, Evt: evt,
 					Chat: evt.Info.Chat, Sender: evt.Info.Sender,
 				}).Replyf("No active %s session running in this chat.", name)
@@ -252,7 +255,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 
 	// Launch execution in a non-blocking background goroutine
 	go func() {
-		plugCtx := &whatsrook.PluginContext{
+		plugCtx := &botctx.PluginContext{
 			Ctx:     ctx,
 			Client:  client,
 			Evt:     evt,
@@ -265,7 +268,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, client *whatsmeow.Client, evt
 
 		prefix := plugCtx.GetPrefix()
 		botName := plugCtx.GetBotName()
-		isSudo := whatsrook.IsSudoRaw(ctx, client, evt.Info.Sender)
+		isSudo := botctx.IsSudoRaw(ctx, client, evt.Info.Sender)
 		isOwner := plugCtx.IsOwner()
 
 		// Extract quoted message context if present
@@ -533,7 +536,7 @@ func (d *Dispatcher) InstallAll(ctx context.Context, session ...string) ([]strin
 	var failed []string
 	for res := range resChan {
 		if res.err != nil {
-			failed = append(failed, whatsrook.Sprintf("%s (%v)", res.name, res.err))
+			failed = append(failed, builder.Sprintf("%s (%v)", res.name, res.err))
 		} else {
 			installed = append(installed, res.name)
 		}

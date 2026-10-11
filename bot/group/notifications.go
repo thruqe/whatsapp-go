@@ -4,9 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/botctx"
+	"whatsrook/bot/builder"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/store"
+
+	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -54,21 +57,21 @@ func HandleEventsNotification(ctx context.Context, cli *whatsmeow.Client, g *eve
 	var actorJID *types.JID
 	if g.Sender != nil && !g.Sender.IsEmpty() {
 		actorJID = g.Sender
-		_, actorName := whatsrook.ResolveMentionRaw(ctx, cli, *g.Sender)
+		_, actorName := botctx.ResolveMentionRaw(ctx, cli, *g.Sender)
 		actorTag = " by @" + actorName
 	}
 
 	// 1. Group Subject / Name Changed
 	if g.Name != nil && g.Name.Name != "" {
 		logger.Debug("handleGroupEventsNotification: group name changed", "group", chatKey, "newName", g.Name.Name, "actor", actorTag)
-		msgText := whatsrook.Sprintf("*Group Event*: Group name changed to *%s*%s.", g.Name.Name, actorTag)
+		msgText := builder.Sprintf("*Group Event*: Group name changed to *%s*%s.", g.Name.Name, actorTag)
 		sendGroupEventMessage(ctx, cli, g.JID, msgText, actorJID)
 	}
 
 	// 2. Group Description / Topic Changed
 	if g.Topic != nil && g.Topic.Topic != "" {
 		logger.Debug("handleGroupEventsNotification: group topic changed", "group", chatKey, "actor", actorTag)
-		msgText := whatsrook.Sprintf("*Group Event*: Group description updated%s:\n%s", actorTag, g.Topic.Topic)
+		msgText := builder.Sprintf("*Group Event*: Group description updated%s:\n%s", actorTag, g.Topic.Topic)
 		sendGroupEventMessage(ctx, cli, g.JID, msgText, actorJID)
 	}
 
@@ -76,10 +79,10 @@ func HandleEventsNotification(ctx context.Context, cli *whatsmeow.Client, g *eve
 	if g.Announce != nil {
 		logger.Debug("handleGroupEventsNotification: group announce changed", "group", chatKey, "isAnnounce", g.Announce.IsAnnounce, "actor", actorTag)
 		if g.Announce.IsAnnounce {
-			msgText := whatsrook.Sprintf("*Group Event*: Group settings updated%s. Only admins can send messages now.", actorTag)
+			msgText := builder.Sprintf("*Group Event*: Group settings updated%s. Only admins can send messages now.", actorTag)
 			sendGroupEventMessage(ctx, cli, g.JID, msgText, actorJID)
 		} else {
-			msgText := whatsrook.Sprintf("*Group Event*: Group settings updated%s. All members can send messages now.", actorTag)
+			msgText := builder.Sprintf("*Group Event*: Group settings updated%s. All members can send messages now.", actorTag)
 			sendGroupEventMessage(ctx, cli, g.JID, msgText, actorJID)
 		}
 	}
@@ -88,10 +91,10 @@ func HandleEventsNotification(ctx context.Context, cli *whatsmeow.Client, g *eve
 	if g.Locked != nil {
 		logger.Debug("handleGroupEventsNotification: group lock changed", "group", chatKey, "isLocked", g.Locked.IsLocked, "actor", actorTag)
 		if g.Locked.IsLocked {
-			msgText := whatsrook.Sprintf("*Group Event*: Group settings locked%s. Only admins can edit group info.", actorTag)
+			msgText := builder.Sprintf("*Group Event*: Group settings locked%s. Only admins can edit group info.", actorTag)
 			sendGroupEventMessage(ctx, cli, g.JID, msgText, actorJID)
 		} else {
-			msgText := whatsrook.Sprintf("*Group Event*: Group settings unlocked%s. All members can edit group info.", actorTag)
+			msgText := builder.Sprintf("*Group Event*: Group settings unlocked%s. All members can edit group info.", actorTag)
 			sendGroupEventMessage(ctx, cli, g.JID, msgText, actorJID)
 		}
 	}
@@ -99,9 +102,9 @@ func HandleEventsNotification(ctx context.Context, cli *whatsmeow.Client, g *eve
 	// 5. Admin Promotions
 	if len(g.Promote) > 0 {
 		for _, userJID := range g.Promote {
-			resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, userJID)
+			resolvedJIDs, username := botctx.ResolveMentionJIDs(ctx, cli, userJID)
 			logger.Debug("handleGroupEventsNotification: participant promoted to admin", "group", chatKey, "user", username, "actor", actorTag)
-			msgText := whatsrook.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
+			msgText := builder.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
 			mentions := resolvedJIDs
 			if actorJID != nil && !actorJID.IsEmpty() {
 				mentions = append(mentions, *actorJID)
@@ -113,9 +116,9 @@ func HandleEventsNotification(ctx context.Context, cli *whatsmeow.Client, g *eve
 	// 6. Admin Demotions
 	if len(g.Demote) > 0 {
 		for _, userJID := range g.Demote {
-			resolvedJIDs, username := whatsrook.ResolveMentionJIDs(ctx, cli, userJID)
+			resolvedJIDs, username := botctx.ResolveMentionJIDs(ctx, cli, userJID)
 			logger.Debug("handleGroupEventsNotification: admin demoted to member", "group", chatKey, "user", username, "actor", actorTag)
-			msgText := whatsrook.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
+			msgText := builder.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
 			mentions := resolvedJIDs
 			if actorJID != nil && !actorJID.IsEmpty() {
 				mentions = append(mentions, *actorJID)
@@ -129,9 +132,9 @@ func HandleEventsNotification(ctx context.Context, cli *whatsmeow.Client, g *eve
 		logger.Debug("handleGroupEventsNotification: member add mode changed", "group", chatKey, "mode", *g.MemberAddMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberAddMode == types.GroupMemberAddModeAdmin {
-			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. Only admins can add members.", actorTag)
+			msgText = builder.Sprintf("*Group Event*: Group settings updated%s. Only admins can add members.", actorTag)
 		} else {
-			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. All members can add members.", actorTag)
+			msgText = builder.Sprintf("*Group Event*: Group settings updated%s. All members can add members.", actorTag)
 		}
 		sendGroupEventMessage(ctx, cli, g.JID, msgText, actorJID)
 	}
@@ -141,9 +144,9 @@ func HandleEventsNotification(ctx context.Context, cli *whatsmeow.Client, g *eve
 		logger.Debug("handleGroupEventsNotification: member link mode changed", "group", chatKey, "mode", *g.MemberLinkMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberLinkMode == types.GroupMemberLinkModeAdmin {
-			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. Only admins can manage invite links.", actorTag)
+			msgText = builder.Sprintf("*Group Event*: Group settings updated%s. Only admins can manage invite links.", actorTag)
 		} else {
-			msgText = whatsrook.Sprintf("*Group Event*: Group settings updated%s. All members can manage invite links.", actorTag)
+			msgText = builder.Sprintf("*Group Event*: Group settings updated%s. All members can manage invite links.", actorTag)
 		}
 		sendGroupEventMessage(ctx, cli, g.JID, msgText, actorJID)
 	}
@@ -153,9 +156,9 @@ func HandleEventsNotification(ctx context.Context, cli *whatsmeow.Client, g *eve
 		logger.Debug("handleGroupEventsNotification: member share history mode changed", "group", chatKey, "mode", *g.MemberShareHistoryMode, "actor", actorTag)
 		var msgText string
 		if *g.MemberShareHistoryMode == types.GroupMemberShareHistoryModeAdmin {
-			msgText = whatsrook.Sprintf("*Group Event*: Group history sharing updated%s. Only admins can share group history.", actorTag)
+			msgText = builder.Sprintf("*Group Event*: Group history sharing updated%s. Only admins can share group history.", actorTag)
 		} else {
-			msgText = whatsrook.Sprintf("*Group Event*: Group history sharing updated%s. Recent history is shared with new members.", actorTag)
+			msgText = builder.Sprintf("*Group Event*: Group history sharing updated%s. Recent history is shared with new members.", actorTag)
 		}
 		sendGroupEventMessage(ctx, cli, g.JID, msgText, actorJID)
 	}
@@ -165,9 +168,9 @@ func HandleEventsNotification(ctx context.Context, cli *whatsmeow.Client, g *eve
 		logger.Debug("handleGroupEventsNotification: allow non-admin subgroup creation changed", "group", chatKey, "allow", *g.AllowNonAdminSubGroupCreation, "actor", actorTag)
 		var msgText string
 		if *g.AllowNonAdminSubGroupCreation {
-			msgText = whatsrook.Sprintf("*Group Event*: Community settings updated%s. All members can create sub-groups now.", actorTag)
+			msgText = builder.Sprintf("*Group Event*: Community settings updated%s. All members can create sub-groups now.", actorTag)
 		} else {
-			msgText = whatsrook.Sprintf("*Group Event*: Community settings updated%s. Only admins can create sub-groups now.", actorTag)
+			msgText = builder.Sprintf("*Group Event*: Community settings updated%s. Only admins can create sub-groups now.", actorTag)
 		}
 		sendGroupEventMessage(ctx, cli, g.JID, msgText, actorJID)
 	}

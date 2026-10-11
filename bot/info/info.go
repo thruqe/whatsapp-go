@@ -12,16 +12,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/external"
-	"github.com/thruqe/whatsrook/util/httpx"
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/media"
-	"github.com/thruqe/whatsrook/util/system"
+	"whatsrook/bot/builder"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/external"
 	"whatsrook/bot/games"
+	"whatsrook/bot/httpx"
+	"whatsrook/bot/logger"
+	"whatsrook/bot/media"
 	"whatsrook/bot/settings"
+	"whatsrook/bot/system"
 	"whatsrook/bot/tools"
+
+	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -663,7 +665,7 @@ func buildMenuText(ctx *dispatch.Context, args []string) string {
 		prefix = ctx.GetPrefix()
 	}
 
-	introBuilder := whatsrook.NewText().
+	introBuilder := builder.NewText().
 		Header(botName).
 		Field("User", user).
 		Field("Prefix", prefix).
@@ -671,7 +673,7 @@ func buildMenuText(ctx *dispatch.Context, args []string) string {
 		Field("Mode", botMode).
 		Field("Uptime", uptime)
 
-	tb := whatsrook.NewText()
+	tb := builder.NewText()
 	tb.Line("```\n" + introBuilder.Trimmed() + "\n```")
 	tb.Blank()
 

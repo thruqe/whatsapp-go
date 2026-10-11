@@ -4,9 +4,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/thruqe/whatsrook/util/cache"
-	"github.com/thruqe/whatsrook/util/external"
+	"whatsrook/bot/cache"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/external"
 )
 
 func init() {

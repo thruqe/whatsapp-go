@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/thruqe/whatsrook/util/cache"
+	"whatsrook/bot/cache"
 
 	"github.com/thruqe/duosql"
 	"go.mau.fi/whatsmeow/store/sqlstore"

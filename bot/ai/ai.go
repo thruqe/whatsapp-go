@@ -11,10 +11,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/external"
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/botctx"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/external"
+	"whatsrook/bot/logger"
+
+	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow/types"
 )
@@ -840,8 +842,8 @@ func extractContextFromQuotedMessage(ctx *dispatch.Context, data *Data) {
 			data.UserOfQuotedMessage = quotedPushName
 			if data.ChatType == "group" {
 				for _, p := range data.GroupMetaData.Participants {
-					matches := (!quotedJID.IsEmpty() && whatsrook.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, quotedJID)) ||
-						(!quotedPNJID.IsEmpty() && whatsrook.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, quotedPNJID))
+					matches := (!quotedJID.IsEmpty() && botctx.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, quotedJID)) ||
+						(!quotedPNJID.IsEmpty() && botctx.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, quotedPNJID))
 					if matches {
 						switch {
 						case p.IsSuperAdmin:

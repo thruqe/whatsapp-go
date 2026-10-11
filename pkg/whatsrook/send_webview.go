@@ -1,4 +1,4 @@
-package send
+package whatsrook
 
 import (
 	"context"
@@ -124,14 +124,14 @@ func BuildWebviewMessage(opts WebviewMessageOpts) (*waE2E.Message, error) {
 	}, nil
 }
 
-// Webview sends a Native Flow in-app WebView button message.
-func Webview(ctx context.Context, client *whatsmeow.Client, chat types.JID, opts WebviewMessageOpts) error {
-	_, err := WebviewWithID(ctx, client, chat, opts)
+// SendWebview sends a Native Flow in-app WebView button message.
+func SendWebview(ctx context.Context, client *whatsmeow.Client, chat types.JID, opts WebviewMessageOpts) error {
+	_, err := SendWebviewWithID(ctx, client, chat, opts)
 	return err
 }
 
-// WebviewWithID sends a Native Flow in-app WebView button message and returns the assigned message ID.
-func WebviewWithID(ctx context.Context, client *whatsmeow.Client, chat types.JID, opts WebviewMessageOpts) (string, error) {
+// SendWebviewWithID sends a Native Flow in-app WebView button message and returns the assigned message ID.
+func SendWebviewWithID(ctx context.Context, client *whatsmeow.Client, chat types.JID, opts WebviewMessageOpts) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("client unavailable")
 	}
@@ -153,10 +153,10 @@ func WebviewWithID(ctx context.Context, client *whatsmeow.Client, chat types.JID
 
 // Webview sends an in-app WebView button message via the Sender instance.
 func (s *Sender) Webview(opts WebviewMessageOpts) error {
-	return Webview(s.getContext(), s.Client, s.Chat, opts)
+	return SendWebview(s.getContext(), s.Client, s.Chat, opts)
 }
 
 // WebviewWithID sends an in-app WebView button message via the Sender instance and returns the assigned message ID.
 func (s *Sender) WebviewWithID(opts WebviewMessageOpts) (string, error) {
-	return WebviewWithID(s.getContext(), s.Client, s.Chat, opts)
+	return SendWebviewWithID(s.getContext(), s.Client, s.Chat, opts)
 }

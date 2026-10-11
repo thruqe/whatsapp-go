@@ -1,12 +1,14 @@
 package chats
 
 import (
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/logger"
 	"strconv"
 	"strings"
 	"time"
+	"whatsrook/bot/botctx"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/logger"
+
+	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow/appstate"
 	waBinary "go.mau.fi/whatsmeow/binary"
@@ -130,7 +132,7 @@ func handlePin(ctx *dispatch.Context) error {
 		quotedSender, ok := ctx.GetQuotedSender()
 		quotedFromMe := false
 		if ok && ctx.Client.Store.ID != nil {
-			quotedFromMe = whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
+			quotedFromMe = botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
 		}
 
 		var participantStr *string
@@ -191,7 +193,7 @@ func handleUnpin(ctx *dispatch.Context) error {
 		quotedSender, ok := ctx.GetQuotedSender()
 		quotedFromMe := false
 		if ok && ctx.Client.Store.ID != nil {
-			quotedFromMe = whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
+			quotedFromMe = botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
 		}
 
 		var participantStr *string
@@ -241,7 +243,7 @@ func handleBlock(ctx *dispatch.Context) error {
 		return ctx.Reply("Groups cannot be blocked. The block command only applies to individual contacts.")
 	}
 
-	if whatsrook.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
+	if botctx.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
 		return ctx.Reply("You cannot block the bot owner or authorized sudo users.")
 	}
 
@@ -373,7 +375,7 @@ func handleDelete(ctx *dispatch.Context) error {
 }
 
 func isJIDSudo(ctx *dispatch.Context, jid types.JID) bool {
-	return whatsrook.IsSudoRaw(ctx.Ctx, ctx.Client, jid)
+	return botctx.IsSudoRaw(ctx.Ctx, ctx.Client, jid)
 }
 
 func handleReport(ctx *dispatch.Context) error {

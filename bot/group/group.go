@@ -12,12 +12,14 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/builder"
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/media"
+	"whatsrook/bot/botctx"
+	"whatsrook/bot/builder"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/logger"
+	"whatsrook/bot/media"
 	"whatsrook/bot/store"
+
+	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -314,7 +316,7 @@ func handleKick(ctx *dispatch.Context) error {
 	var kickedJIDs []types.JID
 	for _, target := range targets {
 		resolvedJID, username := ctx.ResolveMention(target)
-		if whatsrook.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
+		if botctx.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
 			_ = ctx.ReplyWithMentions(dispatch.Sprintf("I can't remove @%s because they are a bot owner/admin.", username), []types.JID{resolvedJID})
 			continue
 		}
@@ -429,7 +431,7 @@ func handleDemote(ctx *dispatch.Context) error {
 	var demotedJIDs []types.JID
 	for _, target := range targets {
 		resolvedJID, username := ctx.ResolveMention(target)
-		if whatsrook.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
+		if botctx.IsSudoRaw(ctx.Ctx, ctx.Client, target) {
 			_ = ctx.ReplyWithMentions(dispatch.Sprintf("I can't demote @%s because they are a bot owner/admin.", username), []types.JID{resolvedJID})
 			continue
 		}
@@ -1410,14 +1412,14 @@ func handleKickAll(ctx *dispatch.Context) error {
 	var toKick []types.JID
 	for _, p := range info.Participants {
 		if ctx.Client != nil && ctx.Client.Store != nil {
-			if ctx.Client.Store.ID != nil && whatsrook.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, *ctx.Client.Store.ID) {
+			if ctx.Client.Store.ID != nil && botctx.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, *ctx.Client.Store.ID) {
 				continue
 			}
-			if !ctx.Client.Store.LID.IsEmpty() && whatsrook.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Client.Store.LID) {
+			if !ctx.Client.Store.LID.IsEmpty() && botctx.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Client.Store.LID) {
 				continue
 			}
 		}
-		if whatsrook.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Sender) {
+		if botctx.ParticipantMatchesUser(ctx.Ctx, ctx.Client, p, ctx.Sender) {
 			continue
 		}
 		if ctx.IsTargetSudo(p.JID) || (!p.PhoneNumber.IsEmpty() && ctx.IsTargetSudo(p.PhoneNumber)) || (!p.LID.IsEmpty() && ctx.IsTargetSudo(p.LID)) {
@@ -1704,7 +1706,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 				continue
 			}
 			if !slices.ContainsFunc(displayUsers, func(existing types.JID) bool {
-				return whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj)
+				return botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj)
 			}) {
 				displayUsers = append(displayUsers, uj)
 			}
@@ -1750,7 +1752,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 			newUsers := make([]string, 0, len(users))
 			for _, uStr := range users {
 				uJID, err := types.ParseJID(uStr)
-				if err == nil && whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
+				if err == nil && botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
 					continue
 				}
 				newUsers = append(newUsers, uStr)
@@ -1807,7 +1809,7 @@ func handleAntiMsg(ctx *dispatch.Context) error {
 			isAlreadyTargeted := false
 			for _, uStr := range users {
 				uJID, err := types.ParseJID(uStr)
-				if err == nil && whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, resolvedTarget) {
+				if err == nil && botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, resolvedTarget) {
 					isAlreadyTargeted = true
 					break
 				}
@@ -1926,7 +1928,7 @@ func extractTargetParticipants(ctx *dispatch.Context, args []string) []types.JID
 		}
 		resolved := ctx.ResolvePN(j)
 		if !slices.ContainsFunc(targets, func(existing types.JID) bool {
-			return whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, resolved)
+			return botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, resolved)
 		}) {
 			targets = append(targets, resolved)
 		}
@@ -1935,7 +1937,7 @@ func extractTargetParticipants(ctx *dispatch.Context, args []string) []types.JID
 	if quotedSender, ok := ctx.GetQuotedSender(); ok && !quotedSender.IsEmpty() {
 		if ctx.Client != nil && ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
 			botJID := ctx.Client.Store.ID.ToNonAD()
-			if !whatsrook.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, botJID) {
+			if !botctx.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, botJID) {
 				addJID(quotedSender)
 			}
 		} else {
@@ -2393,7 +2395,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 				continue
 			}
 
-			isAdmin := whatsrook.IsBotAdminRaw(ctx, client, info)
+			isAdmin := botctx.IsBotAdminRaw(ctx, client, info)
 			logger.Debug("automute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
 
 			if !isAdmin {
@@ -2447,7 +2449,7 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 				continue
 			}
 
-			isAdmin := whatsrook.IsBotAdminRaw(ctx, client, info)
+			isAdmin := botctx.IsBotAdminRaw(ctx, client, info)
 			logger.Debug("autounmute: admin check", "group", groupJIDStr, "is_admin", isAdmin)
 
 			if !isAdmin {
@@ -2645,7 +2647,7 @@ func handleWarn(ctx *dispatch.Context) error {
 		return ctx.Replyf("Who would you like to warn?\n\n• Reply to their message with `%swarn`\n• Or type: `%swarn @user [reason]`\n• Or type: `%swarn <phone-number> [reason]`", p, p, p)
 	}
 
-	if whatsrook.IsSudoRaw(ctx.Ctx, ctx.Client, targetJID) {
+	if botctx.IsSudoRaw(ctx.Ctx, ctx.Client, targetJID) {
 		return ctx.Reply("You cannot issue warnings to bot owners or sudo users.")
 	}
 
@@ -3347,7 +3349,7 @@ func findPendingCaptcha(client *whatsmeow.Client, chat, sender types.JID) (*Pend
 		if p.UserJID.ToNonAD() == senderNonAD || p.ResolvedJID.ToNonAD() == senderNonAD || p.UserJID.User == senderNonAD.User || p.ResolvedJID.User == senderNonAD.User {
 			return p, true
 		}
-		if client != nil && whatsrook.IsSameUserRaw(context.Background(), client, p.UserJID, sender) {
+		if client != nil && botctx.IsSameUserRaw(context.Background(), client, p.UserJID, sender) {
 			return p, true
 		}
 	}
@@ -3419,10 +3421,10 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 		username := pending.Username
 		resolvedJID := pending.ResolvedJID
 		if username == "" {
-			resolvedJID, username = whatsrook.ResolveMentionRaw(ctx, client, pending.UserJID)
+			resolvedJID, username = botctx.ResolveMentionRaw(ctx, client, pending.UserJID)
 		}
 
-		pctx := &whatsrook.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
+		pctx := &botctx.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
 		tb := pctx.Text()
 		tb.Header("Verification Confirmed")
 		tb.Linef("Welcome to the group, @%s! You have successfully completed the verification check.", username)
@@ -3441,9 +3443,9 @@ func HandlePendingCaptchaReply(ctx context.Context, client *whatsmeow.Client, ev
 	}
 	if allDigits && (len(cleanText) == 4 || len(cleanText) == len(pending.Code)) {
 		logger.Debug("HandlePendingCaptchaReply: incorrect numeric attempt", "group", chat.String(), "sender", sender.String(), "attempt", cleanText, "expected", pending.Code)
-		resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, client, sender)
+		resolvedJID, username := botctx.ResolveMentionRaw(ctx, client, sender)
 
-		pctx := &whatsrook.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
+		pctx := &botctx.PluginContext{Ctx: ctx, Client: client, Chat: chat, Sender: sender}
 		tb := pctx.Text()
 		tb.Header("Incorrect Code")
 		tb.Linef("That code is incorrect, @%s. Please check the 4-digit code in the video clip and try again.", username)

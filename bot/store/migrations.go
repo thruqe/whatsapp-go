@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/logger"
 
 	"github.com/thruqe/duosql"
 	"go.mau.fi/util/dbutil"

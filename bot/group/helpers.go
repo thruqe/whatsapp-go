@@ -9,10 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/botctx"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/tools"
+
+	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
@@ -126,7 +128,7 @@ func HandleGroupModeration(c *dispatch.Context, text string) bool {
 					if err != nil {
 						continue
 					}
-					if whatsrook.IsSameUserRaw(ctx, client, uJID, c.Sender) {
+					if botctx.IsSameUserRaw(ctx, client, uJID, c.Sender) {
 						logger.Debug("antimsg: deleting message from targeted participant", "chat", chatStr, "sender", c.Sender.String())
 						_, _ = client.SendMessage(ctx, c.Chat, client.BuildRevoke(c.Chat, c.Sender, evt.Info.ID))
 						return true
@@ -140,7 +142,7 @@ func HandleGroupModeration(c *dispatch.Context, text string) bool {
 	rawAntiSpamStatus, _ := s.GetSetting(ctx, "antispam_status:"+chatStr)
 	if rawAntiSpamStatus == "on" {
 		info, err := client.GetGroupInfo(ctx, c.Chat)
-		if err == nil && !whatsrook.IsAdminRaw(ctx, client, info, sender) && !c.IsSudo() {
+		if err == nil && !botctx.IsAdminRaw(ctx, client, info, sender) && !c.IsSudo() {
 			rawMax, _ := s.GetSetting(ctx, "antispam_max:"+chatStr)
 			maxMsgs, _ := strconv.Atoi(rawMax)
 			if maxMsgs <= 0 {
@@ -151,13 +153,13 @@ func HandleGroupModeration(c *dispatch.Context, text string) bool {
 				if action == "" {
 					action = "delete"
 				}
-				botIsAdmin := whatsrook.IsBotAdminRaw(ctx, client, info)
+				botIsAdmin := botctx.IsBotAdminRaw(ctx, client, info)
 				if botIsAdmin {
 					_, _ = client.SendMessage(ctx, c.Chat, client.BuildRevoke(c.Chat, c.Sender, evt.Info.ID))
 					if action == "kick" {
 						_, _ = client.UpdateGroupParticipants(ctx, c.Chat, []types.JID{c.Sender}, whatsmeow.ParticipantChangeRemove)
 					}
-					resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, client, c.Sender)
+					resolvedJID, username := botctx.ResolveMentionRaw(ctx, client, c.Sender)
 					var textMsg string
 					if action == "kick" {
 						textMsg = dispatch.Sprintf("@%s was removed for sending messages too quickly (AntiSpam limit exceeded).", username)
@@ -201,7 +203,7 @@ func HandleGroupModeration(c *dispatch.Context, text string) bool {
 		return false
 	}
 
-	if whatsrook.IsAdminRaw(ctx, client, info, sender) || c.IsSudo() {
+	if botctx.IsAdminRaw(ctx, client, info, sender) || c.IsSudo() {
 		return false
 	}
 
@@ -249,10 +251,10 @@ func HandleGroupModeration(c *dispatch.Context, text string) bool {
 	}
 
 	if violation {
-		botIsAdmin := whatsrook.IsBotAdminRaw(ctx, client, info)
+		botIsAdmin := botctx.IsBotAdminRaw(ctx, client, info)
 		if botIsAdmin {
 			_, _ = client.SendMessage(ctx, c.Chat, client.BuildRevoke(c.Chat, c.Sender, evt.Info.ID))
-			resolvedJID, username := whatsrook.ResolveMentionRaw(ctx, client, c.Sender)
+			resolvedJID, username := botctx.ResolveMentionRaw(ctx, client, c.Sender)
 
 			actionKey := violationType + "_action:" + chatStr
 			action, _ := s.GetSetting(ctx, actionKey)

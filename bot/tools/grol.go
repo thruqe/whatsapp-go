@@ -20,8 +20,8 @@ import (
 	"grol.io/grol/object"
 	"grol.io/grol/repl"
 
-	"github.com/thruqe/whatsrook/util/logger"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/logger"
 )
 
 var (

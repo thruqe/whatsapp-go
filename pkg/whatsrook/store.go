@@ -16,8 +16,6 @@ import (
 
 	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
-
-	"github.com/thruqe/whatsrook/util/logger"
 )
 
 // SessionPurgerFunc defines a callback to purge custom bot domain data from the database.
@@ -96,29 +94,29 @@ func ResolvePostgresURL(dbConf string, sessionPhone ...string) string {
 
 // OpenStoreContainer opens a sqlstore.Container for Postgres or SQLite.
 func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPhone ...string) (*sqlstore.Container, error) {
-	waLogger := logger.NewWaLogger("database")
+	waLogger := defaultLogger
 
 	trimmedDB := strings.TrimSpace(database)
 	dbConn := ResolvePostgresURL(trimmedDB, sessionPhone...)
 
 	if strings.HasPrefix(dbConn, "postgres://") || strings.HasPrefix(dbConn, "postgresql://") {
-		logger.Debug("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(dbConn))
+		defaultLogger.Debugf("attempting connection to PostgreSQL database... url=%s", sanitizeDBURL(dbConn))
 		container, err := sqlstore.New(ctx, "postgres", dbConn, waLogger)
 		if err == nil && container != nil {
 			configureConnectionPool(container, dbConn)
-			logger.Debug("successfully connected to PostgreSQL database")
-			logger.Info("Database connected successfully")
+			defaultLogger.Debugf("successfully connected to PostgreSQL database")
+			defaultLogger.Infof("Database connected successfully")
 			return container, nil
 		}
 
 		if !strings.HasSuffix(dbConn, "?sslmode=disable") && !strings.Contains(dbConn, "sslmode=disable") {
 			disableURL := ensureSSLDisabled(dbConn)
-			logger.Warn("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable...", "err", err, "url", sanitizeDBURL(disableURL))
+			defaultLogger.Warnf("PostgreSQL SSL connection failed, attempting reconnection with sslmode=disable... err=%v url=%s", err, sanitizeDBURL(disableURL))
 			container, errDisable := sqlstore.New(ctx, "postgres", disableURL, waLogger)
 			if errDisable == nil && container != nil {
 				configureConnectionPool(container, disableURL)
-				logger.Debug("successfully connected to PostgreSQL database with sslmode=disable")
-				logger.Info("Database connected successfully")
+				defaultLogger.Debugf("successfully connected to PostgreSQL database with sslmode=disable")
+				defaultLogger.Infof("Database connected successfully")
 				return container, nil
 			}
 			return nil, fmt.Errorf("failed to connect to PostgreSQL (ssl retry also failed: %v): %w", errDisable, err)
@@ -146,7 +144,7 @@ func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPh
 		)
 	}
 
-	logger.Debug("attempting connection to SQLite database...", "dsn", sqliteDSN)
+	defaultLogger.Debugf("attempting connection to SQLite database... dsn=%s", sqliteDSN)
 	container, err := sqlstore.New(ctx, "sqlite", sqliteDSN, waLogger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
@@ -158,8 +156,8 @@ func OpenStoreContainer(ctx context.Context, dataDir, database string, sessionPh
 		db.RawDB.SetConnMaxLifetime(0)
 	}
 
-	logger.Debug("successfully initialized SQLite database store")
-	logger.Info("Database connected successfully")
+	defaultLogger.Debugf("successfully initialized SQLite database store")
+	defaultLogger.Infof("Database connected successfully")
 	return container, nil
 }
 
@@ -192,7 +190,7 @@ func configureConnectionPool(container *sqlstore.Container, dbConn string) {
 			db.RawDB.SetMaxIdleConns(maxIdle)
 			db.RawDB.SetConnMaxLifetime(10 * time.Minute)
 			db.RawDB.SetConnMaxIdleTime(2 * time.Minute)
-			logger.Debug("Configured database connection pool", "max_open", maxOpen, "max_idle", maxIdle)
+			defaultLogger.Debugf("Configured database connection pool max_open=%d max_idle=%d", maxOpen, maxIdle)
 		}
 	}
 }

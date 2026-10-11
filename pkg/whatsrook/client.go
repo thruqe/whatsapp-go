@@ -17,15 +17,7 @@ import (
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
-
-	"github.com/thruqe/whatsrook/util/botctx"
-	"github.com/thruqe/whatsrook/util/cache"
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/message"
-	"github.com/thruqe/whatsrook/util/qr"
-	"github.com/thruqe/whatsrook/util/send"
-	"github.com/thruqe/whatsrook/util/system"
-	"github.com/thruqe/whatsrook/util/webp"
+	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
 // ClientType defines the companion platform personality.
@@ -65,6 +57,8 @@ type Config struct {
 	Business        bool
 	Verbose         bool
 	AsyncMessageAck bool
+	Logger          waLog.Logger
+	ExternalCache   store.ByteCache
 }
 
 // Client wraps whatsmeow.Client with lightweight session management.
@@ -80,6 +74,9 @@ type Client struct {
 func NewClient(cfg Config) *Client {
 	if cfg.DataDir == "" {
 		cfg.DataDir = DefaultDataDir()
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = defaultLogger
 	}
 	return &Client{
 		Config: cfg,
@@ -115,12 +112,16 @@ func (c *Client) InitSession(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get device store: %w", err)
 	}
-	deviceStore.ExternalCache = cache.Default()
+	if c.Config.ExternalCache != nil {
+		deviceStore.ExternalCache = c.Config.ExternalCache
+	}
 
-	waLogger := logger.NewWaLogger("client")
+	waLogger := c.Config.Logger
+	if waLogger == nil {
+		waLogger = defaultLogger
+	}
 	cli := whatsmeow.NewClient(deviceStore, waLogger)
 	cli.AsyncMessageAck = c.Config.AsyncMessageAck
-	cli.SetCallLogger(logger.ZerologStyle("wacaller"))
 
 	isBusiness := c.Config.Business || (deviceStore != nil && (deviceStore.BusinessName != "" || strings.HasPrefix(strings.ToLower(deviceStore.Platform), "smb")))
 	ConfigureCompanionPlatform(c.Config.ClientType, isBusiness)
@@ -329,8 +330,8 @@ func (c *Client) PairPhone(ctx context.Context, phone string) (string, error) {
 		return "", fmt.Errorf("invalid phone number: cannot be empty")
 	}
 
-	logger.Debug("initiating companion device phone pairing...", "phone", cleanPhone)
-	logger.Info("Requesting pairing code from WhatsApp...")
+	defaultLogger.Debugf("initiating companion device phone pairing... phone=%s", cleanPhone)
+	defaultLogger.Infof("Requesting pairing code from WhatsApp...")
 
 	if !cli.IsConnected() {
 		if err := cli.Connect(); err != nil {
@@ -343,8 +344,8 @@ func (c *Client) PairPhone(ctx context.Context, phone string) (string, error) {
 		return "", fmt.Errorf("phone pairing request failed: %w", err)
 	}
 
-	logger.Debug("pairing code generated successfully", "phone", cleanPhone, "code", code)
-	logger.Info("Pairing code generated successfully")
+	defaultLogger.Debugf("pairing code generated successfully phone=%s code=%s", cleanPhone, code)
+	defaultLogger.Infof("Pairing code generated successfully")
 	return code, nil
 }
 
@@ -383,135 +384,3 @@ func DefaultDataDir() string {
 	}
 	return filepath.Join(home, ".whatsrook")
 }
-
-// Re-exports for convenience
-var (
-	NewMemoryStore       = cache.NewMemoryStore
-	InitCache            = cache.Init
-	NewWaLogger          = logger.NewWaLogger
-	GetSystemStats       = system.GetStats
-	FormatBytes          = system.FormatBytes
-	AddStickerMetadata   = webp.AddStickerMetadata
-	WriteStickerMetadata = webp.WriteStickerMetadata
-	EncodePNG            = qr.EncodePNG
-	StartQRServer        = qr.StartServer
-)
-
-type (
-	PluginContext      = botctx.PluginContext
-	SettingGetter      = botctx.SettingGetter
-	SettingSetter      = botctx.SettingSetter
-	SettingDeleter     = botctx.SettingDeleter
-	RecentMessageCache = message.RecentMessageCache
-	AlbumMediaItem     = send.AlbumMediaItem
-	Sender             = send.Sender
-)
-
-var (
-	GlobalSettingGetter  SettingGetter
-	GlobalSettingSetter  SettingSetter
-	GlobalSettingDeleter SettingDeleter
-)
-
-func init() {
-	botctx.GlobalSettingGetter = func(ctx context.Context, client *whatsmeow.Client, key string) (string, error) {
-		if GlobalSettingGetter != nil {
-			return GlobalSettingGetter(ctx, client, key)
-		}
-		return "", nil
-	}
-	botctx.GlobalSettingSetter = func(ctx context.Context, client *whatsmeow.Client, key, value string) error {
-		if GlobalSettingSetter != nil {
-			return GlobalSettingSetter(ctx, client, key, value)
-		}
-		return nil
-	}
-	botctx.GlobalSettingDeleter = func(ctx context.Context, client *whatsmeow.Client, key string) error {
-		if GlobalSettingDeleter != nil {
-			return GlobalSettingDeleter(ctx, client, key)
-		}
-		return nil
-	}
-}
-
-var (
-	// Text formatting re-exports
-	Bold      = botctx.Bold
-	Boldf     = botctx.Boldf
-	Italic    = botctx.Italic
-	Italicf   = botctx.Italicf
-	Code      = botctx.Code
-	Codef     = botctx.Codef
-	CodeBlock = botctx.CodeBlock
-	Strike    = botctx.Strike
-	Strikef   = botctx.Strikef
-	Quote     = botctx.Quote
-	Quotef    = botctx.Quotef
-	NewText   = botctx.NewText
-	Sprintf   = botctx.Sprintf
-
-	// Message extraction and processing re-exports
-	GetMediaType                 = message.GetMediaType
-	ExtractMessageText           = message.ExtractMessageText
-	ExtractTextFromProto         = message.ExtractTextFromProto
-	ExtractMediaFromEvent        = message.ExtractMediaFromEvent
-	ExtractMedia                 = message.ExtractMedia
-	UnwrapMessageProto           = message.UnwrapMessageProto
-	GetContextInfoFromProto      = message.GetContextInfoFromProto
-	AttachContextInfo            = message.AttachContextInfo
-	StripContextInfo             = message.StripContextInfo
-	IsViewOnceMessage            = message.IsViewOnceMessage
-	ExtractViewOnceMessage       = message.ExtractViewOnceMessage
-	UnwrapAndSendViewOnceMessage = message.UnwrapAndSendViewOnceMessage
-	RemoveEmojis                 = message.RemoveEmojis
-	FormatTextResponseRaw        = message.FormatTextResponseRaw
-	EncodeProtoMessage           = message.EncodeProtoMessage
-	DecodeProtoMessage           = message.DecodeProtoMessage
-	RecordRecentMessage          = message.RecordRecentMessage
-	GetRecentMessageForJID       = message.GetRecentMessageForJID
-	GlobalRecentMessages         = message.GlobalRecentMessages
-
-	// Context, permission, and resolution re-exports
-	IsSudoRaw              = botctx.IsSudoRaw
-	IsAdminRaw             = botctx.IsAdminRaw
-	IsBotAdminRaw          = botctx.IsBotAdminRaw
-	IsSameUserRaw          = botctx.IsSameUserRaw
-	ParticipantMatchesUser = botctx.ParticipantMatchesUser
-	ResolveMentionJIDs     = botctx.ResolveMentionJIDs
-	ResolveMentionRaw      = botctx.ResolveMentionRaw
-	ResolveContactName     = botctx.ResolveContactName
-	GetClientSetting       = botctx.GetClientSetting
-	PutClientSetting       = botctx.PutClientSetting
-	DeleteClientSetting    = botctx.DeleteClientSetting
-
-	// Message sending re-exports
-	NewSender                = send.New
-	ResolveMentionJIDStrings = send.ResolveMentionJIDStrings
-	SendText                 = send.Text
-	SendTextWithID           = send.TextWithID
-	SendTextWithMentions     = send.TextWithMentions
-	SendReply                = send.Reply
-	SendReplyWithID          = send.ReplyWithID
-	SendReplyWithMentions    = send.ReplyWithMentions
-	SendImage                = send.Image
-	SendImageWithMentions    = send.ImageWithMentions
-	SendVideo                = send.Video
-	SendVideoGif             = send.VideoGif
-	SendVideoWithMentions    = send.VideoWithMentions
-	SendAudio                = send.Audio
-	SendDocument             = send.Document
-	SendSticker              = send.Sticker
-	SendAlbum                = send.Album
-	SendReact                = send.React
-	SendReactMessage         = send.ReactMessage
-	SendEdit                 = send.Edit
-	SendDelete               = send.Delete
-	SendWebview              = send.Webview
-	SendWebviewWithID        = send.WebviewWithID
-	BuildWebviewMessage      = send.BuildWebviewMessage
-	BuildWebviewPayload      = send.BuildWebviewPayload
-
-	// Interactive component dispatch re-exports
-	DispatchListSelection = botctx.DispatchListSelection
-	DispatchPollVoteEvent = botctx.DispatchPollVoteEvent
-)

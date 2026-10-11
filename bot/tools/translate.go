@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/thruqe/whatsrook/util/httpx"
-	"github.com/thruqe/whatsrook/util/logger"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/httpx"
+	"whatsrook/bot/logger"
 
 	"go.mau.fi/whatsmeow/types"
 )

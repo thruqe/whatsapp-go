@@ -1,7 +1,7 @@
 // dispatch package provides structured error handling and friendly error responses for commands.
 package dispatch
 
-import "github.com/thruqe/whatsrook/util/logger"
+import "whatsrook/bot/logger"
 
 // PluginError wraps user-facing command error messages with an optional underlying root cause.
 type PluginError struct {

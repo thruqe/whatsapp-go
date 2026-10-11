@@ -16,9 +16,10 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/send"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/logger"
+
+	"github.com/thruqe/whatsrook"
 )
 
 // DefaultGameServerURL is the default public URL where the games server is hosted.
@@ -193,7 +194,7 @@ func sendGamesMenuWebview(ctx *dispatch.Context, userJID types.JID, pushName str
 	q.Set("name", pushName)
 	menuURL := fmt.Sprintf("%s/?%s", baseURL, q.Encode())
 
-	return send.Webview(ctx.GetSendContext(), ctx.Client, ctx.Chat, send.WebviewMessageOpts{
+	return whatsrook.SendWebview(ctx.GetSendContext(), ctx.Client, ctx.Chat, whatsrook.WebviewMessageOpts{
 		Title: "🎮 WhatsRook Multiplayer Games",
 		Body: "Play live real-time multiplayer games against other players inside WhatsApp in-app browser!\n\n" +
 			"Available Games:\n" +
@@ -223,7 +224,7 @@ func buildGamesMenuMessage(userJID types.JID, pushName string) (*waE2E.Message, 
 	q.Set("name", pushName)
 	menuURL := fmt.Sprintf("%s/?%s", baseURL, q.Encode())
 
-	return send.BuildWebviewMessage(send.WebviewMessageOpts{
+	return whatsrook.BuildWebviewMessage(whatsrook.WebviewMessageOpts{
 		Title: "🎮 WhatsRook Multiplayer Games",
 		Body: "Play live real-time multiplayer games against other players inside WhatsApp in-app browser!\n\n" +
 			"Available Games:\n" +
@@ -264,13 +265,13 @@ func launchGame(ctx *dispatch.Context, gameType, gameTitle string) error {
 
 // buildGameWebviewPayload constructs the button JSON payload with verified webview hints.
 func buildGameWebviewPayload(displayText, targetURL string) (string, error) {
-	return send.BuildWebviewPayload(displayText, targetURL)
+	return whatsrook.BuildWebviewPayload(displayText, targetURL)
 }
 
 // sendGameWebview sends an in-app webview button matching the verified test command implementation.
 func sendGameWebview(ctx *dispatch.Context, gameTitle, sessionID, gameURL string, userJID types.JID) error {
 	if ctx.Client != nil {
-		err := send.Webview(ctx.GetSendContext(), ctx.Client, ctx.Chat, send.WebviewMessageOpts{
+		err := whatsrook.SendWebview(ctx.GetSendContext(), ctx.Client, ctx.Chat, whatsrook.WebviewMessageOpts{
 			Title: fmt.Sprintf("🎮 %s", gameTitle),
 			Body: fmt.Sprintf("Real-time multiplayer match session ready!\n\n"+
 				"• Game: %s\n"+
@@ -301,7 +302,7 @@ func sendGameWebview(ctx *dispatch.Context, gameTitle, sessionID, gameURL string
 
 // buildGameWebviewMessage constructs the direct interactive in-app webview message for a specific game session.
 func buildGameWebviewMessage(gameTitle, sessionID, gameURL string, userJID types.JID) (*waE2E.Message, error) {
-	return send.BuildWebviewMessage(send.WebviewMessageOpts{
+	return whatsrook.BuildWebviewMessage(whatsrook.WebviewMessageOpts{
 		Title: fmt.Sprintf("🎮 %s", gameTitle),
 		Body: fmt.Sprintf("Real-time multiplayer match session ready!\n\n"+
 			"• Game: %s\n"+

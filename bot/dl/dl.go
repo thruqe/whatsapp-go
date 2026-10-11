@@ -25,10 +25,10 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 
-	"github.com/thruqe/whatsrook/util/builder"
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/media"
+	"whatsrook/bot/builder"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/logger"
+	"whatsrook/bot/media"
 )
 
 func init() {

@@ -10,11 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/httpx"
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/media"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/httpx"
+	"whatsrook/bot/logger"
+	"whatsrook/bot/media"
+
+	"github.com/thruqe/whatsrook"
 )
 
 // ImageItem represents a single image to be fetched and delivered.

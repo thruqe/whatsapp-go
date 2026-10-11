@@ -9,26 +9,27 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/thruqe/whatsrook/util/builder"
-	"github.com/thruqe/whatsrook/util/send"
+	"whatsrook/bot/builder"
+
+	"github.com/thruqe/whatsrook"
 )
 
 // SendText sends a plain text message without quoting.
 func (c *PluginContext) SendText(text string) error {
 	c.StopAutoLoader()
-	return send.Text(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text))
+	return whatsrook.SendText(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text))
 }
 
 // SendTextWithMentions sends a text message with user mentions without quoting.
 func (c *PluginContext) SendTextWithMentions(text string, mentions []types.JID) error {
 	c.StopAutoLoader()
-	return send.TextWithMentions(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text), mentions)
+	return whatsrook.SendTextWithMentions(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text), mentions)
 }
 
 // SendTextWithID sends a plain text message and returns the assigned message ID.
 func (c *PluginContext) SendTextWithID(text string) (string, error) {
 	c.StopAutoLoader()
-	return send.TextWithID(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text))
+	return whatsrook.SendTextWithID(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text))
 }
 
 // SendTextWithGroupMention sends a text message with group mention without quoting.
@@ -54,7 +55,7 @@ func (c *PluginContext) SendTextWithGroupMention(text string) error {
 // Reply sends a quoted text reply to the triggering message.
 func (c *PluginContext) Reply(text string) error {
 	c.StopAutoLoader()
-	return send.Reply(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text), c.replyContextInfo())
+	return whatsrook.SendReply(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text), c.replyContextInfo())
 }
 
 // Replyf formats and sends a quoted text reply.
@@ -65,13 +66,13 @@ func (c *PluginContext) Replyf(format string, args ...any) error {
 // ReplyWithID sends a quoted text reply and returns the assigned message ID.
 func (c *PluginContext) ReplyWithID(text string) (string, error) {
 	c.StopAutoLoader()
-	return send.ReplyWithID(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text), c.replyContextInfo())
+	return whatsrook.SendReplyWithID(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text), c.replyContextInfo())
 }
 
 // ReplyWithMentions sends a quoted reply tagging mentioned user JIDs.
 func (c *PluginContext) ReplyWithMentions(text string, mentions []types.JID) error {
 	c.StopAutoLoader()
-	return send.ReplyWithMentions(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text), mentions, c.replyContextInfo())
+	return whatsrook.SendReplyWithMentions(c.GetSendContext(), c.Client, c.Chat, c.formatTextResponse(text), mentions, c.replyContextInfo())
 }
 
 // ReplyWithGroupMention sends a quoted reply with group mention.
@@ -101,136 +102,136 @@ func (c *PluginContext) ReplyWithGroupMention(text string) error {
 // SendImage sends an image without quoting.
 func (c *PluginContext) SendImage(data []byte, mimetype, caption string) error {
 	c.StopAutoLoader()
-	return send.Image(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption)
+	return whatsrook.SendImage(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption)
 }
 
 // SendImageWithMentions sends an image with mentions without quoting.
 func (c *PluginContext) SendImageWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error {
 	c.StopAutoLoader()
-	return send.ImageWithMentions(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, mentions)
+	return whatsrook.SendImageWithMentions(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, mentions)
 }
 
 // ReplyWithImage sends an image quoted to the triggering message.
 func (c *PluginContext) ReplyWithImage(data []byte, mimetype, caption string) error {
 	c.StopAutoLoader()
-	return send.Image(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, c.replyContextInfo())
+	return whatsrook.SendImage(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, c.replyContextInfo())
 }
 
 // ReplyWithImageWithMentions sends an image with mentions quoted to the triggering message.
 func (c *PluginContext) ReplyWithImageWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error {
 	c.StopAutoLoader()
-	return send.ImageWithMentions(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, mentions, c.replyContextInfo())
+	return whatsrook.SendImageWithMentions(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, mentions, c.replyContextInfo())
 }
 
 // SendVideo sends a video without quoting.
 func (c *PluginContext) SendVideo(data []byte, mimetype, caption string) error {
 	c.StopAutoLoader()
-	return send.Video(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption)
+	return whatsrook.SendVideo(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption)
 }
 
 // SendVideoGif sends a looping GIF video without quoting.
 func (c *PluginContext) SendVideoGif(data []byte, mimetype, caption string) error {
 	c.StopAutoLoader()
-	return send.VideoGif(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption)
+	return whatsrook.SendVideoGif(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption)
 }
 
 // SendVideoWithMentions sends a video with mentions without quoting.
 func (c *PluginContext) SendVideoWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error {
 	c.StopAutoLoader()
-	return send.VideoWithMentions(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, mentions, false)
+	return whatsrook.SendVideoWithMentions(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, mentions, false)
 }
 
 // ReplyWithVideo sends a video quoted to the triggering message.
 func (c *PluginContext) ReplyWithVideo(data []byte, mimetype, caption string) error {
 	c.StopAutoLoader()
-	return send.Video(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, c.replyContextInfo())
+	return whatsrook.SendVideo(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, c.replyContextInfo())
 }
 
 // ReplyWithVideoWithProgress sends a video quoted to the triggering message while reporting upload progress.
 func (c *PluginContext) ReplyWithVideoWithProgress(data []byte, mimetype, caption string, onProgress func(uploaded, total uint64)) error {
 	c.StopAutoLoader()
-	return send.VideoWithProgress(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, onProgress, c.replyContextInfo())
+	return whatsrook.SendVideoWithProgress(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, onProgress, c.replyContextInfo())
 }
 
 // ReplyWithVideoGif sends a GIF video quoted to the triggering message.
 func (c *PluginContext) ReplyWithVideoGif(data []byte, mimetype, caption string) error {
 	c.StopAutoLoader()
-	return send.VideoGif(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, c.replyContextInfo())
+	return whatsrook.SendVideoGif(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, c.replyContextInfo())
 }
 
 // ReplyWithVideoGifWithProgress sends a looping GIF video quoted to the triggering message while reporting upload progress.
 func (c *PluginContext) ReplyWithVideoGifWithProgress(data []byte, mimetype, caption string, onProgress func(uploaded, total uint64)) error {
 	c.StopAutoLoader()
-	return send.VideoGifWithProgress(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, onProgress, c.replyContextInfo())
+	return whatsrook.SendVideoGifWithProgress(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, onProgress, c.replyContextInfo())
 }
 
 // ReplyWithVideoWithMentions sends a video with mentions quoted to the triggering message.
 func (c *PluginContext) ReplyWithVideoWithMentions(data []byte, mimetype, caption string, mentions []types.JID) error {
 	c.StopAutoLoader()
-	return send.VideoWithMentions(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, mentions, false, c.replyContextInfo())
+	return whatsrook.SendVideoWithMentions(c.GetSendContext(), c.Client, c.Chat, data, mimetype, caption, mentions, false, c.replyContextInfo())
 }
 
 // SendAudio sends an audio file without quoting.
 func (c *PluginContext) SendAudio(data []byte, mimetype string) error {
 	c.StopAutoLoader()
-	return send.Audio(c.GetSendContext(), c.Client, c.Chat, data, mimetype)
+	return whatsrook.SendAudio(c.GetSendContext(), c.Client, c.Chat, data, mimetype)
 }
 
 // ReplyWithAudio sends an audio file quoted to the triggering message.
 func (c *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 	c.StopAutoLoader()
-	return send.Audio(c.GetSendContext(), c.Client, c.Chat, data, mimetype, c.replyContextInfo())
+	return whatsrook.SendAudio(c.GetSendContext(), c.Client, c.Chat, data, mimetype, c.replyContextInfo())
 }
 
 // SendDocument sends a document without quoting.
 func (c *PluginContext) SendDocument(data []byte, mimetype, filename, caption string) error {
 	c.StopAutoLoader()
-	return send.Document(c.GetSendContext(), c.Client, c.Chat, data, mimetype, filename, caption)
+	return whatsrook.SendDocument(c.GetSendContext(), c.Client, c.Chat, data, mimetype, filename, caption)
 }
 
 // ReplyWithDocument sends a document quoted to the triggering message.
 func (c *PluginContext) ReplyWithDocument(data []byte, mimetype, filename, caption string) error {
 	c.StopAutoLoader()
-	return send.Document(c.GetSendContext(), c.Client, c.Chat, data, mimetype, filename, caption, c.replyContextInfo())
+	return whatsrook.SendDocument(c.GetSendContext(), c.Client, c.Chat, data, mimetype, filename, caption, c.replyContextInfo())
 }
 
 // SendSticker sends a WebP sticker without quoting.
 func (c *PluginContext) SendSticker(data []byte) error {
 	c.StopAutoLoader()
-	return send.Sticker(c.GetSendContext(), c.Client, c.Chat, data, c.GetStickerPack(), c.GetStickerAuthor())
+	return whatsrook.SendSticker(c.GetSendContext(), c.Client, c.Chat, data, c.GetStickerPack(), c.GetStickerAuthor())
 }
 
 // ReplyWithSticker sends a WebP sticker quoted to the triggering message.
 func (c *PluginContext) ReplyWithSticker(data []byte) error {
 	c.StopAutoLoader()
-	return send.Sticker(c.GetSendContext(), c.Client, c.Chat, data, c.GetStickerPack(), c.GetStickerAuthor(), c.replyContextInfo())
+	return whatsrook.SendSticker(c.GetSendContext(), c.Client, c.Chat, data, c.GetStickerPack(), c.GetStickerAuthor(), c.replyContextInfo())
 }
 
-// AlbumMediaItem aliases send.AlbumMediaItem
-type AlbumMediaItem = send.AlbumMediaItem
+// AlbumMediaItem aliases whatsrook.AlbumMediaItem
+type AlbumMediaItem = whatsrook.AlbumMediaItem
 
 // SendAlbum sends multiple media items grouped as a WhatsApp album without quoting.
 func (c *PluginContext) SendAlbum(items []AlbumMediaItem) error {
 	c.StopAutoLoader()
-	return send.Album(c.GetSendContext(), c.Client, c.Chat, items)
+	return whatsrook.SendAlbum(c.GetSendContext(), c.Client, c.Chat, items)
 }
 
 // ReplyWithAlbum sends multiple media items grouped as a WhatsApp album quoted to the triggering message.
 func (c *PluginContext) ReplyWithAlbum(items []AlbumMediaItem) error {
 	c.StopAutoLoader()
-	return send.Album(c.GetSendContext(), c.Client, c.Chat, items, c.replyContextInfo())
+	return whatsrook.SendAlbum(c.GetSendContext(), c.Client, c.Chat, items, c.replyContextInfo())
 }
 
 // Edit edits an existing message.
 func (c *PluginContext) Edit(msgID types.MessageID, content any, extra ...whatsmeow.SendRequestExtra) (whatsmeow.SendResponse, error) {
 	c.StopAutoLoader()
-	return send.Edit(c.GetSendContext(), c.Client, c.Chat, msgID, content, extra...)
+	return whatsrook.SendEdit(c.GetSendContext(), c.Client, c.Chat, msgID, content, extra...)
 }
 
 // Delete deletes/revokes a message for everyone.
 func (c *PluginContext) Delete(msgID types.MessageID, senderJID ...types.JID) (whatsmeow.SendResponse, error) {
 	c.StopAutoLoader()
-	return send.Delete(c.GetSendContext(), c.Client, c.Chat, msgID, senderJID...)
+	return whatsrook.SendDelete(c.GetSendContext(), c.Client, c.Chat, msgID, senderJID...)
 }
 
 // React sends an emoji reaction to the triggering message.
@@ -239,12 +240,12 @@ func (c *PluginContext) React(emoji string) error {
 	if c.Evt != nil {
 		targetID = c.Evt.Info.ID
 	}
-	return send.ReactMessage(c.GetSendContext(), c.Client, c.Chat, targetID, emoji)
+	return whatsrook.SendReactMessage(c.GetSendContext(), c.Client, c.Chat, targetID, emoji)
 }
 
 // ReactMessage sends an emoji reaction to a specific target message ID.
 func (c *PluginContext) ReactMessage(targetID string, emoji string) error {
-	return send.ReactMessage(c.GetSendContext(), c.Client, c.Chat, targetID, emoji)
+	return whatsrook.SendReactMessage(c.GetSendContext(), c.Client, c.Chat, targetID, emoji)
 }
 
 // Text initializes a new TextBuilder bound to this PluginContext.
@@ -279,16 +280,16 @@ func (c *PluginContext) StartAutoLoader(delay ...time.Duration) {}
 func (c *PluginContext) StopAutoLoader() {}
 
 // SendWebview sends an in-app WebView button message.
-func (c *PluginContext) SendWebview(opts send.WebviewMessageOpts) error {
+func (c *PluginContext) SendWebview(opts whatsrook.WebviewMessageOpts) error {
 	c.StopAutoLoader()
-	return send.Webview(c.GetSendContext(), c.Client, c.Chat, opts)
+	return whatsrook.SendWebview(c.GetSendContext(), c.Client, c.Chat, opts)
 }
 
 // ReplyWebview sends an in-app WebView button message quoting the triggering message.
-func (c *PluginContext) ReplyWebview(opts send.WebviewMessageOpts) error {
+func (c *PluginContext) ReplyWebview(opts whatsrook.WebviewMessageOpts) error {
 	c.StopAutoLoader()
 	opts.Quoted = c.replyContextInfo()
-	return send.Webview(c.GetSendContext(), c.Client, c.Chat, opts)
+	return whatsrook.SendWebview(c.GetSendContext(), c.Client, c.Chat, opts)
 }
 
 var _ builder.Sender = (*PluginContext)(nil)

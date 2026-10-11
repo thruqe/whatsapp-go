@@ -5,9 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/thruqe/whatsrook"
 	"whatsrook/bot/dispatch"
 	cmdStore "whatsrook/bot/store"
+
+	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waAICommon"

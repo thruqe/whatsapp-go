@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thruqe/whatsrook/util/builder"
-	"github.com/thruqe/whatsrook/util/httpx"
+	"whatsrook/bot/builder"
+	"whatsrook/bot/httpx"
 )
 
 var funHTTPClient = httpx.NewClient(4 * time.Second)

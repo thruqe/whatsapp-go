@@ -8,7 +8,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 
-	"github.com/thruqe/whatsrook/util/message"
+	"github.com/thruqe/whatsrook"
 )
 
 // SettingGetter retrieves a setting value for a client and key from the database store.
@@ -200,7 +200,7 @@ func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) 
 			}
 		}
 		if senderPushName == "" {
-			if recent := message.GetRecentMessageForJID(sender); recent != nil && recent.Info.PushName != "" {
+			if recent := whatsrook.GetRecentMessageForJID(sender); recent != nil && recent.Info.PushName != "" {
 				senderPushName = strings.ToLower(recent.Info.PushName)
 			}
 		}

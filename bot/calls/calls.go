@@ -18,9 +18,9 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/builder"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/store"
 )
 
@@ -249,7 +249,7 @@ func handleCall(ctx *dispatch.Context) error {
 		}
 	}
 
-	body := whatsrook.Sprintf("Ready to call %s — how should I place it?", targetMention)
+	body := builder.Sprintf("Ready to call %s — how should I place it?", targetMention)
 	options := []string{"Audio Call", "Video Call"}
 	return dispatch.SendPollReplyWithMentions(ctx, body, options, []types.JID{targetJID})
 }
@@ -1099,7 +1099,7 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *di
 	data, err := client.Download(ctx, audioMsg)
 	if err != nil {
 		logger.Error("Download audio failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, whatsrook.Sprintf("Couldn't download that audio: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't download that audio: %v", err)); sendErr != nil {
 			logger.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1108,7 +1108,7 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *di
 	targetAudioDir := dispatch.GetSessionMediaDir(client, "call-audio")
 	if err := os.MkdirAll(targetAudioDir, 0o755); err != nil {
 		logger.Error("Failed creating audio directory", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, whatsrook.Sprintf("Couldn't set up storage for that: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't set up storage for that: %v", err)); sendErr != nil {
 			logger.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1121,7 +1121,7 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *di
 	path := filepath.Join(targetAudioDir, SanitizeJID(sender.String())+ext)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		logger.Error("File save failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, whatsrook.Sprintf("Couldn't save that audio: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't save that audio: %v", err)); sendErr != nil {
 			logger.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1130,7 +1130,7 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *di
 	path, err = TranscodeToMP3(path)
 	if err != nil {
 		logger.Error("Transcode failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, whatsrook.Sprintf("Couldn't process that audio: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't process that audio: %v", err)); sendErr != nil {
 			logger.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1155,7 +1155,7 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *di
 	data, err := client.Download(ctx, videoMsg)
 	if err != nil {
 		logger.Error("Download video failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, whatsrook.Sprintf("Couldn't download that video: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't download that video: %v", err)); sendErr != nil {
 			logger.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1164,7 +1164,7 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *di
 	targetVideoDir := dispatch.GetSessionMediaDir(client, "call-video")
 	if err := os.MkdirAll(targetVideoDir, 0o755); err != nil {
 		logger.Error("Failed creating video directory", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, whatsrook.Sprintf("Couldn't set up storage for that: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't set up storage for that: %v", err)); sendErr != nil {
 			logger.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1177,7 +1177,7 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *di
 	path := filepath.Join(targetVideoDir, SanitizeJID(sender.String())+ext)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		logger.Error("File save failed", "err", err)
-		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, whatsrook.Sprintf("Couldn't save that video: %v", err)); sendErr != nil {
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, builder.Sprintf("Couldn't save that video: %v", err)); sendErr != nil {
 			logger.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
@@ -1227,7 +1227,7 @@ func placeCallWithAudio(ctx *dispatch.Context, target, audioPath string) error {
 
 	call, err := client.Call(context.Background(), target)
 	if err != nil {
-		return ctx.ReplyWithMentions(whatsrook.Sprintf("Couldn't call %s: %v", userTag, err), []types.JID{mentionJID})
+		return ctx.ReplyWithMentions(builder.Sprintf("Couldn't call %s: %v", userTag, err), []types.JID{mentionJID})
 	}
 
 	// Drain incoming audio frames
@@ -1298,12 +1298,12 @@ func placeCallWithAudio(ctx *dispatch.Context, target, audioPath string) error {
 	call.OnMediaStart(startMedia)
 
 	call.OnEnd(func(reason string) {
-		if err := ctx.ReplyWithMentions(whatsrook.Sprintf("Call with %s ended — %s.", userTag, friendlyCallEndReason(reason)), []types.JID{mentionJID}); err != nil {
+		if err := ctx.ReplyWithMentions(builder.Sprintf("Call with %s ended — %s.", userTag, friendlyCallEndReason(reason)), []types.JID{mentionJID}); err != nil {
 			logHandlerErr("call", err)
 		}
 	})
 
-	return ctx.ReplyWithMentions(whatsrook.Sprintf("Calling %s…", userTag), []types.JID{mentionJID})
+	return ctx.ReplyWithMentions(builder.Sprintf("Calling %s…", userTag), []types.JID{mentionJID})
 }
 
 // friendlyCallEndReason translates whatsmeow's raw call-end reason code
@@ -1338,7 +1338,7 @@ func placeVideoCallWithMedia(ctx *dispatch.Context, target, videoPath string) er
 
 	call, err := client.CallWithOptions(context.Background(), target, whatsmeow.CallOptions{Video: true})
 	if err != nil {
-		return ctx.ReplyWithMentions(whatsrook.Sprintf("Couldn't start a video call with %s: %v", userTag, err), []types.JID{mentionJID})
+		return ctx.ReplyWithMentions(builder.Sprintf("Couldn't start a video call with %s: %v", userTag, err), []types.JID{mentionJID})
 	}
 
 	call.Receive(whatsmeow.SinkFunc(func(pcm []float32) {}))
@@ -1462,12 +1462,12 @@ func placeVideoCallWithMedia(ctx *dispatch.Context, target, videoPath string) er
 	})
 
 	call.OnEnd(func(reason string) {
-		if err := ctx.ReplyWithMentions(whatsrook.Sprintf("Video call with %s ended — %s.", userTag, friendlyCallEndReason(reason)), []types.JID{mentionJID}); err != nil {
+		if err := ctx.ReplyWithMentions(builder.Sprintf("Video call with %s ended — %s.", userTag, friendlyCallEndReason(reason)), []types.JID{mentionJID}); err != nil {
 			logHandlerErr("videocall", err)
 		}
 	})
 
-	return ctx.ReplyWithMentions(whatsrook.Sprintf("Video calling %s…", userTag), []types.JID{mentionJID})
+	return ctx.ReplyWithMentions(builder.Sprintf("Video calling %s…", userTag), []types.JID{mentionJID})
 }
 
 func openAudioSource(path string) (whatsmeow.AudioSource, error) {

@@ -13,11 +13,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/external"
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/system"
+	"whatsrook/bot/botctx"
+	"whatsrook/bot/external"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/store"
+	"whatsrook/bot/system"
+
+	"github.com/thruqe/whatsrook"
 
 	"go.mau.fi/whatsmeow"
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
@@ -114,7 +116,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	displayText := extractInteractionDisplayText(evt)
 	if text != "" {
-		if whatsrook.DispatchListSelection(cctx, text, displayText) {
+		if botctx.DispatchListSelection(cctx, text, displayText) {
 			return true
 		}
 	}
@@ -132,7 +134,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			"chat", evt.Info.Chat.String(),
 			"sender", evt.Info.Sender.String(),
 		)
-		if whatsrook.DispatchPollVoteEvent(cctx, evt) {
+		if botctx.DispatchPollVoteEvent(cctx, evt) {
 			logger.Debug("Dispatcher: poll vote event successfully dispatched to reactive route",
 				"targetPollMsgID", targetID,
 				"chat", evt.Info.Chat.String(),

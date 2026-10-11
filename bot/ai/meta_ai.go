@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thruqe/whatsrook/util/builder"
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/builder"
+	"whatsrook/bot/logger"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"

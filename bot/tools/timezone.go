@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thruqe/whatsrook/util/builder"
+	"whatsrook/bot/builder"
 )
 
 type WindowsTZEntry struct {

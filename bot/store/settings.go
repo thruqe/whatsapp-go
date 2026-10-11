@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/thruqe/whatsrook/util/cache"
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/cache"
+	"whatsrook/bot/logger"
 
 	"github.com/thruqe/duosql"
 	"go.mau.fi/whatsmeow/store/sqlstore"

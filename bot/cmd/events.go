@@ -9,17 +9,18 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/thruqe/whatsrook/util/logger"
-	"github.com/thruqe/whatsrook/util/system"
+	"whatsrook/bot/logger"
+	"whatsrook/bot/system"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/qr"
 	"whatsrook/bot/calls"
 	"whatsrook/bot/dispatch"
 	"whatsrook/bot/group"
 	"whatsrook/bot/info"
+	"whatsrook/bot/qr"
 	"whatsrook/bot/settings"
 	"whatsrook/bot/store"
+
+	"github.com/thruqe/whatsrook"
 
 	_ "whatsrook/bot/ai"
 	_ "whatsrook/bot/business"

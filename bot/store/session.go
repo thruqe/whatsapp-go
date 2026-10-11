@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"whatsrook/bot/cache"
+	"whatsrook/bot/logger"
+
 	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/cache"
-	"github.com/thruqe/whatsrook/util/logger"
 
 	"github.com/thruqe/duosql"
 	"go.mau.fi/util/dbutil"

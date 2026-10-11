@@ -11,8 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"whatsrook/bot/logger"
+
 	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/logger"
 
 	"github.com/thruqe/duosql"
 	"go.mau.fi/util/dbutil"

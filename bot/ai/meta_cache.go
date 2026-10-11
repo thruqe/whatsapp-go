@@ -5,8 +5,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/thruqe/whatsrook/util/builder"
-	"github.com/thruqe/whatsrook/util/cache"
+	"whatsrook/bot/builder"
+	"whatsrook/bot/cache"
 
 	"go.mau.fi/whatsmeow/types"
 )

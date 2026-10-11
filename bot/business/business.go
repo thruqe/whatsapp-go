@@ -1,11 +1,11 @@
 package business
 
 import (
-	"github.com/thruqe/whatsrook"
 	"strings"
 
-	"github.com/thruqe/whatsrook/util/httpx"
+	"whatsrook/bot/builder"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/httpx"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
@@ -100,10 +100,10 @@ func summarizeUniformHours(entries []types.BusinessHoursConfig) (string, bool) {
 	}
 	switch {
 	case first.OpenTime != "" && first.CloseTime != "":
-		return whatsrook.Sprintf("%s - %s (%s), every day", first.OpenTime, first.CloseTime, first.Mode), true
+		return builder.Sprintf("%s - %s (%s), every day", first.OpenTime, first.CloseTime, first.Mode), true
 	case first.Mode == "open_24h":
 		return "Open 24 hours, every day", true
 	default:
-		return whatsrook.Sprintf("%s, every day", first.Mode), true
+		return builder.Sprintf("%s, every day", first.Mode), true
 	}
 }

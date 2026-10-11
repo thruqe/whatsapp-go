@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/logger"
 	"whatsrook/bot/dispatch"
+	"whatsrook/bot/logger"
+
+	"github.com/thruqe/whatsrook"
 )
 
 const (

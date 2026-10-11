@@ -7,8 +7,8 @@ import (
 
 	"go.mau.fi/whatsmeow/types"
 
-	"github.com/thruqe/whatsrook"
-	"github.com/thruqe/whatsrook/util/external"
+	"whatsrook/bot/builder"
+	"whatsrook/bot/external"
 )
 
 const metaAiSystemPrompt = `[SYSTEM CONTEXT:
@@ -96,11 +96,11 @@ func BuildRunCommandInstructionWithNameAndPrefix(cmds []CommandInfo, botName, pr
 	promptTmpl = strings.ReplaceAll(promptTmpl, "WhatsRook", botName)
 	promptTmpl = strings.ReplaceAll(promptTmpl, "{PREFIX}", prefix)
 
-	cmdsTb := whatsrook.NewText()
+	cmdsTb := builder.NewText()
 	for _, c := range cmds {
 		aliasStr := ""
 		if c.Alias != "" {
-			aliasStr = whatsrook.Sprintf(" (alias: %s%s)", prefix, c.Alias)
+			aliasStr = builder.Sprintf(" (alias: %s%s)", prefix, c.Alias)
 		}
 		sudoStr := ""
 		if !c.IsPublic {
@@ -110,9 +110,9 @@ func BuildRunCommandInstructionWithNameAndPrefix(cmds []CommandInfo, botName, pr
 		nameLower := strings.ToLower(c.Name)
 		switch nameLower {
 		case "install":
-			desc = whatsrook.Sprintf("Install an official or custom external plugin (`%sinstall <name>` or `%sinstall all`). Official plugins: %s", prefix, prefix, strings.Join(external.OfficialPlugins, ", "))
+			desc = builder.Sprintf("Install an official or custom external plugin (`%sinstall <name>` or `%sinstall all`). Official plugins: %s", prefix, prefix, strings.Join(external.OfficialPlugins, ", "))
 		case "uninstall":
-			desc = whatsrook.Sprintf("Uninstall an extra plugin (`%suninstall <name>` or `%suninstall all`)", prefix, prefix)
+			desc = builder.Sprintf("Uninstall an extra plugin (`%suninstall <name>` or `%suninstall all`)", prefix, prefix)
 		default:
 			if len(desc) > 120 {
 				desc = desc[:117] + "..."
@@ -215,7 +215,7 @@ func RenderGroupContext(info types.GroupInfo) string {
 		return ""
 	}
 
-	tb := whatsrook.NewText().
+	tb := builder.NewText().
 		Line("[GROUP CONTEXT]")
 
 	if name != "" {
@@ -243,7 +243,7 @@ func RenderUserContext(d Data) string {
 		displayName = "User"
 	}
 
-	tb := whatsrook.NewText().
+	tb := builder.NewText().
 		Line("[USER CONTEXT]").
 		Linef("User: %s", displayName)
 
@@ -264,7 +264,7 @@ func RenderQuotedContext(d Data) string {
 		return ""
 	}
 
-	tb := whatsrook.NewText().
+	tb := builder.NewText().
 		Line("[REPLYING TO A MESSAGE — EXTRACTED CONTEXT]")
 
 	if d.UserOfQuotedMessage != "" {
@@ -298,7 +298,7 @@ func RenderCurrentMessage(d Data) string {
 		displayName = "User"
 	}
 
-	tb := whatsrook.NewText().
+	tb := builder.NewText().
 		Line("[CURRENT MESSAGE]")
 
 	tb.Linef("From: %s", displayName)
@@ -322,7 +322,7 @@ func RenderConversationHistory(history string) string {
 		return ""
 	}
 
-	tb := whatsrook.NewText().
+	tb := builder.NewText().
 		Line("[RECENT CONVERSATION HISTORY]").
 		Line(history).
 		Line("[/RECENT CONVERSATION HISTORY]").

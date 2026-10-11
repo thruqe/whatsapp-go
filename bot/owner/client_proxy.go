@@ -19,14 +19,22 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/thruqe/whatsrook/util/message"
-	"github.com/thruqe/whatsrook/util/send"
 	"whatsrook/bot/dispatch"
+
+	"github.com/thruqe/whatsrook"
 )
 
 // SetupEvalJavaScriptEnvironment registers Baileys-style client proxies, protobuf builders,
-// utility globals, and reflection methods into the Goja runtime.
-func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*goja.Object, error) {
+// utility globals, reflection methods, and extended tools into the Goja runtime.
+func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context, trackerOpt ...*EvalContextTracker) (*goja.Object, error) {
+	var tracker *EvalContextTracker
+	if len(trackerOpt) > 0 && trackerOpt[0] != nil {
+		tracker = trackerOpt[0]
+	}
+
+	// Register extended tools (fetch, exec, fs, crypto, store, system, type inspection)
+	RegisterEvalExtendedTools(vm, ctx, tracker)
+
 	clientObj := vm.NewObject()
 
 	// 1. Core metadata properties
@@ -44,30 +52,52 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 		return ctx.Client != nil && ctx.Client.IsLoggedIn()
 	})
 
-	// 2. High-level messaging shortcuts
-	_ = clientObj.Set("reply", func(call goja.FunctionCall) goja.Value {
+	// 2. High-level messaging shortcuts with function metadata
+	tagAndSet(vm, clientObj, "reply", FunctionMetadata{
+		Name:       "reply",
+		Signature:  "(text string)",
+		Type:       "func(text string) bool",
+		ReturnType: "bool",
+		ParamTypes: []string{"string"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			return goja.Undefined()
 		}
 		text := call.Arguments[0].String()
 		_ = ctx.Reply(text)
 		return vm.ToValue(true)
-	})
+	}, tracker)
 
-	_ = clientObj.Set("react", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "react", FunctionMetadata{
+		Name:       "react",
+		Signature:  "(emoji string, [msgID string])",
+		Type:       "func(emoji string, [msgID string]) bool",
+		ReturnType: "bool",
+		ParamTypes: []string{"string", "string?"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || ctx.Evt == nil {
 			return goja.Undefined()
 		}
 		emoji := call.Arguments[0].String()
-		reaction := ctx.Client.BuildReaction(ctx.Chat, ctx.Sender, ctx.Evt.Info.ID, emoji)
+		targetMsgID := ctx.Evt.Info.ID
+		if len(call.Arguments) > 1 && call.Arguments[1].String() != "" {
+			targetMsgID = types.MessageID(call.Arguments[1].String())
+		}
+		reaction := ctx.Client.BuildReaction(ctx.Chat, ctx.Sender, targetMsgID, emoji)
 		_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, reaction)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
-	})
+	}, tracker)
 
-	_ = clientObj.Set("sendText", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "sendText", FunctionMetadata{
+		Name:       "sendText",
+		Signature:  "(to string|JID, text string)",
+		Type:       "func(to string|JID, text string) bool",
+		ReturnType: "bool",
+		ParamTypes: []string{"string|JID", "string"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 2 {
 			panic(vm.ToValue("sendText requires (to, text)"))
 		}
@@ -76,14 +106,20 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 			panic(vm.NewGoError(err))
 		}
 		text := call.Arguments[1].String()
-		err = send.Text(ctx.GetSendContext(), ctx.Client, toJID, text)
+		err = whatsrook.SendText(ctx.GetSendContext(), ctx.Client, toJID, text)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
-	})
+	}, tracker)
 
-	_ = clientObj.Set("sendImage", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "sendImage", FunctionMetadata{
+		Name:       "sendImage",
+		Signature:  "(to string|JID, dataOrUrl any, [caption string])",
+		Type:       "func(to string|JID, dataOrUrl any, [caption string]) bool",
+		ReturnType: "bool",
+		ParamTypes: []string{"string|JID", "any", "string?"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 2 {
 			panic(vm.ToValue("sendImage requires (to, dataOrUrl, [caption])"))
 		}
@@ -99,14 +135,20 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 		if len(call.Arguments) > 2 {
 			caption = call.Arguments[2].String()
 		}
-		err = send.Image(ctx.GetSendContext(), ctx.Client, toJID, data, mime, caption)
+		err = whatsrook.SendImage(ctx.GetSendContext(), ctx.Client, toJID, data, mime, caption)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
-	})
+	}, tracker)
 
-	_ = clientObj.Set("sendVideo", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "sendVideo", FunctionMetadata{
+		Name:       "sendVideo",
+		Signature:  "(to string|JID, dataOrUrl any, [caption string])",
+		Type:       "func(to string|JID, dataOrUrl any, [caption string]) bool",
+		ReturnType: "bool",
+		ParamTypes: []string{"string|JID", "any", "string?"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 2 {
 			panic(vm.ToValue("sendVideo requires (to, dataOrUrl, [caption])"))
 		}
@@ -122,14 +164,20 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 		if len(call.Arguments) > 2 {
 			caption = call.Arguments[2].String()
 		}
-		err = send.Video(ctx.GetSendContext(), ctx.Client, toJID, data, mime, caption)
+		err = whatsrook.SendVideo(ctx.GetSendContext(), ctx.Client, toJID, data, mime, caption)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
-	})
+	}, tracker)
 
-	_ = clientObj.Set("sendAudio", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "sendAudio", FunctionMetadata{
+		Name:       "sendAudio",
+		Signature:  "(to string|JID, dataOrUrl any, [ptt bool])",
+		Type:       "func(to string|JID, dataOrUrl any, [ptt bool]) bool",
+		ReturnType: "bool",
+		ParamTypes: []string{"string|JID", "any", "bool?"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 2 {
 			panic(vm.ToValue("sendAudio requires (to, dataOrUrl, [ptt])"))
 		}
@@ -149,14 +197,20 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
-		err = send.Audio(ctx.GetSendContext(), ctx.Client, toJID, data, mime)
+		err = whatsrook.SendAudio(ctx.GetSendContext(), ctx.Client, toJID, data, mime)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
-	})
+	}, tracker)
 
-	_ = clientObj.Set("sendSticker", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "sendSticker", FunctionMetadata{
+		Name:       "sendSticker",
+		Signature:  "(to string|JID, dataOrUrl any)",
+		Type:       "func(to string|JID, dataOrUrl any) bool",
+		ReturnType: "bool",
+		ParamTypes: []string{"string|JID", "any"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 2 {
 			panic(vm.ToValue("sendSticker requires (to, dataOrUrl)"))
 		}
@@ -168,14 +222,20 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
-		err = send.Sticker(ctx.GetSendContext(), ctx.Client, toJID, data, ctx.GetStickerPack(), ctx.GetStickerAuthor())
+		err = whatsrook.SendSticker(ctx.GetSendContext(), ctx.Client, toJID, data, ctx.GetStickerPack(), ctx.GetStickerAuthor())
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
-	})
+	}, tracker)
 
-	_ = clientObj.Set("sendReaction", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "sendReaction", FunctionMetadata{
+		Name:       "sendReaction",
+		Signature:  "(to string|JID, messageId string, emoji string)",
+		Type:       "func(to string|JID, messageId string, emoji string) bool",
+		ReturnType: "bool",
+		ParamTypes: []string{"string|JID", "string", "string"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 3 {
 			panic(vm.ToValue("sendReaction requires (to, messageId, emoji)"))
 		}
@@ -185,14 +245,255 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 		}
 		msgID := call.Arguments[1].String()
 		emoji := call.Arguments[2].String()
-		err = send.ReactMessage(ctx.GetSendContext(), ctx.Client, toJID, msgID, emoji)
+		err = whatsrook.SendReactMessage(ctx.GetSendContext(), ctx.Client, toJID, msgID, emoji)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(true)
-	})
+	}, tracker)
 
-	_ = clientObj.Set("edit", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "sendPoll", FunctionMetadata{
+		Name:       "sendPoll",
+		Signature:  "(to string|JID, question string, options []string, [selectableCount int]) SendResponse",
+		Type:       "func(to string|JID, question string, options []string, [selectableCount int]) whatsmeow.SendResponse",
+		ReturnType: "whatsmeow.SendResponse",
+		ParamTypes: []string{"string|JID", "string", "[]string", "int?"},
+	}, func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 3 {
+			panic(vm.ToValue("sendPoll requires (to, question, options, [selectableCount])"))
+		}
+		toJID, err := resolveJID(call.Arguments[0].Export(), ctx)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		question := call.Arguments[1].String()
+		var opts []string
+		if arr, ok := call.Arguments[2].Export().([]any); ok {
+			for _, item := range arr {
+				opts = append(opts, fmt.Sprintf("%v", item))
+			}
+		}
+		selCount := 1
+		if len(call.Arguments) > 3 {
+			if sc := call.Arguments[3].ToInteger(); sc > 0 {
+				selCount = int(sc)
+			}
+		}
+		pollMsg := ctx.Client.BuildPollCreation(question, opts, selCount)
+		resp, err := ctx.Client.SendMessage(ctx.GetSendContext(), toJID, pollMsg)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		return vm.ToValue(map[string]any{"id": resp.ID, "timestamp": resp.Timestamp.Unix()})
+	}, tracker)
+
+	tagAndSet(vm, clientObj, "sendDocument", FunctionMetadata{
+		Name:       "sendDocument",
+		Signature:  "(to string|JID, dataOrUrl any, filename string, [mimetype string], [caption string]) bool",
+		Type:       "func(to string|JID, dataOrUrl any, filename string, [mimetype string], [caption string]) bool",
+		ReturnType: "bool",
+		ParamTypes: []string{"string|JID", "any", "string", "string?", "string?"},
+	}, func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 3 {
+			panic(vm.ToValue("sendDocument requires (to, dataOrUrl, filename, [mimetype], [caption])"))
+		}
+		toJID, err := resolveJID(call.Arguments[0].Export(), ctx)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		mimetype := "application/octet-stream"
+		if len(call.Arguments) > 3 && call.Arguments[3].String() != "" {
+			mimetype = call.Arguments[3].String()
+		}
+		data, mime, err := resolveMediaData(call.Arguments[1].Export(), mimetype)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		filename := call.Arguments[2].String()
+		caption := ""
+		if len(call.Arguments) > 4 {
+			caption = call.Arguments[4].String()
+		}
+		err = whatsrook.SendDocument(ctx.GetSendContext(), ctx.Client, toJID, data, mime, filename, caption)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		return vm.ToValue(true)
+	}, tracker)
+
+	tagAndSet(vm, clientObj, "sendLocation", FunctionMetadata{
+		Name:       "sendLocation",
+		Signature:  "(to string|JID, lat float64, long float64, [name string], [address string]) SendResponse",
+		Type:       "func(to string|JID, lat float64, long float64, [name string], [address string]) whatsmeow.SendResponse",
+		ReturnType: "whatsmeow.SendResponse",
+		ParamTypes: []string{"string|JID", "float64", "float64", "string?", "string?"},
+	}, func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 3 {
+			panic(vm.ToValue("sendLocation requires (to, lat, long, [name], [address])"))
+		}
+		toJID, err := resolveJID(call.Arguments[0].Export(), ctx)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		lat := call.Arguments[1].ToFloat()
+		long := call.Arguments[2].ToFloat()
+		name := ""
+		addr := ""
+		if len(call.Arguments) > 3 {
+			name = call.Arguments[3].String()
+		}
+		if len(call.Arguments) > 4 {
+			addr = call.Arguments[4].String()
+		}
+		locMsg := &waE2E.LocationMessage{
+			DegreesLatitude:  new(lat),
+			DegreesLongitude: new(long),
+		}
+		if name != "" {
+			locMsg.Name = new(name)
+		}
+		if addr != "" {
+			locMsg.Address = new(addr)
+		}
+		resp, err := ctx.Client.SendMessage(ctx.GetSendContext(), toJID, &waE2E.Message{LocationMessage: locMsg})
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		return vm.ToValue(map[string]any{"id": resp.ID, "timestamp": resp.Timestamp.Unix()})
+	}, tracker)
+
+	tagAndSet(vm, clientObj, "sendContact", FunctionMetadata{
+		Name:       "sendContact",
+		Signature:  "(to string|JID, displayName string, vcardOrPhone string) SendResponse",
+		Type:       "func(to string|JID, displayName string, vcardOrPhone string) whatsmeow.SendResponse",
+		ReturnType: "whatsmeow.SendResponse",
+		ParamTypes: []string{"string|JID", "string", "string"},
+	}, func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 3 {
+			panic(vm.ToValue("sendContact requires (to, displayName, vcardOrPhone)"))
+		}
+		toJID, err := resolveJID(call.Arguments[0].Export(), ctx)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		name := call.Arguments[1].String()
+		vcardOrPhone := call.Arguments[2].String()
+		vcard := vcardOrPhone
+		if !strings.HasPrefix(vcard, "BEGIN:VCARD") {
+			vcard = fmt.Sprintf("BEGIN:VCARD\nVERSION:3.0\nFN:%s\nTEL;type=CELL;waid=%s:+%s\nEND:VCARD", name, vcardOrPhone, vcardOrPhone)
+		}
+		conMsg := &waE2E.ContactMessage{
+			DisplayName: new(name),
+			Vcard:       new(vcard),
+		}
+		resp, err := ctx.Client.SendMessage(ctx.GetSendContext(), toJID, &waE2E.Message{ContactMessage: conMsg})
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		return vm.ToValue(map[string]any{"id": resp.ID, "timestamp": resp.Timestamp.Unix()})
+	}, tracker)
+
+	tagAndSet(vm, clientObj, "sendPresence", FunctionMetadata{
+		Name:       "sendPresence",
+		Signature:  "(presence string, [chat string|JID]) bool",
+		Type:       "func(presence string, [chat string|JID]) bool",
+		ReturnType: "bool",
+		ParamTypes: []string{"string", "string|JID?"},
+	}, func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			panic(vm.ToValue("sendPresence requires a presence state"))
+		}
+		pStr := strings.ToLower(call.Arguments[0].String())
+		targetChat := ctx.Chat
+		if len(call.Arguments) > 1 {
+			if parsed, err := resolveJID(call.Arguments[1].Export(), ctx); err == nil {
+				targetChat = parsed
+			}
+		}
+		switch pStr {
+		case "available", "online":
+			_ = ctx.Client.SendPresence(ctx.GetSendContext(), types.PresenceAvailable)
+		case "unavailable", "offline":
+			_ = ctx.Client.SendPresence(ctx.GetSendContext(), types.PresenceUnavailable)
+		case "composing", "typing":
+			_ = ctx.Client.SendChatPresence(ctx.GetSendContext(), targetChat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
+		case "recording":
+			_ = ctx.Client.SendChatPresence(ctx.GetSendContext(), targetChat, types.ChatPresenceComposing, types.ChatPresenceMediaAudio)
+		case "paused":
+			_ = ctx.Client.SendChatPresence(ctx.GetSendContext(), targetChat, types.ChatPresencePaused, types.ChatPresenceMediaText)
+		default:
+			_ = ctx.Client.SendPresence(ctx.GetSendContext(), types.Presence(pStr))
+		}
+		return vm.ToValue(true)
+	}, tracker)
+
+	tagAndSet(vm, clientObj, "groupMetadata", FunctionMetadata{
+		Name:       "groupMetadata",
+		Signature:  "(jid string|JID) *types.GroupInfo",
+		Type:       "func(jid string|JID) (*types.GroupInfo, error)",
+		ReturnType: "*types.GroupInfo",
+		ParamTypes: []string{"string|JID"},
+	}, func(call goja.FunctionCall) goja.Value {
+		targetJID := ctx.Chat
+		if len(call.Arguments) > 0 {
+			if parsed, err := resolveJID(call.Arguments[0].Export(), ctx); err == nil {
+				targetJID = parsed
+			}
+		}
+		info, err := ctx.Client.GetGroupInfo(ctx.GetSendContext(), targetJID)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		return vm.ToValue(info)
+	}, tracker)
+	_ = clientObj.Set("groupInfo", clientObj.Get("groupMetadata"))
+
+	tagAndSet(vm, clientObj, "groupParticipantsUpdate", FunctionMetadata{
+		Name:       "groupParticipantsUpdate",
+		Signature:  "(jid string|JID, participants []string|JID, action string) []types.GroupParticipant",
+		Type:       "func(jid string|JID, participants []string|JID, action string) ([]types.GroupParticipant, error)",
+		ReturnType: "[]types.GroupParticipant",
+		ParamTypes: []string{"string|JID", "[]string|JID", "string"},
+	}, func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 3 {
+			panic(vm.ToValue("groupParticipantsUpdate requires (jid, participants, action)"))
+		}
+		gJID, err := resolveJID(call.Arguments[0].Export(), ctx)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		pJIDs, err := resolveJIDSlice(call.Arguments[1].Export(), ctx)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		actionStr := strings.ToLower(call.Arguments[2].String())
+		var act whatsmeow.ParticipantChange
+		switch actionStr {
+		case "add":
+			act = whatsmeow.ParticipantChangeAdd
+		case "remove", "kick":
+			act = whatsmeow.ParticipantChangeRemove
+		case "promote", "admin":
+			act = whatsmeow.ParticipantChangePromote
+		case "demote":
+			act = whatsmeow.ParticipantChangeDemote
+		default:
+			panic(vm.ToValue(fmt.Sprintf("unknown participant action: %s (expected add, remove, promote, demote)", actionStr)))
+		}
+		res, err := ctx.Client.UpdateGroupParticipants(ctx.GetSendContext(), gJID, pJIDs, act)
+		if err != nil {
+			panic(vm.NewGoError(err))
+		}
+		return vm.ToValue(res)
+	}, tracker)
+
+	tagAndSet(vm, clientObj, "edit", FunctionMetadata{
+		Name:       "edit",
+		Signature:  "(messageId string, newContent any, [chatJid string|JID])",
+		Type:       "func(messageId string, newContent any, [chatJid string|JID]) { id: string, timestamp: int64 }",
+		ReturnType: "{ id: string, timestamp: int64 }",
+		ParamTypes: []string{"string", "any", "string|JID?"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 2 {
 			panic(vm.ToValue("edit requires (messageId, newContent, [chatJid])"))
 		}
@@ -204,14 +505,20 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 		}
 		msgID := types.MessageID(call.Arguments[0].String())
 		content := call.Arguments[1].Export()
-		resp, err := send.Edit(ctx.GetSendContext(), ctx.Client, targetChat, msgID, content)
+		resp, err := whatsrook.SendEdit(ctx.GetSendContext(), ctx.Client, targetChat, msgID, content)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(map[string]any{"id": resp.ID, "timestamp": resp.Timestamp.Unix()})
-	})
+	}, tracker)
 
-	_ = clientObj.Set("delete", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "delete", FunctionMetadata{
+		Name:       "delete",
+		Signature:  "(messageId string, [chatJid string|JID])",
+		Type:       "func(messageId string, [chatJid string|JID]) { id: string, timestamp: int64 }",
+		ReturnType: "{ id: string, timestamp: int64 }",
+		ParamTypes: []string{"string", "string|JID?"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 1 {
 			panic(vm.ToValue("delete requires (messageId, [chatJid])"))
 		}
@@ -222,14 +529,20 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 			}
 		}
 		msgID := types.MessageID(call.Arguments[0].String())
-		resp, err := send.Delete(ctx.GetSendContext(), ctx.Client, targetChat, msgID)
+		resp, err := whatsrook.SendDelete(ctx.GetSendContext(), ctx.Client, targetChat, msgID)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(map[string]any{"id": resp.ID, "timestamp": resp.Timestamp.Unix()})
-	})
+	}, tracker)
 
-	_ = clientObj.Set("download", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "download", FunctionMetadata{
+		Name:       "download",
+		Signature:  "([msg any])",
+		Type:       "func([msg any]) { data: []byte, mimetype: string, size: int, base64: string }",
+		ReturnType: "{ data: []byte, mimetype: string, size: int, base64: string }",
+		ParamTypes: []string{"any?"},
+	}, func(call goja.FunctionCall) goja.Value {
 		targetMsg := ctx.Evt.Message
 		if len(call.Arguments) > 0 && !goja.IsUndefined(call.Arguments[0]) && !goja.IsNull(call.Arguments[0]) {
 			exported := call.Arguments[0].Export()
@@ -246,7 +559,7 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 		if targetMsg == nil {
 			panic(vm.ToValue("no message available to download"))
 		}
-		data, mime, err := message.Download(ctx.GetSendContext(), ctx.Client, targetMsg)
+		data, mime, err := whatsrook.Download(ctx.GetSendContext(), ctx.Client, targetMsg)
 		if err != nil {
 			panic(vm.NewGoError(err))
 		}
@@ -256,9 +569,15 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 		_ = resObj.Set("size", len(data))
 		_ = resObj.Set("base64", base64.StdEncoding.EncodeToString(data))
 		return resObj
-	})
+	}, tracker)
 
-	_ = clientObj.Set("upload", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "upload", FunctionMetadata{
+		Name:       "upload",
+		Signature:  "(dataOrUrl any, [mediaType string])",
+		Type:       "func(dataOrUrl any, [mediaType string]) whatsmeow.UploadResponse",
+		ReturnType: "whatsmeow.UploadResponse",
+		ParamTypes: []string{"any", "string?"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 1 {
 			panic(vm.ToValue("upload requires (dataOrUrl, [mediaType])"))
 		}
@@ -290,9 +609,15 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 			"fileSha256":    upResp.FileSHA256,
 			"fileEncSha256": upResp.FileEncSHA256,
 		})
-	})
+	}, tracker)
 
-	_ = clientObj.Set("parseJID", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "parseJID", FunctionMetadata{
+		Name:       "parseJID",
+		Signature:  "(val any)",
+		Type:       "func(val any) string",
+		ReturnType: "string",
+		ParamTypes: []string{"any"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			return goja.Undefined()
 		}
@@ -301,9 +626,15 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(parsed.String())
-	})
+	}, tracker)
 
-	_ = clientObj.Set("buildMessage", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "buildMessage", FunctionMetadata{
+		Name:       "buildMessage",
+		Signature:  "(val any)",
+		Type:       "func(val any) *waE2E.Message",
+		ReturnType: "*waE2E.Message",
+		ParamTypes: []string{"any"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			return goja.Undefined()
 		}
@@ -312,9 +643,15 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(converted)
-	})
+	}, tracker)
 
-	_ = clientObj.Set("toProto", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, clientObj, "toProto", FunctionMetadata{
+		Name:       "toProto",
+		Signature:  "(val any)",
+		Type:       "func(val any) *waE2E.Message",
+		ReturnType: "*waE2E.Message",
+		ParamTypes: []string{"any"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			return goja.Undefined()
 		}
@@ -323,10 +660,10 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(converted)
-	})
+	}, tracker)
 
 	// 3. Register dynamic reflection proxy for ALL exported methods of whatsmeow.Client
-	registerReflectedClientMethods(vm, clientObj, ctx)
+	registerReflectedClientMethods(vm, clientObj, ctx, tracker)
 
 	// Aliases
 	_ = clientObj.Set("send", clientObj.Get("sendMessage"))
@@ -335,7 +672,7 @@ func SetupEvalJavaScriptEnvironment(vm *goja.Runtime, ctx *dispatch.Context) (*g
 }
 
 // registerReflectedClientMethods registers every exported method on whatsmeow.Client into clientObj.
-func registerReflectedClientMethods(vm *goja.Runtime, clientObj *goja.Object, ctx *dispatch.Context) {
+func registerReflectedClientMethods(vm *goja.Runtime, clientObj *goja.Object, ctx *dispatch.Context, tracker *EvalContextTracker) {
 	if ctx.Client == nil {
 		return
 	}
@@ -355,22 +692,41 @@ func registerReflectedClientMethods(vm *goja.Runtime, clientObj *goja.Object, ct
 		mVal := cliVal.Method(i)
 		mType := mVal.Type()
 
-		fn := createMethodWrapper(vm, mVal, mType, ctx)
+		meta := BuildFunctionMetadataFromType(methodName, mType)
+		fnVal := createMethodWrapper(vm, methodName, mVal, mType, ctx, meta, tracker)
 
 		// Set PascalCase name (e.g. SendMessage, GetUserInfo)
-		_ = clientObj.Set(methodName, fn)
+		_ = clientObj.Set(methodName, fnVal)
 
 		// Set camelCase name (e.g. sendMessage, getUserInfo)
 		lowerName := strings.ToLower(methodName[:1]) + methodName[1:]
 		if lowerName != methodName {
-			_ = clientObj.Set(lowerName, fn)
+			lowerMeta := meta
+			lowerMeta.Name = lowerName
+			lowerFnVal := createMethodWrapper(vm, lowerName, mVal, mType, ctx, lowerMeta, tracker)
+			_ = clientObj.Set(lowerName, lowerFnVal)
 		}
 	}
 }
 
-// createMethodWrapper wraps an arbitrary Go method into a Goja function with automatic parameter coercion.
-func createMethodWrapper(vm *goja.Runtime, mVal reflect.Value, mType reflect.Type, ctx *dispatch.Context) func(call goja.FunctionCall) goja.Value {
-	return func(call goja.FunctionCall) goja.Value {
+// createMethodWrapper wraps an arbitrary Go method into a Goja function with automatic parameter coercion,
+// metadata tagging, and call tracking.
+func createMethodWrapper(vm *goja.Runtime, name string, mVal reflect.Value, mType reflect.Type, ctx *dispatch.Context, meta FunctionMetadata, tracker *EvalContextTracker) goja.Value {
+	rawFn := func(call goja.FunctionCall) goja.Value {
+		if tracker != nil {
+			var argsSummary []string
+			for _, arg := range call.Arguments {
+				argsSummary = append(argsSummary, truncateString(arg.String(), 40))
+			}
+			tracker.RecordCall(CallRecord{
+				Name:        name,
+				Type:        meta.Type,
+				ReturnType:  meta.ReturnType,
+				ParamTypes:  meta.ParamTypes,
+				ArgsSummary: argsSummary,
+			})
+		}
+
 		defer func() {
 			if r := recover(); r != nil {
 				// Re-throw panic with context
@@ -446,6 +802,9 @@ func createMethodWrapper(vm *goja.Runtime, mVal reflect.Value, mType reflect.Typ
 
 		// Process return values
 		if len(results) == 0 {
+			if tracker != nil && tracker.lastCall != nil && tracker.lastCall.Name == name {
+				tracker.lastCall.ResultType = "void"
+			}
 			return goja.Undefined()
 		}
 
@@ -458,6 +817,9 @@ func createMethodWrapper(vm *goja.Runtime, mVal reflect.Value, mType reflect.Typ
 			}
 			// If method returned only error (and error is nil), return true
 			if len(results) == 1 {
+				if tracker != nil && tracker.lastCall != nil && tracker.lastCall.Name == name {
+					tracker.lastCall.ResultType = "bool"
+				}
 				return vm.ToValue(true)
 			}
 			// Exclude the nil error from the results
@@ -467,6 +829,9 @@ func createMethodWrapper(vm *goja.Runtime, mVal reflect.Value, mType reflect.Typ
 		// Return single non-error value
 		if len(results) == 1 {
 			val := results[0].Interface()
+			if tracker != nil && tracker.lastCall != nil && tracker.lastCall.Name == name {
+				tracker.lastCall.ResultType = GetValueTypeName(val)
+			}
 			if sr, ok := val.(whatsmeow.SendResponse); ok {
 				return vm.ToValue(map[string]any{
 					"id":        sr.ID,
@@ -481,8 +846,15 @@ func createMethodWrapper(vm *goja.Runtime, mVal reflect.Value, mType reflect.Typ
 		for _, r := range results {
 			arr = append(arr, r.Interface())
 		}
+		if tracker != nil && tracker.lastCall != nil && tracker.lastCall.Name == name {
+			tracker.lastCall.ResultType = GetValueTypeName(arr)
+		}
 		return vm.ToValue(arr)
 	}
+
+	fnVal := vm.ToValue(rawFn)
+	TagFunction(vm, fnVal, meta)
+	return fnVal
 }
 
 func packVariadicArgs(args []reflect.Value, numIn int) []reflect.Value {
@@ -763,10 +1135,21 @@ func resolveJIDSlice(val any, ctx *dispatch.Context) ([]types.JID, error) {
 	return []types.JID{jid}, nil
 }
 
-// SetupGlobalConstants registers convenient helper objects (proto, wa, jid, toProto) into Goja.
-func SetupGlobalConstants(vm *goja.Runtime, ctx *dispatch.Context) {
+// SetupGlobalConstants registers convenient helper objects (proto, wa, jid, toProto) into Goja with metadata.
+func SetupGlobalConstants(vm *goja.Runtime, ctx *dispatch.Context, trackerOpt ...*EvalContextTracker) {
+	var tracker *EvalContextTracker
+	if len(trackerOpt) > 0 && trackerOpt[0] != nil {
+		tracker = trackerOpt[0]
+	}
+
 	// Top-level JID helper
-	_ = vm.Set("jid", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, vm.GlobalObject(), "jid", FunctionMetadata{
+		Name:       "jid",
+		Signature:  "(val any)",
+		Type:       "func(val any) string",
+		ReturnType: "string",
+		ParamTypes: []string{"any"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			return goja.Undefined()
 		}
@@ -775,10 +1158,16 @@ func SetupGlobalConstants(vm *goja.Runtime, ctx *dispatch.Context) {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(parsed.String())
-	})
+	}, tracker)
 
 	// Top-level toProto helper
-	_ = vm.Set("toProto", func(call goja.FunctionCall) goja.Value {
+	tagAndSet(vm, vm.GlobalObject(), "toProto", FunctionMetadata{
+		Name:       "toProto",
+		Signature:  "(payload any)",
+		Type:       "func(payload any) *waE2E.Message",
+		ReturnType: "*waE2E.Message",
+		ParamTypes: []string{"any"},
+	}, func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			return goja.Undefined()
 		}
@@ -787,7 +1176,7 @@ func SetupGlobalConstants(vm *goja.Runtime, ctx *dispatch.Context) {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(converted)
-	})
+	}, tracker)
 
 	// Top-level proto namespace
 	protoObj := vm.NewObject()
@@ -808,6 +1197,70 @@ func SetupGlobalConstants(vm *goja.Runtime, ctx *dispatch.Context) {
 		text := call.Arguments[0].String()
 		return vm.ToValue(&waE2E.Message{Conversation: new(text)})
 	})
+	_ = protoObj.Set("location", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 2 {
+			panic(vm.ToValue("proto.location requires (latitude, longitude, [name], [address])"))
+		}
+		lat := call.Arguments[0].ToFloat()
+		long := call.Arguments[1].ToFloat()
+		name := ""
+		addr := ""
+		if len(call.Arguments) > 2 {
+			name = call.Arguments[2].String()
+		}
+		if len(call.Arguments) > 3 {
+			addr = call.Arguments[3].String()
+		}
+		locMsg := &waE2E.LocationMessage{
+			DegreesLatitude:  new(lat),
+			DegreesLongitude: new(long),
+		}
+		if name != "" {
+			locMsg.Name = new(name)
+		}
+		if addr != "" {
+			locMsg.Address = new(addr)
+		}
+		return vm.ToValue(&waE2E.Message{LocationMessage: locMsg})
+	})
+	_ = protoObj.Set("contact", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 2 {
+			panic(vm.ToValue("proto.contact requires (displayName, vcardOrPhone)"))
+		}
+		name := call.Arguments[0].String()
+		vcard := call.Arguments[1].String()
+		if !strings.HasPrefix(vcard, "BEGIN:VCARD") {
+			vcard = fmt.Sprintf("BEGIN:VCARD\nVERSION:3.0\nFN:%s\nTEL;type=CELL;waid=%s:+%s\nEND:VCARD", name, vcard, vcard)
+		}
+		conMsg := &waE2E.ContactMessage{
+			DisplayName: new(name),
+			Vcard:       new(vcard),
+		}
+		return vm.ToValue(&waE2E.Message{ContactMessage: conMsg})
+	})
+	_ = protoObj.Set("poll", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 2 {
+			panic(vm.ToValue("proto.poll requires (question, options, [selectableCount])"))
+		}
+		q := call.Arguments[0].String()
+		var opts []string
+		if arr, ok := call.Arguments[1].Export().([]any); ok {
+			for _, item := range arr {
+				opts = append(opts, fmt.Sprintf("%v", item))
+			}
+		}
+		sc := 1
+		if len(call.Arguments) > 2 {
+			if count := call.Arguments[2].ToInteger(); count > 0 {
+				sc = int(count)
+			}
+		}
+		if ctx != nil && ctx.Client != nil {
+			return vm.ToValue(ctx.Client.BuildPollCreation(q, opts, sc))
+		}
+		var dummyCli *whatsmeow.Client
+		return vm.ToValue(dummyCli.BuildPollCreation(q, opts, sc))
+	})
 	_ = protoObj.Set("toJSON", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			return vm.ToValue("{}")
@@ -825,6 +1278,15 @@ func SetupGlobalConstants(vm *goja.Runtime, ctx *dispatch.Context) {
 			panic(vm.NewGoError(err))
 		}
 		return vm.ToValue(string(b))
+	})
+	_ = protoObj.Set("clone", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return goja.Undefined()
+		}
+		if pm, ok := call.Arguments[0].Export().(proto.Message); ok {
+			return vm.ToValue(proto.Clone(pm))
+		}
+		return call.Arguments[0]
 	})
 	_ = vm.Set("proto", protoObj)
 

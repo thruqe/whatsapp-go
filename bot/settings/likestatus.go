@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/thruqe/whatsrook/util/logger"
+	"whatsrook/bot/logger"
 	"whatsrook/bot/store"
 
 	"go.mau.fi/whatsmeow"

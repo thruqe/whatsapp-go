@@ -3,8 +3,8 @@ package builder
 import (
 	"context"
 	"fmt"
-	"github.com/thruqe/whatsrook/util/logger"
 	"sync"
+	"whatsrook/bot/logger"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
