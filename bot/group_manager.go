@@ -125,7 +125,7 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 	var syncedNewsletters []*NewsletterMetadata
 	newsletters, errN := cli.GetSubscribedNewsletters(ctx)
 	if errN != nil {
-		Warn("GroupManager: failed to fetch subscribed newsletters", "err", errN)
+		Error("GroupManager: failed to fetch subscribed newsletters", "err", errN)
 	} else {
 		for _, n := range newsletters {
 			meta := gm.convertNewsletterMetadata(n)

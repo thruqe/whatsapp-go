@@ -9,6 +9,7 @@ replace go.mau.fi/whatsmeow => ../pkg/engine
 require (
 	fortio.org/log v1.18.3
 	github.com/dop251/goja v0.0.0-20261010130053-73dc7edc278f
+	github.com/google/uuid v1.6.0
 	github.com/quic-go/quic-go v0.63.0
 	github.com/rs/zerolog v1.35.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
@@ -32,14 +33,11 @@ require (
 	fortio.org/struct2env v0.4.2 // indirect
 	fortio.org/terminal v0.65.4 // indirect
 	fortio.org/version v1.0.4 // indirect
-	github.com/beeper/argo-go v1.1.2 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/dlclark/regexp2/v2 v2.8.4 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
-	github.com/elliotchance/orderedmap/v3 v3.1.1 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/google/pprof v0.0.0-20261008003335-7bae8d8c4c9e // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -63,7 +61,6 @@ require (
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/vektah/gqlparser/v2 v2.5.62 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20261009200856-99e4382b128e // indirect

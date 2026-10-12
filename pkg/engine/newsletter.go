@@ -12,13 +12,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/beeper/argo-go/codec"
-	"github.com/beeper/argo-go/pkg/buf"
-	"github.com/elliotchance/orderedmap/v3"
-
-	"go.mau.fi/whatsmeow/argo"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waWa6"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -171,6 +167,9 @@ func convertQueryID(cli *Client, queryID string) string {
 }
 
 func (cli *Client) sendMexIQ(ctx context.Context, queryID string, variables any) (json.RawMessage, error) {
+	if store.BaseClientPayload.GetUserAgent().GetPlatform() == waWa6.ClientPayload_UserAgent_MACOS {
+		return nil, fmt.Errorf("argo decoding is currently broken")
+	}
 	queryID = convertQueryID(cli, queryID)
 	if queryID == "" {
 		return nil, fmt.Errorf("MEX query is unsupported for this client platform")
@@ -205,46 +204,7 @@ func (cli *Client) sendMexIQ(ctx context.Context, queryID string, variables any)
 		return nil, fmt.Errorf("unexpected content type %T in mex response", result.Content)
 	}
 	if result.AttrGetter().OptionalString("format") == "argo" {
-		store, err := argo.GetStore()
-		if err != nil {
-			return nil, fmt.Errorf("failed to load argo store: %w", err)
-		}
-		queryIDMap, err := argo.GetQueryIDToMessageName()
-		if err != nil {
-			return nil, fmt.Errorf("failed to load argo query mapping: %w", err)
-		}
-		msgName, ok := queryIDMap[queryID]
-		if !ok {
-			return nil, fmt.Errorf("unknown query ID for argo: %s", queryID)
-		}
-		wt, ok := store[msgName]
-		if !ok {
-			return nil, fmt.Errorf("unknown wire type for argo: %s", msgName)
-		}
-
-		decoder, err := codec.NewArgoDecoder(buf.NewBufReadonly(resultContent))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create argo decoder: %w", err)
-		}
-		data, err := decoder.ArgoToMap(wt)
-		if err != nil {
-			return nil, fmt.Errorf("argo to map error: %w", err)
-		}
-		b, err := json.Marshal(orderedMapToValue(data))
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal argo data: %w", err)
-		}
-
-		var gqlResp types.GraphQLResponse
-		if err = json.Unmarshal(b, &gqlResp); err == nil {
-			if len(gqlResp.Errors) > 0 {
-				return gqlResp.Data, fmt.Errorf("graphql error: %w", gqlResp.Errors)
-			}
-			if len(gqlResp.Data) > 0 {
-				return gqlResp.Data, nil
-			}
-		}
-		return b, nil
+		return nil, fmt.Errorf("argo decoding is currently broken")
 	} else {
 		var gqlResp types.GraphQLResponse
 		err = json.Unmarshal(resultContent, &gqlResp)
@@ -254,28 +214,6 @@ func (cli *Client) sendMexIQ(ctx context.Context, queryID string, variables any)
 			return gqlResp.Data, fmt.Errorf("graphql error: %w", gqlResp.Errors)
 		}
 		return gqlResp.Data, nil
-	}
-}
-
-func orderedMapToValue(v any) any {
-	switch val := v.(type) {
-	case *orderedmap.OrderedMap[string, any]:
-		if val == nil {
-			return nil
-		}
-		m := make(map[string]any, val.Len())
-		for el := val.Front(); el != nil; el = el.Next() {
-			m[el.Key] = orderedMapToValue(el.Value)
-		}
-		return m
-	case []any:
-		res := make([]any, len(val))
-		for i, item := range val {
-			res[i] = orderedMapToValue(item)
-		}
-		return res
-	default:
-		return val
 	}
 }
 
