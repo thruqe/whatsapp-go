@@ -262,8 +262,28 @@ type respGetSubscribedNewsletters struct {
 	Newsletters []*types.NewsletterMetadata `json:"xwa2_newsletter_subscribed"`
 }
 
+// SupportsNewsletters reports whether the current client configuration supports newsletter MEX queries.
+func (cli *Client) SupportsNewsletters() bool {
+	if cli == nil || cli.Store == nil {
+		return false
+	}
+	payload := cli.Store.GetClientPayload()
+	if payload == nil || payload.GetWebInfo() == nil {
+		return false
+	}
+	if payload.GetUserAgent().GetPlatform() == waWa6.ClientPayload_UserAgent_MACOS {
+		return false
+	}
+	return true
+}
+
 // GetSubscribedNewsletters gets the info of all newsletters that you're joined to.
+// If the client platform does not support newsletters (e.g. non-browser/desktop clients),
+// it skips the query and returns nil, nil.
 func (cli *Client) GetSubscribedNewsletters(ctx context.Context) ([]*types.NewsletterMetadata, error) {
+	if !cli.SupportsNewsletters() {
+		return nil, nil
+	}
 	data, err := cli.sendMexIQ(ctx, querySubscribedNewsletters, map[string]any{})
 	var respData respGetSubscribedNewsletters
 	if data != nil {

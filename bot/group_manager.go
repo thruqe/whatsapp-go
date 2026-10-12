@@ -123,37 +123,48 @@ func (gm *GroupManager) SyncAll(ctx context.Context, cli *whatsmeow.Client) erro
 
 	// 2. Fetch subscribed newsletters (channels)
 	var syncedNewsletters []*NewsletterMetadata
-	newsletters, errN := cli.GetSubscribedNewsletters(ctx)
-	if errN != nil {
-		Error("GroupManager: failed to fetch subscribed newsletters", "err", errN)
+	if cli.SupportsNewsletters() {
+		newsletters, errN := cli.GetSubscribedNewsletters(ctx)
+		if errN != nil {
+			Debug("GroupManager: skipped newsletter sync", "err", errN)
+		} else {
+			for _, n := range newsletters {
+				meta := gm.convertNewsletterMetadata(n)
+				syncedNewsletters = append(syncedNewsletters, meta)
+			}
+
+			gm.mu.Lock()
+			for _, meta := range syncedNewsletters {
+				gm.newsletters[meta.JID] = meta
+			}
+			gm.mu.Unlock()
+
+			if s != nil && s.GetDB() != nil {
+				go func(news []*NewsletterMetadata, db *dbutil.Database, jid string) {
+					for _, meta := range news {
+						_ = SaveCachedNewsletter(context.Background(), db, jid, meta)
+					}
+				}(syncedNewsletters, s.GetDB(), ourJID)
+			}
+		}
 	} else {
-		for _, n := range newsletters {
-			meta := gm.convertNewsletterMetadata(n)
-			syncedNewsletters = append(syncedNewsletters, meta)
-		}
-
-		gm.mu.Lock()
-		for _, meta := range syncedNewsletters {
-			gm.newsletters[meta.JID] = meta
-		}
-		gm.mu.Unlock()
-
-		if s != nil && s.GetDB() != nil {
-			go func(news []*NewsletterMetadata, db *dbutil.Database, jid string) {
-				for _, meta := range news {
-					_ = SaveCachedNewsletter(context.Background(), db, jid, meta)
-				}
-			}(syncedNewsletters, s.GetDB(), ourJID)
-		}
+		Debug("GroupManager: skipping newsletter sync (unsupported on this client platform)")
 	}
 
 	// Calculate community stats
-	communityCount := 0
+	uniqueCommunities := make(map[types.JID]struct{})
 	for _, g := range syncedGroups {
 		if g.IsCommunity {
-			communityCount++
+			uniqueCommunities[g.JID] = struct{}{}
+		}
+		if !g.LinkedParentJID.IsEmpty() {
+			uniqueCommunities[g.LinkedParentJID] = struct{}{}
+		}
+		if !g.ParentJID.IsEmpty() {
+			uniqueCommunities[g.ParentJID] = struct{}{}
 		}
 	}
+	communityCount := len(uniqueCommunities)
 
 	Debug("GroupManager: sync complete",
 		"total_groups", len(syncedGroups),

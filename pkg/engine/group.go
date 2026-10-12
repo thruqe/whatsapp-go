@@ -826,6 +826,9 @@ func (cli *Client) parseGroupNode(groupNode *waBinary.Node) (*types.GroupInfo, e
 	group.ParticipantVersionID = ag.OptionalString("p_v_id")
 	group.ParticipantCount = ag.OptionalInt("size")
 	group.AddressingMode = types.AddressingMode(ag.OptionalString("addressing_mode"))
+	if ag.OptionalBool("parent") || ag.OptionalString("parent") == "true" {
+		group.IsParent = true
+	}
 
 	for _, child := range groupNode.GetChildren() {
 		childAG := child.AttrGetter()
