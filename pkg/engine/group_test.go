@@ -2,11 +2,14 @@ package whatsmeow
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
 	waBinary "go.mau.fi/whatsmeow/binary"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 	"go.mau.fi/whatsmeow/util/log"
 )
 
@@ -172,5 +175,106 @@ func TestSetStatusInput_JSONMarshal(t *testing.T) {
 	}
 	if strings.Contains(string(data), "ephemeral_duration_sec") {
 		t.Errorf("expected ephemeral_duration_sec to be omitted when 0, got: %s", string(data))
+	}
+}
+
+func TestGroupMetaCache_CanSend(t *testing.T) {
+	adminJID := types.NewJID("123456", types.DefaultUserServer)
+	nonAdminJID := types.NewJID("654321", types.DefaultUserServer)
+
+	cache := &groupMetaCache{
+		ReadOnly: true,
+		Members:  []types.JID{adminJID, nonAdminJID},
+		Admins:   []types.JID{adminJID},
+	}
+
+	msg := &waE2E.Message{
+		Conversation: new("hello"),
+	}
+
+	if !cache.CanSend(adminJID, msg) {
+		t.Errorf("expected admin to be able to send in read-only group")
+	}
+	if cache.CanSend(nonAdminJID, msg) {
+		t.Errorf("expected non-admin to NOT be able to send ordinary message in read-only group")
+	}
+
+	reactionMsg := &waE2E.Message{
+		ReactionMessage: &waE2E.ReactionMessage{},
+	}
+	if !cache.CanSend(nonAdminJID, reactionMsg) {
+		t.Errorf("expected non-admin to be able to send reaction message in read-only group")
+	}
+
+	pollUpdateMsg := &waE2E.Message{
+		PollUpdateMessage: &waE2E.PollUpdateMessage{},
+	}
+	if !cache.CanSend(nonAdminJID, pollUpdateMsg) {
+		t.Errorf("expected non-admin to be able to send poll update message in read-only group")
+	}
+}
+
+func TestUpdateGroupParticipantCache(t *testing.T) {
+	groupJID := types.NewJID("120363000000000000", types.GroupServer)
+	adminJID := types.NewJID("111111", types.DefaultUserServer)
+	memberJID := types.NewJID("222222", types.DefaultUserServer)
+	newMemberJID := types.NewJID("333333", types.DefaultUserServer)
+
+	cli := &Client{
+		groupCache: map[types.JID]*groupMetaCache{
+			groupJID: {
+				ReadOnly: false,
+				Members:  []types.JID{adminJID, memberJID},
+				Admins:   []types.JID{adminJID},
+			},
+		},
+	}
+
+	// 1. Promote member to admin
+	cli.updateGroupParticipantCache(&events.GroupInfo{
+		JID:     groupJID,
+		Promote: []types.JID{memberJID},
+	})
+	cached := cli.groupCache[groupJID]
+	if !slices.Contains(cached.Admins, memberJID) {
+		t.Errorf("expected memberJID to be promoted to admin")
+	}
+
+	// 2. Announce mode change
+	cli.updateGroupParticipantCache(&events.GroupInfo{
+		JID: groupJID,
+		Announce: &types.GroupAnnounce{
+			IsAnnounce: true,
+		},
+	})
+	if !cached.ReadOnly {
+		t.Errorf("expected group cache ReadOnly to be true")
+	}
+
+	// 3. Member join
+	cli.updateGroupParticipantCache(&events.GroupInfo{
+		JID:  groupJID,
+		Join: []types.JID{newMemberJID},
+	})
+	if !slices.Contains(cached.Members, newMemberJID) {
+		t.Errorf("expected newMemberJID to be in Members")
+	}
+
+	// 4. Demote member
+	cli.updateGroupParticipantCache(&events.GroupInfo{
+		JID:    groupJID,
+		Demote: []types.JID{memberJID},
+	})
+	if slices.Contains(cached.Admins, memberJID) {
+		t.Errorf("expected memberJID to be demoted from Admins")
+	}
+
+	// 5. Member leave
+	cli.updateGroupParticipantCache(&events.GroupInfo{
+		JID:   groupJID,
+		Leave: []types.JID{newMemberJID},
+	})
+	if slices.Contains(cached.Members, newMemberJID) {
+		t.Errorf("expected newMemberJID to be removed from Members")
 	}
 }
