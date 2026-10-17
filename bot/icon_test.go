@@ -121,3 +121,47 @@ func TestVerifyLinuxDesktopIconIntegration(t *testing.T) {
 		t.Fatal("expected non-empty verification details")
 	}
 }
+
+func TestVerifyWindowsPEIconWithUPXStrippedSymbolTable(t *testing.T) {
+	// Construct a minimal PE binary whose COFF PointerToSymbolTable points past EOF
+	// (reproducing UPX compression on windows-amd64) with a .rsrc section containing RT_ICON (3) and RT_GROUP_ICON (14).
+	buf := make([]byte, 512)
+	buf[0] = 'M'
+	buf[1] = 'Z'
+	peOffset := 0x80
+	binary.LittleEndian.PutUint32(buf[0x3c:0x40], uint32(peOffset))
+	copy(buf[peOffset:peOffset+4], "PE\x00\x00")
+
+	coffOffset := peOffset + 4
+	binary.LittleEndian.PutUint16(buf[coffOffset+2:coffOffset+4], 1)          // NumberOfSections = 1
+	binary.LittleEndian.PutUint32(buf[coffOffset+8:coffOffset+12], 0x9999999) // PointerToSymbolTable past EOF (UPX behavior)
+	binary.LittleEndian.PutUint32(buf[coffOffset+12:coffOffset+16], 100)      // NumberOfSymbols = 100
+	binary.LittleEndian.PutUint16(buf[coffOffset+16:coffOffset+18], 0)        // SizeOfOptionalHeader = 0
+
+	secOffset := coffOffset + 20
+	copy(buf[secOffset:secOffset+8], ".rsrc")
+	rsrcPtr := 256
+	rsrcSize := 64
+	binary.LittleEndian.PutUint32(buf[secOffset+16:secOffset+20], uint32(rsrcSize))
+	binary.LittleEndian.PutUint32(buf[secOffset+20:secOffset+24], uint32(rsrcPtr))
+
+	// Populate IMAGE_RESOURCE_DIRECTORY at rsrcPtr with RT_ICON (3) and RT_GROUP_ICON (14)
+	rsrc := buf[rsrcPtr : rsrcPtr+rsrcSize]
+	binary.LittleEndian.PutUint16(rsrc[12:14], 0)  // NumberOfNamedEntries = 0
+	binary.LittleEndian.PutUint16(rsrc[14:16], 2)  // NumberOfIdEntries = 2
+	binary.LittleEndian.PutUint32(rsrc[16:20], 3)  // Entry 0: RT_ICON (3)
+	binary.LittleEndian.PutUint32(rsrc[24:28], 14) // Entry 1: RT_GROUP_ICON (14)
+
+	pePath := filepath.Join(t.TempDir(), "whatsrook-upx.exe")
+	if err := os.WriteFile(pePath, buf, 0644); err != nil {
+		t.Fatalf("failed to write synthetic PE file: %v", err)
+	}
+
+	report, err := VerifyBinaryIcon(pePath)
+	if err != nil {
+		t.Fatalf("VerifyBinaryIcon failed on UPX-like PE binary: %v", err)
+	}
+	if report.OS != "windows" || !report.Supported {
+		t.Fatalf("unexpected report: %+v", report)
+	}
+}

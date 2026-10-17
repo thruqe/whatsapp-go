@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"debug/elf"
 	"debug/macho"
-	"debug/pe"
 	_ "embed"
 	"encoding/binary"
 	"errors"
@@ -396,29 +395,83 @@ func isMachOMagic(h []byte) bool {
 	}
 }
 
-func verifyWindowsPEBinaryIcon(absBin string, width, height int) (*IconVerificationReport, error) {
-	peFile, err := pe.Open(absBin)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse windows PE binary: %w", err)
+// extractPERsrcSection parses a Windows PE executable's section table directly from raw bytes
+// without reading the COFF symbol/string table (which UPX truncates while leaving PointerToSymbolTable non-zero).
+func extractPERsrcSection(data []byte) ([]byte, error) {
+	if len(data) < 0x40 || data[0] != 'M' || data[1] != 'Z' {
+		return nil, errors.New("invalid DOS MZ header")
 	}
-	defer peFile.Close()
+	peOffset := int(binary.LittleEndian.Uint32(data[0x3c:0x40]))
+	if peOffset <= 0 || peOffset+24 > len(data) {
+		return nil, errors.New("invalid PE header offset")
+	}
+	if string(data[peOffset:peOffset+4]) != "PE\x00\x00" {
+		return nil, errors.New("missing PE signature")
+	}
+	coffOffset := peOffset + 4
+	numSections := int(binary.LittleEndian.Uint16(data[coffOffset+2 : coffOffset+4]))
+	optHeaderSize := int(binary.LittleEndian.Uint16(data[coffOffset+16 : coffOffset+18]))
+	secTableOffset := coffOffset + 20 + optHeaderSize
 
-	rsrc := peFile.Section(".rsrc")
-	if rsrc == nil {
-		return nil, fmt.Errorf("windows PE binary %s is missing the .rsrc resource section (icon not embedded)", absBin)
+	for i := 0; i < numSections; i++ {
+		secOffset := secTableOffset + i*40
+		if secOffset+40 > len(data) {
+			break
+		}
+		name := strings.TrimRight(string(data[secOffset:secOffset+8]), "\x00")
+		rawSize := int(binary.LittleEndian.Uint32(data[secOffset+16 : secOffset+20]))
+		rawPtr := int(binary.LittleEndian.Uint32(data[secOffset+20 : secOffset+24]))
+		if name == ".rsrc" {
+			if rawPtr <= 0 || rawSize <= 0 || rawPtr >= len(data) {
+				return nil, errors.New("invalid .rsrc section bounds")
+			}
+			end := min(rawPtr+rawSize, len(data))
+			return data[rawPtr:end], nil
+		}
 	}
-	rsrcData, err := rsrc.Data()
+	return nil, errors.New("missing .rsrc resource section")
+}
+
+// hasPEIconResourceDir checks the root IMAGE_RESOURCE_DIRECTORY of a PE .rsrc section
+// for RT_ICON (3) and RT_GROUP_ICON (14) entries (which remain intact even after UPX compression).
+func hasPEIconResourceDir(rsrcData []byte) bool {
+	if len(rsrcData) < 16 {
+		return false
+	}
+	namedEntries := int(binary.LittleEndian.Uint16(rsrcData[12:14]))
+	idEntries := int(binary.LittleEndian.Uint16(rsrcData[14:16]))
+	total := namedEntries + idEntries
+	if total <= 0 || total > 64 || 16+total*8 > len(rsrcData) {
+		return false
+	}
+	var hasIcon, hasGroupIcon bool
+	for i := range total {
+		entryOffset := 16 + i*8
+		id := binary.LittleEndian.Uint32(rsrcData[entryOffset : entryOffset+4])
+		if id == 3 { // RT_ICON
+			hasIcon = true
+		} else if id == 14 { // RT_GROUP_ICON
+			hasGroupIcon = true
+		}
+	}
+	return hasIcon && hasGroupIcon
+}
+
+func verifyWindowsPEBinaryIcon(absBin string, width, height int) (*IconVerificationReport, error) {
+	binData, err := os.ReadFile(absBin)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read .rsrc section from %s: %w", absBin, err)
+		return nil, fmt.Errorf("failed to read windows PE binary: %w", err)
 	}
-	if len(rsrcData) == 0 {
-		return nil, fmt.Errorf("windows PE .rsrc section in %s is empty", absBin)
+	rsrcData, err := extractPERsrcSection(binData)
+	if err != nil {
+		return nil, fmt.Errorf("windows PE binary %s icon verification failed: %w", absBin, err)
 	}
 
 	hasPNGIcon := bytes.Contains(rsrcData, []byte("\x89PNG\r\n\x1a\n"))
 	hasDIBHeader := bytes.Contains(rsrcData, []byte{0x28, 0x00, 0x00, 0x00}) // BITMAPINFOHEADER size = 40
-	if !hasPNGIcon && !hasDIBHeader {
-		return nil, fmt.Errorf("windows PE .rsrc section (%d bytes) does not contain a recognizable PNG or DIB icon payload", len(rsrcData))
+	hasIconDir := hasPEIconResourceDir(rsrcData)
+	if !hasPNGIcon && !hasDIBHeader && !hasIconDir {
+		return nil, fmt.Errorf("windows PE .rsrc section (%d bytes) does not contain a recognizable icon resource", len(rsrcData))
 	}
 
 	return &IconVerificationReport{
@@ -428,7 +481,7 @@ func verifyWindowsPEBinaryIcon(absBin string, width, height int) (*IconVerificat
 		Supported:    true,
 		Details: []string{
 			fmt.Sprintf("PE .rsrc section present (%d bytes)", len(rsrcData)),
-			fmt.Sprintf("Embedded icon payload verified in .rsrc (PNG=%v, DIB=%v, source=%dx%d)", hasPNGIcon, hasDIBHeader, width, height),
+			fmt.Sprintf("Embedded icon payload verified in .rsrc (RT_ICON=%v, PNG=%v, DIB=%v, source=%dx%d)", hasIconDir, hasPNGIcon, hasDIBHeader, width, height),
 		},
 	}, nil
 }
