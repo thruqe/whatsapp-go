@@ -65,7 +65,7 @@ func RegisterEvalExtendedTools(vm *goja.Runtime, ctx *Context, tracker *EvalCont
 	setupGeneralHelpers(vm, tracker)
 
 	// 9. Networking & Socket Tools (net)
-	setupNetTools(vm, ctx)
+	setupNetTools(vm)
 
 	// 10. Buffer & Binary Tools (Buffer)
 	setupBufferTools(vm)
@@ -80,10 +80,10 @@ func RegisterEvalExtendedTools(vm *goja.Runtime, ctx *Context, tracker *EvalCont
 	setupTimeTools(vm)
 
 	// 14. WhatsRook Package Bridge (whatsrook)
-	setupWhatsrookBridge(vm, ctx)
+	setupWhatsrookBridge(vm)
 
 	// 15. CommonJS Module Resolver (require)
-	setupRequire(vm, ctx)
+	setupRequire(vm)
 }
 
 func setupIntrospectionTools(vm *goja.Runtime, tracker *EvalContextTracker) {
@@ -1106,7 +1106,7 @@ func truncateString(s string, maxLen int) string {
 }
 
 // 9. Networking & Socket Tools (net)
-func setupNetTools(vm *goja.Runtime, ctx *Context) {
+func setupNetTools(vm *goja.Runtime) {
 	netObj := vm.NewObject()
 
 	// net.scanPort(target, port, [timeoutMs])
@@ -1455,7 +1455,7 @@ func setupTimeTools(vm *goja.Runtime) {
 }
 
 // 14. WhatsRook Package Bridge (whatsrook)
-func setupWhatsrookBridge(vm *goja.Runtime, ctx *Context) {
+func setupWhatsrookBridge(vm *goja.Runtime) {
 	wrObj := vm.NewObject()
 
 	_ = wrObj.Set("removeEmojis", func(call goja.FunctionCall) goja.Value {
@@ -1487,7 +1487,7 @@ func setupWhatsrookBridge(vm *goja.Runtime, ctx *Context) {
 }
 
 // 15. CommonJS Module Resolver (require)
-func setupRequire(vm *goja.Runtime, ctx *Context) {
+func setupRequire(vm *goja.Runtime) {
 	_ = vm.Set("require", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			panic(vm.NewGoError(fmt.Errorf("require() requires module name")))

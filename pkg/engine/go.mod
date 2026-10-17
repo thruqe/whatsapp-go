@@ -16,13 +16,13 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/pion/datachannel v1.6.3
-	github.com/pion/dtls/v3 v3.1.10
+	github.com/pion/dtls/v3 v3.1.14
 	github.com/pion/logging v0.2.4
 	github.com/pion/opus v0.1.0
 	github.com/pion/sctp v1.12.0
 	github.com/polymorfa/libsignal-protocol-go v0.2.3-0.20260806162910-a2adef2e8a11
 	github.com/rs/zerolog v1.35.1
-	go.mau.fi/util v0.10.1
+	go.mau.fi/util v0.11.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.61.0
@@ -38,9 +38,9 @@ require (
 	github.com/petermattis/goid v0.0.0-20260918085751-abfca077860b // indirect
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/transport/v5 v5.1.1 // indirect
-	github.com/vektah/gqlparser/v2 v2.5.62 // indirect
+	github.com/vektah/gqlparser/v2 v2.5.63 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20261009195045-ca0d7ba23607 // indirect
+	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
