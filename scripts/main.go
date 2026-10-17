@@ -31,6 +31,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error running res: %v\n", err)
 			os.Exit(1)
 		}
+	case "icon":
+		if err := runIcon(subArgs); err != nil {
+			fmt.Fprintf(os.Stderr, "Error running icon: %v\n", err)
+			os.Exit(1)
+		}
 	case "sign":
 		if err := runSign(subArgs); err != nil {
 			fmt.Fprintf(os.Stderr, "Error running sign: %v\n", err)
@@ -59,7 +64,8 @@ Usage:
 Available Commands:
   bump   [version]        Bump monthly release version (YY.MM.CRYPTO_PATCH_EXTRA_BUILD_INFO) and update resources
   proto  [--sync] [filter] Compile and update lib protobuf definitions (optional --sync pulls latest WAProto)
-  res    [version]        Generate Windows binary resources & metadata with app icon from assets/logo.png
+  res    [version]        Generate Windows binary resources & metadata with app icon from bot/assets/logo.png
+  icon   [binary]         Apply and deterministically verify OS binary icon (Linux GNOME, Windows PE, macOS Mach-O)
   sign   <binary>         Digitally sign Windows PE binary with SHA-256 Authenticode signature
   page   [output_dir]     Generate static GitHub Pages site using htmlbuilder
   help                    Display this help message
@@ -70,5 +76,6 @@ Examples:
   go run ./scripts proto
   go run ./scripts proto waE2E
   go run ./scripts proto --sync
+  go run ./scripts icon bin/whatsrook
   go run ./scripts sign whatsrook.exe`)
 }

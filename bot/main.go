@@ -31,6 +31,8 @@ type CLIArgs struct {
 	UpdateOp      string // "check", "stable", "beta", or "" (direct update)
 	AutoUpdate    bool   // True if autoupdate action was requested
 	AutoUpdateVal string // "on" or "off"
+	Icon          bool   // Apply and verify binary icon and exit
+	IconTarget    string // Optional target binary path for icon verification
 	Verbose       bool   // Enable verbose / debug logging
 	Version       bool   // Print version and exit
 }
@@ -44,6 +46,8 @@ func main() {
 		}
 	}()
 
+	EnsureBinaryIcon()
+
 	args := parseCLIArgs()
 
 	if args.Version {
@@ -52,6 +56,28 @@ func main() {
 			v = GetBinaryVersion()
 		}
 		fmt.Println(v)
+		return
+	}
+
+	if args.Icon {
+		target := args.IconTarget
+		if target == "" {
+			exe, err := os.Executable()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: failed to resolve executable path: %v\n", err)
+				os.Exit(1)
+			}
+			target = exe
+		}
+		report, err := VerifyBinaryIcon(target)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Icon verification failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Verified %s (%s) icon on %s\n", report.OS, report.BinaryFormat, report.BinaryPath)
+		for _, detail := range report.Details {
+			fmt.Printf("  - %s\n", detail)
+		}
 		return
 	}
 
@@ -136,6 +162,7 @@ func printCLIUsage() {
        whatsrook update [check | stable | beta]
        whatsrook autoupdate [on | off]
        whatsrook logout [<phone>]
+       whatsrook icon [binary]
        whatsrook version
 
 Arguments:
@@ -148,6 +175,7 @@ Commands & Options:
   business                   Connect as WhatsApp Business
   client <type>              Device style: default, android, ios (default: default)
   db <url>                   Custom database URL or file path (default: local database)
+  icon [binary]              Apply and verify OS desktop icon for the binary
   logout                     Log out and disconnect session
   update [action]            Check or install updates (check, stable, beta)
   verbose                    Show detailed technical logs
@@ -180,6 +208,8 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		updateOp      string
 		isAutoUpdate  bool
 		autoUpdateVal string
+		isIcon        bool
+		iconTarget    string
 		verboseVal    bool
 		versionVal    bool
 	)
@@ -197,6 +227,16 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 
 		case "version":
 			versionVal = true
+
+		case "icon":
+			isIcon = true
+			if i+1 < len(cmdArgs) {
+				next := strings.TrimSpace(cmdArgs[i+1])
+				if next != "" {
+					iconTarget = next
+					i++
+				}
+			}
 
 		case "verbose":
 			verboseVal = true
@@ -335,6 +375,8 @@ func parseCLIArgsFrom(cmdArgs []string) CLIArgs {
 		UpdateOp:      updateOp,
 		AutoUpdate:    isAutoUpdate,
 		AutoUpdateVal: autoUpdateVal,
+		Icon:          isIcon,
+		IconTarget:    iconTarget,
 		Verbose:       verboseVal,
 		Version:       versionVal,
 	}

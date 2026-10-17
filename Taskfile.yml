@@ -113,6 +113,11 @@ tasks:
     cmds:
       - go -C scripts run . res {{.CLI_ARGS}}
 
+  icon:
+    desc: Apply and deterministically verify OS binary icon (Linux GNOME, Windows PE, macOS Mach-O)
+    cmds:
+      - go -C scripts run . icon {{.CLI_ARGS | default .BIN_PATH}}
+
   sign:
     desc: Digitally sign Windows PE executable binary with SHA-256 Authenticode signature
     cmds:
@@ -128,6 +133,8 @@ tasks:
       - cmd: go -C scripts run . res
         platforms: [windows]
       - go -C bot build -trimpath -ldflags="-s -w -buildid=" -v -o ../{{.BIN_PATH}} .
+      - cmd: go -C scripts run . icon {{.BIN_PATH}}
+        platforms: [linux, darwin, windows]
 
   build:upx:
     desc: "Build stripped binary and compress with UPX into {{.BIN_PATH}}"
@@ -135,6 +142,8 @@ tasks:
       - task: build
       - upx --best {{.BIN_PATH}}
       - upx -t {{.BIN_PATH}}
+      - cmd: go -C scripts run . icon {{.BIN_PATH}}
+        platforms: [linux, darwin, windows]
 
   build:addons:
     desc: Build all Go addon plugin binaries

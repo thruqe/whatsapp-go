@@ -204,6 +204,10 @@ jobs:
               ;;
           esac
 
+          if [ "${{ matrix.target.os }}" != "android" ]; then
+            GOOS="" GOARCH="" go -C scripts run . icon "$BIN_NAME"
+          fi
+
           echo "Verified: $BIN_NAME is a valid native executable for ${{ matrix.target.os }}-${{ matrix.target.arch }}."
 
       - name: Package Asset
