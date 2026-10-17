@@ -97,6 +97,13 @@ func InvalidateLangCache(chatKey string) {
 	langCacheMu.Unlock()
 }
 
+// ClearLangCache evicts all cached language codes.
+func ClearLangCache() {
+	langCacheMu.Lock()
+	langCache = make(map[string]string)
+	langCacheMu.Unlock()
+}
+
 // Translate retrieves a localized string by key and formats it with optional arguments.
 // If the key is not found in the target language, it falls back to English.
 // If not found in English, it returns the raw key.

@@ -928,18 +928,71 @@ func renderTimezonePage(ctx *Context, s *StoreWrapper, page int) error {
 	return sendPollReply(ctx, tb.Trimmed(), options)
 }
 
+var orderedWizardLanguageCodes = []string{"en", "es", "id", "pt", "fr", "ar", "ru", "de"}
+
+func wizardLanguagePromptText(prefix string) string {
+	var b strings.Builder
+	b.WriteString("Bot Customization Wizard (Step 1/3)\n\n")
+	b.WriteString("Please enter your preferred bot language code or name:\n")
+	for _, code := range orderedWizardLanguageCodes {
+		if name, ok := SupportedLanguages[code]; ok {
+			b.WriteString("• ")
+			b.WriteString(code)
+			b.WriteString(" - ")
+			b.WriteString(name)
+			b.WriteString("\n")
+		}
+	}
+	b.WriteString("\nOr select Skip below to keep the current language.")
+	if prefix != "" {
+		b.WriteString(Sprintf("\n\n(Tip: Type %sreconfigure anytime to restart this wizard)", prefix))
+	}
+	return b.String()
+}
+
+func parseWizardLanguageInput(input string) (string, string, bool) {
+	cleaned := strings.ToLower(strings.TrimSpace(input))
+	cleaned = strings.TrimLeft(cleaned, "•*-0123456789.) ")
+	cleaned = strings.TrimSpace(cleaned)
+	if cleaned == "" {
+		return "", "", false
+	}
+
+	if name, ok := SupportedLanguages[cleaned]; ok {
+		return cleaned, name, true
+	}
+
+	fields := strings.FieldsFunc(cleaned, func(r rune) bool {
+		return unicode.IsSpace(r) || r == '-' || r == ':' || r == '(' || r == ')'
+	})
+	if len(fields) > 0 {
+		if name, ok := SupportedLanguages[fields[0]]; ok {
+			return fields[0], name, true
+		}
+	}
+
+	for _, code := range orderedWizardLanguageCodes {
+		name := SupportedLanguages[code]
+		lowerName := strings.ToLower(name)
+		if cleaned == lowerName || strings.Contains(lowerName, cleaned) {
+			return code, name, true
+		}
+	}
+
+	return "", "", false
+}
+
 func handleReconfigure(ctx *Context) error {
 	key := ctx.Chat.ToNonAD().String() + ":" + ctx.Sender.ToNonAD().String()
 	BotWizardMu.Lock()
-	PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
+	PendingWizardState[key] = WizardSession{Step: "lang", UpdatedAt: time.Now()}
 	BotWizardMu.Unlock()
 	if s, ok := GetStore(ctx); ok {
-		_ = s.PutSetting(ctx.Ctx, "wizard_config", "name")
+		_ = s.PutSetting(ctx.Ctx, "wizard_config", "lang")
 	}
 
 	p := ctx.GetPrefix()
-	bodyText := "Bot Customization Wizard (Step 1/3)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):"
-	return ctx.Replyf("%s\n\n(Tip: Type %sreconfigure anytime to restart this wizard)", bodyText, p)
+	return sendPollReply(ctx, wizardLanguagePromptText(p), []string{"Skip"})
 }
 
 func GetSessionAuthDir(client *whatsmeow.Client) string {
@@ -1077,8 +1130,8 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		"wizardConfig", wizardConfig,
 		"err", err,
 	)
-	if wizardConfig == "done" || wizardConfig == "bio" {
-		if wizardConfig == "bio" {
+	if wizardConfig == "done" || wizardConfig == "bio" || wizardConfig == "prefix" {
+		if wizardConfig == "bio" || wizardConfig == "prefix" {
 			_ = s.PutSetting(ctx, "wizard_config", "done")
 		}
 		Debug("Wizard interceptor: wizard_config is 'done', skipping wizard")
@@ -1121,17 +1174,16 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	if !inWizard {
 		currentStep := wizardConfig
 		Debug("Wizard interceptor: not in active memory session", "currentStep", currentStep)
-		if currentStep == "" || currentStep == "name" {
+		if currentStep == "" || currentStep == "lang" {
 			BotWizardMu.Lock()
-			PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
+			PendingWizardState[key] = WizardSession{Step: "lang", UpdatedAt: time.Now()}
 			BotWizardMu.Unlock()
-			putErr := s.PutSetting(ctx, "wizard_config", "name")
+			putErr := s.PutSetting(ctx, "wizard_config", "lang")
 
-			bodyText := "Bot Customization Wizard (Step 1/3)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):"
-			replyErr := fakeCtx.Replyf("%s\n\n(Tip: Type %sreconfigure anytime to restart this wizard)", bodyText, p)
-			Debug("Wizard interceptor: initiated Step 1 (name) prompt",
+			pollErr := sendPollReply(fakeCtx, wizardLanguagePromptText(p), []string{"Skip"})
+			Debug("Wizard interceptor: initiated Step 1 (lang) prompt",
 				"putErr", putErr,
-				"replyErr", replyErr,
+				"pollErr", pollErr,
 				"chat", evt.Info.Chat.String(),
 				"sender", evt.Info.Sender.String(),
 			)
@@ -1149,6 +1201,52 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 	Debug("Wizard handling step", "chat", key, "step", session.Step, "text", text)
 
 	switch session.Step {
+	case "lang":
+		Debug("Wizard interceptor: handling 'lang' step", "trimmedText", trimmedText)
+		if trimmedText == "" {
+			Debug("Wizard interceptor: empty text for 'lang' step, ignoring")
+			return false
+		}
+		if lowerText == "skip" {
+			_ = s.PutSetting(ctx, "wizard_config", "name")
+			BotWizardMu.Lock()
+			PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
+			BotWizardMu.Unlock()
+			_ = fakeCtx.Reply("Language step skipped.\n\nBot Customization Wizard (Step 2/3)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):")
+			return true
+		}
+		langCode, langName, okLang := parseWizardLanguageInput(trimmedText)
+		if !okLang {
+			Warn("Wizard interceptor: invalid language entered", "input", trimmedText)
+			_ = fakeCtx.Reply("Invalid language selection. Please enter a supported language code (e.g. en, es, id, pt, fr, ar, ru, de) or language name.")
+			_ = sendPollReply(fakeCtx, wizardLanguagePromptText(""), []string{"Skip"})
+			return true
+		}
+
+		chatKey := evt.Info.Chat.String()
+		putBotLangErr := s.PutSetting(ctx, "bot_language", langCode)
+		if chatKey != "" {
+			_ = s.PutSetting(ctx, "lang:"+chatKey, langCode)
+		}
+		ClearLangCache()
+		if chatKey != "" {
+			setLangCache(chatKey, langCode)
+		}
+		putStepErr := s.PutSetting(ctx, "wizard_config", "name")
+
+		BotWizardMu.Lock()
+		PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
+		BotWizardMu.Unlock()
+
+		replyErr := fakeCtx.Replyf("Bot language set to %s (%s).\n\nBot Customization Wizard (Step 2/3)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):", langName, langCode)
+		Debug("Wizard interceptor: saved bot language and sent Step 2 (name) prompt",
+			"langCode", langCode,
+			"putBotLangErr", putBotLangErr,
+			"putStepErr", putStepErr,
+			"replyErr", replyErr,
+		)
+		return true
+
 	case "name":
 		Debug("Wizard interceptor: handling 'name' step", "trimmedText", trimmedText)
 		if trimmedText == "" {
@@ -1166,9 +1264,9 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		PendingWizardState[key] = WizardSession{Step: "thumb", UpdatedAt: time.Now()}
 		BotWizardMu.Unlock()
 
-		bodyText := Sprintf("Bot name set to %q.\n\nBot Customization Wizard (Step 2/3)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip below to keep the default thumbnail.", newName)
+		bodyText := Sprintf("Bot name set to %q.\n\nBot Customization Wizard (Step 3/3)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip below to keep the default thumbnail.", newName)
 		pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-		Debug("Wizard interceptor: saved bot name and sent Step 2 (thumb) prompt",
+		Debug("Wizard interceptor: saved bot name and sent Step 3 (thumb) prompt",
 			"newName", newName,
 			"putNameErr", putNameErr,
 			"putStepErr", putStepErr,
@@ -1177,74 +1275,49 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		return true
 
 	case "thumb":
-		downloadable, isVideo, mime := whatsrook.ExtractMediaFromEvent(evt)
-		Debug("Wizard Step 2/3 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
-
-		if downloadable == nil {
-			Warn("Wizard Step 2/3 (thumb): No image/video/document media found in message", "chat", key)
-			bodyText := "Bot Customization Wizard (Step 2/3)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip below to keep the default thumbnail."
-			pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-			Debug("Wizard Step 2/3 (thumb): resent Step 2 prompt with Skip poll", "pollErr", pollErr)
+		if lowerText == "skip" {
+			_ = s.PutSetting(ctx, "wizard_config", "done")
+			DismissBotNamePrompt(ctx, s)
+			BotWizardMu.Lock()
+			delete(PendingWizardState, key)
+			BotWizardMu.Unlock()
+			_ = sendWizardSummaryCard(fakeCtx)
 			return true
 		}
 
-		Debug("Wizard Step 2/3 (thumb): Starting media download", "chat", key, "mime", mime)
+		downloadable, isVideo, mime := whatsrook.ExtractMediaFromEvent(evt)
+		Debug("Wizard Step 3/3 (thumb): Checking media payload", "chat", key, "mime", mime, "isVideo", isVideo, "foundMedia", downloadable != nil)
+
+		if downloadable == nil {
+			Warn("Wizard Step 3/3 (thumb): No image/video/document media found in message", "chat", key)
+			bodyText := "Bot Customization Wizard (Step 3/3)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip below to keep the default thumbnail."
+			pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
+			Debug("Wizard Step 3/3 (thumb): resent Step 3 prompt with Skip poll", "pollErr", pollErr)
+			return true
+		}
+
+		Debug("Wizard Step 3/3 (thumb): Starting media download", "chat", key, "mime", mime)
 		data, err := client.Download(ctx, downloadable)
 
 		if err != nil || len(data) == 0 {
-			Error("Wizard Step 2/3 (thumb): Media download failed", "chat", key, "err", err, "dataLen", len(data))
+			Error("Wizard Step 3/3 (thumb): Media download failed", "chat", key, "err", err, "dataLen", len(data))
 			replyErr := fakeCtx.Replyf("Failed to download media for thumbnail (error: %v). Please try sending another file or select Skip.", err)
-			Debug("Wizard Step 2/3 (thumb): sent download failure reply", "replyErr", replyErr)
+			Debug("Wizard Step 3/3 (thumb): sent download failure reply", "replyErr", replyErr)
 			return true
 		}
 
-		Debug("Wizard Step 2/3 (thumb): Media downloaded successfully", "chat", key, "bytesLen", len(data), "isVideo", isVideo)
+		Debug("Wizard Step 3/3 (thumb): Media downloaded successfully", "chat", key, "bytesLen", len(data), "isVideo", isVideo)
 		authDir := GetSessionAuthDir(client)
 		targetPath, errProc := ProcessAndSaveThumbnail(ctx, authDir, data, isVideo)
 		if errProc != nil {
-			Error("Wizard Step 2/3 (thumb): Thumbnail processing failed", "chat", key, "err", errProc)
+			Error("Wizard Step 3/3 (thumb): Thumbnail processing failed", "chat", key, "err", errProc)
 			replyErr := fakeCtx.Replyf("Failed to process thumbnail: %v. Please try sending another file or select Skip.", errProc)
-			Debug("Wizard Step 2/3 (thumb): sent processing failure reply", "replyErr", replyErr)
+			Debug("Wizard Step 3/3 (thumb): sent processing failure reply", "replyErr", replyErr)
 			return true
 		}
 
-		Debug("Wizard Step 2/3 (thumb): Thumbnail saved successfully", "chat", key, "targetPath", targetPath)
+		Debug("Wizard Step 3/3 (thumb): Thumbnail saved successfully", "chat", key, "targetPath", targetPath)
 		putThumbErr := s.PutSetting(ctx, "menu_thumbnail_path", targetPath)
-		putStepErr := s.PutSetting(ctx, "wizard_config", "prefix")
-
-		BotWizardMu.Lock()
-		PendingWizardState[key] = WizardSession{Step: "prefix", UpdatedAt: time.Now()}
-		BotWizardMu.Unlock()
-
-		bodyText := "Bot menu thumbnail updated successfully.\n\nBot Customization Wizard (Step 3/3)\n\nPlease type the symbol or prefix you want to use (e.g. ., !, / or 'none') and send it as a message.\n\nOr select Skip below to keep current prefix."
-		pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-		Debug("Wizard interceptor: saved thumbnail and sent Step 3 (prefix) prompt",
-			"targetPath", targetPath,
-			"putThumbErr", putThumbErr,
-			"putStepErr", putStepErr,
-			"pollErr", pollErr,
-		)
-		return true
-
-	case "prefix":
-		Debug("Wizard interceptor: handling 'prefix' step", "trimmedText", trimmedText)
-		if trimmedText == "" {
-			Debug("Wizard interceptor: empty text for 'prefix' step, ignoring")
-			return false
-		}
-		newPrefix := trimmedText
-		if _, err := validateBotPrefixInput(newPrefix); err != nil {
-			Warn("Wizard interceptor: invalid prefix entered", "input", newPrefix, "err", err)
-			_ = fakeCtx.Reply("Invalid prefix. Use a single symbol or short word only (for example: !, /, . or bot). Sentences like 'hello there' are not allowed.")
-			bodyText := "Bot Customization Wizard (Step 3/3)\n\nPlease type the symbol or prefix you want to use (e.g. ., !, / or 'none') and send it as a message.\n\nOr select Skip below to keep current prefix."
-			pollErr := sendPollReply(fakeCtx, bodyText, []string{"Skip"})
-			Debug("Wizard interceptor: resent Step 3 prompt", "pollErr", pollErr)
-			return true
-		}
-		if strings.EqualFold(newPrefix, "none") || strings.EqualFold(newPrefix, "empty") {
-			newPrefix = "empty"
-		}
-		putPfxErr := s.PutSetting(ctx, PrefixSettingKey, newPrefix)
 		putDoneErr := s.PutSetting(ctx, "wizard_config", "done")
 		DismissBotNamePrompt(ctx, s)
 
@@ -1253,9 +1326,9 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 		BotWizardMu.Unlock()
 
 		summaryErr := sendWizardSummaryCard(fakeCtx)
-		Debug("Wizard interceptor: saved prefix and completed customization wizard",
-			"newPrefix", newPrefix,
-			"putPfxErr", putPfxErr,
+		Debug("Wizard interceptor: saved thumbnail and completed customization wizard",
+			"targetPath", targetPath,
+			"putThumbErr", putThumbErr,
 			"putDoneErr", putDoneErr,
 			"summaryErr", summaryErr,
 		)
@@ -1284,11 +1357,11 @@ func handleSetBot(ctx *Context) error {
 
 		switch sub {
 		case "wizard", "setup", "reconfigure", "reconfig":
-			_ = s.PutSetting(ctx.Ctx, "wizard_config", "name")
+			_ = s.PutSetting(ctx.Ctx, "wizard_config", "lang")
 			BotWizardMu.Lock()
-			PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
+			PendingWizardState[key] = WizardSession{Step: "lang", UpdatedAt: time.Now()}
 			BotWizardMu.Unlock()
-			return ctx.Reply("Bot Customization Wizard (Step 1/3)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):")
+			return sendPollReply(ctx, wizardLanguagePromptText(p), []string{"Skip"})
 
 		case "done", "finish":
 			// User clicked "Done" on the wizard summary poll — persist done and dismiss.
@@ -1301,32 +1374,48 @@ func handleSetBot(ctx *Context) error {
 
 		case "startover", "restart", "redo":
 			// User clicked "Start Over" on the wizard summary poll — restart from step 1.
-			_ = s.PutSetting(ctx.Ctx, "wizard_config", "name")
+			_ = s.PutSetting(ctx.Ctx, "wizard_config", "lang")
 			BotWizardMu.Lock()
-			PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
+			PendingWizardState[key] = WizardSession{Step: "lang", UpdatedAt: time.Now()}
 			BotWizardMu.Unlock()
-			return ctx.Reply("Restarting wizard.\n\nBot Customization Wizard (Step 1/3)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):")
+			return sendPollReply(ctx, "Restarting wizard.\n\n"+wizardLanguagePromptText(p), []string{"Skip"})
 
-		case "prompt_name", "name_prompt":
+		case "language", "lang", "prompt_lang", "lang_prompt":
+			if len(args) >= 2 {
+				langCode, langName, okLang := parseWizardLanguageInput(strings.Join(args[1:], " "))
+				if !okLang {
+					return ctx.Reply("Invalid language selection. Please enter a supported language code (e.g. en, es, id, pt, fr, ar, ru, de).")
+				}
+				chatKey := ctx.Chat.String()
+				_ = s.PutSetting(ctx.Ctx, "bot_language", langCode)
+				if chatKey != "" {
+					_ = s.PutSetting(ctx.Ctx, "lang:"+chatKey, langCode)
+				}
+				ClearLangCache()
+				if chatKey != "" {
+					setLangCache(chatKey, langCode)
+				}
+				return ctx.Replyf("Bot language updated to: %s (%s)!", langName, langCode)
+			}
+			_ = s.PutSetting(ctx.Ctx, "wizard_config", "lang")
+			BotWizardMu.Lock()
+			PendingWizardState[key] = WizardSession{Step: "lang", UpdatedAt: time.Now()}
+			BotWizardMu.Unlock()
+			return sendPollReply(ctx, wizardLanguagePromptText(""), []string{"Skip"})
+
+		case "bot", "prompt_name", "name_prompt":
 			_ = s.PutSetting(ctx.Ctx, "wizard_config", "name")
 			BotWizardMu.Lock()
 			PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
 			BotWizardMu.Unlock()
 			return ctx.Reply("Please type your desired bot display name (e.g. Jarvis, Meow, Fuzzy):")
 
-		case "prompt_thumb", "thumb_prompt":
+		case "thumbnail", "thumb", "prompt_thumb", "thumb_prompt":
 			_ = s.PutSetting(ctx.Ctx, "wizard_config", "thumb")
 			BotWizardMu.Lock()
 			PendingWizardState[key] = WizardSession{Step: "thumb", UpdatedAt: time.Now()}
 			BotWizardMu.Unlock()
 			return ctx.Reply("Please upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.")
-
-		case "prompt_prefix", "prefix_prompt":
-			_ = s.PutSetting(ctx.Ctx, "wizard_config", "prefix")
-			BotWizardMu.Lock()
-			PendingWizardState[key] = WizardSession{Step: "prefix", UpdatedAt: time.Now()}
-			BotWizardMu.Unlock()
-			return ctx.Reply("Please send the command prefix symbol or word you want to use (e.g. ., !, / or 'none'):")
 
 		case "0", "skip":
 			stepNum := 0
@@ -1342,30 +1431,44 @@ func handleSetBot(ctx *Context) error {
 				BotWizardMu.RUnlock()
 				if hasWizard {
 					switch ws.Step {
-					case "thumb":
+					case "lang":
+						stepNum = 1
+					case "name":
 						stepNum = 2
-					case "prefix":
+					case "thumb":
 						stepNum = 3
 					}
 				} else {
 					wc, _ := s.GetSetting(ctx.Ctx, "wizard_config")
 					switch wc {
-					case "thumb":
+					case "lang":
+						stepNum = 1
+					case "name":
 						stepNum = 2
-					case "prefix":
+					case "thumb":
 						stepNum = 3
 					}
 				}
 			}
 
-			if stepNum == 2 {
-				// Skip thumbnail step, advance to prefix step
-				_ = s.PutSetting(ctx.Ctx, "wizard_config", "prefix")
+			if stepNum == 1 {
+				// Skip language step, advance to bot name step
+				_ = s.PutSetting(ctx.Ctx, "wizard_config", "name")
 				BotWizardMu.Lock()
-				PendingWizardState[key] = WizardSession{Step: "prefix", UpdatedAt: time.Now()}
+				PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
 				BotWizardMu.Unlock()
 
-				bodyText := "Thumbnail step skipped.\n\nBot Customization Wizard (Step 3/3)\n\nPlease type the symbol or prefix you want to use (e.g. ., !, / or 'none') and send it as a message.\n\nOr select Skip to keep the current prefix."
+				return ctx.Reply("Language step skipped.\n\nBot Customization Wizard (Step 2/3)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):")
+			}
+
+			if stepNum == 2 {
+				// Skip bot name step, advance to thumbnail step
+				_ = s.PutSetting(ctx.Ctx, "wizard_config", "thumb")
+				BotWizardMu.Lock()
+				PendingWizardState[key] = WizardSession{Step: "thumb", UpdatedAt: time.Now()}
+				BotWizardMu.Unlock()
+
+				bodyText := "Bot name step skipped.\n\nBot Customization Wizard (Step 3/3)\n\nPlease upload or reply with an image (.jpg/.png) or video (.mp4) to set as your bot menu thumbnail.\n\nOr select Skip to keep the default thumbnail."
 				return sendPollReply(ctx, bodyText, []string{"Skip"})
 			}
 
@@ -1419,27 +1522,30 @@ func handleSetBot(ctx *Context) error {
 
 		case "reset":
 			authDir := GetSessionAuthDir(ctx.Client)
+			_ = s.PutSetting(ctx.Ctx, "bot_language", "")
+			_ = s.PutSetting(ctx.Ctx, "lang:"+ctx.Chat.String(), "")
+			ClearLangCache()
 			_ = s.PutSetting(ctx.Ctx, BotNameSettingKey, "")
 			ResetBotNamePromptDismissed(ctx.Ctx, s)
-			_ = s.PutSetting(ctx.Ctx, PrefixSettingKey, "")
 			_ = s.PutSetting(ctx.Ctx, "menu_thumbnail_path", "")
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.mp4"))
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.jpg"))
 			ClearInstructionCache()
-			return ctx.Reply("All bot settings (Name, Thumbnail, Prefix) reset to default values.")
+			return ctx.Reply("All bot customization settings (Language, Name, Thumbnail) reset to default values.")
 
 		case "setup_customize":
 			DismissBotNamePrompt(ctx.Ctx, s)
 			_ = s.PutSetting(ctx.Ctx, BotNameAwaitingInputPrefix+senderUser, "")
+			_ = s.PutSetting(ctx.Ctx, "wizard_config", "lang")
 			BotWizardMu.Lock()
-			PendingWizardState[key] = WizardSession{Step: "name", UpdatedAt: time.Now()}
+			PendingWizardState[key] = WizardSession{Step: "lang", UpdatedAt: time.Now()}
 			BotWizardMu.Unlock()
-			return ctx.Reply("Bot Customization Wizard (Step 1/3)\n\nPlease enter your desired bot display name (e.g. Jarvis, Fuzzy, Meow):")
+			return sendPollReply(ctx, wizardLanguagePromptText(p), []string{"Skip"})
 
 		case "setup_continue":
 			DismissBotNamePrompt(ctx.Ctx, s)
 			_ = s.PutSetting(ctx.Ctx, BotNameAwaitingInputPrefix+senderUser, "")
-			bodyText := "BOT NAME CUSTOMIZATION RECOMMENDED: Keeping default name WhatsRook is fine. You can start the customization wizard anytime using " + p + "reconfigure:"
+			bodyText := "BOT CUSTOMIZATION RECOMMENDED: Keeping default settings is fine. You can start the customization wizard anytime using " + p + "reconfigure:"
 			options := []string{
 				"Start Wizard",
 				"Keep Default",
@@ -1450,7 +1556,7 @@ func handleSetBot(ctx *Context) error {
 			_ = s.PutSetting(ctx.Ctx, "wizard_config", "done")
 			DismissBotNamePrompt(ctx.Ctx, s)
 			_ = s.PutSetting(ctx.Ctx, BotNameAwaitingInputPrefix+senderUser, "")
-			return ctx.Replyf("Kept default bot name. Change anytime using %sreconfigure or %ssetbot", p, p)
+			return ctx.Replyf("Kept default bot settings. Change anytime using %sreconfigure or %ssetbot", p, p)
 
 		default:
 			return ctx.Replyf("Unknown setbot option. Usage: %ssetbot or %sreconfigure", p, p)
@@ -1468,11 +1574,11 @@ func handleSetBot(ctx *Context) error {
 }
 
 func sendSetBotPage(ctx *Context, pageNum int) error {
-	p := ctx.GetPrefix()
 	botName := ctx.GetBotName()
-	curPrefix := p
-	if curPrefix == "" {
-		curPrefix = "(none)"
+	langCode := ctx.Lang()
+	langName := SupportedLanguages[langCode]
+	if langName == "" {
+		langName = langCode
 	}
 
 	thumbStatus := "None (Default)"
@@ -1486,9 +1592,9 @@ func sendSetBotPage(ctx *Context, pageNum int) error {
 
 	tb := ctx.Text().
 		Header("BOT CUSTOMIZATION").
+		Field("Language", Sprintf("%s (%s)", langName, langCode)).
 		Field("Name", botName).
-		Field("Thumbnail", thumbStatus).
-		Field("Prefix", curPrefix)
+		Field("Thumbnail", thumbStatus)
 
 	var options []string
 
@@ -1496,13 +1602,13 @@ func sendSetBotPage(ctx *Context, pageNum int) error {
 	case 1:
 		options = []string{
 			"Wizard",
+			"Language",
 			"Bot Name",
 			"Next",
 		}
 	default:
 		options = []string{
 			"Thumbnail",
-			"Prefix",
 			"Reset All",
 			"Back",
 		}
@@ -1514,9 +1620,10 @@ func sendSetBotPage(ctx *Context, pageNum int) error {
 func sendWizardSummaryCard(ctx *Context) error {
 	p := ctx.GetPrefix()
 	botName := ctx.GetBotName()
-	curPrefix := p
-	if curPrefix == "" {
-		curPrefix = "(none)"
+	langCode := ctx.Lang()
+	langName := SupportedLanguages[langCode]
+	if langName == "" {
+		langName = langCode
 	}
 
 	thumbStatus := "None (Default)"
@@ -1533,9 +1640,9 @@ func sendWizardSummaryCard(ctx *Context) error {
 	summaryText := ctx.Text().
 		Header("Bot Customization Completed!").
 		Section("BOT CONFIGURATION").
+		Field("Language", Sprintf("%s (%s)", langName, langCode)).
 		Field("Name", botName).
 		Field("Thumbnail", thumbStatus).
-		Field("Prefix", curPrefix).
 		Blank().
 		Linef("Type %smenu anytime to view your updated bot commands menu!", p).
 		Trimmed()
