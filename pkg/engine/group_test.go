@@ -195,6 +195,11 @@ func TestGroupMetaCache_CanSend(t *testing.T) {
 	if !cache.CanSend(adminJID, msg) {
 		t.Errorf("expected admin to be able to send in read-only group")
 	}
+	adminADJID := adminJID
+	adminADJID.Device = 1
+	if !cache.CanSend(adminADJID, msg) {
+		t.Errorf("expected admin companion device to be able to send in read-only group")
+	}
 	if cache.CanSend(nonAdminJID, msg) {
 		t.Errorf("expected non-admin to NOT be able to send ordinary message in read-only group")
 	}
