@@ -123,8 +123,14 @@ func (c *Client) InitSession(ctx context.Context) error {
 	cli := whatsmeow.NewClient(deviceStore, waLogger)
 	cli.AsyncMessageAck = c.Config.AsyncMessageAck
 
+	clientType := c.Config.ClientType
+	if clientType == ClientChrome && deviceStore != nil && deviceStore.Platform != "" {
+		if parsedType, ok := ParseClientType(deviceStore.Platform); ok {
+			clientType = parsedType
+		}
+	}
 	isBusiness := c.Config.Business || (deviceStore != nil && (deviceStore.BusinessName != "" || strings.HasPrefix(strings.ToLower(deviceStore.Platform), "smb")))
-	ConfigureCompanionPlatform(c.Config.ClientType, isBusiness)
+	ConfigureCompanionPlatform(clientType, isBusiness)
 
 	c.rawClient = cli
 	return nil
@@ -376,6 +382,9 @@ func (c *Client) PairQR(ctx context.Context) (<-chan whatsmeow.QRChannelItem, er
 // DefaultDataDir returns the default local data directory for whatsrook.
 func DefaultDataDir() string {
 	if dir := os.Getenv("WHATSROOK_DATA_DIR"); dir != "" {
+		return dir
+	}
+	if dir := os.Getenv("WHATSDATA_DIR"); dir != "" {
 		return dir
 	}
 	home, err := os.UserHomeDir()

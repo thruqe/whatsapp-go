@@ -161,38 +161,7 @@ func (b *Bot) runSession(ctx context.Context) error {
 		Debug("initiating session logout", "session", b.cfg.Session)
 		Info("Logging out of WhatsApp...")
 
-		if cli.Store.ID == nil {
-			Debug("session was never paired; skipping server-side revocation")
-		} else {
-			connected := make(chan struct{}, 1)
-			cli.AddEventHandler(func(evt any) {
-				if _, ok := evt.(*events.Connected); ok {
-					select {
-					case connected <- struct{}{}:
-					default:
-					}
-				}
-			})
-
-			if err := cli.Connect(); err != nil {
-				Warn("Socket connection failed prior to logout; purging local device state only", "err", err)
-			} else {
-				logoutCtx, logoutCancel := context.WithTimeout(sessionCtx, 10*time.Second)
-				select {
-				case <-connected:
-					Debug("connected to WhatsApp routing servers; dispatching logout frame")
-				case <-logoutCtx.Done():
-					Warn("connection timeout during logout sequence; forcing server revocation")
-				}
-				logoutCancel()
-
-				if err := cli.Logout(sessionCtx); err != nil {
-					Warn("server logout command returned error", "err", err)
-				}
-				cli.Disconnect()
-			}
-		}
-
+		whatsrook.LogoutFromServer(sessionCtx, cli)
 		b.client.ClearSessionDB(sessionCtx, b.cfg.Session)
 		Debug("session credentials and records purged successfully", "session", b.cfg.Session)
 		Info("Logged out successfully")

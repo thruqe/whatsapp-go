@@ -1395,22 +1395,34 @@ func handleLogoutCommand(ctx *Context) error {
 	go func() {
 		time.Sleep(1 * time.Second)
 		if ctx.Client != nil {
-			logoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			logoutCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
-			if err := ctx.Client.Logout(logoutCtx); err != nil {
-				Warn("Remote logout command returned error", "err", err)
-			}
-			ctx.Client.Disconnect()
-			if s, ok := GetSQLStore(ctx.Client); ok && s != nil {
-				phone := ""
-				if ctx.Client.Store != nil && ctx.Client.Store.ID != nil {
-					phone = ctx.Client.Store.ID.User
+
+			var ids []string
+			if ctx.Client.Store != nil {
+				if ctx.Client.Store.ID != nil && ctx.Client.Store.ID.User != "" {
+					ids = append(ids, ctx.Client.Store.ID.User, ctx.Client.Store.ID.ToNonAD().String())
 				}
-				_ = PurgeSessionDataFromStore(logoutCtx, s.SQLStore, phone)
+				if !ctx.Client.Store.LID.IsEmpty() && ctx.Client.Store.LID.User != "" {
+					ids = append(ids, ctx.Client.Store.LID.User, ctx.Client.Store.LID.ToNonAD().String())
+				}
+			}
+
+			whatsrook.LogoutFromServer(logoutCtx, ctx.Client)
+
+			if s, ok := GetSQLStore(ctx.Client); ok && s != nil {
+				for _, id := range ids {
+					_ = PurgeSessionDataFromStore(logoutCtx, s.SQLStore, id)
+				}
+				if len(ids) == 0 {
+					_ = PurgeSessionDataFromStore(logoutCtx, s.SQLStore, "")
+				}
 			}
 			if ctx.Client.Store != nil {
 				_ = ctx.Client.Store.Delete(logoutCtx)
 			}
+			whatsrook.PurgeSessionFiles("", "", false, ids...)
+
 			ctx.Client.DispatchEvent(&events.LoggedOut{
 				OnConnect: false,
 				Reason:    events.ConnectFailureLoggedOut,

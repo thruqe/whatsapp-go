@@ -185,34 +185,6 @@ func shouldColorize() bool {
 	return os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb"
 }
 
-func customLevelEncoder(color bool) zapcore.LevelEncoder {
-	return func(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
-		enc.AppendString(levelLabel(l, color))
-	}
-}
-
-func levelLabel(l zapcore.Level, color bool) string {
-	label, code := "?????", ""
-	switch l {
-	case zapcore.DebugLevel:
-		label, code = "DEBUG", "35"
-	case zapcore.InfoLevel:
-		label, code = "INFO ", "32"
-	case zapcore.WarnLevel:
-		label, code = "WARN ", "33"
-	case zapcore.ErrorLevel:
-		label, code = "ERROR", "31"
-	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
-		label, code = "FATAL", "1;31"
-	default:
-		return fmt.Sprintf("%-5s", l.CapitalString())
-	}
-	if color {
-		return "\x1b[" + code + "m" + label + "\x1b[0m"
-	}
-	return label
-}
-
 func customTimeEncoder(color bool) zapcore.TimeEncoder {
 	return func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 		formatted := t.Format("15:04:05.000")
@@ -220,19 +192,6 @@ func customTimeEncoder(color bool) zapcore.TimeEncoder {
 			formatted = "\x1b[90m" + formatted + "\x1b[0m"
 		}
 		enc.AppendString(formatted)
-	}
-}
-
-func customNameEncoder(color bool) zapcore.NameEncoder {
-	return func(s string, enc zapcore.PrimitiveArrayEncoder) {
-		if s == "" {
-			return
-		}
-		if color {
-			enc.AppendString("\x1b[36m[" + s + "]\x1b[0m")
-		} else {
-			enc.AppendString("[" + s + "]")
-		}
 	}
 }
 
@@ -271,13 +230,13 @@ func (c *cleanConsoleEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Fi
 	if lastBrace == -1 {
 		return buf, nil
 	}
-	sepBrace := bytes.LastIndex(mainLine[:lastBrace+1], []byte("  {"))
+	sepBrace := bytes.LastIndex(mainLine[:lastBrace+1], []byte(" {"))
 	if sepBrace == -1 {
 		return buf, nil
 	}
 
 	var fieldMap map[string]any
-	if err := json.Unmarshal(mainLine[sepBrace+2:lastBrace+1], &fieldMap); err != nil || len(fieldMap) == 0 {
+	if err := json.Unmarshal(mainLine[sepBrace+1:lastBrace+1], &fieldMap); err != nil || len(fieldMap) == 0 {
 		return buf, nil
 	}
 
@@ -374,15 +333,11 @@ func newConsoleEncoder(color bool) zapcore.Encoder {
 	useColor := color && shouldColorize()
 	cfg := zapcore.EncoderConfig{
 		TimeKey:          "time",
-		LevelKey:         "level",
-		NameKey:          "logger",
 		MessageKey:       "msg",
 		StacktraceKey:    "stacktrace",
 		LineEnding:       zapcore.DefaultLineEnding,
-		ConsoleSeparator: "  ",
-		EncodeLevel:      customLevelEncoder(useColor),
+		ConsoleSeparator: " ",
 		EncodeTime:       customTimeEncoder(useColor),
-		EncodeName:       customNameEncoder(useColor),
 		EncodeDuration:   zapcore.StringDurationEncoder,
 		EncodeCaller:     zapcore.ShortCallerEncoder,
 	}

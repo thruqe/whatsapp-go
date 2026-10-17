@@ -87,9 +87,10 @@ func main() {
 		}
 	}
 
-	// Resolve database target: keep args.Database empty for SQLite fallback
-	dialect, resolvedDB := ResolveDatabaseTarget(args.Database)
-	if dialect == "postgres" {
+	// Resolve database target: keep args.Database empty only when using default SQLite fallback
+	rawDBArg := strings.TrimSpace(args.Database)
+	dialect, resolvedDB := ResolveDatabaseTarget(rawDBArg)
+	if dialect == "postgres" || rawDBArg != "" {
 		args.Database = resolvedDB
 	} else {
 		args.Database = ""

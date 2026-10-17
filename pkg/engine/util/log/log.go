@@ -65,7 +65,7 @@ func (s *stdoutLogger) outputf(level, msg string, args ...any) {
 			colorReset = "\033[0m"
 		}
 	}
-	fmt.Printf("%s%s [%s %s] %s%s\n", time.Now().Format("15:04:05.000"), colorStart, s.mod, level, fmt.Sprintf(msg, args...), colorReset)
+	fmt.Printf("%s %s%s%s\n", time.Now().Format("15:04:05.000"), colorStart, fmt.Sprintf(msg, args...), colorReset)
 }
 
 func (s *stdoutLogger) Errorf(msg string, args ...any) { s.outputf("ERROR", msg, args...) }

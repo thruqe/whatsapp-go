@@ -51,6 +51,7 @@ func BuildSessionPredicates(session string) []duosql.Predicate {
 		addEq(user)
 		addEq(user + "@s.whatsapp.net")
 		addEq(user + "@" + types.DefaultUserServer)
+		addEq(user + "@" + types.HiddenUserServer)
 		preds = append(preds,
 			duosql.Like("our_jid", user+":%"),
 			duosql.Like("our_jid", user+"@%"),
@@ -118,8 +119,9 @@ func PurgeSessionData(ctx context.Context, db *dbutil.Database, session string) 
 		Warn("PurgeSessionData: failed to purge bot_platform_cookies", "err", err, "session", session)
 	}
 
-	// Purge in-memory caches for all resolved session keys
+	// Purge in-memory caches and session-scoped files on disk for all resolved session keys
 	purgeSessionCache(ctx, session)
+	whatsrook.PurgeSessionFiles("", "", false, session)
 
 	Debug("PurgeSessionData: successfully purged all session data", "session", session)
 	return nil
@@ -153,7 +155,7 @@ func purgeSessionCache(ctx context.Context, session string) {
 
 	keys := []string{trimmed, clean}
 	if user != "" {
-		keys = append(keys, user, user+"@s.whatsapp.net", user+"@"+types.DefaultUserServer)
+		keys = append(keys, user, user+"@s.whatsapp.net", user+"@"+types.DefaultUserServer, user+"@"+types.HiddenUserServer)
 	}
 
 	seen := make(map[string]bool)

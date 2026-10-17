@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"go.mau.fi/util/dbutil"
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 
 	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
@@ -239,7 +241,64 @@ func ListStoredSessions(ctx context.Context, dataDir, database string) ([]Stored
 	return sessions, nil
 }
 
-// DeleteStoredSession logs out and purges an account's device records from the store.
+// LogoutFromServer ensures the client is connected and authenticated with WhatsApp,
+// then sends a server-side companion device logout request before disconnecting.
+func LogoutFromServer(ctx context.Context, cli *whatsmeow.Client) {
+	if cli == nil || cli.Store == nil || cli.Store.ID == nil {
+		return
+	}
+
+	if !cli.IsConnected() || !cli.IsLoggedIn() {
+		connected := make(chan struct{}, 1)
+		failed := make(chan struct{}, 1)
+		handlerID := cli.AddEventHandler(func(evt any) {
+			switch evt.(type) {
+			case *events.Connected:
+				select {
+				case connected <- struct{}{}:
+				default:
+				}
+			case *events.LoggedOut, *events.ConnectFailure, *events.StreamReplaced:
+				select {
+				case failed <- struct{}{}:
+				default:
+				}
+			}
+		})
+		defer cli.RemoveEventHandler(handlerID)
+
+		if !cli.IsConnected() {
+			if err := cli.Connect(); err != nil {
+				defaultLogger.Debugf("failed to connect to WhatsApp prior to logout: %v", err)
+				return
+			}
+		}
+
+		connectCtx, connectCancel := context.WithTimeout(ctx, 15*time.Second)
+		select {
+		case <-connected:
+			defaultLogger.Debugf("connected to WhatsApp servers; sending logout request")
+		case <-failed:
+			defaultLogger.Debugf("session already invalidated on WhatsApp servers")
+			connectCancel()
+			cli.Disconnect()
+			return
+		case <-connectCtx.Done():
+			defaultLogger.Debugf("timed out waiting for WhatsApp connection before logout")
+		}
+		connectCancel()
+	}
+
+	logoutCtx, logoutCancel := context.WithTimeout(ctx, 15*time.Second)
+	if err := cli.Logout(logoutCtx); err != nil {
+		defaultLogger.Debugf("server logout request returned error: %v", err)
+	}
+	logoutCancel()
+	cli.Disconnect()
+}
+
+// DeleteStoredSession connects to WhatsApp, performs a server-side logout,
+// and purges all database records and local directories for the session.
 func DeleteStoredSession(ctx context.Context, dataDir, database, phone string) error {
 	if dataDir == "" {
 		dataDir = DefaultDataDir()
@@ -251,93 +310,162 @@ func DeleteStoredSession(ctx context.Context, dataDir, database, phone string) e
 		Session:    phone,
 		ClientType: ClientChrome,
 	})
-	defer func() {
-		_ = client.Close()
-	}()
 
 	initCtx, initCancel := context.WithTimeout(ctx, 10*time.Second)
-	defer initCancel()
-
-	if err := client.InitSession(initCtx); err != nil {
-		return FallbackDeleteDevice(ctx, dataDir, database, phone)
+	errInit := client.InitSession(initCtx)
+	initCancel()
+	if errInit != nil {
+		_ = client.Close()
+		err := FallbackDeleteDevice(ctx, dataDir, database, phone)
+		PurgeSessionFiles(dataDir, database, false, phone)
+		return err
 	}
 
 	cli := client.WAClient()
+	ids := collectDeviceIdentifiers(phone, cli)
+
 	if cli != nil && cli.Store != nil && cli.Store.ID != nil {
-		if GlobalSessionPurger != nil && client.container != nil && phone != "" {
-			_ = GlobalSessionPurger(ctx, client.container.GetDB(), phone)
+		LogoutFromServer(ctx, cli)
+
+		if GlobalSessionPurger != nil && client.container != nil {
+			for _, id := range ids {
+				_ = GlobalSessionPurger(ctx, client.container.GetDB(), id)
+			}
 		}
 
 		_ = cli.Store.Delete(ctx)
-		_ = FallbackDeleteDevice(ctx, dataDir, database, phone)
+		remaining := deleteMatchingDevicesInContainer(ctx, client.container, ids...)
+		_ = client.Close()
+		PurgeSessionFiles(dataDir, database, remaining == 0, ids...)
 		return nil
 	}
 
-	return FallbackDeleteDevice(ctx, dataDir, database, phone)
+	_ = client.Close()
+	err := FallbackDeleteDevice(ctx, dataDir, database, phone)
+	PurgeSessionFiles(dataDir, database, false, ids...)
+	return err
+}
+
+func collectDeviceIdentifiers(phone string, cli *whatsmeow.Client) []string {
+	var raw []string
+	if strings.TrimSpace(phone) != "" {
+		raw = append(raw, phone, strings.TrimPrefix(strings.TrimSpace(phone), "+"))
+	}
+	if cli != nil && cli.Store != nil {
+		if cli.Store.ID != nil && cli.Store.ID.User != "" {
+			raw = append(raw, cli.Store.ID.User, cli.Store.ID.ToNonAD().String(), cli.Store.ID.String())
+		}
+		if !cli.Store.LID.IsEmpty() && cli.Store.LID.User != "" {
+			raw = append(raw, cli.Store.LID.User, cli.Store.LID.ToNonAD().String(), cli.Store.LID.String())
+		}
+	}
+	seen := make(map[string]bool, len(raw))
+	var out []string
+	for _, item := range raw {
+		trimmed := strings.TrimSpace(item)
+		if trimmed != "" && !seen[trimmed] {
+			seen[trimmed] = true
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func deleteMatchingDevicesInContainer(ctx context.Context, container *sqlstore.Container, identifiers ...string) int {
+	if container == nil {
+		return -1
+	}
+	users := extractCleanUsers(identifiers...)
+	for _, u := range users {
+		jid := types.NewJID(u, types.DefaultUserServer)
+		if dev, err := container.GetDevice(ctx, jid); err == nil && dev != nil {
+			_ = dev.Delete(ctx)
+		}
+	}
+
+	devices, err := container.GetAllDevices(ctx)
+	if err != nil {
+		return -1
+	}
+	remaining := 0
+	for _, d := range devices {
+		if d.ID == nil {
+			continue
+		}
+		matched := false
+		for _, u := range users {
+			if u != "" && (d.ID.User == u || d.LID.User == u || strings.Contains(d.ID.String(), u)) {
+				matched = true
+				break
+			}
+		}
+		if matched {
+			_ = d.Delete(ctx)
+		} else {
+			remaining++
+		}
+	}
+	return remaining
 }
 
 // FallbackDeleteDevice deletes a device record by phone number directly from the container.
 func FallbackDeleteDevice(ctx context.Context, dataDir, database, phone string) error {
 	container, err := OpenStoreContainer(ctx, dataDir, database)
 	if err != nil {
+		PurgeSessionFiles(dataDir, database, false, phone)
 		return fmt.Errorf("failed to open database container: %w", err)
 	}
-	defer func() {
-		_ = container.Close()
-	}()
 
-	if GlobalSessionPurger != nil && phone != "" {
-		_ = GlobalSessionPurger(ctx, container.GetDB(), phone)
+	var extraIDs []string
+	if phone != "" {
+		extraIDs = append(extraIDs, phone)
 	}
-
-	cleanPhone := strings.TrimPrefix(phone, "+")
-	jid := types.NewJID(cleanPhone, types.DefaultUserServer)
-
-	dev, err := container.GetDevice(ctx, jid)
-	if err != nil {
-		return fmt.Errorf("failed to lookup device in store: %w", err)
-	}
-	if dev != nil {
-		if err := dev.Delete(ctx); err != nil {
-			return fmt.Errorf("failed to delete device record: %w", err)
-		}
-		return nil
-	}
-
-	devices, err := container.GetAllDevices(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to scan devices: %w", err)
-	}
-	for _, d := range devices {
-		if d.ID != nil && (d.ID.User == cleanPhone || strings.Contains(d.ID.String(), cleanPhone)) {
-			_ = d.Delete(ctx)
-			return nil
+	cleanPhone := strings.TrimPrefix(strings.TrimSpace(phone), "+")
+	if devices, errScan := container.GetAllDevices(ctx); errScan == nil {
+		for _, d := range devices {
+			if d.ID != nil && cleanPhone != "" && (d.ID.User == cleanPhone || strings.Contains(d.ID.String(), cleanPhone)) {
+				extraIDs = append(extraIDs, d.ID.User, d.ID.ToNonAD().String(), d.ID.String())
+				if !d.LID.IsEmpty() && d.LID.User != "" {
+					extraIDs = append(extraIDs, d.LID.User, d.LID.ToNonAD().String(), d.LID.String())
+				}
+			}
 		}
 	}
 
+	if GlobalSessionPurger != nil {
+		for _, id := range extraIDs {
+			_ = GlobalSessionPurger(ctx, container.GetDB(), id)
+		}
+	}
+
+	remaining := deleteMatchingDevicesInContainer(ctx, container, extraIDs...)
+	_ = container.Close()
+	PurgeSessionFiles(dataDir, database, remaining == 0, extraIDs...)
 	return nil
 }
 
-// ClearSessionDB clears device and custom database records.
+// ClearSessionDB clears device, custom database records, and session folders.
 func (c *Client) ClearSessionDB(ctx context.Context, phone string) {
 	c.mu.Lock()
 	raw := c.rawClient
 	container := c.container
 	c.mu.Unlock()
 
-	if phone == "" && raw != nil && raw.Store != nil && raw.Store.ID != nil {
-		phone = raw.Store.ID.User
-	}
-	if phone == "" {
-		phone = c.Config.Session
+	ids := collectDeviceIdentifiers(phone, raw)
+	if len(ids) == 0 && c.Config.Session != "" {
+		ids = collectDeviceIdentifiers(c.Config.Session, raw)
 	}
 
-	if GlobalSessionPurger != nil && phone != "" {
+	if GlobalSessionPurger != nil {
 		if container != nil && container.GetDB() != nil {
-			_ = GlobalSessionPurger(ctx, container.GetDB(), phone)
+			for _, id := range ids {
+				_ = GlobalSessionPurger(ctx, container.GetDB(), id)
+			}
 		} else if raw != nil && raw.Store != nil {
 			if s, ok := raw.Store.Identities.(*sqlstore.SQLStore); ok && s != nil {
-				_ = GlobalSessionPurger(ctx, s.GetDB(), phone)
+				for _, id := range ids {
+					_ = GlobalSessionPurger(ctx, s.GetDB(), id)
+				}
 			}
 		}
 	}
@@ -345,7 +473,122 @@ func (c *Client) ClearSessionDB(ctx context.Context, phone string) {
 	if raw != nil && raw.Store != nil {
 		_ = raw.Store.Delete(ctx)
 	}
-	if phone != "" {
-		_ = FallbackDeleteDevice(ctx, c.Config.DataDir, c.Config.Database, phone)
+	remaining := -1
+	if container != nil {
+		remaining = deleteMatchingDevicesInContainer(ctx, container, ids...)
+	} else if len(ids) > 0 {
+		_ = FallbackDeleteDevice(ctx, c.Config.DataDir, c.Config.Database, ids[0])
+	}
+	PurgeSessionFiles(c.Config.DataDir, c.Config.Database, remaining == 0, ids...)
+}
+
+func extractCleanUsers(identifiers ...string) []string {
+	seen := make(map[string]bool)
+	var users []string
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s != "" && !seen[s] && s != "." && s != "/" && s != "\\" {
+			seen[s] = true
+			users = append(users, s)
+		}
+	}
+	for _, raw := range identifiers {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			continue
+		}
+		clean := strings.TrimPrefix(trimmed, "+")
+		user := clean
+		if idx := strings.IndexAny(user, ":@."); idx != -1 {
+			user = user[:idx]
+		}
+		add(user)
+		if user != "" {
+			add("+" + user)
+		}
+		if !strings.ContainsAny(clean, ":@/\\") {
+			add(clean)
+		}
+	}
+	return users
+}
+
+// PurgeSessionFiles removes all session-scoped folders and files inside .whatsrook
+// (as well as any custom data, database, or plugin directory) for the given session identifiers.
+func PurgeSessionFiles(dataDir, database string, noRemainingSessions bool, identifiers ...string) {
+	users := extractCleanUsers(identifiers...)
+
+	var baseDirs []string
+	seenDirs := make(map[string]bool)
+	addDir := func(d string) {
+		d = strings.TrimSpace(d)
+		if d == "" {
+			return
+		}
+		clean := filepath.Clean(d)
+		if clean != "." && clean != "/" && clean != "\\" && !seenDirs[clean] {
+			seenDirs[clean] = true
+			baseDirs = append(baseDirs, clean)
+		}
+	}
+
+	addDir(dataDir)
+	addDir(DefaultDataDir())
+	addDir(os.Getenv("WHATSROOK_DATA_DIR"))
+	addDir(os.Getenv("WHATSDATA_DIR"))
+	addDir(os.Getenv("WHATSROOK_PLUGIN_DIR"))
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		addDir(filepath.Join(home, ".whatsrook"))
+	}
+	trimmedDB := strings.TrimSpace(database)
+	if trimmedDB != "" && !strings.HasPrefix(trimmedDB, "postgres://") && !strings.HasPrefix(trimmedDB, "postgresql://") {
+		dbPath := strings.TrimPrefix(trimmedDB, "file:")
+		if idx := strings.IndexByte(dbPath, '?'); idx != -1 {
+			dbPath = dbPath[:idx]
+		}
+		if dir := filepath.Dir(dbPath); dir != "" && dir != "." {
+			addDir(dir)
+		}
+	}
+
+	for _, base := range baseDirs {
+		sessionsDir := filepath.Join(base, "sessions")
+		for _, u := range users {
+			_ = os.RemoveAll(filepath.Join(sessionsDir, u))
+		}
+		if noRemainingSessions {
+			_ = os.RemoveAll(filepath.Join(sessionsDir, "default"))
+			if entries, err := os.ReadDir(sessionsDir); err == nil && len(entries) == 0 {
+				_ = os.Remove(sessionsDir)
+			}
+		}
+
+		shellDir := filepath.Join(base, "shell_sessions")
+		if noRemainingSessions {
+			_ = os.RemoveAll(shellDir)
+		} else if entries, err := os.ReadDir(shellDir); err == nil {
+			for _, entry := range entries {
+				name := entry.Name()
+				for _, u := range users {
+					if u != "" && strings.Contains(name, u) {
+						_ = os.RemoveAll(filepath.Join(shellDir, name))
+						break
+					}
+				}
+			}
+			if rem, errRem := os.ReadDir(shellDir); errRem == nil && len(rem) == 0 {
+				_ = os.Remove(shellDir)
+			}
+		}
+	}
+
+	for _, u := range users {
+		_ = os.RemoveAll(filepath.Join("auth", u))
+	}
+	if noRemainingSessions {
+		_ = os.RemoveAll(filepath.Join("auth", "default"))
+		if entries, err := os.ReadDir("auth"); err == nil && len(entries) == 0 {
+			_ = os.Remove("auth")
+		}
 	}
 }
