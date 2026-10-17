@@ -1,13 +1,18 @@
 package whatsmeow
 
 import (
+	"context"
 	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/polymorfa/libsignal-protocol-go/groups"
+	"github.com/polymorfa/libsignal-protocol-go/protocol"
+
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.mau.fi/whatsmeow/util/log"
@@ -160,7 +165,7 @@ func TestParseGroupChange_MemberLinkAndShareHistoryMode(t *testing.T) {
 		t.Errorf("expected evt.MemberShareHistoryMode %s, got %+v", types.GroupMemberShareHistoryModeAllMember, evt.MemberShareHistoryMode)
 	}
 	if evt.AllowNonAdminSubGroupCreation == nil || !*evt.AllowNonAdminSubGroupCreation {
-		t.Errorf("expected evt.AllowNonAdminSubGroupCreation true, got %+v", evt.AllowNonAdminSubGroupCreation)
+		t.Errorf("expected AllowNonAdminSubGroupCreation true, got %+v", evt.AllowNonAdminSubGroupCreation)
 	}
 }
 
@@ -281,5 +286,73 @@ func TestUpdateGroupParticipantCache(t *testing.T) {
 	})
 	if slices.Contains(cached.Members, newMemberJID) {
 		t.Errorf("expected newMemberJID to be removed from Members")
+	}
+}
+
+type mockLIDStore struct {
+	store.LIDStore
+	pnToLID map[types.JID]types.JID
+	lidToPN map[types.JID]types.JID
+}
+
+func (m *mockLIDStore) GetLIDForPN(_ context.Context, pn types.JID) (types.JID, error) {
+	return m.pnToLID[pn], nil
+}
+
+func (m *mockLIDStore) GetPNForLID(_ context.Context, lid types.JID) (types.JID, error) {
+	return m.lidToPN[lid], nil
+}
+
+func TestGhostSend_ParticipantsAndPHashSuppression(t *testing.T) {
+	pn1 := types.NewJID("111111", types.DefaultUserServer)
+	lid1 := types.NewJID("999111", types.HiddenUserServer)
+	pn2 := types.NewJID("222222", types.DefaultUserServer)
+	pn1Companion := pn1
+	pn1Companion.Device = 2
+
+	cli := &Client{
+		Store: &store.Device{
+			LIDs: &mockLIDStore{
+				pnToLID: map[types.JID]types.JID{pn1: lid1},
+				lidToPN: map[types.JID]types.JID{lid1: pn1},
+			},
+		},
+	}
+
+	if (SendRequestExtra{}).isGhost() {
+		t.Fatalf("expected empty SendRequestExtra.isGhost() to be false")
+	}
+	if !(SendRequestExtra{Ghost: true}).isGhost() {
+		t.Fatalf("expected SendRequestExtra{Ghost: true}.isGhost() to be true")
+	}
+	if !(SendRequestExtra{Participants: []types.JID{pn1}}).isGhost() {
+		t.Fatalf("expected SendRequestExtra with Participants to have isGhost() == true")
+	}
+
+	// Resolve PN -> LID for LID-addressed groups and deduplicate companion devices
+	resolvedLID := resolveTargetParticipants(context.Background(), cli, []types.JID{pn1, pn1Companion, pn2}, types.AddressingModeLID)
+	expectedLID := []types.JID{lid1, pn2}
+	if !slices.Equal(resolvedLID, expectedLID) {
+		t.Fatalf("expected resolved LID participants %v, got %v", expectedLID, resolvedLID)
+	}
+
+	// Resolve LID -> PN for PN-addressed groups
+	resolvedPN := resolveTargetParticipants(context.Background(), cli, []types.JID{lid1, pn1Companion}, types.AddressingModePN)
+	expectedPN := []types.JID{pn1}
+	if !slices.Equal(resolvedPN, expectedPN) {
+		t.Fatalf("expected resolved PN participants %v, got %v", expectedPN, resolvedPN)
+	}
+
+	// Verify ephemeralSenderKeyStore creates and encrypts without touching persistent store
+	skStore := &ephemeralSenderKeyStore{}
+	builder := groups.NewGroupSessionBuilder(skStore, pbSerializer)
+	skName := protocol.NewSenderKeyName("120363000000000000@g.us", lid1.SignalAddress())
+	skdMsg, err := builder.Create(context.Background(), skName)
+	if err != nil || skdMsg == nil {
+		t.Fatalf("expected ephemeralSenderKeyStore builder.Create to succeed, got err=%v", err)
+	}
+	cipher := groups.NewGroupCipher(builder, skName, skStore)
+	if _, err := cipher.Encrypt(context.Background(), []byte("ghost payload")); err != nil {
+		t.Fatalf("expected ephemeralSenderKeyStore cipher.Encrypt to succeed, got err=%v", err)
 	}
 }

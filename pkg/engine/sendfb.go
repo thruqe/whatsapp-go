@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/polymorfa/libsignal-protocol-go/groups"
+	groupStore "github.com/polymorfa/libsignal-protocol-go/groups/state/store"
 	"github.com/polymorfa/libsignal-protocol-go/keys/prekey"
 	"github.com/polymorfa/libsignal-protocol-go/protocol"
 	"github.com/polymorfa/libsignal-protocol-go/session"
@@ -98,6 +99,8 @@ func (cli *Client) SendFBMessage(
 	metadata.FrankingVersion = proto.Int32(0)
 	metadata.FrankingKey = random.Bytes(32)
 	msgAttrs := getAttrsFromFBMessage(message)
+	msgAttrs.Participants = req.Participants
+	msgAttrs.Ghost = req.isGhost()
 	messageAppProto := &waMsgApplication.MessageApplication{
 		Payload: &waMsgApplication.MessageApplication_Payload{
 			Content: &waMsgApplication.MessageApplication_Payload_SubProtocol{
@@ -137,7 +140,7 @@ func (cli *Client) SendFBMessage(
 	resp.DebugTimings.Queue = time.Since(start)
 	defer cli.messageSendLock.Unlock()
 
-	if !req.Peer {
+	if !req.Peer && !req.isGhost() {
 		err = cli.addRecentMessage(ctx, to, req.ID, nil, messageAppProto)
 		if err != nil {
 			return
@@ -219,7 +222,7 @@ func (cli *Client) SendFBMessage(
 		cli.server401ErrorsLock.Unlock()
 	}
 	expectedPHash := ag.OptionalString("phash")
-	if setParticipantHashMismatch(&resp, phash, expectedPHash) {
+	if !req.isGhost() && setParticipantHashMismatch(&resp, phash, expectedPHash) {
 		cli.Log.Warnf("Server returned different participant list hash when sending to %s. Some devices may not have received the message.", to)
 		switch to.Server {
 		case types.GroupServer:
@@ -255,10 +258,25 @@ func (cli *Client) sendGroupV3(
 			return "", nil, fmt.Errorf("failed to get group members: %w", err)
 		}
 	}
+	var members []types.JID
+	if groupMeta != nil {
+		members = groupMeta.Members
+	}
+	if len(msgAttrs.Participants) > 0 {
+		var addressingMode types.AddressingMode
+		if groupMeta != nil {
+			addressingMode = groupMeta.AddressingMode
+		}
+		members = resolveTargetParticipants(ctx, cli, msgAttrs.Participants, addressingMode)
+	}
 	timings.GetParticipants = time.Since(start)
 
 	start = time.Now()
-	builder := groups.NewGroupSessionBuilder(cli.Store, pbSerializer)
+	var skStore groupStore.SenderKey = cli.Store
+	if msgAttrs.Ghost {
+		skStore = &ephemeralSenderKeyStore{}
+	}
+	builder := groups.NewGroupSessionBuilder(skStore, pbSerializer)
 	senderKeyName := protocol.NewSenderKeyName(to.String(), ownID.SignalAddress())
 	signalSKDMessage, err := builder.Create(ctx, senderKeyName)
 	if err != nil {
@@ -269,7 +287,7 @@ func (cli *Client) sendGroupV3(
 		AxolotlSenderKeyDistributionMessage: signalSKDMessage.Serialize(),
 	}
 
-	cipher := groups.NewGroupCipher(builder, senderKeyName, cli.Store)
+	cipher := groups.NewGroupCipher(builder, senderKeyName, skStore)
 	plaintext, err := proto.Marshal(&waMsgTransport.MessageTransport{
 		Payload: &waMsgTransport.MessageTransport_Payload{
 			ApplicationPayload: &waCommon.SubProtocol{
@@ -305,7 +323,7 @@ func (cli *Client) sendGroupV3(
 	timings.GroupEncrypt = time.Since(start)
 
 	node, allDevices, err := cli.prepareMessageNodeV3(
-		ctx, to, ownID, id, nil, skdm, msgAttrs, frankingTag, groupMeta.Members, timings,
+		ctx, to, ownID, id, nil, skdm, msgAttrs, frankingTag, members, timings,
 	)
 	if err != nil {
 		return "", nil, err
@@ -320,6 +338,9 @@ func (cli *Client) sendGroupV3(
 	}
 	if msgAttrs.MediaType != "" {
 		skMsg.Attrs["mediatype"] = msgAttrs.MediaType
+	}
+	if msgAttrs.Ghost {
+		skMsg.Attrs["decrypt-fail"] = string(events.DecryptFailHide)
 	}
 	node.Content = append(node.GetChildren(), skMsg)
 
@@ -364,11 +385,13 @@ func (cli *Client) sendDMV3(
 }
 
 type messageAttrs struct {
-	Type        string
-	MediaType   string
-	Edit        types.EditAttribute
-	DecryptFail events.DecryptFailMode
-	PollType    string
+	Type         string
+	MediaType    string
+	Edit         types.EditAttribute
+	DecryptFail  events.DecryptFailMode
+	PollType     string
+	Participants []types.JID
+	Ghost        bool
 }
 
 func getAttrsFromFBMessage(msg armadillo.MessageApplicationSub) (attrs messageAttrs) {

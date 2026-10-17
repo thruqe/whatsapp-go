@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/polymorfa/libsignal-protocol-go/groups"
+	groupRecord "github.com/polymorfa/libsignal-protocol-go/groups/state/record"
+	groupStore "github.com/polymorfa/libsignal-protocol-go/groups/state/store"
 	"github.com/polymorfa/libsignal-protocol-go/keys/prekey"
 	"github.com/polymorfa/libsignal-protocol-go/protocol"
 	"github.com/polymorfa/libsignal-protocol-go/session"
@@ -215,12 +217,25 @@ type SendRequestExtra struct {
 
 	CheckPermissions bool
 
+	// Participants specifies a subset of group or broadcast recipients to receive the message (ghost message).
+	// When non-empty (or when Ghost is true), only the specified participants receive the encryption keys,
+	// an ephemeral SenderKey is used so other group members cannot decrypt the message, and participant hash
+	// mismatch warnings and cache invalidations are suppressed.
+	Participants []types.JID
+	// Ghost marks the send request as a targeted/ghost message even if Participants is not used directly,
+	// suppressing participant hash mismatch warnings and cache invalidation.
+	Ghost bool
+
 	// AsyncAck: when set to true, SendMessage will dispatch the message immediately over the socket
 	// and return without blocking for the server's ACK response over the network.
 	// The response is awaited and processed asynchronously in the background.
 	AsyncAck bool
 	// OnAck: optional callback invoked when the server ACK or error is received in the background.
 	OnAck func(resp SendResponse, err error)
+}
+
+func (req SendRequestExtra) isGhost() bool {
+	return req.Ghost || len(req.Participants) > 0
 }
 
 // SendMessageAsync sends the message asynchronously without blocking for the server ACK response.
@@ -331,7 +346,9 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 
 	isBotMode := isInlineBotMode || to.IsBot()
 	needsMessageSecret := isBotMode || cli.shouldIncludeReportingToken(message)
-	var extraParams nodeExtraParams
+	extraParams := nodeExtraParams{
+		ghost: req.isGhost(),
+	}
 
 	if needsMessageSecret {
 		if message.MessageContextInfo == nil {
@@ -406,6 +423,9 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 				return
 			}
 			groupParticipants = cachedData.Members
+			if len(req.Participants) > 0 {
+				groupParticipants = resolveTargetParticipants(ctx, cli, req.Participants, cachedData.AddressingMode)
+			}
 			// TODO this is fairly hacky, is there a proper way to determine which identity the message is sent with?
 			if cachedData.AddressingMode == types.AddressingModeLID {
 				ownID = cli.getOwnLID()
@@ -416,10 +436,14 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 				extraParams.addressingMode = types.AddressingModePN
 			}
 		} else {
-			groupParticipants, err = cli.getBroadcastListParticipants(ctx, to)
-			if err != nil {
-				err = fmt.Errorf("failed to get broadcast list members: %w", err)
-				return
+			if len(req.Participants) > 0 {
+				groupParticipants = resolveTargetParticipants(ctx, cli, req.Participants, "")
+			} else {
+				groupParticipants, err = cli.getBroadcastListParticipants(ctx, to)
+				if err != nil {
+					err = fmt.Errorf("failed to get broadcast list members: %w", err)
+					return
+				}
 			}
 		}
 		resp.DebugTimings.GetParticipants = time.Since(start)
@@ -472,8 +496,8 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 	resp.DebugTimings.Queue = time.Since(start)
 	defer cli.messageSendLock.Unlock()
 
-	// Peer message retries aren't implemented yet
-	if !req.Peer {
+	// Peer message retries aren't implemented yet, and ghost messages should not be cached for retries
+	if !req.Peer && !req.isGhost() {
 		startRecent := time.Now()
 		err = cli.addRecentMessage(ctx, to, req.ID, message, nil)
 		resp.DebugTimings.AddRecentMessage = time.Since(startRecent)
@@ -564,7 +588,7 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 			cli.server401ErrorsLock.Unlock()
 		}
 		expectedPHash := ag.OptionalString("phash")
-		if setParticipantHashMismatch(&subResp, phash, expectedPHash) {
+		if !req.isGhost() && setParticipantHashMismatch(&subResp, phash, expectedPHash) {
 			cli.Log.Warnf("Server returned different participant list hash (%s != %s) when sending to %s. Some devices may not have received the message.", phash, expectedPHash, to)
 			switch to.Server {
 			case types.GroupServer:
@@ -933,6 +957,52 @@ type nodeExtraParams struct {
 	additionalNodes *[]waBinary.Node
 	addressingMode  types.AddressingMode
 	peerRecipientPN types.JID
+	ghost           bool
+}
+
+type ephemeralSenderKeyStore struct {
+	key *groupRecord.SenderKey
+}
+
+func (e *ephemeralSenderKeyStore) StoreSenderKey(_ context.Context, _ *protocol.SenderKeyName, keyRecord *groupRecord.SenderKey) error {
+	e.key = keyRecord
+	return nil
+}
+
+func (e *ephemeralSenderKeyStore) LoadSenderKey(_ context.Context, _ *protocol.SenderKeyName) (*groupRecord.SenderKey, error) {
+	return e.key, nil
+}
+
+func resolveTargetParticipants(ctx context.Context, cli *Client, targets []types.JID, addressingMode types.AddressingMode) []types.JID {
+	resolved := make([]types.JID, 0, len(targets))
+	seen := make(map[types.JID]struct{}, len(targets))
+	for _, target := range targets {
+		target = target.ToNonAD()
+		if target.IsEmpty() {
+			continue
+		}
+		if cli != nil && cli.Store != nil && cli.Store.LIDs != nil {
+			switch addressingMode {
+			case types.AddressingModeLID:
+				if target.Server == types.DefaultUserServer {
+					if lid, err := cli.Store.LIDs.GetLIDForPN(ctx, target); err == nil && !lid.IsEmpty() {
+						target = lid
+					}
+				}
+			case types.AddressingModePN:
+				if target.Server == types.HiddenUserServer {
+					if pn, err := cli.Store.LIDs.GetPNForLID(ctx, target); err == nil && !pn.IsEmpty() {
+						target = pn
+					}
+				}
+			}
+		}
+		if _, ok := seen[target]; !ok {
+			seen[target] = struct{}{}
+			resolved = append(resolved, target)
+		}
+	}
+	return resolved
 }
 
 func (cli *Client) sendGroup(
@@ -953,7 +1023,11 @@ func (cli *Client) sendGroup(
 	}
 
 	start = time.Now()
-	builder := groups.NewGroupSessionBuilder(cli.Store, pbSerializer)
+	var skStore groupStore.SenderKey = cli.Store
+	if extraParams.ghost {
+		skStore = &ephemeralSenderKeyStore{}
+	}
+	builder := groups.NewGroupSessionBuilder(skStore, pbSerializer)
 	senderKeyName := protocol.NewSenderKeyName(to.String(), cli.getOwnLID().SignalAddress())
 	signalSKDMessage, err := builder.Create(ctx, senderKeyName)
 	if err != nil {
@@ -970,7 +1044,7 @@ func (cli *Client) sendGroup(
 		return "", nil, fmt.Errorf("failed to marshal sender key distribution message to send %s to %s: %w", id, to, err)
 	}
 
-	cipher := groups.NewGroupCipher(builder, senderKeyName, cli.Store)
+	cipher := groups.NewGroupCipher(builder, senderKeyName, skStore)
 	encrypted, err := cipher.Encrypt(ctx, padMessage(plaintext))
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to encrypt group message to send %s to %s: %w", id, to, err)
@@ -994,6 +1068,9 @@ func (cli *Client) sendGroup(
 	}
 	if mediaType := getMediaTypeFromMessage(message); mediaType != "" {
 		skMsg.Attrs["mediatype"] = mediaType
+	}
+	if extraParams.ghost {
+		skMsg.Attrs["decrypt-fail"] = string(events.DecryptFailHide)
 	}
 	node.Content = append(node.GetChildren(), skMsg)
 	if cli.shouldIncludeReportingToken(message) && message.GetMessageContextInfo().GetMessageSecret() != nil {
